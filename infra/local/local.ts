@@ -1,5 +1,6 @@
 /**
  * Comandos do ambiente local (M0-03): subir, zerar e parar.
+ * Subir: liga o banco, roda as migrações, carrega os dados falsos e liga a API.
  *
  * Uso: node infra/local/local.ts <subir|zerar|parar>
  * Roda direto no Node 26, sem compilar. Só usa o Docker; não precisa de psql instalado no Mac.
@@ -34,9 +35,21 @@ function carregarDadosFalsos(): void {
   }
 }
 
+/** Roda as migrações do núcleo no banco local, com o papel dono das tabelas. */
+function migrar(): void {
+  const porta = process.env.MAGO_DB_PORTA ?? "54318";
+  execFileSync("node", ["src/migrar.ts", "subir"], {
+    cwd: join(pasta, "..", "..", "nucleo"),
+    stdio: "inherit",
+    env: { ...process.env, DATABASE_URL_DONO: `postgres://mago@127.0.0.1:${porta}/mago` },
+  });
+}
+
 function subir(): void {
-  docker(["up", "-d", "--wait"]);
+  docker(["up", "-d", "--wait", "db"]);
+  migrar();
   carregarDadosFalsos();
+  docker(["up", "-d", "--wait"]);
   const portaBanco = process.env.MAGO_DB_PORTA ?? "54318";
   const portaApi = process.env.MAGO_API_PORTA ?? "3000";
   console.log("\nMago OS local no ar.");

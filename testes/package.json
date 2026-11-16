@@ -7,5 +7,12 @@
   "exports": "./src/index.ts",
   "scripts": {
     "tipos": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@mago-os/nucleo": "workspace:*",
+    "pg": "catalog:"
+  },
+  "devDependencies": {
+    "@types/pg": "catalog:"
   }
 }

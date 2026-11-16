@@ -29,7 +29,8 @@ services:
     working_dir: /app/nucleo
     command: ["node", "--import", "./src/rastreio.ts", "src/iniciar.ts"]
     environment:
-      DATABASE_URL: postgres://mago@db:5432/mago
+      # A API usa o papel mago_app, que obedece o isolamento por empresa (as migrações usam o dono).
+      DATABASE_URL: postgres://mago_app@db:5432/mago
       AMBIENTE: local
       NIVEL_REGISTRO: info
       PORTA: "3000"

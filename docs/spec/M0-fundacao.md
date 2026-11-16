@@ -10,7 +10,7 @@ Parte da [spec da Fase 1](README.md). Estado em 16/11/2026: em andamento.
 | M0-02 | Quadro Kanban e modelos de tarefa | M0-01 | P | Em revisão |
 | M0-03 | Ambiente local com containers | M0-01 | M | Em revisão |
 | M0-04 | Núcleo mínimo da API | M0-01 | M | Em revisão |
-| M0-05 | Banco, migrações e isolamento por empresa | M0-03, M0-04 | M | A fazer |
+| M0-05 | Banco, migrações e isolamento por empresa | M0-03, M0-04 | M | Em revisão |
 | M0-06 | Tela inicial com o design aprovado | M0-01 | M | A fazer |
 | M0-07 | Testes automáticos e proteção da main | M0-04, M0-06 | M | A fazer |
 | M0-08 | Segredos no Infisical | M0-04 | P | Parte adiantada |
@@ -57,14 +57,14 @@ Pronto quando: a rota de saúde responde e cada pedido aparece nos registros com
 
 ## M0-05 Banco, migrações e isolamento por empresa
 
-- [ ] Ferramenta de migrações versionadas, sempre com o caminho de volta
-- [ ] Primeira tabela de empresas e a regra de que todo dado leva a empresa
-- [ ] Isolamento no próprio banco (Row Level Security) ligado desde a primeira tabela
-- [ ] Teste automático que tenta ler dados de outra empresa e precisa falhar
-- [ ] Descrição em português de cada tabela e coluna dentro das migrações, com as marcas dado da empresa, dado pessoal (LGPD) e dado sensível
-- [ ] Documentação do banco gerada sozinha em docs/banco a cada mudança aprovada: diagrama das tabelas (Mermaid) e dicionário de dados
-- [ ] Teste que barra tabela ou coluna sem descrição ou sem a marca de dado pessoal
-- [ ] Arquivo "decisões do banco" escrito à mão, explicando o porquê das escolhas importantes
+- [x] Ferramenta de migrações versionadas, sempre com o caminho de volta
+- [x] Primeira tabela de empresas e a regra de que todo dado leva a empresa
+- [x] Isolamento no próprio banco (Row Level Security) ligado desde a primeira tabela
+- [x] Teste automático que tenta ler dados de outra empresa e precisa falhar
+- [x] Descrição em português de cada tabela e coluna dentro das migrações, com as marcas dado da empresa, dado pessoal (LGPD) e dado sensível
+- [x] Documentação do banco gerada sozinha em docs/banco a cada mudança aprovada: diagrama das tabelas (Mermaid) e dicionário de dados (gerada por `pnpm banco:documentar`; um teste barra o PR se o arquivo não estiver atualizado)
+- [x] Teste que barra tabela ou coluna sem descrição ou sem a marca de dado pessoal
+- [x] Arquivo "decisões do banco" escrito à mão, explicando o porquê das escolhas importantes
 
 Pronto quando: o teste de vazamento prova que uma empresa não vê a outra, e docs/banco mostra o diagrama e o dicionário da primeira tabela, gerados sozinhos.
 
