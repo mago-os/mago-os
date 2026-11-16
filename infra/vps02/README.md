@@ -7,12 +7,14 @@ Explicação completa: Wiki do cliente MagoOS, páginas `infraestrutura.md` e `b
 | Arquivo aqui | Onde fica no servidor |
 |---|---|
 | `compose.yaml` | `/opt/mago-os/compose.yaml` |
-| `env.example` | `/opt/mago-os/.env` (senha do banco) |
-| `backup.env.example` | `/opt/mago-os/backup.env` (gerado por `bin/segredos-backup.sh`) |
+| `env.example` | `/opt/mago-os/.env` (senha do dono do banco, gerado por `bin/segredos.sh`) |
+| `backup.env.example` | `/opt/mago-os/backup.env` (gerado por `bin/segredos.sh`) |
+| `api.env.example` | `/opt/mago-os/api.env` (conexões da API e das migrações, gerado por `bin/segredos.sh`) |
 | `infisical.env.example` | `/opt/mago-os/infisical.env` (acesso da identidade `vps02`) |
 | `db-image/Dockerfile` | `/opt/mago-os/db-image/Dockerfile` (imagem `mago-os-db:pg18`) |
 | `pgbackrest/pgbackrest.conf` | `/opt/mago-os/pgbackrest/pgbackrest.conf` |
-| `bin/segredos-backup.sh` | `/opt/mago-os/bin/segredos-backup.sh` |
+| `bin/segredos.sh` | `/opt/mago-os/bin/segredos.sh` (busca todos os segredos no Infisical) |
+| `bin/segredos-backup.sh` | `/opt/mago-os/bin/segredos-backup.sh` (nome antigo, chama o `segredos.sh`) |
 | `bin/backup-diario.sh` | `/opt/mago-os/bin/backup-diario.sh` |
 | `caddy/mago-os.caddy` | `/etc/caddy/mago-os.caddy` (incluído no fim do `/etc/caddy/Caddyfile`) |
 | `cron/mago-os-backup` | `/etc/cron.d/mago-os-backup` |
@@ -20,8 +22,8 @@ Explicação completa: Wiki do cliente MagoOS, páginas `infraestrutura.md` e `b
 ## Remontar do zero numa VPS nova
 
 1. Copiar os arquivos para os caminhos da tabela.
-2. Criar `/opt/mago-os/.env` e `/opt/mago-os/infisical.env` a partir dos modelos (`chmod 600`).
-3. `docker build -t mago-os-db:pg18 /opt/mago-os/db-image` e `/opt/mago-os/bin/segredos-backup.sh`.
+2. Criar só o `/opt/mago-os/infisical.env` a partir do modelo (`chmod 600`); os outros arquivos de segredos saem do Infisical.
+3. `docker build -t mago-os-db:pg18 /opt/mago-os/db-image` e `/opt/mago-os/bin/segredos.sh`.
 4. Para restaurar os dados: `pgbackrest --stanza=mago restore` num volume vazio, antes de subir o banco.
 5. `cd /opt/mago-os && docker compose up -d`.
 6. Acrescentar `import /etc/caddy/mago-os.caddy` ao Caddyfile e `systemctl reload caddy`.
