@@ -26,8 +26,8 @@ O Mago OS é um sistema operacional de agentes para empresas: pessoas e agentes 
 ## Regras de código
 
 1. **Um módulo só conversa com outro pelos contratos** (`@mago-os/contratos`), nunca importando o código do outro.
-2. **Todo dado leva a empresa**, e o banco isola as empresas com Row Level Security desde a primeira tabela. Toda tabela nova tem teste provando que uma empresa não vê a outra.
-3. **Mudanças no banco são migrações numeradas e versionadas, sempre com o caminho de volta.** Cada tabela e coluna tem descrição em português e a marca: dado da empresa, dado pessoal (LGPD) ou dado sensível.
+2. **Todo dado leva a empresa**, e o banco isola as empresas com Row Level Security desde a primeira tabela. Toda tabela nova tem `empresa_id`, `ENABLE` e `FORCE ROW LEVEL SECURITY` e uma política com `empresa_ativa()`; os testes de `testes/` barram o que faltar. No código, todo acesso a dados de negócio passa por `comEmpresa` (`nucleo/src/empresa.ts`). Ver [docs/banco/decisoes.md](docs/banco/decisoes.md).
+3. **Mudanças no banco são migrações numeradas e versionadas, sempre com o caminho de volta** (`nucleo/migracoes/NNNN_nome.sql`, com `-- Up Migration` e `-- Down Migration`). Cada tabela e coluna tem descrição em português, e cada coluna começa por uma marca: `[empresa]`, `[pessoal]`, `[sensivel]` ou `[sistema]`. Depois de mudar o banco, rode `pnpm banco:documentar` e inclua `docs/banco/README.md` no mesmo PR.
 4. **Código e testes juntos.** Teste de unidade ao lado do código (`arquivo.test.ts`); teste que cruza pacotes em `testes/`.
 5. **Versões só no catálogo** do `pnpm-workspace.yaml`. Nos pacotes, escreva `"catalog:"`, nunca o número. Mudar versão é tarefa própria.
 6. **TypeScript que o Node roda direto:** importe com a extensão `.ts` e não use `enum` nem `namespace` (a verificação de tipos barra).
@@ -67,7 +67,9 @@ O Mago OS é um sistema operacional de agentes para empresas: pessoas e agentes 
 | `pnpm verificar` | Tipos, estilo e testes, na ordem |
 | `pnpm tipos` | Confere os tipos de todos os pacotes (TypeScript 7) |
 | `pnpm estilo` | Confere estilo e erros comuns (Biome); `pnpm estilo:corrigir` arruma sozinho |
-| `pnpm testes` | Roda os testes (Vitest) |
+| `pnpm testes` | Roda os testes (Vitest). Os testes com banco real precisam do ambiente local no ar (`pnpm local:subir`); sem ele, são pulados com aviso |
 | `pnpm local:subir` | Sobe o ambiente local em containers (Docker) com dados falsos |
 | `pnpm local:zerar` | Apaga o banco local e sobe de novo |
 | `pnpm local:parar` | Para os containers locais |
+| `pnpm migrar` | Roda as migrações pendentes (precisa de `DATABASE_URL_DONO`) |
+| `pnpm banco:documentar` | Gera de novo a documentação do banco em `docs/banco` |

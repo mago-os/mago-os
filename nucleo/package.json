@@ -5,22 +5,30 @@
   "description": "Núcleo: API, login, permissões, tarefas, agentes, fila e auditoria.",
   "type": "module",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./banco-temporario": "./src/banco-temporario.ts",
+    "./documentar-banco": "./src/documentar-banco.ts",
+    "./empresa": "./src/empresa.ts",
+    "./migrar": "./src/migrar.ts"
   },
   "scripts": {
     "tipos": "tsc -p tsconfig.json",
-    "iniciar": "node --import ./src/rastreio.ts src/iniciar.ts"
+    "iniciar": "node --import ./src/rastreio.ts src/iniciar.ts",
+    "migrar": "node src/migrar.ts subir",
+    "migrar:voltar": "node src/migrar.ts voltar",
+    "banco:documentar": "node src/documentar-banco.ts"
   },
   "dependencies": {
+    "@fastify/otel": "catalog:",
     "@mago-os/contratos": "workspace:*",
-    "fastify": "catalog:",
-    "pg": "catalog:",
-    "pg-boss": "catalog:",
     "@opentelemetry/api": "catalog:",
-    "@opentelemetry/sdk-node": "catalog:",
     "@opentelemetry/instrumentation-http": "catalog:",
     "@opentelemetry/instrumentation-pg": "catalog:",
-    "@fastify/otel": "catalog:"
+    "@opentelemetry/sdk-node": "catalog:",
+    "fastify": "catalog:",
+    "node-pg-migrate": "catalog:",
+    "pg": "catalog:",
+    "pg-boss": "catalog:"
   },
   "devDependencies": {
     "@types/pg": "catalog:"

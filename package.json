@@ -17,7 +17,9 @@
     "verificar": "pnpm tipos && pnpm estilo && pnpm testes",
     "local:subir": "node infra/local/local.ts subir",
     "local:zerar": "node infra/local/local.ts zerar",
-    "local:parar": "node infra/local/local.ts parar"
+    "local:parar": "node infra/local/local.ts parar",
+    "banco:documentar": "pnpm --filter @mago-os/nucleo banco:documentar",
+    "migrar": "pnpm --filter @mago-os/nucleo migrar"
   },
   "devDependencies": {
     "@biomejs/biome": "catalog:",
