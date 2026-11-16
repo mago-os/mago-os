@@ -1,0 +1,32 @@
+# Alertas e atualizações de dependências (M0-01).
+# As atualizações chegam como PR, uma vez por semana, agrupadas para não encher o quadro.
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      timezone: America/Sao_Paulo
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "Dependências"
+    groups:
+      menores:
+        update-types: [minor, patch]
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      timezone: America/Sao_Paulo
+    commit-message:
+      prefix: "Dependências"
+  - package-ecosystem: docker
+    directory: /infra/vps02/db-image
+    schedule:
+      interval: weekly
+      day: monday
+      timezone: America/Sao_Paulo
+    commit-message:
+      prefix: "Dependências"
