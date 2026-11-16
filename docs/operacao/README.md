@@ -4,6 +4,7 @@ Como publicar, voltar uma versão, restaurar o backup, trocar chaves e o que faz
 
 | Assunto | Onde está hoje | Entra em |
 | --- | --- | --- |
+| Quadro de tarefas (colunas, campos e automações) | [quadro.md](quadro.md) | Já existe |
 | Infraestrutura da VPS02 e como remontar do zero | [infra/vps02/README.md](../../infra/vps02/README.md) | Já existe |
 | Restaurar o backup do banco (B2) | A escrever | M0-11 |
 | Publicar e voltar uma versão no teste | A escrever | M0-10 |
