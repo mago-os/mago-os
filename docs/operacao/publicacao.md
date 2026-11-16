@@ -50,4 +50,4 @@ Voltar uma versão não desfaz migrações do banco. Se a versão nova mudou o b
 
 ## Segredos envolvidos
 
-`MAGO_CAMPAINHA_SEGREDO` (Infisical e GitHub › Settings › Secrets) e `GHCR_LEITURA_TOKEN` (Infisical; token "classic" do Sandro só com `read:packages`, vence em 1 ano). Ver [segredos.md](segredos.md).
+`MAGO_CAMPAINHA_SEGREDO` (Infisical e GitHub › Settings › Secrets) e `GHCR_LEITURA_TOKEN` (Infisical; token "classic" do Sandro só com `read:packages`, sem vencimento). Ver [segredos.md](segredos.md).

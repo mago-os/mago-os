@@ -26,7 +26,7 @@ Todos os segredos do Mago OS ficam no Infisical Cloud (região EUA, https://app.
 | `B2_KEY_ID`, `B2_APPLICATION_KEY`, `B2_ENDPOINT`, `B2_REGION`, `B2_BUCKET` | Acesso ao bucket de backup no Backblaze B2 | pgBackRest |
 | `PGBACKREST_CIPHER_PASS` | Senha de criptografia dos backups. Sem ela, nenhum backup pode ser restaurado | pgBackRest |
 | `MAGO_CAMPAINHA_SEGREDO` | Assinatura da campainha de publicação (também em GitHub › Settings › Secrets) | Campainha na VPS e fluxo de publicação |
-| `GHCR_LEITURA_TOKEN` | Token "classic" do Sandro, só `read:packages`, vence em 1 ano | A VPS baixar a imagem do ghcr.io |
+| `GHCR_LEITURA_TOKEN` | Token "classic" do Sandro (`mago-os-vps02-baixar-imagem`), só `read:packages`, **sem vencimento**: trocar em qualquer suspeita de vazamento (apagar em github.com/settings/tokens e gravar o novo no Infisical) | A VPS baixar a imagem do ghcr.io |
 
 ## Como os segredos chegam à VPS
 
