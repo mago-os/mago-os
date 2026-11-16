@@ -1,0 +1,22 @@
+# Pastas do monorepo. Cada pasta é um pacote com nome @mago-os/<pasta>.
+packages:
+  - nucleo
+  - contratos
+  - telas
+  - testes
+  - modulos/*
+
+# Versões aprovadas na spec (M0-01). Todo pacote usa "catalog:" em vez de escrever a versão,
+# então mudar uma versão é mudar só esta lista, sempre numa tarefa própria.
+catalog:
+  typescript: 7.0.2
+  fastify: 5.12.8
+  react: 19.3.1
+  react-dom: 19.3.1
+  vite: 8.3.8
+  vitest: 5.1.0
+  "@biomejs/biome": 2.6.7
+  "@types/node": ^26.0.0
+
+# Só instala versões publicadas há pelo menos 1 dia (protege contra pacote adulterado recém-publicado).
+minimumReleaseAge: 1440

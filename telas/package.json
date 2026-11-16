@@ -1,0 +1,11 @@
+{
+  "name": "@mago-os/telas",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Telas: frontend React com os painéis encaixáveis.",
+  "type": "module",
+  "exports": "./src/index.ts",
+  "scripts": {
+    "tipos": "tsc -p tsconfig.json"
+  }
+}

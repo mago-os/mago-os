@@ -3,3 +3,9 @@
 *.env
 !*.env.example
 .DS_Store
+
+# Gerados
+node_modules/
+dist/
+coverage/
+*.tsbuildinfo

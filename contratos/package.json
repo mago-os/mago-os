@@ -1,0 +1,11 @@
+{
+  "name": "@mago-os/contratos",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Contratos: formatos de dados e ações que cada módulo declara. Única forma de um módulo falar com outro.",
+  "type": "module",
+  "exports": "./src/index.ts",
+  "scripts": {
+    "tipos": "tsc -p tsconfig.json"
+  }
+}

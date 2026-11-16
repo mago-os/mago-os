@@ -1,0 +1,14 @@
+{
+  "name": "@mago-os/nucleo",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Núcleo: API, login, permissões, tarefas, agentes, fila e auditoria.",
+  "type": "module",
+  "exports": "./src/index.ts",
+  "scripts": {
+    "tipos": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@mago-os/contratos": "workspace:*"
+  }
+}
