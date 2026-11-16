@@ -11,3 +11,4 @@ Uma nota curta por decisão importante: o que foi decidido, por quê e o que foi
 | [0002](0002-backup-no-backblaze-b2.md) | Backup do banco no Backblaze B2 em vez do Cloudflare R2 | Aceita |
 | [0003](0003-api-registros-e-rastreio.md) | API: configuração, registros, número de rastreio e fila | Aceita |
 | [0004](0004-telas.md) | Telas: React, Tailwind, shadcn, app instalável e o mago | Aceita |
+| [0005](0005-main-sem-trava-por-enquanto.md) | Main sem trava do GitHub por enquanto, com regra escrita (rever antes de novos agentes ou do M6) | Aceita |

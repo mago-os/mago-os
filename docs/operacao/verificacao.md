@@ -14,4 +14,4 @@ Em 16/11/2026, um PR com um teste quebrado de propósito (#30) foi barrado: "Tip
 
 ## Proteção da main
 
-O GitHub só permite proteger a main de um repositório privado com plano pago. Quando estiver disponível, a proteção exige: entrar só por PR, os três trabalhos acima verdes e o PR atualizado com a main. Enquanto isso, a regra é combinada: nenhum merge sem a verificação verde.
+O GitHub só permite proteger a main de um repositório privado com plano pago. Quando estiver disponível, a proteção exige: entrar só por PR, os três trabalhos acima verdes e o PR atualizado com a main. Enquanto isso, a regra é combinada: nenhum merge sem a verificação verde ([decisão 0005](../decisoes/0005-main-sem-trava-por-enquanto.md)).

@@ -81,7 +81,7 @@ Pronto quando: a tela abre no celular e no computador, nos dois temas, e pode se
 
 - [x] GitHub Actions rodando a cada mudança: tipos, estilo, testes de unidade, testes com PostgreSQL real e testes de tela com Playwright
 - [x] Verificação de segurança: bibliotecas com falhas conhecidas e senhas esquecidas no código
-- [ ] Proteção da main: só entra por PR, com testes verdes e aprovação (o plano grátis do GitHub não permite em repositório privado; espera a decisão do Sandro)
+- [ ] Proteção da main: só entra por PR, com testes verdes e aprovação (o plano grátis do GitHub não permite em repositório privado; por decisão do Sandro em 16/11/2026, fica como regra escrita até antes de novos agentes ou do M6, ver decisão 0005)
 
 Pronto quando: uma mudança com teste quebrado é barrada sozinha.
 
