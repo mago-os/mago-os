@@ -4,6 +4,8 @@
 #   /opt/mago-os/.env         senha do dono do banco (container do PostgreSQL)
 #   /opt/mago-os/backup.env   chaves do Backblaze B2 e senha de criptografia do pgBackRest
 #   /opt/mago-os/api.env      conexões da API (papel mago_app) e das migrações (dono), a partir do M0-10
+#   /opt/mago-os/campainha.env segredo que confere a assinatura da campainha do GitHub (M0-10)
+# e entra no ghcr.io com o token só de leitura, para baixar a imagem do Mago OS.
 # Uso: /opt/mago-os/bin/segredos.sh   (depois: docker compose up -d --force-recreate, para os containers lerem)
 # Nenhum valor aparece na tela nem no log.
 set -euo pipefail
@@ -22,7 +24,8 @@ s = {x["secretKey"]: x["secretValue"].strip()
      for x in j(B + f"/api/v3/secrets/raw?workspaceId={WS}&environment=staging&secretPath=/",
                 h={"Authorization": "Bearer " + t})["secrets"]}
 faltam = [k for k in ["MAGO_DB_SENHA_DONO", "MAGO_DB_SENHA_APP", "B2_KEY_ID", "B2_APPLICATION_KEY", "B2_ENDPOINT",
-                      "B2_BUCKET", "B2_REGION", "PGBACKREST_CIPHER_PASS"] if not s.get(k)]
+                      "B2_BUCKET", "B2_REGION", "PGBACKREST_CIPHER_PASS", "MAGO_CAMPAINHA_SEGREDO",
+                      "GHCR_LEITURA_TOKEN"] if not s.get(k)]
 if faltam:
     sys.exit("Faltam no Infisical (staging): " + ", ".join(faltam))
 q = lambda v: urllib.parse.quote(v, safe="")
@@ -39,6 +42,7 @@ arquivos = {
         "DATABASE_URL_DONO": f"postgres://mago:{q(s['MAGO_DB_SENHA_DONO'])}@db:5432/mago",
         "MAGO_DB_SENHA_APP": s["MAGO_DB_SENHA_APP"],
     },
+    "campainha.env": {"MAGO_CAMPAINHA_SEGREDO": s["MAGO_CAMPAINHA_SEGREDO"]},
 }
 os.umask(0o077)
 for nome, valores in arquivos.items():
@@ -47,4 +51,8 @@ for nome, valores in arquivos.items():
         f.write("".join(f"{k}={v}\n" for k, v in valores.items()))
     os.replace(tmp, destino)
     print(f"{nome}: {len(valores)} variáveis")
+import subprocess
+r = subprocess.run(["docker", "login", "ghcr.io", "-u", "mago-os-vps02", "--password-stdin"],
+                   input=s["GHCR_LEITURA_TOKEN"], text=True, capture_output=True)
+print("ghcr.io: " + ("acesso de leitura ok" if r.returncode == 0 else "FALHOU: " + r.stderr.strip()[:200]))
 PY

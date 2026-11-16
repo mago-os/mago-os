@@ -1,0 +1,33 @@
+# Mago OS (ambiente de testes). Gerado por /opt/mago-os/bin/publicar.sh a partir de mago-os.caddy.modelo: não editar
+# à mão, editar o modelo. Mantido fora do Caddyfile da Ratoeira; se a Ratoeira for reinstalada, recolocar a linha
+# "import /etc/caddy/mago-os.caddy" no fim do Caddyfile.
+teste.osmago.com {
+	encode zstd gzip
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options nosniff
+		Referrer-Policy strict-origin-when-cross-origin
+		-Server
+	}
+
+	# Campainha do GitHub: só avisa a VPS para conferir se há versão nova (assinada; não dá acesso a nada).
+	handle /_campainha {
+		reverse_proxy 127.0.0.1:3190
+	}
+
+	# API (núcleo), na cor que estiver no ar.
+	handle_path /api/* {
+		reverse_proxy 127.0.0.1:{{PORTA_API}}
+	}
+
+	# Tela: arquivos da versão publicada. Rotas do app caem no index.html.
+	handle {
+		root * {{PASTA_TELA}}
+		@imutavel path /assets/*
+		header @imutavel Cache-Control "public, max-age=31536000, immutable"
+		@semcache path /sw.js /registerSW.js /index.html /manifest.webmanifest
+		header @semcache Cache-Control "no-cache"
+		try_files {path} /index.html
+		file_server
+	}
+}

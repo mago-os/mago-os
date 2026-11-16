@@ -1,0 +1,84 @@
+# Publicação automática no teste (M0-10). Roda quando a verificação da main termina verde:
+# monta a imagem, guarda no ghcr.io (privado), toca a campainha da VPS02 e confere teste.osmago.com.
+# O GitHub não guarda nenhuma chave de acesso à VPS: a VPS é que busca a imagem.
+name: Publicação no teste
+
+on:
+  workflow_run:
+    workflows: [Verificação]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write # criar a versão no histórico (Releases)
+  packages: write # guardar a imagem no ghcr.io
+
+concurrency:
+  group: publicacao-teste
+  cancel-in-progress: false
+
+jobs:
+  publicar:
+    name: Publicar no teste
+    if: github.event_name == 'workflow_dispatch' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push')
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    environment:
+      name: teste
+      url: https://teste.osmago.com
+    env:
+      VERSAO: ${{ github.event.workflow_run.head_sha || github.sha }}
+      IMAGEM: ghcr.io/mago-os/mago-os
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ env.VERSAO }}
+          fetch-depth: 0
+      - uses: docker/setup-buildx-action@v4
+      - uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Montar e guardar a imagem
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          push: true
+          build-args: MAGO_VERSAO=${{ env.VERSAO }}
+          tags: |
+            ${{ env.IMAGEM }}:${{ env.VERSAO }}
+            ${{ env.IMAGEM }}:teste
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Tocar a campainha da VPS02
+        env:
+          SEGREDO: ${{ secrets.MAGO_CAMPAINHA_SEGREDO }}
+        run: |
+          momento=$(date +%s)
+          corpo="{\"versao\":\"$VERSAO\"}"
+          assinatura=$(printf '%s.%s' "$momento" "$corpo" | openssl dgst -sha256 -hmac "$SEGREDO" -r | cut -d' ' -f1)
+          curl -fsS -X POST https://teste.osmago.com/_campainha \
+            -H "X-Mago-Momento: $momento" -H "X-Mago-Assinatura: sha256=$assinatura" \
+            -H "Content-Type: application/json" --data "$corpo" \
+            || echo "A campainha não respondeu; a VPS confere sozinha a cada minuto."
+
+      - name: Conferir teste.osmago.com (até 8 minutos)
+        run: |
+          for i in $(seq 1 48); do
+            no_ar=$(curl -fsS https://teste.osmago.com/api/saude | jq -r .versao || true)
+            if [ "$no_ar" = "$VERSAO" ]; then echo "teste.osmago.com está na versão ${VERSAO:0:7}"; exit 0; fi
+            sleep 10
+          done
+          echo "::error::teste.osmago.com não mostrou a versão ${VERSAO:0:7} em 8 minutos. A versão anterior continua no ar. Ver na VPS: journalctl -u mago-os-publicar"
+          exit 1
+
+      - name: Registrar no histórico de versões
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          marca="teste-$(TZ=America/Sao_Paulo date +%Y%m%d-%H%M)-${VERSAO:0:7}"
+          gh release create "$marca" --target "$VERSAO" --prerelease --generate-notes \
+            --title "Teste $(TZ=America/Sao_Paulo date '+%d/%m/%Y %H:%M') (${VERSAO:0:7})"

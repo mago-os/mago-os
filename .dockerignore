@@ -1,0 +1,11 @@
+**/node_modules
+.git
+.github
+docs
+infra
+playwright-report
+test-results
+coverage
+*.env
+!*.env.example
+.DS_Store

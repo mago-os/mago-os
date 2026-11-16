@@ -11,6 +11,7 @@ describe("configuração", () => {
       bancoUrl: URL,
       nivelRegistro: "info",
       ambiente: "local",
+      versao: "local",
     });
   });
 

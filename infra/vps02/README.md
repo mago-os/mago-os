@@ -19,6 +19,11 @@ Explicação completa: Wiki do cliente MagoOS, páginas `infraestrutura.md` e `b
 | `caddy/mago-os.caddy` | `/etc/caddy/mago-os.caddy` (incluído no fim do `/etc/caddy/Caddyfile`) |
 | `cron/mago-os-backup` | `/etc/cron.d/mago-os-backup` |
 | `sudoers/90-mago-admin` | `/etc/sudoers.d/90-mago-admin` (usuário de administração `mago-admin`) |
+| `campainha.env.example` | `/opt/mago-os/campainha.env` (gerado por `bin/segredos.sh`) |
+| `bin/publicar.sh` | `/opt/mago-os/bin/publicar.sh` (publicação no teste, ver `docs/operacao/publicacao.md`) |
+| `caddy/mago-os.caddy.modelo` | `/opt/mago-os/caddy/mago-os.caddy.modelo` (o `publicar.sh` gera o `/etc/caddy/mago-os.caddy` a partir dele) |
+| `campainha/campainha.py` | `/opt/mago-os/campainha/campainha.py` |
+| `systemd/*` | `/etc/systemd/system/` (`mago-os-campainha.service`, `mago-os-publicar.service`, `.timer` e `.path`) |
 
 ## Remontar do zero numa VPS nova
 

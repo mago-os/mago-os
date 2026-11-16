@@ -1,0 +1,9 @@
+[Unit]
+Description=Mago OS: publicar a versão nova no teste
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/opt/mago-os/bin/publicar.sh
+TimeoutStartSec=15min

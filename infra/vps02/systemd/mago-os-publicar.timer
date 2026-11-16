@@ -1,0 +1,10 @@
+[Unit]
+Description=Mago OS: conferir a cada minuto se há versão nova (reserva da campainha)
+
+[Timer]
+OnBootSec=2min
+OnUnitInactiveSec=1min
+AccuracySec=10s
+
+[Install]
+WantedBy=timers.target
