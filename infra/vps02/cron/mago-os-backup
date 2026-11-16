@@ -1,0 +1,2 @@
+# Mago OS: backup completo diário às 03:30 UTC (o registro contínuo das alterações roda sempre, pelo próprio PostgreSQL)
+30 3 * * * root /opt/mago-os/bin/backup-diario.sh >> /var/log/mago-os-backup.log 2>&1

@@ -1,0 +1,11 @@
+# Mago OS (ambiente de testes). Mantido fora do Caddyfile da Ratoeira; se a Ratoeira for reinstalada, recolocar a linha import no fim do Caddyfile.
+teste.osmago.com {
+	encode zstd gzip
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options nosniff
+		Referrer-Policy strict-origin-when-cross-origin
+		-Server
+	}
+	respond "Mago OS: ambiente de testes em construção." 200
+}

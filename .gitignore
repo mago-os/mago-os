@@ -1,0 +1,5 @@
+# Segredos nunca entram no Git (ficam no Infisical)
+.env
+*.env
+!*.env.example
+.DS_Store
