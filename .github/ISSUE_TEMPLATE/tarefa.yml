@@ -1,0 +1,64 @@
+name: Tarefa
+description: Uma tarefa da spec (meio dia a um dia de trabalho, vira um PR).
+labels: ["tarefa"]
+body:
+  - type: input
+    id: numero
+    attributes:
+      label: Número
+      description: O mesmo da spec, ex. M0-04. O título começa por ele.
+      placeholder: M0-04
+    validations:
+      required: true
+  - type: textarea
+    id: descricao
+    attributes:
+      label: O que é
+      description: Em português simples, o que a tarefa entrega.
+    validations:
+      required: true
+  - type: textarea
+    id: subtarefas
+    attributes:
+      label: Subtarefas
+      description: Os passos dentro da tarefa, como na spec.
+      value: |
+        - [ ] 
+    validations:
+      required: true
+  - type: textarea
+    id: pronto
+    attributes:
+      label: Pronto quando
+      description: O critério de aceite. A tarefa só vai para "Feito" quando isso for verdade.
+    validations:
+      required: true
+  - type: input
+    id: depende
+    attributes:
+      label: Depende de
+      placeholder: M0-01, M0-03 (ou "nada")
+  - type: checkboxes
+    id: pastas
+    attributes:
+      label: Pastas que a tarefa pode mexer
+      options:
+        - label: nucleo
+        - label: contratos
+        - label: modulos
+        - label: telas
+        - label: testes
+        - label: infra
+        - label: docs
+  - type: checkboxes
+    id: sensivel
+    attributes:
+      label: Precisa de aprovação do Sandro?
+      description: Marque se a tarefa mexe em alguma destas partes.
+      options:
+        - label: Contratos entre módulos
+        - label: Estrutura do banco que mexe no isolamento entre empresas
+        - label: Segurança e login
+        - label: Pagamentos
+        - label: Publicação em produção
+        - label: Mudança de escopo
