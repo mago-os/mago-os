@@ -37,8 +37,11 @@ function carregarDadosFalsos(): void {
 function subir(): void {
   docker(["up", "-d", "--wait"]);
   carregarDadosFalsos();
-  const porta = process.env.MAGO_DB_PORTA ?? "54318";
-  console.log(`\nMago OS local no ar. Banco: postgres://mago@127.0.0.1:${porta}/mago`);
+  const portaBanco = process.env.MAGO_DB_PORTA ?? "54318";
+  const portaApi = process.env.MAGO_API_PORTA ?? "3000";
+  console.log("\nMago OS local no ar.");
+  console.log(`  API:   http://127.0.0.1:${portaApi}/saude`);
+  console.log(`  Banco: postgres://mago@127.0.0.1:${portaBanco}/mago`);
 }
 
 const comando = process.argv[2];

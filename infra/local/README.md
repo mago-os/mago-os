@@ -10,4 +10,5 @@ Roda o Mago OS no Mac (ou no ambiente do Claude) em containers, só com dados fa
 
 - **Banco:** PostgreSQL 18 com pgvector, a mesma base da VPS02, em `postgres://mago@127.0.0.1:54318/mago`. Não tem senha porque só aceita conexões do próprio computador. Para usar outra porta: `MAGO_DB_PORTA=5433 pnpm local:subir`.
 - **Dados falsos:** arquivos `.sql` em `dados-falsos/`, aplicados em ordem de nome. Nunca dados reais.
-- **API e tela:** entram neste ambiente na M0-04 e na M0-06.
+- **API:** o núcleo roda em `http://127.0.0.1:3000` (rota de saúde em `/saude`), usando o código do Mac direto. Depois de mudar o código: `docker compose -f infra/local/compose.yaml restart api`. Registros: `docker compose -f infra/local/compose.yaml logs -f api`. Outra porta: `MAGO_API_PORTA=3001`.
+- **Tela:** entra neste ambiente na M0-06.

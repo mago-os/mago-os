@@ -4,11 +4,25 @@
   "private": true,
   "description": "Núcleo: API, login, permissões, tarefas, agentes, fila e auditoria.",
   "type": "module",
-  "exports": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
   "scripts": {
-    "tipos": "tsc -p tsconfig.json"
+    "tipos": "tsc -p tsconfig.json",
+    "iniciar": "node --import ./src/rastreio.ts src/iniciar.ts"
   },
   "dependencies": {
-    "@mago-os/contratos": "workspace:*"
+    "@mago-os/contratos": "workspace:*",
+    "fastify": "catalog:",
+    "pg": "catalog:",
+    "pg-boss": "catalog:",
+    "@opentelemetry/api": "catalog:",
+    "@opentelemetry/sdk-node": "catalog:",
+    "@opentelemetry/instrumentation-http": "catalog:",
+    "@opentelemetry/instrumentation-pg": "catalog:",
+    "@fastify/otel": "catalog:"
+  },
+  "devDependencies": {
+    "@types/pg": "catalog:"
   }
 }

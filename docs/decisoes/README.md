@@ -9,3 +9,4 @@ Uma nota curta por decisão importante: o que foi decidido, por quê e o que foi
 | --- | --- | --- |
 | [0001](0001-monorepo-e-ferramentas.md) | Monorepo com pnpm, versões num catálogo único, Biome e Vitest | Aceita |
 | [0002](0002-backup-no-backblaze-b2.md) | Backup do banco no Backblaze B2 em vez do Cloudflare R2 | Aceita |
+| [0003](0003-api-registros-e-rastreio.md) | API: configuração, registros, número de rastreio e fila | Aceita |

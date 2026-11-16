@@ -3,7 +3,7 @@
 #
 # O banco é o mesmo da VPS02 (PostgreSQL 18 com pgvector). Sem senha: só aceita conexões deste computador
 # (porta presa em 127.0.0.1), então nenhum segredo precisa existir no repositório.
-# A API (M0-04) e a tela (M0-06) entram aqui quando forem criadas.
+# A tela (M0-06) entra aqui quando for criada.
 name: mago-os-local
 services:
   db:
@@ -22,5 +22,36 @@ services:
       interval: 2s
       timeout: 3s
       retries: 30
+  api:
+    # Roda o código do Mac direto (sem montar imagem): a pasta do repositório entra no container.
+    # A imagem de verdade, para teste e produção, é montada no M0-10.
+    image: node:26-slim
+    working_dir: /app/nucleo
+    command: ["node", "--import", "./src/rastreio.ts", "src/iniciar.ts"]
+    environment:
+      DATABASE_URL: postgres://mago@db:5432/mago
+      AMBIENTE: local
+      NIVEL_REGISTRO: info
+      PORTA: "3000"
+    ports:
+      - "127.0.0.1:${MAGO_API_PORTA:-3000}:3000"
+    volumes:
+      - ../..:/app:ro
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:3000/saude').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))",
+        ]
+      interval: 60s
+      timeout: 3s
+      start_period: 30s
+      start_interval: 1s
+      retries: 3
 volumes:
   db-local:
