@@ -21,7 +21,8 @@
     "banco:documentar": "pnpm --filter @mago-os/nucleo banco:documentar",
     "migrar": "pnpm --filter @mago-os/nucleo migrar",
     "icones": "node infra/ferramentas/gerar-icones.mjs",
-    "dev": "pnpm local:subir && pnpm --filter @mago-os/telas dev"
+    "dev": "pnpm local:subir && pnpm --filter @mago-os/telas dev",
+    "telas:testes": "playwright test"
   },
   "devDependencies": {
     "@biomejs/biome": "catalog:",

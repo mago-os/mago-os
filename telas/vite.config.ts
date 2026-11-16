@@ -6,6 +6,7 @@ import { VitePWA } from "vite-plugin-pwa";
 // A tela chama a API sempre em /api. No Mac, o Vite repassa para o núcleo (porta 3000);
 // em teste e produção, o Caddy faz o mesmo (M0-10).
 const API = process.env.MAGO_API_URL ?? "http://127.0.0.1:3000";
+const proxyDaApi = { target: API, rewrite: (caminho: string) => caminho.replace(/^\/api/, "") };
 
 export default defineConfig({
   // No container local a pasta do código é só leitura, então o cache do Vite vai para outro lugar.
@@ -39,9 +40,7 @@ export default defineConfig({
       },
     }),
   ],
-  server: {
-    host: "127.0.0.1",
-    port: 5173,
-    proxy: { "/api": { target: API, rewrite: (caminho) => caminho.replace(/^\/api/, "") } },
-  },
+  server: { host: "127.0.0.1", port: 5173, proxy: { "/api": proxyDaApi } },
+  // A prévia da versão construída (usada nos testes de tela) repassa /api do mesmo jeito.
+  preview: { host: "127.0.0.1", port: 4173, proxy: { "/api": proxyDaApi } },
 });
