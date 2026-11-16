@@ -8,7 +8,7 @@ Parte da [spec da Fase 1](README.md). Estado em 16/11/2026: em andamento.
 | --- | --- | --- | --- | --- |
 | M0-01 | Repositório e estrutura de pastas | nada | M | Feito |
 | M0-02 | Quadro Kanban e modelos de tarefa | M0-01 | P | Em revisão |
-| M0-03 | Ambiente local com containers | M0-01 | M | A fazer |
+| M0-03 | Ambiente local com containers | M0-01 | M | Em revisão |
 | M0-04 | Núcleo mínimo da API | M0-01 | M | A fazer |
 | M0-05 | Banco, migrações e isolamento por empresa | M0-03, M0-04 | M | A fazer |
 | M0-06 | Tela inicial com o design aprovado | M0-01 | M | A fazer |
@@ -40,9 +40,9 @@ Pronto quando: o Sandro abre o quadro no computador e no celular e vê as tarefa
 
 ## M0-03 Ambiente local com containers
 
-- [ ] Docker Compose com PostgreSQL 18 e pgvector, API e tela
-- [ ] Um comando para subir tudo e outro para zerar
-- [ ] Dados falsos para testar (nunca dados reais)
+- [x] Docker Compose com PostgreSQL 18 e pgvector (a API entra na M0-04 e a tela na M0-06, que ainda não existiam)
+- [x] Um comando para subir tudo e outro para zerar (`pnpm local:subir` e `pnpm local:zerar`)
+- [x] Dados falsos para testar (nunca dados reais): pasta `infra/local/dados-falsos`, com as empresas falsas chegando na M0-05
 
 Pronto quando: o sistema sobe no Mac com um comando.
 

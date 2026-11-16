@@ -1,0 +1,26 @@
+# Ambiente local do Mago OS (M0-03). Só para o Mac e para o ambiente do Claude: nunca usar com dados reais.
+# Subir: pnpm local:subir · Zerar (apaga o banco local): pnpm local:zerar · Parar: pnpm local:parar
+#
+# O banco é o mesmo da VPS02 (PostgreSQL 18 com pgvector). Sem senha: só aceita conexões deste computador
+# (porta presa em 127.0.0.1), então nenhum segredo precisa existir no repositório.
+# A API (M0-04) e a tela (M0-06) entram aqui quando forem criadas.
+name: mago-os-local
+services:
+  db:
+    image: pgvector/pgvector:pg18
+    environment:
+      POSTGRES_USER: mago
+      POSTGRES_DB: mago
+      POSTGRES_HOST_AUTH_METHOD: trust
+    ports:
+      - "127.0.0.1:${MAGO_DB_PORTA:-54318}:5432"
+    volumes:
+      - db-local:/var/lib/postgresql
+    shm_size: 256m
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U mago -d mago"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+volumes:
+  db-local:

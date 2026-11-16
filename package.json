@@ -10,11 +10,14 @@
     "pnpm": ">=11.22 <12"
   },
   "scripts": {
-    "tipos": "pnpm -r --if-present run tipos",
+    "tipos": "pnpm -r --if-present run tipos && tsc -p infra",
     "estilo": "biome check .",
     "estilo:corrigir": "biome check --write .",
     "testes": "vitest run",
-    "verificar": "pnpm tipos && pnpm estilo && pnpm testes"
+    "verificar": "pnpm tipos && pnpm estilo && pnpm testes",
+    "local:subir": "node infra/local/local.ts subir",
+    "local:zerar": "node infra/local/local.ts zerar",
+    "local:parar": "node infra/local/local.ts parar"
   },
   "devDependencies": {
     "@biomejs/biome": "catalog:",
