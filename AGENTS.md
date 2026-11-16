@@ -68,3 +68,6 @@ O Mago OS é um sistema operacional de agentes para empresas: pessoas e agentes 
 | `pnpm tipos` | Confere os tipos de todos os pacotes (TypeScript 7) |
 | `pnpm estilo` | Confere estilo e erros comuns (Biome); `pnpm estilo:corrigir` arruma sozinho |
 | `pnpm testes` | Roda os testes (Vitest) |
+| `pnpm local:subir` | Sobe o ambiente local em containers (Docker) com dados falsos |
+| `pnpm local:zerar` | Apaga o banco local e sobe de novo |
+| `pnpm local:parar` | Para os containers locais |
