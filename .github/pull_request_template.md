@@ -1,6 +1,6 @@
 ## Tarefa
 
-Fecha #<número da issue> · <número da spec, ex. M0-04> <nome da tarefa>
+Closes #<número da issue> · <número da spec, ex. M0-04> <nome da tarefa>
 
 **Pronto quando:** <critério de aceite da spec>
 

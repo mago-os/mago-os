@@ -27,7 +27,7 @@ Etiquetas nas issues: `tarefa`, `ideia`, o marco (`M0`, `M1`...) e `precisa do S
 | Quando | O cartão vai para |
 | --- | --- |
 | A issue entra no quadro | A fazer |
-| Um PR é ligado à issue (`Fecha #N` no texto do PR) | Em revisão |
+| Um PR é ligado à issue (`Closes #N` no texto do PR; o GitHub só entende a palavra em inglês) | Em revisão |
 | O PR é aprovado e entra na main | Feito |
 | A issue é fechada | Feito |
 
