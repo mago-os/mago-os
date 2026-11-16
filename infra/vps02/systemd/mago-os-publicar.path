@@ -1,0 +1,9 @@
+[Unit]
+Description=Mago OS: publicar quando a campainha tocar
+
+[Path]
+PathModified=/run/mago-os-campainha/tocou
+Unit=mago-os-publicar.service
+
+[Install]
+WantedBy=multi-user.target

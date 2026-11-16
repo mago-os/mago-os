@@ -6,11 +6,12 @@ export interface RespostaSaude {
   banco: "ok" | "fora_do_ar";
   sistema: string;
   ambiente: "local" | "teste" | "producao";
+  versao?: string;
 }
 
 export type EstadoDaApi =
   | { tipo: "carregando" }
-  | { tipo: "ok"; ambiente: string; rastreio: string | null; ms: number }
+  | { tipo: "ok"; ambiente: string; versao: string; rastreio: string | null; ms: number }
   | { tipo: "banco_fora"; ambiente: string; rastreio: string | null }
   | { tipo: "api_fora"; motivo: string };
 
@@ -32,7 +33,8 @@ export function interpretarSaude(
     return { tipo: "api_fora", motivo: `A API respondeu de um jeito inesperado (código ${status}).` };
   }
   const ambiente = r.ambiente ?? "desconhecido";
-  if (status === 200 && r.banco === "ok") return { tipo: "ok", ambiente, rastreio, ms };
+  if (status === 200 && r.banco === "ok")
+    return { tipo: "ok", ambiente, versao: r.versao ?? "local", rastreio, ms };
   return { tipo: "banco_fora", ambiente, rastreio };
 }
 

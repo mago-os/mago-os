@@ -25,10 +25,12 @@ Todos os segredos do Mago OS ficam no Infisical Cloud (região EUA, https://app.
 | `MAGO_DB_SENHA_APP` | Senha do papel `mago_app`, usado pela API | API (a partir do M0-10) |
 | `B2_KEY_ID`, `B2_APPLICATION_KEY`, `B2_ENDPOINT`, `B2_REGION`, `B2_BUCKET` | Acesso ao bucket de backup no Backblaze B2 | pgBackRest |
 | `PGBACKREST_CIPHER_PASS` | Senha de criptografia dos backups. Sem ela, nenhum backup pode ser restaurado | pgBackRest |
+| `MAGO_CAMPAINHA_SEGREDO` | Assinatura da campainha de publicação (também em GitHub › Settings › Secrets) | Campainha na VPS e fluxo de publicação |
+| `GHCR_LEITURA_TOKEN` | Token "classic" do Sandro, só `read:packages`, vence em 1 ano | A VPS baixar a imagem do ghcr.io |
 
 ## Como os segredos chegam à VPS
 
-1. `/opt/mago-os/bin/segredos.sh` entra no Infisical com a identidade `vps02` e grava `.env`, `backup.env` e `api.env` em `/opt/mago-os`, só para o root ler. Nenhum valor aparece na tela nem no log.
+1. `/opt/mago-os/bin/segredos.sh` entra no Infisical com a identidade `vps02`, grava `.env`, `backup.env`, `api.env` e `campainha.env` em `/opt/mago-os` e entra no ghcr.io, só para o root ler. Nenhum valor aparece na tela nem no log.
 2. Os containers leem esses arquivos quando são criados: depois de trocar um segredo, rodar o script e recriar o container (`docker compose up -d --force-recreate <serviço>`).
 
 ## Criar ou trocar um segredo

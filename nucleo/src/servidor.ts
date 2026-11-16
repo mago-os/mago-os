@@ -21,6 +21,7 @@ export interface RespostaSaude {
   banco: "ok" | "fora_do_ar";
   sistema: string;
   ambiente: Config["ambiente"];
+  versao: string;
 }
 
 export interface OpcoesDoServidor {
@@ -29,14 +30,14 @@ export interface OpcoesDoServidor {
 }
 
 export function criarServidor(
-  config: Pick<Config, "nivelRegistro" | "ambiente">,
+  config: Pick<Config, "nivelRegistro" | "ambiente"> & Partial<Pick<Config, "versao">>,
   banco: Banco,
   opcoes: OpcoesDoServidor = {},
 ): FastifyInstance {
   const app = Fastify({
     logger: {
       level: config.nivelRegistro,
-      base: { servico: "mago-os-nucleo", ambiente: config.ambiente },
+      base: { servico: "mago-os-nucleo", ambiente: config.ambiente, versao: config.versao ?? "local" },
       messageKey: "mensagem",
       timestamp: () => `,"hora":"${new Date().toISOString()}"`,
       formatters: { level: (nivel) => ({ nivel }) },
@@ -59,6 +60,7 @@ export function criarServidor(
       banco: bancoOk ? "ok" : "fora_do_ar",
       sistema: sobreOSistema().nome,
       ambiente: config.ambiente,
+      versao: config.versao ?? "local",
     };
   });
 

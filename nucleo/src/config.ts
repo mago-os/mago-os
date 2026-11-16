@@ -16,6 +16,8 @@ export interface Config {
   nivelRegistro: NivelDeRegistro;
   /** Nome do ambiente: local, teste ou producao. Variável AMBIENTE, padrão local. */
   ambiente: "local" | "teste" | "producao";
+  /** Versão publicada (o commit da imagem). Variável MAGO_VERSAO, gravada na imagem pelo GitHub; padrão "local". */
+  versao: string;
 }
 
 const NIVEIS: readonly NivelDeRegistro[] = ["fatal", "error", "warn", "info", "debug", "trace", "silent"];
@@ -55,5 +57,12 @@ export function lerConfig(env: Record<string, string | undefined> = process.env)
     throw new ErroDeConfig(`Configuração inválida:\n- ${problemas.join("\n- ")}`);
   }
 
-  return { porta, host: env.HOST ?? "0.0.0.0", bancoUrl, nivelRegistro, ambiente };
+  return {
+    porta,
+    host: env.HOST ?? "0.0.0.0",
+    bancoUrl,
+    nivelRegistro,
+    ambiente,
+    versao: env.MAGO_VERSAO ?? "local",
+  };
 }

@@ -92,6 +92,7 @@ export function EstadoDoSistema() {
         {"ambiente" in estado && (
           <Linha rotulo="Ambiente" valor={nomeDoAmbiente(estado.ambiente)} situacao="ok" />
         )}
+        {estado.tipo === "ok" && <Linha rotulo="Versão" valor={estado.versao.slice(0, 7)} situacao="ok" />}
       </div>
       {"rastreio" in estado && estado.rastreio && (
         <p className="text-xs text-texto-3">

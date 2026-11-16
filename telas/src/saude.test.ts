@@ -1,13 +1,21 @@
 import { describe, expect, it } from "vitest";
 import { interpretarSaude, nomeDoAmbiente } from "./saude.ts";
 
-const ok = { situacao: "ok", api: "ok", banco: "ok", sistema: "Mago OS", ambiente: "teste" };
+const ok = {
+  situacao: "ok",
+  api: "ok",
+  banco: "ok",
+  sistema: "Mago OS",
+  ambiente: "teste",
+  versao: "abc1234",
+};
 
 describe("estado da API na tela", () => {
   it("mostra tudo certo quando a API e o banco respondem", () => {
     expect(interpretarSaude(200, ok, "abc", 12)).toEqual({
       tipo: "ok",
       ambiente: "teste",
+      versao: "abc1234",
       rastreio: "abc",
       ms: 12,
     });

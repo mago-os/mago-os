@@ -19,6 +19,7 @@ describe("rota de saúde", () => {
       banco: "ok",
       sistema: "Mago OS",
       ambiente: "local",
+      versao: "local",
     });
   });
 

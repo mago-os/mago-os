@@ -9,7 +9,7 @@ Como publicar, voltar uma versão, restaurar o backup, trocar chaves e o que faz
 | Acesso de administração à VPS02 (usuários, SSH, Tailscale, firewall) | [acesso-vps.md](acesso-vps.md) | Já existe |
 | Infraestrutura da VPS02 e como remontar do zero | [infra/vps02/README.md](../../infra/vps02/README.md) | Já existe |
 | Restaurar o backup do banco (B2) | A escrever | M0-11 |
-| Publicar e voltar uma versão no teste | A escrever | M0-10 |
+| Publicar e voltar uma versão no teste | [publicacao.md](publicacao.md) | Já existe |
 | Segredos: ambientes, identidades e como criar ou trocar | [segredos.md](segredos.md) | Já existe |
 | O que fazer se cair | A escrever | M0-12 |
 
