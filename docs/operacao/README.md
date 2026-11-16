@@ -6,6 +6,7 @@ Como publicar, voltar uma versão, restaurar o backup, trocar chaves e o que faz
 | --- | --- | --- |
 | Quadro de tarefas (colunas, campos e automações) | [quadro.md](quadro.md) | Já existe |
 | Verificação automática no GitHub (o que roda e o que fazer se falhar) | [verificacao.md](verificacao.md) | Já existe |
+| Acesso de administração à VPS02 (usuários, SSH, Tailscale, firewall) | [acesso-vps.md](acesso-vps.md) | Já existe |
 | Infraestrutura da VPS02 e como remontar do zero | [infra/vps02/README.md](../../infra/vps02/README.md) | Já existe |
 | Restaurar o backup do banco (B2) | A escrever | M0-11 |
 | Publicar e voltar uma versão no teste | A escrever | M0-10 |

@@ -18,6 +18,7 @@ Explicação completa: Wiki do cliente MagoOS, páginas `infraestrutura.md` e `b
 | `bin/backup-diario.sh` | `/opt/mago-os/bin/backup-diario.sh` |
 | `caddy/mago-os.caddy` | `/etc/caddy/mago-os.caddy` (incluído no fim do `/etc/caddy/Caddyfile`) |
 | `cron/mago-os-backup` | `/etc/cron.d/mago-os-backup` |
+| `sudoers/90-mago-admin` | `/etc/sudoers.d/90-mago-admin` (usuário de administração `mago-admin`) |
 
 ## Remontar do zero numa VPS nova
 
@@ -29,3 +30,5 @@ Explicação completa: Wiki do cliente MagoOS, páginas `infraestrutura.md` e `b
 6. Acrescentar `import /etc/caddy/mago-os.caddy` ao Caddyfile e `systemctl reload caddy`.
 
 Ao mudar algo no servidor, atualizar a cópia aqui no mesmo dia.
+
+Acesso de administração (usuário `mago-admin`, SSH só com chave, Tailscale e firewall): `docs/operacao/acesso-vps.md`.

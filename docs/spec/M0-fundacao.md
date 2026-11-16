@@ -14,7 +14,7 @@ Parte da [spec da Fase 1](README.md). Estado em 16/11/2026: em andamento.
 | M0-06 | Tela inicial com o design aprovado | M0-01 | M | Em revisão |
 | M0-07 | Testes automáticos e proteção da main | M0-04, M0-06 | M | Em revisão |
 | M0-08 | Segredos no Infisical | M0-04 | P | Em revisão |
-| M0-09 | Preparação e segurança da VPS | nada | M | Parte adiantada |
+| M0-09 | Preparação e segurança da VPS | nada | M | Em revisão |
 | M0-10 | Pacote e publicação automática no teste | M0-07, M0-08, M0-09 | M | A fazer |
 | M0-11 | Backup do banco no Backblaze B2 | M0-10 | M | Primeira etapa feita |
 | M0-12 | Monitoramento | M0-10 | P | A fazer |
@@ -97,11 +97,11 @@ Pronto quando: o sistema sobe no teste sem nenhum segredo escrito em arquivo do 
 ## M0-09 Preparação e segurança da VPS
 
 - [x] Levantar o que a Ratoeira usa (ela roda direto na VPS, fora de container): portas, serviços e configuração do Caddy, para não tocar em nada dela
-- [ ] Usuário próprio para o Mago OS, com o root só para emergências
+- [x] Usuário próprio para o Mago OS, com o root só para emergências (`mago-admin`, só chave, 16/11/2026)
 - [x] Pasta e rede de containers do Mago OS separadas da Ratoeira, com limite de memória e processador (feito em 16/11/2026: `/opt/mago-os`, redes `mago_db`, `mago_backup` e `mago_edge`; banco limitado a 1,5 GiB e 1 CPU)
-- [ ] Acesso de administração como pede o plano: SSH só por chave, pela rede privada (Tailscale)
-- [ ] 2FA na conta da Hostinger (feito pelo Sandro)
-- [ ] Firewall só com o necessário, sem fechar nada que a Ratoeira usa (hoje o ufw já deixa só 22, 80 e 443; falta rever junto com o SSH pelo Tailscale)
+- [x] Acesso de administração como pede o plano: SSH só por chave, pela rede privada (Tailscale). A porta 22 segue aberta na internet, só com chave, porque a Ratoeira depende dela (decisão 0006)
+- [x] 2FA na conta da Hostinger (feito pelo Sandro em 16/11/2026)
+- [x] Firewall só com o necessário, sem fechar nada que a Ratoeira usa (revisto: só 22 com chave, 80 e 443; containers do Mago OS sem portas publicadas)
 
 Pronto quando: o Mago OS tem o próprio espaço na VPS02 sem afetar a Ratoeira.
 
