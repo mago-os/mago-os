@@ -1,0 +1,119 @@
+/*
+ * Estilo do Mago OS: base monocromática ("tinta" preta no claro, branca no escuro), cor secundária nos
+ * destaques e âmbar para tudo o que os agentes fazem. Tokens copiados do design aprovado (mago-os-design.html).
+ */
+@import "tailwindcss";
+@import "@fontsource-variable/geist";
+@import "@fontsource-variable/geist-mono";
+
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+
+:root {
+  --bg: #fafafa;
+  --card: #ffffff;
+  --muted: #f4f4f5;
+  --line: #e6e6e9;
+  --ink: #0a0a0b;
+  --on-ink: #ffffff;
+  --fg-2: #6b6b74;
+  --fg-3: #9a9aa3;
+  --sec-base: #0e8c7e;
+  --agent: #e89a0c;
+  --agent-fg: #9a5f00;
+  --ok: #0e9f6e;
+  --warn: #e8590c;
+  --danger: #e5383b;
+  --sec: var(--sec-base);
+  --shadow: 0 10px 30px rgba(10, 10, 11, 0.1), 0 1px 3px rgba(10, 10, 11, 0.08);
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #09090a;
+    --card: #111113;
+    --muted: #1a1a1d;
+    --line: #26262a;
+    --ink: #f4f4f5;
+    --on-ink: #0a0a0b;
+    --fg-2: #a1a1aa;
+    --fg-3: #6e6e78;
+    --agent: #f5b43c;
+    --agent-fg: #f7c766;
+    --ok: #34d399;
+    --warn: #ff8a4c;
+    --danger: #ff6166;
+    --shadow: 0 10px 30px rgba(0, 0, 0, 0.5), 0 1px 3px rgba(0, 0, 0, 0.6);
+    color-scheme: dark;
+  }
+}
+
+:root[data-theme="dark"] {
+  --bg: #09090a;
+  --card: #111113;
+  --muted: #1a1a1d;
+  --line: #26262a;
+  --ink: #f4f4f5;
+  --on-ink: #0a0a0b;
+  --fg-2: #a1a1aa;
+  --fg-3: #6e6e78;
+  --agent: #f5b43c;
+  --agent-fg: #f7c766;
+  --ok: #34d399;
+  --warn: #ff8a4c;
+  --danger: #ff6166;
+  --shadow: 0 10px 30px rgba(0, 0, 0, 0.5), 0 1px 3px rgba(0, 0, 0, 0.6);
+  color-scheme: dark;
+}
+
+/* O sistema corrige a luminosidade da cor secundária para manter o contraste nos dois temas. */
+@supports (color: oklch(from red l c h)) {
+  :root {
+    --sec: oklch(from var(--sec-base) clamp(0.48, l, 0.6) c h);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --sec: oklch(from var(--sec-base) max(l, 0.72) min(c, 0.15) h);
+    }
+  }
+  :root[data-theme="dark"] {
+    --sec: oklch(from var(--sec-base) max(l, 0.72) min(c, 0.15) h);
+  }
+}
+
+@theme inline {
+  --color-fundo: var(--bg);
+  --color-cartao: var(--card);
+  --color-suave: var(--muted);
+  --color-linha: var(--line);
+  --color-tinta: var(--ink);
+  --color-sobre-tinta: var(--on-ink);
+  --color-texto-2: var(--fg-2);
+  --color-texto-3: var(--fg-3);
+  --color-secundaria: var(--sec);
+  --color-agente: var(--agent);
+  --color-agente-texto: var(--agent-fg);
+  --color-ok: var(--ok);
+  --color-alerta: var(--warn);
+  --color-perigo: var(--danger);
+  --font-sans: "Geist Variable", "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "Geist Mono Variable", ui-monospace, "SF Mono", Menlo, monospace;
+  --radius-md: 10px;
+  --radius-cartao: 14px;
+  --shadow-cartao: var(--shadow);
+}
+
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  font-size: 15px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+  border-radius: 6px;
+}

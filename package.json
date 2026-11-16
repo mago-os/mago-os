@@ -19,10 +19,13 @@
     "local:zerar": "node infra/local/local.ts zerar",
     "local:parar": "node infra/local/local.ts parar",
     "banco:documentar": "pnpm --filter @mago-os/nucleo banco:documentar",
-    "migrar": "pnpm --filter @mago-os/nucleo migrar"
+    "migrar": "pnpm --filter @mago-os/nucleo migrar",
+    "icones": "node infra/ferramentas/gerar-icones.mjs",
+    "dev": "pnpm local:subir && pnpm --filter @mago-os/telas dev"
   },
   "devDependencies": {
     "@biomejs/biome": "catalog:",
+    "@playwright/test": "catalog:",
     "@types/node": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:"

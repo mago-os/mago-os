@@ -4,6 +4,7 @@ Roda o Mago OS no Mac (ou no ambiente do Claude) em containers, só com dados fa
 
 | Comando | O que faz |
 | --- | --- |
+| `pnpm dev` | Tudo de uma vez: sobe o ambiente local e abre a tela em http://127.0.0.1:5173 (atualiza sozinha ao salvar) |
 | `pnpm local:subir` | Sobe o banco, roda as migrações, carrega os dados falsos e sobe a API |
 | `pnpm local:zerar` | Apaga o banco local e sobe de novo, do zero |
 | `pnpm local:parar` | Para os containers (o banco local continua guardado) |
@@ -12,4 +13,4 @@ Roda o Mago OS no Mac (ou no ambiente do Claude) em containers, só com dados fa
 - **Papéis do banco:** `mago` é o dono das tabelas (migrações e dados falsos); `mago_app` é o da API, que obedece o isolamento por empresa.
 - **Dados falsos:** arquivos `.sql` em `dados-falsos/`, aplicados em ordem de nome. Nunca dados reais.
 - **API:** o núcleo roda em `http://127.0.0.1:3000` (rota de saúde em `/saude`), usando o código do Mac direto. Depois de mudar o código: `docker compose -f infra/local/compose.yaml restart api`. Registros: `docker compose -f infra/local/compose.yaml logs -f api`. Outra porta: `MAGO_API_PORTA=3001`.
-- **Tela:** entra neste ambiente na M0-06.
+- **Tela:** roda direto no Mac com o servidor do Vite (`pnpm dev`), e não em container: o Vite 8 usa um programa nativo do Mac que não roda dentro do Linux do container. A tela chama a API pelo caminho `/api`, que o Vite repassa para a porta 3000.

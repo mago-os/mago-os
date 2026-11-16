@@ -11,7 +11,7 @@ Parte da [spec da Fase 1](README.md). Estado em 16/11/2026: em andamento.
 | M0-03 | Ambiente local com containers | M0-01 | M | Em revisão |
 | M0-04 | Núcleo mínimo da API | M0-01 | M | Em revisão |
 | M0-05 | Banco, migrações e isolamento por empresa | M0-03, M0-04 | M | Em revisão |
-| M0-06 | Tela inicial com o design aprovado | M0-01 | M | A fazer |
+| M0-06 | Tela inicial com o design aprovado | M0-01 | M | Em revisão |
 | M0-07 | Testes automáticos e proteção da main | M0-04, M0-06 | M | A fazer |
 | M0-08 | Segredos no Infisical | M0-04 | P | Parte adiantada |
 | M0-09 | Preparação e segurança da VPS | nada | M | Parte adiantada |
@@ -40,7 +40,7 @@ Pronto quando: o Sandro abre o quadro no computador e no celular e vê as tarefa
 
 ## M0-03 Ambiente local com containers
 
-- [x] Docker Compose com PostgreSQL 18 e pgvector e a API (a API entrou na M0-04; a tela entra na M0-06)
+- [x] Docker Compose com PostgreSQL 18 e pgvector e a API (a API entrou na M0-04; a tela roda direto no Mac com `pnpm dev`, ver decisão 0004)
 - [x] Um comando para subir tudo e outro para zerar (`pnpm local:subir` e `pnpm local:zerar`)
 - [x] Dados falsos para testar (nunca dados reais): pasta `infra/local/dados-falsos`, com as empresas falsas chegando na M0-05
 
@@ -70,10 +70,10 @@ Pronto quando: o teste de vazamento prova que uma empresa não vê a outra, e do
 
 ## M0-06 Tela inicial com o design aprovado
 
-- [ ] React, Vite, Tailwind e shadcn com o estilo monocromático e o mago meio-tom
-- [ ] Tema claro e escuro, pensado primeiro para o celular
-- [ ] App instalável (PWA) básico
-- [ ] Página inicial que mostra o estado da API
+- [x] React, Vite, Tailwind e shadcn com o estilo monocromático e o mago meio-tom
+- [x] Tema claro e escuro, pensado primeiro para o celular
+- [x] App instalável (PWA) básico
+- [x] Página inicial que mostra o estado da API
 
 Pronto quando: a tela abre no celular e no computador, nos dois temas, e pode ser instalada.
 
