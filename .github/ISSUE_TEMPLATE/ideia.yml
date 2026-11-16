@@ -1,0 +1,11 @@
+name: Ideia ou problema
+description: Algo para registrar, ainda sem detalhe. Vai para "A fazer".
+labels: ["ideia"]
+body:
+  - type: textarea
+    id: descricao
+    attributes:
+      label: O que é
+      description: Descreva a ideia ou o problema em poucas linhas.
+    validations:
+      required: true

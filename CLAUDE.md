@@ -8,6 +8,7 @@ O Mago OS é um sistema operacional de agentes para empresas: pessoas e agentes 
 
 - **O que o sistema faz:** plano "Agentic OS: funcionalidades e arquitetura".
 - **Em que ordem construir:** [docs/spec](docs/spec/README.md). Cada tarefa tem um número (M0-01, M1-03...) igual ao do cartão no quadro.
+- **Quadro de tarefas:** [GitHub Projects "Mago OS"](https://github.com/orgs/mago-os/projects/1). Cada cartão é uma issue com o modelo "Tarefa".
 - **Por que as escolhas técnicas:** [docs/decisoes](docs/decisoes/README.md).
 
 ## Pastas
@@ -47,7 +48,7 @@ O Mago OS é um sistema operacional de agentes para empresas: pessoas e agentes 
 2. Crie uma branch só para ela a partir da `main` atualizada, com o nome `<numero>-<assunto>` (ex.: `m0-04-api`). Com mais de um agente ao mesmo tempo, cada um trabalha na sua cópia (git worktree), com banco de teste próprio.
 3. Escreva o código e os testes juntos, mexendo só nas pastas da tarefa.
 4. Rode `pnpm verificar` antes de abrir o PR.
-5. Abra um PR por tarefa, ligado ao cartão, com um resumo simples do que mudou e como conferir.
+5. Abra um PR por tarefa, ligado ao cartão (escreva `Closes #<número da issue>` no texto do PR: o GitHub só reconhece a palavra em inglês), com um resumo simples do que mudou e como conferir. O modelo de PR já traz essa estrutura.
 6. Os testes automáticos rodam; se algo falhar, corrija e volte ao passo 4.
 7. Uma revisão automática separada olha a mudança; corrija o que ela encontrar.
 8. O Sandro aprova o que é sensível. Ninguém aprova a própria mudança nem publica em produção.

@@ -6,8 +6,8 @@ Parte da [spec da Fase 1](README.md). Estado em 16/11/2026: em andamento.
 
 | Número | Tarefa | Depende de | Tamanho | Situação |
 | --- | --- | --- | --- | --- |
-| M0-01 | Repositório e estrutura de pastas | nada | M | Em revisão |
-| M0-02 | Quadro Kanban e modelos de tarefa | M0-01 | P | A fazer |
+| M0-01 | Repositório e estrutura de pastas | nada | M | Feito |
+| M0-02 | Quadro Kanban e modelos de tarefa | M0-01 | P | Em revisão |
 | M0-03 | Ambiente local com containers | M0-01 | M | A fazer |
 | M0-04 | Núcleo mínimo da API | M0-01 | M | A fazer |
 | M0-05 | Banco, migrações e isolamento por empresa | M0-03, M0-04 | M | A fazer |
@@ -31,10 +31,10 @@ Pronto quando: o repositório instala com um comando e o AGENTS.md explica as re
 
 ## M0-02 Quadro Kanban e modelos de tarefa
 
-- [ ] Criar o quadro "Mago OS" no GitHub Projects com as 6 colunas e os campos marco, prioridade, tamanho e responsável
-- [ ] Criar os modelos de tarefa (issue) e de mudança (PR)
-- [ ] Ligar as automações que movem o cartão quando o PR abre e quando é aprovado
-- [ ] Criar os cartões do M0 e do M1 a partir desta spec
+- [x] Criar o quadro "Mago OS" no GitHub Projects com as 6 colunas e os campos marco, prioridade, tamanho e responsável
+- [x] Criar os modelos de tarefa (issue) e de mudança (PR)
+- [x] Ligar as automações que movem o cartão quando o PR abre e quando é aprovado
+- [x] Criar os cartões do M0 e do M1 a partir desta spec
 
 Pronto quando: o Sandro abre o quadro no computador e no celular e vê as tarefas do M0 e do M1.
 
