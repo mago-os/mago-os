@@ -5,6 +5,7 @@
 #   /opt/mago-os/backup.env   chaves do Backblaze B2 e senha de criptografia do pgBackRest
 #   /opt/mago-os/api.env      conexões da API (papel mago_app) e das migrações (dono), a partir do M0-10
 #   /opt/mago-os/campainha.env segredo que confere a assinatura da campainha do GitHub (M0-10)
+#   /opt/mago-os/avisos.env   endereços de aviso do Uptime Kuma para o backup e a restauração (M0-12)
 # e entra no ghcr.io com o token só de leitura, para baixar a imagem do Mago OS.
 # Uso: /opt/mago-os/bin/segredos.sh   (depois: docker compose up -d --force-recreate, para os containers lerem)
 # Nenhum valor aparece na tela nem no log.
@@ -43,6 +44,8 @@ arquivos = {
         "MAGO_DB_SENHA_APP": s["MAGO_DB_SENHA_APP"],
     },
     "campainha.env": {"MAGO_CAMPAINHA_SEGREDO": s["MAGO_CAMPAINHA_SEGREDO"]},
+    # Opcionais: sem eles, o avisar.sh só registra no log.
+    "avisos.env": {k: v for k, v in s.items() if k.startswith("MAGO_AVISO_")},
 }
 os.umask(0o077)
 for nome, valores in arquivos.items():

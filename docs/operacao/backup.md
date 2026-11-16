@@ -13,7 +13,7 @@ Estado em 16/11/2026 (M0-11). Explicação para leigos e histórico na Wiki do c
 | repo2 | `/pgbackrest-semanal` | Cópia completa todo domingo | 90 dias, em pontos fixos |
 | repo3 | `/pgbackrest-mensal` | Cópia completa todo dia 1 | 1 ano, em pontos fixos |
 
-- **Agendamento** (`/etc/cron.d/mago-os-backup`): backup todo dia às 03:30 UTC (`bin/backup.sh`) e teste de restauração todo dia 2 às 04:30 UTC (`bin/restauracao-teste.sh`). Registro em `/var/log/mago-os-backup.log`.
+- **Agendamento** (`/etc/cron.d/mago-os-backup`): backup todo dia às 03:30 UTC (`bin/backup.sh`) e teste de restauração toda segunda-feira às 04:30 UTC (`bin/restauracao-teste.sh`). Registro em `/var/log/mago-os-backup.log`.
 - **Avisos:** os dois scripts avisam o monitoramento (`bin/avisar.sh`) com "ok" ou "falha". Se o aviso de "ok" não chegar no prazo, o Uptime Kuma avisa o Sandro (M0-12).
 - **Arquivos apagados no B2:** quando o pgBackRest apaga uma cópia vencida, o B2 a esconde e só a apaga de vez 30 dias depois (regra de ciclo de vida do bucket). Isso dá uma janela para recuperar algo apagado por engano.
 - **Senha de criptografia:** `PGBACKREST_CIPHER_PASS` no Infisical, com reserva no Mac em `~/Credenciais/Nolask/Clientes/MagoOS/pgbackrest-cipher-pass-mago-os.txt`. **Sem ela, nenhum backup pode ser restaurado.**

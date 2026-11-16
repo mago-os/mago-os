@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Teste de restauração do backup (M0-11), todo mês pelo cron: restaura a cópia mais recente do Backblaze B2 num
+# Teste de restauração do backup (M0-11), toda semana pelo cron: restaura a cópia mais recente do Backblaze B2 num
 # container separado (com o diário de alterações até o fim), confere os dados contra o banco no ar e apaga tudo.
 # Não toca no banco de verdade. No fim, avisa o monitoramento (ok ou falha).
 #   restauracao-teste.sh [repo]   (padrão: 1, o diário de 30 dias; 2 = semanal, 3 = mensal)

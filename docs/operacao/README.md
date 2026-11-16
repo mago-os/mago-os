@@ -11,7 +11,7 @@ Como publicar, voltar uma versão, restaurar o backup, trocar chaves e o que faz
 | Backup e restauração do banco (B2) | [backup.md](backup.md) | Já existe |
 | Publicar e voltar uma versão no teste | [publicacao.md](publicacao.md) | Já existe |
 | Segredos: ambientes, identidades e como criar ou trocar | [segredos.md](segredos.md) | Já existe |
-| O que fazer se cair | A escrever | M0-12 |
+| Monitoramento e o que fazer se cair | [monitoramento.md](monitoramento.md) | Já existe |
 
 ## Regras que valem sempre
 

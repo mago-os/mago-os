@@ -12,7 +12,7 @@ O plano pede guardar o backup por 30 dias, 3 meses e 1 ano. O pgBackRest guarda 
 
 1. Três depósitos no mesmo bucket do Backblaze B2, com as mesmas chaves e a mesma criptografia: repo1 diário (30 dias, com o diário de alterações contínuo), repo2 semanal (90 dias) e repo3 mensal (365 dias).
 2. Em repo2 e repo3, o diário de alterações é guardado só o necessário para cada cópia abrir (`retention-archive-type=full`, `retention-archive=1`). Assim eles são pontos fixos e não crescem com o diário de um ano inteiro.
-3. Teste de restauração automático todo mês, num container separado, conferindo os dados contra o banco no ar.
+3. Teste de restauração automático, num container separado, conferindo os dados contra o banco no ar. Começou mensal e passou a semanal na M0-12, porque o Uptime Kuma não aceita prazo de aviso maior que 24 dias.
 4. Regra de ciclo de vida no bucket: arquivo apagado pelo pgBackRest fica escondido por 30 dias antes de sumir.
 5. Os scripts avisam o monitoramento (Uptime Kuma, M0-12) a cada execução; a falta de aviso também alerta.
 
