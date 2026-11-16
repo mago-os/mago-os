@@ -1,0 +1,108 @@
+# Verificação automática (M0-07): roda em todo PR e em toda mudança na main.
+# Os nomes dos trabalhos ("Tipos, estilo e testes", "Testes de tela", "Segurança") são os que a proteção da main exige.
+name: Verificação
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  schedule:
+    - cron: "0 9 * * 1" # segunda, 06:00 em Brasília: segurança semanal, mesmo sem mudanças
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: verificacao-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  codigo:
+    name: Tipos, estilo e testes
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: pgvector/pgvector:pg18
+        env:
+          POSTGRES_USER: mago
+          POSTGRES_DB: mago
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports: ["54318:5432"]
+        options: >-
+          --health-cmd "pg_isready -U mago -d mago"
+          --health-interval 2s --health-timeout 3s --health-retries 30
+    env:
+      MAGO_EXIGIR_BANCO: "1"
+      MAGO_TESTE_BANCO_URL: postgres://mago@127.0.0.1:54318/postgres
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Tipos
+        run: pnpm tipos
+      - name: Estilo
+        run: pnpm estilo
+      - name: Testes de unidade e com PostgreSQL real
+        run: pnpm testes
+
+  telas:
+    name: Testes de tela
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: pgvector/pgvector:pg18
+        env:
+          POSTGRES_USER: mago
+          POSTGRES_DB: mago
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports: ["54318:5432"]
+        options: >-
+          --health-cmd "pg_isready -U mago -d mago"
+          --health-interval 2s --health-timeout 3s --health-retries 30
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Migrações no banco de teste
+        run: pnpm migrar
+        env:
+          DATABASE_URL_DONO: postgres://mago@127.0.0.1:54318/mago
+      - name: Navegador do Playwright
+        run: pnpm exec playwright install --with-deps chromium
+      - name: Testes de tela (celular e computador)
+        run: pnpm telas:testes
+      - name: Guardar o relatório se falhar
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: relatorio-testes-de-tela
+          path: playwright-report/
+          retention-days: 7
+
+  seguranca:
+    name: Segurança
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+      - name: Bibliotecas com falhas conhecidas (graves ou críticas)
+        run: pnpm audit --audit-level high
+      - name: Senhas e chaves esquecidas no código (gitleaks, todo o histórico)
+        run: docker run --rm -v "$PWD:/repo" ghcr.io/gitleaks/gitleaks:v8.30.1 git /repo --no-banner --redact -v

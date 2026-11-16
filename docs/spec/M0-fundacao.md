@@ -12,7 +12,7 @@ Parte da [spec da Fase 1](README.md). Estado em 16/11/2026: em andamento.
 | M0-04 | Núcleo mínimo da API | M0-01 | M | Em revisão |
 | M0-05 | Banco, migrações e isolamento por empresa | M0-03, M0-04 | M | Em revisão |
 | M0-06 | Tela inicial com o design aprovado | M0-01 | M | Em revisão |
-| M0-07 | Testes automáticos e proteção da main | M0-04, M0-06 | M | A fazer |
+| M0-07 | Testes automáticos e proteção da main | M0-04, M0-06 | M | Em revisão |
 | M0-08 | Segredos no Infisical | M0-04 | P | Parte adiantada |
 | M0-09 | Preparação e segurança da VPS | nada | M | Parte adiantada |
 | M0-10 | Pacote e publicação automática no teste | M0-07, M0-08, M0-09 | M | A fazer |
@@ -79,9 +79,9 @@ Pronto quando: a tela abre no celular e no computador, nos dois temas, e pode se
 
 ## M0-07 Testes automáticos e proteção da main
 
-- [ ] GitHub Actions rodando a cada mudança: tipos, estilo, testes de unidade, testes com PostgreSQL real e testes de tela com Playwright
-- [ ] Verificação de segurança: bibliotecas com falhas conhecidas e senhas esquecidas no código
-- [ ] Proteção da main: só entra por PR, com testes verdes e aprovação
+- [x] GitHub Actions rodando a cada mudança: tipos, estilo, testes de unidade, testes com PostgreSQL real e testes de tela com Playwright
+- [x] Verificação de segurança: bibliotecas com falhas conhecidas e senhas esquecidas no código
+- [ ] Proteção da main: só entra por PR, com testes verdes e aprovação (o plano grátis do GitHub não permite em repositório privado; por decisão do Sandro em 16/11/2026, fica como regra escrita até antes de novos agentes ou do M6, ver decisão 0005)
 
 Pronto quando: uma mudança com teste quebrado é barrada sozinha.
 
