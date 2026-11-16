@@ -31,11 +31,11 @@ if faltam:
 q = lambda v: urllib.parse.quote(v, safe="")
 arquivos = {
     ".env": {"POSTGRES_USER": "mago", "POSTGRES_DB": "mago", "POSTGRES_PASSWORD": s["MAGO_DB_SENHA_DONO"]},
-    "backup.env": {
-        "PGBACKREST_REPO1_S3_KEY": s["B2_KEY_ID"], "PGBACKREST_REPO1_S3_KEY_SECRET": s["B2_APPLICATION_KEY"],
-        "PGBACKREST_REPO1_S3_ENDPOINT": s["B2_ENDPOINT"], "PGBACKREST_REPO1_S3_BUCKET": s["B2_BUCKET"],
-        "PGBACKREST_REPO1_S3_REGION": s["B2_REGION"], "PGBACKREST_REPO1_CIPHER_PASS": s["PGBACKREST_CIPHER_PASS"],
-    },
+    # Os três depósitos do pgBackRest (diário, semanal e mensal) ficam no mesmo bucket, com as mesmas chaves.
+    "backup.env": {f"PGBACKREST_REPO{n}_{k}": v for n in (1, 2, 3) for k, v in {
+        "S3_KEY": s["B2_KEY_ID"], "S3_KEY_SECRET": s["B2_APPLICATION_KEY"], "S3_ENDPOINT": s["B2_ENDPOINT"],
+        "S3_BUCKET": s["B2_BUCKET"], "S3_REGION": s["B2_REGION"], "CIPHER_PASS": s["PGBACKREST_CIPHER_PASS"],
+    }.items()},
     "api.env": {
         "AMBIENTE": "teste",
         "DATABASE_URL": f"postgres://mago_app:{q(s['MAGO_DB_SENHA_APP'])}@db:5432/mago",

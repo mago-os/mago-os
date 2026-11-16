@@ -8,7 +8,7 @@ Como publicar, voltar uma versão, restaurar o backup, trocar chaves e o que faz
 | Verificação automática no GitHub (o que roda e o que fazer se falhar) | [verificacao.md](verificacao.md) | Já existe |
 | Acesso de administração à VPS02 (usuários, SSH, Tailscale, firewall) | [acesso-vps.md](acesso-vps.md) | Já existe |
 | Infraestrutura da VPS02 e como remontar do zero | [infra/vps02/README.md](../../infra/vps02/README.md) | Já existe |
-| Restaurar o backup do banco (B2) | A escrever | M0-11 |
+| Backup e restauração do banco (B2) | [backup.md](backup.md) | Já existe |
 | Publicar e voltar uma versão no teste | [publicacao.md](publicacao.md) | Já existe |
 | Segredos: ambientes, identidades e como criar ou trocar | [segredos.md](segredos.md) | Já existe |
 | O que fazer se cair | A escrever | M0-12 |
