@@ -13,7 +13,7 @@ Parte da [spec da Fase 1](README.md). Estado em 16/11/2026: em andamento.
 | M0-05 | Banco, migrações e isolamento por empresa | M0-03, M0-04 | M | Em revisão |
 | M0-06 | Tela inicial com o design aprovado | M0-01 | M | Em revisão |
 | M0-07 | Testes automáticos e proteção da main | M0-04, M0-06 | M | Em revisão |
-| M0-08 | Segredos no Infisical | M0-04 | P | Parte adiantada |
+| M0-08 | Segredos no Infisical | M0-04 | P | Em revisão |
 | M0-09 | Preparação e segurança da VPS | nada | M | Parte adiantada |
 | M0-10 | Pacote e publicação automática no teste | M0-07, M0-08, M0-09 | M | A fazer |
 | M0-11 | Backup do banco no Backblaze B2 | M0-10 | M | Primeira etapa feita |
@@ -88,9 +88,9 @@ Pronto quando: uma mudança com teste quebrado é barrada sozinha.
 ## M0-08 Segredos no Infisical
 
 - [x] Criar a conta no Infisical Cloud junto com o Sandro e o projeto do Mago OS (feito em 16/11/2026: projeto `mago-os`, ambiente Staging, identidade `vps02` só leitura)
-- [ ] Ambientes local e produção no projeto
-- [ ] API e publicação lendo os segredos de lá
-- [ ] Nenhum segredo no repositório (a verificação do M0-07 confere)
+- [x] Ambientes local e produção no projeto (Development, Staging e Production já existiam)
+- [x] API e publicação lendo os segredos de lá (`infra/vps02/bin/segredos.sh` gera `.env`, `backup.env` e `api.env`; a API passa a usar o `api.env` na M0-10)
+- [x] Nenhum segredo no repositório (a verificação do M0-07 confere)
 
 Pronto quando: o sistema sobe no teste sem nenhum segredo escrito em arquivo do repositório.
 
