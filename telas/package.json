@@ -4,8 +4,30 @@
   "private": true,
   "description": "Telas: frontend React com os painéis encaixáveis.",
   "type": "module",
-  "exports": "./src/index.ts",
   "scripts": {
-    "tipos": "tsc -p tsconfig.json"
+    "tipos": "tsc -p tsconfig.json",
+    "dev": "vite",
+    "construir": "vite build",
+    "previa": "vite preview"
+  },
+  "dependencies": {
+    "react": "catalog:",
+    "react-dom": "catalog:",
+    "clsx": "catalog:",
+    "tailwind-merge": "catalog:",
+    "class-variance-authority": "catalog:",
+    "lucide-react": "catalog:",
+    "@fontsource-variable/geist": "catalog:",
+    "@fontsource-variable/geist-mono": "catalog:",
+    "radix-ui": "catalog:"
+  },
+  "devDependencies": {
+    "vite": "catalog:",
+    "@vitejs/plugin-react": "catalog:",
+    "tailwindcss": "catalog:",
+    "@tailwindcss/vite": "catalog:",
+    "vite-plugin-pwa": "catalog:",
+    "@types/react": "catalog:",
+    "@types/react-dom": "catalog:"
   }
 }
