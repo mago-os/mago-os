@@ -1,7 +1,7 @@
 name: mago-os
 services:
   db:
-    image: mago-os-db:pg17
+    image: mago-os-db:pg18
     restart: unless-stopped
     env_file: [.env, backup.env]
     command:
@@ -15,7 +15,7 @@ services:
       - -c
       - archive_timeout=300
     volumes:
-      - db-data:/var/lib/postgresql/data
+      - db-data:/var/lib/postgresql
       - ./pgbackrest:/etc/pgbackrest:ro
       - pgbackrest-log:/var/log/pgbackrest
     networks: [mago_db, mago_backup]

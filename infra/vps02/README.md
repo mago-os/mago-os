@@ -10,7 +10,7 @@ Explicação completa: Wiki do cliente MagoOS, páginas `infraestrutura.md` e `b
 | `env.example` | `/opt/mago-os/.env` (senha do banco) |
 | `backup.env.example` | `/opt/mago-os/backup.env` (gerado por `bin/segredos-backup.sh`) |
 | `infisical.env.example` | `/opt/mago-os/infisical.env` (acesso da identidade `vps02`) |
-| `db-image/Dockerfile` | `/opt/mago-os/db-image/Dockerfile` (imagem `mago-os-db:pg17`) |
+| `db-image/Dockerfile` | `/opt/mago-os/db-image/Dockerfile` (imagem `mago-os-db:pg18`) |
 | `pgbackrest/pgbackrest.conf` | `/opt/mago-os/pgbackrest/pgbackrest.conf` |
 | `bin/segredos-backup.sh` | `/opt/mago-os/bin/segredos-backup.sh` |
 | `bin/backup-diario.sh` | `/opt/mago-os/bin/backup-diario.sh` |
@@ -21,7 +21,7 @@ Explicação completa: Wiki do cliente MagoOS, páginas `infraestrutura.md` e `b
 
 1. Copiar os arquivos para os caminhos da tabela.
 2. Criar `/opt/mago-os/.env` e `/opt/mago-os/infisical.env` a partir dos modelos (`chmod 600`).
-3. `docker build -t mago-os-db:pg17 /opt/mago-os/db-image` e `/opt/mago-os/bin/segredos-backup.sh`.
+3. `docker build -t mago-os-db:pg18 /opt/mago-os/db-image` e `/opt/mago-os/bin/segredos-backup.sh`.
 4. Para restaurar os dados: `pgbackrest --stanza=mago restore` num volume vazio, antes de subir o banco.
 5. `cd /opt/mago-os && docker compose up -d`.
 6. Acrescentar `import /etc/caddy/mago-os.caddy` ao Caddyfile e `systemctl reload caddy`.
