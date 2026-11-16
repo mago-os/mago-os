@@ -15,7 +15,7 @@ Parte da [spec da Fase 1](README.md). Estado em 16/11/2026: em andamento.
 | M0-07 | Testes automáticos e proteção da main | M0-04, M0-06 | M | Em revisão |
 | M0-08 | Segredos no Infisical | M0-04 | P | Em revisão |
 | M0-09 | Preparação e segurança da VPS | nada | M | Em revisão |
-| M0-10 | Pacote e publicação automática no teste | M0-07, M0-08, M0-09 | M | A fazer |
+| M0-10 | Pacote e publicação automática no teste | M0-07, M0-08, M0-09 | M | Em revisão |
 | M0-11 | Backup do banco no Backblaze B2 | M0-10 | M | Primeira etapa feita |
 | M0-12 | Monitoramento | M0-10 | P | A fazer |
 
@@ -107,10 +107,10 @@ Pronto quando: o Mago OS tem o próprio espaço na VPS02 sem afetar a Ratoeira.
 
 ## M0-10 Pacote e publicação automática no teste
 
-- [ ] Imagem Docker montada pelo GitHub a cada mudança aprovada e guardada de forma privada no GitHub
-- [ ] A VPS busca a versão nova assim que o GitHub toca a campainha (com conferência a cada minuto como reserva), baixa, roda as migrações e liga a versão nova ao lado da antiga
-- [ ] Verificação de saúde antes de trocar; se falhar, a antiga continua e o Sandro recebe aviso
-- [ ] Caddy apontando teste.osmago.com para o Mago OS; histórico de versões gerado sozinho e manual de como publicar e voltar uma versão
+- [x] Imagem Docker montada pelo GitHub a cada mudança aprovada e guardada de forma privada no GitHub
+- [x] A VPS busca a versão nova assim que o GitHub toca a campainha (com conferência a cada minuto como reserva), baixa, roda as migrações e liga a versão nova ao lado da antiga
+- [x] Verificação de saúde antes de trocar; se falhar, a antiga continua e o Sandro recebe aviso
+- [x] Caddy apontando teste.osmago.com para o Mago OS; histórico de versões gerado sozinho e manual de como publicar e voltar uma versão
 
 Pronto quando: aprovar um PR faz a versão nova aparecer em teste.osmago.com sem ninguém mexer na VPS.
 
