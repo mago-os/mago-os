@@ -129,8 +129,10 @@ export function registrarRotasDoLogin(app: FastifyInstance, login: Login, pool: 
       const entrando = pedido.method === "POST" && caminho === "/sign-in/email";
 
       // Ações perigosas (trocar senha, mexer no 2FA ou nas passkeys) pedem o segundo fator recente.
+      // Código certo, código de recuperação ou passkey cadastrada na hora (o aparelho conferiu o dedo ou o rosto)
+      // numa sessão já aberta: a sessão fica confirmada. A entrada com passkey cria sessão nova já confirmada.
       const confirmandoCodigo =
-        caminho === "/two-factor/verify-totp" || caminho === "/two-factor/verify-backup-code";
+        CAMINHOS_QUE_CONFIRMAM.has(caminho) && caminho !== "/passkey/verify-authentication";
       const sessao =
         pedido.method === "POST" && (ACOES_PERIGOSAS.has(caminho) || confirmandoCodigo)
           ? await sessaoDoPedido(login, pool, pedido)

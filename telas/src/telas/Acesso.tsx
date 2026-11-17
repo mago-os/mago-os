@@ -18,6 +18,7 @@ import { Button } from "@/componentes/ui/button";
 import { Campo } from "@/componentes/ui/campo";
 import { Card, CardDescricao, CardTitulo } from "@/componentes/ui/card";
 import { ConfirmarSegundoFator } from "./DoisFatores";
+import { usePasskeyPronta } from "./usePasskey";
 
 export function Moldura({
   titulo,
@@ -70,6 +71,7 @@ export function Entrar({ aoEntrar }: { aoEntrar: () => void }) {
   const [erro, setErro] = useState<string | null>(erroDoGoogle ? mensagemDoErro(erroDoGoogle) : null);
   const [enviando, setEnviando] = useState(false);
   const [pedeCodigo, setPedeCodigo] = useState(false);
+  const passkey = usePasskeyPronta("entrada", !pedeCodigo);
 
   async function aoEnviar(evento: React.FormEvent<HTMLFormElement>) {
     evento.preventDefault();
@@ -85,7 +87,8 @@ export function Entrar({ aoEntrar }: { aoEntrar: () => void }) {
 
   async function comPasskey() {
     setErro(null);
-    const r = await entrarComPasskey();
+    if (passkey.erro) return setErro(passkey.erro.mensagem ?? null);
+    const r = await entrarComPasskey(passkey.opcoes);
     if (r.ok) aoEntrar();
     else setErro(r.mensagem ?? null);
   }
@@ -118,7 +121,11 @@ export function Entrar({ aoEntrar }: { aoEntrar: () => void }) {
         </svg>
         Entrar com Google
       </Button>
-      <Button variant="contorno" onClick={() => void comPasskey()}>
+      <Button
+        variant="contorno"
+        disabled={!passkey.pronta && !passkey.erro}
+        onClick={() => void comPasskey()}
+      >
         <Fingerprint />
         Entrar com passkey
       </Button>

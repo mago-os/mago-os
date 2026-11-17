@@ -19,7 +19,7 @@ export default defineConfig({
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 1 : 0,
   reporter: process.env.CI ? [["github"], ["html", { open: "never" }]] : "list",
-  use: { baseURL: `http://127.0.0.1:${PORTA_TELA}`, trace: "retain-on-failure" },
+  use: { baseURL: `http://localhost:${PORTA_TELA}`, trace: "retain-on-failure" },
   projects: [
     { name: "celular", use: { ...devices["Pixel 7"] } },
     { name: "computador", use: { ...devices["Desktop Chrome"], viewport: { width: 1280, height: 800 } } },
@@ -33,7 +33,7 @@ export default defineConfig({
         DATABASE_URL: bancoDaApi,
         DATABASE_URL_ACESSO: BANCO_DO_LOGIN,
         MAGO_ACESSO_SEGREDO: "segredo-falso-dos-testes-de-tela-nao-usar-fora",
-        MAGO_URL_PUBLICA: `http://127.0.0.1:${PORTA_TELA}`,
+        MAGO_URL_PUBLICA: `http://localhost:${PORTA_TELA}`,
         // Os testes de tela não consultam a internet.
         MAGO_SENHAS_VAZADAS: "nao_conferir",
         PORTA: String(PORTA_API),
