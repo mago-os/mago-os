@@ -71,11 +71,17 @@ export function App() {
     conteudo = (
       <AtivarDoisFatores
         obrigatorio={sessao.doisFatores.obrigatorio}
+        soPasskey={sessao.doisFatores.exigePasskey}
         aoConcluir={() => void conferirSessao()}
       />
     );
   else if (sessao?.falta === "confirmar")
-    conteudo = <ConfirmarSegundoFator aoConfirmar={() => void conferirSessao()} />;
+    conteudo = (
+      <ConfirmarSegundoFator
+        soPasskey={sessao.doisFatores.exigePasskey}
+        aoConfirmar={() => void conferirSessao()}
+      />
+    );
   else conteudo = <Inicio sessao={sessao ?? null} />;
 
   return (

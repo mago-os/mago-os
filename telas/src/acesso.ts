@@ -8,7 +8,7 @@ export interface Sessao {
   empresaId: string | null;
   /** O que falta do 2FA: nada, ativar (obrigatório e ainda sem) ou confirmar (entrou, falta o código). */
   falta: "nada" | "ativar" | "confirmar";
-  doisFatores: { obrigatorio: boolean; appAutenticador: boolean; passkeys: number };
+  doisFatores: { obrigatorio: boolean; appAutenticador: boolean; passkeys: number; exigePasskey: boolean };
 }
 
 export interface Resultado {

@@ -14,6 +14,7 @@ erDiagram
     timestamp_with_time_zone atualizada_em
     text situacao
     boolean exigir_dois_fatores
+    boolean exigir_passkey
   }
   papeis_plataforma {
     uuid pessoa_id PK
@@ -87,6 +88,10 @@ erDiagram
     text aaguid
     timestamp_with_time_zone criada_em
   }
+  acesso_regras_da_plataforma {
+    boolean unica PK
+    boolean exigir_passkey_administradores
+  }
   acesso_sessoes {
     uuid id PK
     uuid pessoa_id FK
@@ -98,6 +103,7 @@ erDiagram
     timestamp_with_time_zone criada_em
     timestamp_with_time_zone atualizada_em
     timestamp_with_time_zone dois_fatores_em
+    text dois_fatores_metodo
   }
   acesso_travas {
     text email PK
@@ -148,6 +154,7 @@ Isolamento por empresa (Row Level Security): ligado e forçado.
 | atualizada_em | timestamp with time zone | sim | `now()` | sistema | Última alteração no cadastro da empresa. |
 | situacao | text | sim | `'ativa'::text` | sistema | ativa: funciona normalmente. suspensa: ninguém da empresa entra e nenhum dado dela aparece. |
 | exigir_dois_fatores | boolean | sim | `false` | empresa | Se o administrador exigiu o 2FA de todas as pessoas da empresa (para administradores ele é sempre obrigatório). |
+| exigir_passkey | boolean | sim | `false` | empresa | Se o administrador exigiu passkey de todas as pessoas da empresa (o código do app deixa de valer sozinho). |
 
 ### papeis_plataforma
 
@@ -270,6 +277,17 @@ Isolamento por empresa (Row Level Security): fora das empresas (esquema acesso, 
 | aaguid | text | não |  | sistema | Modelo do autenticador (não identifica a pessoa nem o aparelho). |
 | criada_em | timestamp with time zone | sim | `now()` | sistema | Quando a passkey foi cadastrada. |
 
+### acesso.regras_da_plataforma
+
+Regras de segurança da plataforma inteira (uma linha só), decididas pelo Dono da plataforma. As empresas só podem apertar, nunca afrouxar.
+
+Isolamento por empresa (Row Level Security): fora das empresas (esquema acesso, só o papel mago_acesso mexe).
+
+| Coluna | Tipo | Obrigatória | Padrão | Marca | Descrição |
+| --- | --- | --- | --- | --- | --- |
+| unica | boolean | sim | `true` | sistema | Garante que exista uma linha só. Chave primária. |
+| exigir_passkey_administradores | boolean | sim | `false` | sistema | Se administradores e o Dono da plataforma só confirmam com passkey (o código do app deixa de valer sozinho). |
+
 ### acesso.sessoes
 
 Aparelhos conectados. Cada linha é uma sessão aberta; apagar a linha desconecta o aparelho na hora.
@@ -288,6 +306,7 @@ Isolamento por empresa (Row Level Security): fora das empresas (esquema acesso, 
 | criada_em | timestamp with time zone | sim | `now()` | sistema | Quando a pessoa entrou. |
 | atualizada_em | timestamp with time zone | sim | `now()` | sistema | Última renovação da sessão. |
 | dois_fatores_em | timestamp with time zone | não |  | sistema | Última vez que esta sessão passou pelo segundo fator (código, código de recuperação ou passkey). |
+| dois_fatores_metodo | text | não |  | sistema | Como a sessão passou pelo segundo fator: passkey, app, recuperacao (código de recuperação) ou aparelho (confiável). |
 
 ### acesso.travas
 

@@ -7,8 +7,10 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import type pg from "pg";
 import {
   ACOES_PERIGOSAS,
+  CAMINHOS_QUE_CONFIRMAM,
   type EstadoDaSessao,
   estadoDaSessao,
+  type MetodoDoSegundoFator,
   marcarConfirmacao,
   podeFazerAcaoPerigosa,
   situacaoDosDoisFatores,
@@ -44,6 +46,7 @@ export interface SessaoDoPedido {
   sessaoId: string;
   pessoa: { id: string; nome: string; email: string };
   empresaId: string | null;
+  metodo: MetodoDoSegundoFator | null;
   estado: EstadoDaSessao;
 }
 
@@ -59,6 +62,7 @@ export async function sessaoDoPedido(
   const sessao = dados.session as typeof dados.session & {
     empresaId?: string | null;
     doisFatoresEm?: Date | string | null;
+    doisFatoresMetodo?: MetodoDoSegundoFator | null;
   };
   const dois = await situacaoDosDoisFatores(pool, dados.user.id);
   const confirmadoEm = sessao.doisFatoresEm ? new Date(sessao.doisFatoresEm) : null;
@@ -66,7 +70,8 @@ export async function sessaoDoPedido(
     sessaoId: sessao.id,
     pessoa: { id: dados.user.id, nome: dados.user.name, email: dados.user.email },
     empresaId: sessao.empresaId ?? null,
-    estado: estadoDaSessao(dois, confirmadoEm),
+    metodo: sessao.doisFatoresMetodo ?? null,
+    estado: estadoDaSessao(dois, confirmadoEm, sessao.doisFatoresMetodo ?? null),
   };
 }
 
@@ -107,6 +112,7 @@ export function registrarRotasDoLogin(app: FastifyInstance, login: Login, pool: 
         obrigatorio: estado.dois.obrigatorio,
         appAutenticador: estado.dois.appAutenticador,
         passkeys: estado.dois.passkeys,
+        exigePasskey: estado.dois.exigePasskey,
         precisa: estado.precisa,
         confirmadoEm: estado.confirmadoEm,
       },
@@ -145,10 +151,12 @@ export function registrarRotasDoLogin(app: FastifyInstance, login: Login, pool: 
         ) {
           return resposta.code(403).send({
             code: "DOIS_FATORES_OBRIGATORIO",
-            message: "Essa é a sua única forma de 2FA. Ative o app autenticador antes de apagar a passkey.",
+            message: dois.exigePasskey
+              ? "Essa é a sua única passkey. Cadastre outra antes de apagar esta."
+              : "Essa é a sua única forma de 2FA. Ative o app autenticador antes de apagar a passkey.",
           });
         }
-        if (!podeFazerAcaoPerigosa(dois, confirmadoEm)) {
+        if (!podeFazerAcaoPerigosa(dois, confirmadoEm, sessao.metodo)) {
           return resposta.code(403).send({
             code: "CONFIRMACAO_NECESSARIA",
             message: "Por segurança, confirme com o código do app ou com a passkey antes de continuar.",
@@ -182,7 +190,7 @@ export function registrarRotasDoLogin(app: FastifyInstance, login: Login, pool: 
       }
       // Código certo numa sessão já aberta (ativar o app, ou confirmar depois do Google): a sessão fica confirmada.
       if (sessao && confirmandoCodigo && respostaDoLogin.ok) {
-        await marcarConfirmacao(pool, sessao.sessaoId);
+        await marcarConfirmacao(pool, sessao.sessaoId, CAMINHOS_QUE_CONFIRMAM.get(caminho) ?? "app");
         pedido.log.info({ evento: "dois_fatores.verificou" }, "Segundo fator confirmado");
       }
       if (caminho.startsWith("/sign-out") && respostaDoLogin.ok) {

@@ -17,7 +17,14 @@ import { Campo } from "@/componentes/ui/campo";
 import { Aviso, Moldura } from "./Acesso";
 
 /** Pede o código do app, um código de recuperação ou a passkey. Serve no login e numa sessão aberta. */
-export function ConfirmarSegundoFator({ aoConfirmar }: { aoConfirmar: () => void }) {
+export function ConfirmarSegundoFator({
+  aoConfirmar,
+  soPasskey = false,
+}: {
+  aoConfirmar: () => void;
+  /** Só a passkey vale (o código de recuperação continua como saída de emergência). */
+  soPasskey?: boolean;
+}) {
   const [recuperacao, setRecuperacao] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
   const [enviando, setEnviando] = useState(false);
@@ -50,14 +57,20 @@ export function ConfirmarSegundoFator({ aoConfirmar }: { aoConfirmar: () => void
       descricao={
         recuperacao
           ? "Digite um dos seus códigos de recuperação. Cada um vale uma vez só."
-          : "Digite o código de 6 dígitos do seu app autenticador, ou use a passkey."
+          : soPasskey
+            ? "Para o seu perfil, a confirmação é só com a passkey."
+            : "Digite o código de 6 dígitos do seu app autenticador, ou use a passkey."
       }
     >
       <Button variant="contorno" onClick={() => void comPasskey()}>
         <Fingerprint />
         Usar a passkey
       </Button>
-      <form className="grid gap-4" onSubmit={(e) => void aoEnviar(e)}>
+      {soPasskey && !recuperacao && erro && <Aviso texto={erro} tipo="erro" />}
+      <form
+        className={soPasskey && !recuperacao ? "hidden" : "grid gap-4"}
+        onSubmit={(e) => void aoEnviar(e)}
+      >
         <Campo
           key={recuperacao ? "recuperacao" : "app"}
           id="codigo"
@@ -81,7 +94,11 @@ export function ConfirmarSegundoFator({ aoConfirmar }: { aoConfirmar: () => void
         onClick={() => setRecuperacao(!recuperacao)}
         className="cursor-pointer text-center text-sm text-texto-2 underline-offset-4 hover:underline"
       >
-        {recuperacao ? "Usar o código do app" : "Perdi o celular: usar um código de recuperação"}
+        {recuperacao
+          ? soPasskey
+            ? "Voltar para a passkey"
+            : "Usar o código do app"
+          : "Perdi o aparelho: usar um código de recuperação"}
       </button>
     </Moldura>
   );
@@ -106,9 +123,12 @@ type Etapa =
 /** Ativar o 2FA: passkey (recomendada) ou app autenticador, que mostra os 10 códigos de recuperação no fim. */
 export function AtivarDoisFatores({
   obrigatorio,
+  soPasskey = false,
   aoConcluir,
 }: {
   obrigatorio: boolean;
+  /** Só a passkey vale: o app autenticador não aparece como opção. */
+  soPasskey?: boolean;
   aoConcluir: () => void;
 }) {
   const [etapa, setEtapa] = useState<Etapa>({ tipo: "escolher" });
@@ -134,9 +154,11 @@ export function AtivarDoisFatores({
     }
   }
 
-  const descricao = obrigatorio
-    ? "Para o seu perfil, a autenticação em 2 fatores é obrigatória. Escolha como quer confirmar que é você."
-    : "Uma segunda prova, além da senha, de que é você mesmo.";
+  const descricao = soPasskey
+    ? "Para o seu perfil, a confirmação é com passkey. Cadastre a deste aparelho para continuar."
+    : obrigatorio
+      ? "Para o seu perfil, a autenticação em 2 fatores é obrigatória. Escolha como quer confirmar que é você."
+      : "Uma segunda prova, além da senha, de que é você mesmo.";
 
   if (etapa.tipo === "senha") {
     return (
@@ -195,7 +217,7 @@ export function AtivarDoisFatores({
     <Moldura titulo="Ative a autenticação em 2 fatores" descricao={descricao}>
       <Button onClick={() => void comPasskey()}>
         <Fingerprint />
-        Usar passkey (recomendado)
+        {soPasskey ? "Cadastrar passkey" : "Usar passkey (recomendado)"}
       </Button>
       <p className="-mt-2 text-xs text-texto-3">Face ID, Touch ID, digital, Windows Hello ou chave física.</p>
       <Button variant="contorno" onClick={() => void comApp()}>

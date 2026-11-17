@@ -95,4 +95,5 @@ O pg-boss guarda a fila no esquema `pgboss`, criado pela migração 0001 com o `
 
 - `acesso.dois_fatores` (segredo do app e códigos de recuperação, criptografados) e `acesso.passkeys` (só a chave pública) ficam no esquema do login, como as senhas.
 - `pessoas.dois_fatores_ativo` marca quem ativou o app; `empresas.exigir_dois_fatores` marca a empresa que exige de todos. O papel `mago_acesso` altera só a primeira.
-- Quem tem o 2FA obrigatório vem de `acesso.dois_fatores_obrigatorio(pessoa)`, que roda como dono e devolve só sim ou não: o login continua sem enxergar empresas nem vínculos.
+- Quem tem o 2FA obrigatório vem de `acesso.dois_fatores_obrigatorio(pessoa)`, que roda como dono e devolve só sim ou não: o login continua sem enxergar empresas nem vínculos. Do mesmo jeito, `acesso.exige_passkey(pessoa)` diz se só a passkey vale.
+- O piso da plataforma fica em `acesso.regras_da_plataforma` (uma linha só, decidida pelo Dono); as empresas só apertam (`exigir_dois_fatores`, `exigir_passkey`). Cada sessão guarda também o método do segundo fator (`dois_fatores_metodo`).

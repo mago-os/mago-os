@@ -313,6 +313,74 @@ describe.skipIf(!bancoDisponivel)("autenticação em 2 fatores", () => {
     await dono.query("update empresas set exigir_dois_fatores = false");
   });
 
+  it("piso da plataforma 'só passkey para administradores': o código do app deixa de bastar", async () => {
+    await dono.query("update acesso.regras_da_plataforma set exigir_passkey_administradores = true");
+    try {
+      // Uma sessão confirmada pelo app (o código do app já foi usado nos testes acima, então marcamos direto).
+      const entrada = await entrarComSenha("dona@teste.invalid");
+      const app = await pedir(
+        "POST",
+        "/acesso/two-factor/verify-backup-code",
+        { code: codigosDeRecuperacao[4] },
+        entrada.cookie,
+      );
+      expect(app.statusCode).toBe(200);
+      await dono.query(
+        "update acesso.sessoes set dois_fatores_metodo = 'app' where dois_fatores_metodo = 'recuperacao'",
+      );
+      const cookie = juntar(entrada.cookie, cookiesDe(app));
+      // Sem passkey cadastrada: precisa cadastrar, e só a passkey aparece como opção.
+      expect(await estado(cookie)).toMatchObject({
+        completa: false,
+        falta: "ativar",
+        doisFatores: { exigePasskey: true, passkeys: 0 },
+      });
+      expect((await pedir("GET", "/dados", undefined, cookie)).statusCode).toBe(403);
+
+      // Com uma passkey cadastrada, a sessão confirmada pelo app ainda precisa da passkey.
+      await dono.query(
+        `insert into acesso.passkeys (pessoa_id, chave_publica, credencial_id, tipo_aparelho)
+           select id, 'chave', 'credencial-teste', 'multiDevice' from pessoas where email = 'dona@teste.invalid'`,
+      );
+      expect((await estado(cookie)).falta).toBe("confirmar");
+
+      // O código de recuperação continua valendo como saída de emergência.
+      const outra = await entrarComSenha("dona@teste.invalid");
+      const usa = await pedir(
+        "POST",
+        "/acesso/two-factor/verify-backup-code",
+        { code: codigosDeRecuperacao[3] },
+        outra.cookie,
+      );
+      expect(usa.statusCode).toBe(200);
+      expect((await estado(juntar(outra.cookie, cookiesDe(usa)))).completa).toBe(true);
+    } finally {
+      await dono.query("update acesso.regras_da_plataforma set exigir_passkey_administradores = false");
+      await dono.query("delete from acesso.passkeys");
+    }
+  });
+
+  it("empresa que exige passkey de todos: a funcionária precisa cadastrar uma", async () => {
+    await dono.query("update empresas set exigir_passkey = true");
+    try {
+      const { cookie } = await entrarComSenha("func@teste.invalid");
+      expect(await estado(cookie)).toMatchObject({
+        falta: "ativar",
+        doisFatores: { exigePasskey: true, obrigatorio: true },
+      });
+    } finally {
+      await dono.query("update empresas set exigir_passkey = false");
+    }
+  });
+
+  it("a empresa não consegue afrouxar o piso: desligar a regra dela não tira o 2FA do administrador", async () => {
+    await dono.query("update empresas set exigir_dois_fatores = false, exigir_passkey = false");
+    const r = await dono.query(
+      "select acesso.dois_fatores_obrigatorio(id) as obrigatorio from pessoas where email = 'dona@teste.invalid'",
+    );
+    expect(r.rows[0].obrigatorio).toBe(true);
+  });
+
   it("perdeu o celular e os códigos: o comando desliga tudo, e o Dono volta a precisar ativar", async () => {
     await desligarDoisFatores(pool, "Dona@Teste.invalid");
     const contas = await dono.query(

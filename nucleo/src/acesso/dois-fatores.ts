@@ -11,11 +11,14 @@ export const DIAS_APARELHO_CONFIAVEL = 30;
 /** Ações perigosas pedem o segundo fator de novo se o último foi há mais de 10 minutos. */
 export const MINUTOS_CONFIRMACAO_RECENTE = 10;
 
-/** Caminhos em que o segundo fator acabou de ser conferido: a sessão criada ali já nasce confirmada. */
-export const CAMINHOS_QUE_CONFIRMAM = new Set([
-  "/two-factor/verify-totp",
-  "/two-factor/verify-backup-code",
-  "/passkey/verify-authentication",
+export type MetodoDoSegundoFator = "passkey" | "app" | "recuperacao" | "aparelho";
+
+/** Caminhos em que o segundo fator acabou de ser conferido, e com qual método. */
+export const CAMINHOS_QUE_CONFIRMAM = new Map<string, MetodoDoSegundoFator>([
+  ["/two-factor/verify-totp", "app"],
+  ["/two-factor/verify-backup-code", "recuperacao"],
+  ["/passkey/verify-authentication", "passkey"],
+  ["/passkey/verify-registration", "passkey"],
 ]);
 
 /** Ações perigosas: só com o segundo fator recente, quando a pessoa já tem algum. */
@@ -36,14 +39,16 @@ export interface SituacaoDosDoisFatores {
   appAutenticador: boolean;
   /** Quantas passkeys a pessoa tem. */
   passkeys: number;
+  /** Só a passkey vale (piso da plataforma para administradores, ou empresa que exige de todos). */
+  exigePasskey: boolean;
 }
 
 export async function situacaoDosDoisFatores(
   pool: pg.Pool,
   pessoaId: string,
 ): Promise<SituacaoDosDoisFatores> {
-  const r = await pool.query<{ obrigatorio: boolean; app: boolean; passkeys: number }>(
-    `select acesso.dois_fatores_obrigatorio($1) as obrigatorio,
+  const r = await pool.query<{ obrigatorio: boolean; app: boolean; passkeys: number; exige: boolean }>(
+    `select acesso.dois_fatores_obrigatorio($1) as obrigatorio, acesso.exige_passkey($1) as exige,
             exists (select 1 from acesso.dois_fatores d join pessoas p on p.id = d.pessoa_id
                      where d.pessoa_id = $1 and d.verificado and p.dois_fatores_ativo) as app,
             (select count(*)::int from acesso.passkeys where pessoa_id = $1) as passkeys`,
@@ -51,15 +56,25 @@ export async function situacaoDosDoisFatores(
   );
   const linha = r.rows[0];
   return {
-    obrigatorio: linha?.obrigatorio ?? false,
+    obrigatorio: (linha?.obrigatorio ?? false) || (linha?.exige ?? false),
     appAutenticador: linha?.app ?? false,
     passkeys: linha?.passkeys ?? 0,
+    exigePasskey: linha?.exige ?? false,
   };
 }
 
 /** Tem pelo menos uma forma de segundo fator pronta para usar. */
 export function temSegundoFator(s: SituacaoDosDoisFatores): boolean {
-  return s.appAutenticador || s.passkeys > 0;
+  return s.exigePasskey ? s.passkeys > 0 : s.appAutenticador || s.passkeys > 0;
+}
+
+/**
+ * A confirmação da sessão vale? Quando só a passkey vale, o código do app e o aparelho confiável não bastam;
+ * o código de recuperação continua valendo, como saída de emergência para quem perdeu o aparelho.
+ */
+export function confirmacaoValida(s: SituacaoDosDoisFatores, metodo: MetodoDoSegundoFator | null): boolean {
+  if (metodo === null) return false;
+  return !s.exigePasskey || metodo === "passkey" || metodo === "recuperacao";
 }
 
 /** Precisa passar pelo segundo fator antes de ver dados: obrigatório, ou ativado por conta própria. */
@@ -79,9 +94,13 @@ export interface EstadoDaSessao {
   falta: "nada" | "ativar" | "confirmar";
 }
 
-export function estadoDaSessao(dois: SituacaoDosDoisFatores, confirmadoEm: Date | null): EstadoDaSessao {
+export function estadoDaSessao(
+  dois: SituacaoDosDoisFatores,
+  confirmadoEm: Date | null,
+  metodo: MetodoDoSegundoFator | null = confirmadoEm ? "app" : null,
+): EstadoDaSessao {
   const precisa = precisaDoisFatores(dois);
-  const completa = !precisa || confirmadoEm !== null;
+  const completa = !precisa || (confirmadoEm !== null && confirmacaoValida(dois, metodo));
   let falta: EstadoDaSessao["falta"] = "nada";
   if (!completa) falta = temSegundoFator(dois) ? "confirmar" : "ativar";
   // Obrigatório e sem nenhum segundo fator: só pode ativar, mesmo que a sessão tenha sido marcada por engano.
@@ -93,15 +112,27 @@ export function estadoDaSessao(dois: SituacaoDosDoisFatores, confirmadoEm: Date 
 export function podeFazerAcaoPerigosa(
   dois: SituacaoDosDoisFatores,
   confirmadoEm: Date | null,
+  metodo: MetodoDoSegundoFator | null,
   agora = Date.now(),
 ) {
   if (!temSegundoFator(dois)) return true;
-  return confirmadoEm !== null && agora - confirmadoEm.getTime() <= MINUTOS_CONFIRMACAO_RECENTE * 60_000;
+  return (
+    confirmadoEm !== null &&
+    confirmacaoValida(dois, metodo) &&
+    agora - confirmadoEm.getTime() <= MINUTOS_CONFIRMACAO_RECENTE * 60_000
+  );
 }
 
 /** Marca que a sessão acabou de passar pelo segundo fator. */
-export async function marcarConfirmacao(pool: pg.Pool, sessaoId: string): Promise<void> {
-  await pool.query("update acesso.sessoes set dois_fatores_em = now() where id = $1", [sessaoId]);
+export async function marcarConfirmacao(
+  pool: pg.Pool,
+  sessaoId: string,
+  metodo: MetodoDoSegundoFator,
+): Promise<void> {
+  await pool.query(
+    "update acesso.sessoes set dois_fatores_em = now(), dois_fatores_metodo = $2 where id = $1",
+    [sessaoId, metodo],
+  );
 }
 
 /**

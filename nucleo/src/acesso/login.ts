@@ -11,7 +11,12 @@ import { APIError, betterAuth } from "better-auth";
 import { haveIBeenPwned } from "better-auth/plugins/haveibeenpwned";
 import { twoFactor } from "better-auth/plugins/two-factor";
 import pg from "pg";
-import { aparelhoConfiavel, CAMINHOS_QUE_CONFIRMAM, DIAS_APARELHO_CONFIAVEL } from "./dois-fatores.ts";
+import {
+  aparelhoConfiavel,
+  CAMINHOS_QUE_CONFIRMAM,
+  DIAS_APARELHO_CONFIAVEL,
+  type MetodoDoSegundoFator,
+} from "./dois-fatores.ts";
 
 export const SENHA_MINIMA = 10;
 export const SENHA_MAXIMA = 128;
@@ -128,6 +133,12 @@ export function criarLogin(opcoes: OpcoesDoLogin, pool: pg.Pool) {
         empresaId: { type: "string", fieldName: "empresa_id", required: false, input: false },
         // Quando a sessão passou pelo segundo fator (M1-05).
         doisFatoresEm: { type: "date", fieldName: "dois_fatores_em", required: false, input: false },
+        doisFatoresMetodo: {
+          type: "string",
+          fieldName: "dois_fatores_metodo",
+          required: false,
+          input: false,
+        },
       },
     },
     account: {
@@ -200,14 +211,20 @@ export function criarLogin(opcoes: OpcoesDoLogin, pool: pg.Pool) {
             // passkey, ou aparelho confiável (no login por senha, o plugin só deixa a sessão existir se o aparelho
             // for confiável; no login com Google, conferimos o cookie aqui). Sessões recriadas mantêm a marca.
             const caminho = contexto?.path ?? "";
-            let confirmada = (sessao as { doisFatoresEm?: Date | null }).doisFatoresEm != null;
-            if (CAMINHOS_QUE_CONFIRMAM.has(caminho)) confirmada = true;
-            else if (caminho === "/sign-in/email" && r.rows[0]?.app) confirmada = true;
+            const anterior = sessao as {
+              doisFatoresEm?: Date | null;
+              doisFatoresMetodo?: MetodoDoSegundoFator | null;
+            };
+            let metodo: MetodoDoSegundoFator | null =
+              anterior.doisFatoresEm != null ? (anterior.doisFatoresMetodo ?? null) : null;
+            let quando: Date | null = metodo ? (anterior.doisFatoresEm ?? null) : null;
+            if (CAMINHOS_QUE_CONFIRMAM.has(caminho)) metodo = CAMINHOS_QUE_CONFIRMAM.get(caminho) ?? null;
+            else if (caminho === "/sign-in/email" && r.rows[0]?.app) metodo = "aparelho";
             else if (caminho.startsWith("/callback/") && contexto) {
               const cookie = contexto.context.createAuthCookie("trust_device");
               const assinado = await contexto.getSignedCookie(cookie.name, contexto.context.secret);
               const valor = typeof assinado === "string" ? assinado : null;
-              confirmada = await aparelhoConfiavel(
+              const confiavel = await aparelhoConfiavel(
                 valor,
                 sessao.userId,
                 contexto.context.secret,
@@ -216,12 +233,18 @@ export function criarLogin(opcoes: OpcoesDoLogin, pool: pg.Pool) {
                   return v ? { value: v.value, expiresAt: v.expiresAt } : null;
                 },
               );
+              if (confiavel) metodo = "aparelho";
+            }
+            // Confirmada agora (código, passkey ou aparelho confiável), e não herdada da sessão anterior.
+            if (metodo && (quando === null || CAMINHOS_QUE_CONFIRMAM.has(caminho) || metodo === "aparelho")) {
+              quando = new Date();
             }
             return {
               data: {
                 ...sessao,
                 empresaId: r.rows[0]?.empresa ?? null,
-                doisFatoresEm: confirmada ? new Date() : null,
+                doisFatoresEm: metodo ? quando : null,
+                doisFatoresMetodo: metodo,
               },
             };
           },

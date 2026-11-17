@@ -18,6 +18,21 @@ GRANT UPDATE (dois_fatores_ativo) ON public.pessoas TO mago_acesso;
 ALTER TABLE public.empresas ADD COLUMN exigir_dois_fatores boolean NOT NULL DEFAULT false;
 COMMENT ON COLUMN public.empresas.exigir_dois_fatores IS
   '[empresa] Se o administrador exigiu o 2FA de todas as pessoas da empresa (para administradores ele é sempre obrigatório).';
+ALTER TABLE public.empresas ADD COLUMN exigir_passkey boolean NOT NULL DEFAULT false;
+COMMENT ON COLUMN public.empresas.exigir_passkey IS
+  '[empresa] Se o administrador exigiu passkey de todas as pessoas da empresa (o código do app deixa de valer sozinho).';
+
+-- Piso da plataforma, decidido pelo Dono: vale para todas as empresas, e nenhuma fica abaixo dele.
+CREATE TABLE acesso.regras_da_plataforma (
+  unica boolean PRIMARY KEY DEFAULT true CHECK (unica),
+  exigir_passkey_administradores boolean NOT NULL DEFAULT false
+);
+INSERT INTO acesso.regras_da_plataforma DEFAULT VALUES;
+COMMENT ON TABLE acesso.regras_da_plataforma IS
+  'Regras de segurança da plataforma inteira (uma linha só), decididas pelo Dono da plataforma. As empresas só podem apertar, nunca afrouxar.';
+COMMENT ON COLUMN acesso.regras_da_plataforma.unica IS '[sistema] Garante que exista uma linha só.';
+COMMENT ON COLUMN acesso.regras_da_plataforma.exigir_passkey_administradores IS
+  '[sistema] Se administradores e o Dono da plataforma só confirmam com passkey (o código do app deixa de valer sozinho).';
 
 CREATE TABLE acesso.dois_fatores (
   id uuid PRIMARY KEY DEFAULT uuidv7(),
@@ -64,9 +79,12 @@ COMMENT ON COLUMN acesso.passkeys.transportes IS '[sistema] Como o aparelho se c
 COMMENT ON COLUMN acesso.passkeys.aaguid IS '[sistema] Modelo do autenticador (não identifica a pessoa nem o aparelho).';
 COMMENT ON COLUMN acesso.passkeys.criada_em IS '[sistema] Quando a passkey foi cadastrada.';
 
-ALTER TABLE acesso.sessoes ADD COLUMN dois_fatores_em timestamptz;
+ALTER TABLE acesso.sessoes ADD COLUMN dois_fatores_em timestamptz,
+  ADD COLUMN dois_fatores_metodo text CHECK (dois_fatores_metodo IN ('passkey', 'app', 'recuperacao', 'aparelho'));
 COMMENT ON COLUMN acesso.sessoes.dois_fatores_em IS
   '[sistema] Última vez que esta sessão passou pelo segundo fator (código, código de recuperação ou passkey).';
+COMMENT ON COLUMN acesso.sessoes.dois_fatores_metodo IS
+  '[sistema] Como a sessão passou pelo segundo fator: passkey, app, recuperacao (código de recuperação) ou aparelho (confiável).';
 
 GRANT SELECT, INSERT, UPDATE, DELETE ON acesso.dois_fatores, acesso.passkeys TO mago_acesso;
 
@@ -88,10 +106,39 @@ COMMENT ON FUNCTION acesso.dois_fatores_obrigatorio(uuid) IS
 REVOKE EXECUTE ON FUNCTION acesso.dois_fatores_obrigatorio(uuid) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION acesso.dois_fatores_obrigatorio(uuid) TO mago_acesso;
 
+-- Se a pessoa só pode confirmar com passkey: piso da plataforma para administradores e o Dono, ou empresa que
+-- exige de todos. Roda como dono, devolve só sim ou não.
+CREATE FUNCTION acesso.exige_passkey(pessoa uuid) RETURNS boolean
+  LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public, acesso, pg_temp
+  AS $$
+    SELECT (
+             (SELECT exigir_passkey_administradores FROM acesso.regras_da_plataforma)
+             AND (
+               EXISTS (SELECT 1 FROM public.papeis_plataforma WHERE pessoa_id = pessoa)
+               OR EXISTS (
+                    SELECT 1 FROM public.vinculos v JOIN public.empresas e ON e.id = v.empresa_id
+                     WHERE v.pessoa_id = pessoa AND v.situacao = 'ativo' AND e.situacao = 'ativa'
+                       AND v.perfil = 'administrador'
+                  )
+             )
+           )
+        OR EXISTS (
+             SELECT 1 FROM public.vinculos v JOIN public.empresas e ON e.id = v.empresa_id
+              WHERE v.pessoa_id = pessoa AND v.situacao = 'ativo' AND e.situacao = 'ativa' AND e.exigir_passkey
+           )
+  $$;
+COMMENT ON FUNCTION acesso.exige_passkey(uuid) IS
+  'Se a pessoa só confirma com passkey: piso da plataforma (administradores e Dono) ou empresa que exige de todos.';
+REVOKE EXECUTE ON FUNCTION acesso.exige_passkey(uuid) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION acesso.exige_passkey(uuid) TO mago_acesso;
+
 -- Down Migration
 
+DROP FUNCTION acesso.exige_passkey(uuid);
+DROP TABLE acesso.regras_da_plataforma;
+ALTER TABLE public.empresas DROP COLUMN exigir_passkey;
 DROP FUNCTION acesso.dois_fatores_obrigatorio(uuid);
-ALTER TABLE acesso.sessoes DROP COLUMN dois_fatores_em;
+ALTER TABLE acesso.sessoes DROP COLUMN dois_fatores_metodo, DROP COLUMN dois_fatores_em;
 DROP TABLE acesso.passkeys;
 DROP TABLE acesso.dois_fatores;
 ALTER TABLE public.empresas DROP COLUMN exigir_dois_fatores;

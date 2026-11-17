@@ -17,13 +17,15 @@ A spec pede 2FA com app autenticador e passkey, obrigatório para o Dono da plat
 5. **Vale também no login com Google:** o 2FA do Google não conta. O plugin cobre só o login por senha; para o Google, a regra do item 2 deixa a sessão "a confirmar", e o aparelho confiável é conferido pelo mesmo cookie do plugin.
 6. **Confiar no aparelho:** 30 dias, cookie assinado com registro no banco (o mesmo do plugin).
 7. **Ações perigosas** (trocar senha ou e-mail, ativar ou desligar o 2FA, gerar novos códigos, cadastrar ou apagar passkey) pedem o segundo fator de novo se o último foi há mais de 10 minutos, quando a pessoa já tem algum. Desligar o 2FA e apagar a última passkey são recusados quando o 2FA é obrigatório.
-8. **Perdeu tudo:** `pnpm plataforma:desligar-2fa --email`, só no servidor, apaga app, passkeys, aparelhos confiáveis e sessões; a pessoa ativa de novo no próximo login.
-9. **Tela:** versão simples (adiantada da M1-10): ativar com passkey (recomendado) ou app (QR code e os 10 códigos), pedir o código no login, e "Entrar com passkey".
+8. **Piso da plataforma e regras da empresa** (pedido do Sandro em 17/11/2026): toda empresa nasce com o padrão (2FA obrigatório para administradores, opcional para os demais), sem ninguém decidir nada na criação. O Dono decide o piso da plataforma inteira (`acesso.regras_da_plataforma`; hoje, "administradores e Dono só com passkey"); o administrador só pode **apertar** na empresa dele (`exigir_dois_fatores` e `exigir_passkey` para todos), nunca afrouxar abaixo do piso nem tirar o 2FA dos administradores. Com "só passkey", o código do app e o aparelho confiável não confirmam a sessão; o código de recuperação continua valendo como saída de emergência. Cada sessão guarda o método (`dois_fatores_metodo`). As telas de configuração ficam para a M1-10; até lá, as regras se ligam por comando no banco (manual de operação).
+9. **Perdeu tudo:** `pnpm plataforma:desligar-2fa --email`, só no servidor, apaga app, passkeys, aparelhos confiáveis e sessões; a pessoa ativa de novo no próximo login.
+10. **Tela:** versão simples (adiantada da M1-10): ativar com passkey (recomendado) ou app (QR code e os 10 códigos), pedir o código no login, e "Entrar com passkey".
 
 ## Descartado
 
 - **Código por e-mail ou SMS como segundo fator:** SMS é fácil de desviar; e-mail ainda não existe (Resend). Pode entrar depois como reserva.
 - **Exigir o 2FA de quem entra com passkey:** a passkey já é mais forte que senha mais código.
+- **Exigir as duas formas (passkey e código) a cada login:** quase não soma segurança à passkey e aumenta o risco de a pessoa ficar trancada fora. No lugar, o piso "só passkey" (discutido com o Sandro em 17/11/2026).
 - **Contar o 2FA do Google:** o Mago OS não tem como saber se ele foi feito, nem com que força.
 
 ## Consequências
