@@ -76,6 +76,29 @@ export function emailDeConvite(d: DadosDoConvite) {
   };
 }
 
+export interface DadosDoConviteDeEmpresa {
+  para: string;
+  nome: string;
+  quemConvidou: string;
+  link: string;
+}
+
+export function emailDeConviteDeEmpresa(d: DadosDoConviteDeEmpresa) {
+  return {
+    assunto: `${d.quemConvidou} convidou você para criar a sua conta no Mago OS`,
+    ...montar(
+      `Olá, ${d.nome.split(" ")[0]}`,
+      [
+        `${d.quemConvidou} convidou você para criar a sua conta no Mago OS, onde pessoas e agentes de IA trabalham juntos.`,
+        "Pelo link, você cria o seu acesso e cadastra a empresa (com CNPJ) ou a sua conta de pessoa física (com CPF). Você será o administrador da conta.",
+        "O convite vale 7 dias e funciona uma vez só. Se você não esperava este convite, pode ignorar este e-mail.",
+      ],
+      "Criar a minha conta",
+      d.link,
+    ),
+  };
+}
+
 /** Envia pelo Resend. Erro no envio vira exceção: quem chamou decide o que mostrar. */
 export function carteiroResend(chave: string, envio: typeof fetch = fetch): Carteiro {
   async function mandar(para: string, e: { assunto: string; html: string; text: string }) {
@@ -89,6 +112,7 @@ export function carteiroResend(chave: string, envio: typeof fetch = fetch): Cart
   return {
     enviarLinkDeSenha: ({ para, nome, link }) => mandar(para, emailDeSenha(nome, link)),
     enviarConvite: (d) => mandar(d.para, emailDeConvite(d)),
+    enviarConviteDeEmpresa: (d) => mandar(d.para, emailDeConviteDeEmpresa(d)),
   };
 }
 
@@ -107,6 +131,13 @@ export function carteiroDoLog(log: FastifyBaseLogger, ambiente: "local" | "teste
       log.warn(
         { evento: "vinculo.convidou", para, empresa, link },
         "Link de convite (sem e-mail: ver o log)",
+      );
+    },
+    async enviarConviteDeEmpresa({ para, link }) {
+      recusar();
+      log.warn(
+        { evento: "empresa.convidou", para, link },
+        "Link de convite de conta nova (sem e-mail: ver o log)",
       );
     },
   };

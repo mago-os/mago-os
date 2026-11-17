@@ -38,7 +38,7 @@ export const RENOVAR_SESSAO_SEGUNDOS = 60 * 60;
 /** O link de recuperação de senha vale 1 hora e só pode ser usado uma vez. */
 export const LINK_SENHA_SEGUNDOS = 60 * 60;
 
-/** Quem entrega os e-mails do sistema. O Resend entra numa tarefa própria; até lá, o link vai para o log. */
+/** Quem entrega os e-mails do sistema: o Resend (carteiro.ts); sem a chave, o link vai para o log. */
 export interface Carteiro {
   enviarLinkDeSenha(dados: { para: string; nome: string; link: string }): Promise<void>;
   /** Convite para entrar numa empresa (M1-07). */
@@ -46,6 +46,13 @@ export interface Carteiro {
     para: string;
     nome: string;
     empresa: string;
+    quemConvidou: string;
+    link: string;
+  }): Promise<void>;
+  /** Convite para criar uma conta nova (M1-11). */
+  enviarConviteDeEmpresa?(dados: {
+    para: string;
+    nome: string;
     quemConvidou: string;
     link: string;
   }): Promise<void>;

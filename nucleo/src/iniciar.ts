@@ -8,6 +8,7 @@ import { registrarRotasDoLogin } from "./acesso/rotas.ts";
 import { criarBanco } from "./banco.ts";
 import { ErroDeConfig, lerConfig } from "./config.ts";
 import { registrarRotasDaConta } from "./conta/rotas.ts";
+import { registrarRotasDasContas } from "./contas/rotas.ts";
 import { registrarRotasDosConvites } from "./convites/rotas.ts";
 import { criarFila } from "./fila.ts";
 import { catalogoDeModulos } from "./permissoes/modulos.ts";
@@ -40,6 +41,13 @@ async function iniciar(): Promise<void> {
       login,
       verificador,
       poolApp: banco.pool,
+      poolAcesso: poolDoLogin,
+      carteiro,
+      urlPublica: config.acesso.urlPublica,
+      conferirSenhasVazadas: config.acesso.conferirSenhasVazadas,
+    });
+    registrarRotasDasContas(app, {
+      login,
       poolAcesso: poolDoLogin,
       carteiro,
       urlPublica: config.acesso.urlPublica,

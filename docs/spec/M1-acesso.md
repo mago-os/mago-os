@@ -13,6 +13,7 @@ Parte da [spec da Fase 1](README.md). Estado em 17/11/2026: em andamento (M1-01 
 | M1-05 | Autenticação em 2 fatores | M1-03 | M |
 | M1-06 | Perfis e permissões por módulo | M1-02 | M |
 | M1-07 | Convites e desligamento | M1-03, M1-06 | M |
+| M1-11 | Convite para criar empresa (pedido do Sandro em 17/11/2026) | M1-07 | M |
 | M1-08 | Sessões e aparelhos | M1-03 | M |
 | M1-09 | Auditoria à prova de alteração | M1-01 | M |
 | M1-10 | Telas de acesso | M1-03 a M1-08 | M |
@@ -72,6 +73,18 @@ Pronto quando: um funcionário de teste é barrado no que não foi liberado para
 - [x] Desligar uma pessoa corta tudo na hora: login, sessões e chaves ligadas a ela (sem outra empresa, todas as sessões caem; com outra, só saem desta)
 
 Pronto quando: a pessoa desligada perde o acesso no mesmo instante, em todos os aparelhos.
+
+### M1-11 Convite para criar empresa
+
+Entrou em 17/11/2026, a pedido do Sandro, antes do teste final do M1 ([decisão 0016](../decisoes/0016-convite-para-criar-empresa.md)).
+
+- [x] O Dono convida uma conta nova pela tela Empresas (nome e e-mail do responsável)
+- [x] O responsável cria a senha (ou entra) e os dados: empresa com CNPJ ou pessoa física com CPF, conferidos pelos dígitos
+- [x] Quem cria vira administrador; o Dono vê só a lista de contas
+- [x] Um documento, uma conta; CPF tratado como dado pessoal
+- [ ] Depois: o administrador completar e corrigir os dados ("Dados da empresa"), incluindo as contas antigas sem documento
+
+Pronto quando: o Sandro convida uma conta nova, a pessoa cria a conta pelo link e entra como administradora, sem o Sandro dentro dela.
 
 ### M1-08 Sessões e aparelhos
 

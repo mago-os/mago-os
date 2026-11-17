@@ -52,7 +52,19 @@ describe("pessoa", () => {
 });
 
 describe("empresa", () => {
-  const empresa = { id: ID, nome: "Nolask", situacao: "ativa", criadaEm: AGORA, atualizadaEm: AGORA };
+  const empresa = {
+    id: ID,
+    nome: "Nolask",
+    tipo: "pj",
+    documento: "11222333000181",
+    nomeLegal: "Nolask Ltda",
+    fusoHorario: "America/Sao_Paulo",
+    idioma: "pt-BR",
+    telefone: null,
+    situacao: "ativa",
+    criadaEm: AGORA,
+    atualizadaEm: AGORA,
+  };
 
   it("aceita ativa e suspensa, recusa outras situações", () => {
     expect(conferirEmpresa(empresa).ok).toBe(true);

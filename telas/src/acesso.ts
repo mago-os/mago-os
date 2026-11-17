@@ -426,3 +426,58 @@ export const abrirConvite = (codigo: string) =>
   lerConta<ConviteAberto>(`/acesso/convite/${encodeURIComponent(codigo)}`);
 export const aceitarConvite = (codigo: string, senha?: string) =>
   enviarConta("POST", "/acesso/convite/aceitar", senha ? { codigo, senha } : { codigo });
+
+// Convite para criar empresa (M1-11).
+
+export interface ContaDaPlataforma {
+  id: string;
+  nome: string;
+  tipo: "pj" | "pf" | null;
+  documento: string | null;
+  situacao: string;
+  criadaEm: string;
+  pessoas: number;
+}
+
+export interface ConviteDeConta {
+  id: string;
+  nome: string;
+  email: string;
+  criadoEm: string;
+  expiraEm: string;
+}
+
+export const listarContasDaPlataforma = () =>
+  lerConta<{ empresas: ContaDaPlataforma[]; convites: ConviteDeConta[] }>("/plataforma/empresas");
+export const convidarConta = (dados: { nome: string; email: string }) =>
+  enviarConta("POST", "/plataforma/empresas/convites", dados);
+export const reenviarConviteDeConta = (id: string) =>
+  enviarConta("POST", `/plataforma/empresas/convites/${id}/reenviar`, {});
+export const cancelarConviteDeConta = (id: string) =>
+  enviarConta("POST", `/plataforma/empresas/convites/${id}/cancelar`, {});
+
+export interface ConviteDeContaAberto {
+  nome: string;
+  email: string;
+  quemConvidou: string;
+  temConta: boolean;
+}
+
+export interface DadosDaNovaConta {
+  tipo: "pj" | "pf";
+  documento: string;
+  nomeLegal: string;
+  nome: string;
+  fusoHorario: string;
+  idioma: string;
+  telefone: string;
+}
+
+export const abrirConviteDeConta = (codigo: string) =>
+  lerConta<ConviteDeContaAberto>(`/acesso/convite-de-empresa/${encodeURIComponent(codigo)}`);
+export const criarContaPeloConvite = (codigo: string, conta: DadosDaNovaConta, senha?: string) =>
+  enviarConta(
+    "POST",
+    "/acesso/convite-de-empresa/criar",
+    senha ? { codigo, senha, conta } : { codigo, conta },
+  );
