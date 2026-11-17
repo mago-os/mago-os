@@ -14,7 +14,10 @@ export const Perfil = Type.Enum(PERFIS, {
 });
 export type Perfil = Static<typeof Perfil>;
 
-/** Área da empresa que um gestor cuida (ex.: comercial, financeiro). Cada empresa cria as suas. */
+/**
+ * Área da empresa (ex.: comercial, financeiro). Cada empresa cria as suas. O gestor cuida de uma área; o
+ * funcionário pode estar numa (a equipe dele, M1-06); o administrador não tem área (vê a empresa toda).
+ */
 export const Area = Type.String({
   pattern: "^[a-z][a-z0-9_]{1,39}$",
   description: "Área em minúsculas, sem acento nem espaço (ex.: comercial).",
@@ -49,8 +52,8 @@ export const regrasDoVinculo: Regra<Vinculo>[] = [
     if (v.perfil === "gestor_area" && v.area === null) {
       return [{ caminho: "/area", mensagem: "gestor de área precisa de uma área" }];
     }
-    if (v.perfil !== "gestor_area" && v.area !== null) {
-      return [{ caminho: "/area", mensagem: "só o gestor de área tem área" }];
+    if (v.perfil === "administrador" && v.area !== null) {
+      return [{ caminho: "/area", mensagem: "administrador não tem área: vê a empresa toda" }];
     }
     return [];
   },

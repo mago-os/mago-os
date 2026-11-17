@@ -97,3 +97,10 @@ O pg-boss guarda a fila no esquema `pgboss`, criado pela migração 0001 com o `
 - `pessoas.dois_fatores_ativo` marca quem ativou o app; `empresas.exigir_dois_fatores` marca a empresa que exige de todos. O papel `mago_acesso` altera só a primeira.
 - Quem tem o 2FA obrigatório vem de `acesso.dois_fatores_obrigatorio(pessoa)`, que roda como dono e devolve só sim ou não: o login continua sem enxergar empresas nem vínculos. Do mesmo jeito, `acesso.exige_passkey(pessoa)` diz se só a passkey vale.
 - O piso da plataforma fica em `acesso.regras_da_plataforma` (uma linha só, decidida pelo Dono); as empresas só apertam (`exigir_dois_fatores`, `exigir_passkey`). Cada sessão guarda também o método do segundo fator (`dois_fatores_metodo`).
+
+## 11. Permissões por cima do isolamento (17/11/2026, M1-06)
+
+**Decisão:** as permissões (perfil, ajustes e dados sensíveis) são calculadas e conferidas no núcleo, numa verificação central; o banco continua cuidando do isolamento entre empresas. Detalhes na [decisão 0012](../decisoes/0012-permissoes.md).
+
+- `ajustes_de_permissao` guarda os ajustes que o administrador faz para cada pessoa, por módulo e ação, isolada por empresa como as outras tabelas. Quem pode mudar (o administrador, por padrão) é conferido pelo núcleo.
+- `vinculos.area` passa a valer também para o funcionário (a equipe dele); o administrador nunca tem área.

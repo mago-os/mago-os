@@ -84,9 +84,10 @@ describe("vínculo", () => {
     expect(conferirVinculo({ ...vinculo, perfil: "dono" }).ok).toBe(false);
   });
 
-  it("gestor precisa de área, e só ele tem área", () => {
+  it("gestor precisa de área; funcionário pode ter (a equipe dele); administrador não tem", () => {
     expect(conferirVinculo({ ...vinculo, perfil: "gestor_area" }).ok).toBe(false);
-    expect(conferirVinculo({ ...vinculo, area: "comercial" }).ok).toBe(false);
+    expect(conferirVinculo({ ...vinculo, area: "comercial" }).ok).toBe(true);
+    expect(conferirVinculo({ ...vinculo, perfil: "administrador", area: "comercial" }).ok).toBe(false);
     expect(conferirVinculo({ ...vinculo, perfil: "gestor_area", area: "Área Comercial" }).ok).toBe(false);
   });
 

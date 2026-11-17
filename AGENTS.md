@@ -34,6 +34,7 @@ O Mago OS é um sistema operacional de agentes para empresas: pessoas e agentes 
 7. **Português** nos nomes de pastas, comandos, regras de negócio e textos. Nomes de bibliotecas e termos técnicos consagrados ficam em inglês.
 8. **Textos que o usuário final vê** (telas, mensagens, e-mails) não usam o travessão (—).
 9. **Sem estado no servidor:** a API pode ser reiniciada ou duplicada a qualquer momento. Sessão, fila e arquivos ficam no banco ou no depósito.
+10. **Toda rota de dados passa pela verificação central de permissões** (`verificador.exigir(modulo, acao)`, em `nucleo/src/permissoes`), e todo módulo novo declara as próprias ações e a área no catálogo (`modulos.ts`). O alcance que ela devolve vira o filtro da consulta. Ver [decisão 0012](docs/decisoes/0012-permissoes.md).
 
 ## Segredos e segurança
 
