@@ -5,6 +5,7 @@
 import { normalizarEmail } from "@mago-os/contratos";
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import type pg from "pg";
+import { sessaoAindaVale } from "./aparelhos.ts";
 import {
   ACOES_PERIGOSAS,
   CAMINHOS_QUE_CONFIRMAM,
@@ -46,6 +47,7 @@ export interface SessaoDoPedido {
   sessaoId: string;
   pessoa: { id: string; nome: string; email: string };
   empresaId: string | null;
+  aparelhoId: string | null;
   metodo: MetodoDoSegundoFator | null;
   estado: EstadoDaSessao;
 }
@@ -63,13 +65,17 @@ export async function sessaoDoPedido(
     empresaId?: string | null;
     doisFatoresEm?: Date | string | null;
     doisFatoresMetodo?: MetodoDoSegundoFator | null;
+    aparelhoId?: string | null;
   };
+  // Regras do Mago OS por cima do Better Auth: inatividade, máximo de 30 dias e o registro do último uso.
+  if (!(await sessaoAindaVale(pool, sessao.id))) return null;
   const dois = await situacaoDosDoisFatores(pool, dados.user.id);
   const confirmadoEm = sessao.doisFatoresEm ? new Date(sessao.doisFatoresEm) : null;
   return {
     sessaoId: sessao.id,
     pessoa: { id: dados.user.id, nome: dados.user.name, email: dados.user.email },
     empresaId: sessao.empresaId ?? null,
+    aparelhoId: sessao.aparelhoId ?? null,
     metodo: sessao.doisFatoresMetodo ?? null,
     estado: estadoDaSessao(dois, confirmadoEm, sessao.doisFatoresMetodo ?? null),
   };
@@ -119,6 +125,130 @@ export function registrarRotasDoLogin(app: FastifyInstance, login: Login, pool: 
       completa: estado.completa,
       falta: estado.falta,
     };
+  });
+
+  // Meus aparelhos (M1-08): só com a sessão completa (com o 2FA, quando ele vale).
+  const exigirCompleta = async (pedido: FastifyRequest, resposta: FastifyReply) => {
+    const sessao = await sessaoDoPedido(login, pool, pedido);
+    if (!sessao) {
+      resposta.code(401).send({ code: "SEM_SESSAO", message: "Entre no Mago OS para continuar." });
+      return null;
+    }
+    if (!sessao.estado.completa) {
+      resposta
+        .code(403)
+        .send({ code: "DOIS_FATORES_CONFIRMAR", message: "Confirme a autenticação em 2 fatores." });
+      return null;
+    }
+    return sessao;
+  };
+
+  app.get("/acesso/aparelhos", async (pedido, resposta) => {
+    const sessao = await exigirCompleta(pedido, resposta);
+    if (!sessao) return resposta;
+    const r = await pool.query<{
+      id: string;
+      aparelho: string | null;
+      ip: string | null;
+      entrou_em: Date;
+      ultimo_uso_em: Date;
+    }>(
+      `select s.id, a.nome as aparelho, s.ip, s.criada_em as entrou_em, s.ultimo_uso_em
+         from acesso.sessoes s left join acesso.aparelhos a on a.id = s.aparelho_id
+        where s.pessoa_id = $1 and s.expira_em > now()
+        order by s.ultimo_uso_em desc`,
+      [sessao.pessoa.id],
+    );
+    return r.rows.map((l) => ({
+      sessaoId: l.id,
+      aparelho: l.aparelho ?? "Aparelho desconhecido",
+      ip: l.ip,
+      entrouEm: l.entrou_em,
+      ultimoUsoEm: l.ultimo_uso_em,
+      esteAparelho: l.id === sessao.sessaoId,
+    }));
+  });
+
+  app.post("/acesso/aparelhos/desconectar", async (pedido, resposta) => {
+    const sessao = await exigirCompleta(pedido, resposta);
+    if (!sessao) return resposta;
+    const sessaoId = (pedido.body as { sessaoId?: unknown } | undefined)?.sessaoId;
+    if (typeof sessaoId !== "string") return resposta.code(400).send({ code: "PEDIDO_INVALIDO" });
+    // Só as sessões da própria pessoa: a de outra pessoa simplesmente não é encontrada.
+    const r = await pool
+      .query("delete from acesso.sessoes where id = $1 and pessoa_id = $2", [sessaoId, sessao.pessoa.id])
+      .catch(() => ({ rowCount: 0 }));
+    if (r.rowCount === 0) return resposta.code(404).send({ code: "SESSAO_NAO_ENCONTRADA" });
+    pedido.log.info({ evento: "sessao.encerrou", motivo: "desconectado" }, "Aparelho desconectado");
+    return { ok: true };
+  });
+
+  app.post("/acesso/aparelhos/desconectar-outros", async (pedido, resposta) => {
+    const sessao = await exigirCompleta(pedido, resposta);
+    if (!sessao) return resposta;
+    const r = await pool.query("delete from acesso.sessoes where pessoa_id = $1 and id <> $2", [
+      sessao.pessoa.id,
+      sessao.sessaoId,
+    ]);
+    pedido.log.info(
+      { evento: "sessao.encerrou", motivo: "outros", quantos: r.rowCount },
+      "Outros aparelhos desconectados",
+    );
+    return { ok: true, desconectados: r.rowCount };
+  });
+
+  // Avisos de aparelho novo: mostrados nos outros aparelhos (o próprio aparelho novo não se avisa).
+  app.get("/acesso/avisos", async (pedido, resposta) => {
+    const sessao = await exigirCompleta(pedido, resposta);
+    if (!sessao) return resposta;
+    const r = await pool.query<{ id: string; aparelho_nome: string; ip: string | null; criado_em: Date }>(
+      `select id, aparelho_nome, ip, criado_em from acesso.avisos
+        where pessoa_id = $1 and respondido_em is null and aparelho_id is distinct from $2
+        order by criado_em desc`,
+      [sessao.pessoa.id, sessao.aparelhoId],
+    );
+    return r.rows.map((l) => ({
+      avisoId: l.id,
+      tipo: "aparelho_novo",
+      aparelho: l.aparelho_nome,
+      ip: l.ip,
+      em: l.criado_em,
+    }));
+  });
+
+  app.post("/acesso/avisos/responder", async (pedido, resposta) => {
+    const sessao = await exigirCompleta(pedido, resposta);
+    if (!sessao) return resposta;
+    const corpo = pedido.body as { avisoId?: unknown; resposta?: unknown } | undefined;
+    if (
+      typeof corpo?.avisoId !== "string" ||
+      (corpo.resposta !== "foi_eu" && corpo.resposta !== "nao_fui_eu")
+    ) {
+      return resposta.code(400).send({ code: "PEDIDO_INVALIDO" });
+    }
+    const aviso = await pool
+      .query<{ aparelho_id: string | null }>(
+        `update acesso.avisos set respondido_em = now(), resposta = $3
+          where id = $1 and pessoa_id = $2 and respondido_em is null returning aparelho_id`,
+        [corpo.avisoId, sessao.pessoa.id, corpo.resposta],
+      )
+      .catch(() => ({ rows: [] as { aparelho_id: string | null }[] }));
+    const linha = aviso.rows[0];
+    if (!linha) return resposta.code(404).send({ code: "AVISO_NAO_ENCONTRADO" });
+    if (corpo.resposta === "nao_fui_eu" && linha.aparelho_id) {
+      // Desconecta o aparelho e esquece ele: se alguém voltar a entrar por lá, o aviso aparece de novo.
+      await pool.query("delete from acesso.sessoes where aparelho_id = $1", [linha.aparelho_id]);
+      await pool.query("delete from acesso.aparelhos where id = $1", [linha.aparelho_id]);
+      pedido.log.warn(
+        { evento: "sessao.encerrou", motivo: "nao_fui_eu" },
+        "Acesso não reconhecido desconectado",
+      );
+      return {
+        ok: true,
+        mensagem: "Desconectamos esse aparelho. Por segurança, troque a sua senha agora.",
+      };
+    }
+    return { ok: true };
   });
 
   app.route({

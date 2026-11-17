@@ -1,11 +1,12 @@
-import { Download, LogIn, LogOut, Monitor, Moon, Sun } from "lucide-react";
+import { Download, LogIn, LogOut, Monitor, MonitorSmartphone, Moon, Sun } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
-import { lerSessao, type Sessao, sair } from "./acesso";
+import { type AvisoDeAcesso, lerSessao, listarAvisos, type Sessao, sair } from "./acesso";
 import { EstadoDoSistema } from "./componentes/EstadoDoSistema";
 import { Mago } from "./componentes/Mago";
 import { Button } from "./componentes/ui/button";
 import { Card } from "./componentes/ui/card";
 import { Entrar, RecuperarSenha, RedefinirSenha } from "./telas/Acesso";
+import { AvisosDeAcesso, MeusAparelhos } from "./telas/Aparelhos";
 import { AtivarDoisFatores, ConfirmarSegundoFator } from "./telas/DoisFatores";
 import { aplicarTema, lerTema, NOME_DO_TEMA, PROXIMO_TEMA, type Tema } from "./tema";
 
@@ -58,6 +59,23 @@ export function App() {
     void conferirSessao();
   }, [conferirSessao]);
 
+  // A cada minuto, confere se a sessão ainda vale: um aparelho desconectado em outro lugar sai na hora.
+  useEffect(() => {
+    if (!sessao) return;
+    const intervalo = setInterval(async () => {
+      const agora = await lerSessao();
+      if (agora === null) window.location.assign("/entrar");
+    }, 60_000);
+    return () => clearInterval(intervalo);
+  }, [sessao]);
+
+  // Avisos de acesso por aparelho novo, para quem já está com a sessão completa.
+  const [avisos, setAvisos] = useState<AvisoDeAcesso[]>([]);
+  const carregarAvisos = useCallback(async () => setAvisos((await listarAvisos()) ?? []), []);
+  useEffect(() => {
+    if (sessao?.falta === "nada") void carregarAvisos();
+  }, [sessao, carregarAvisos]);
+
   async function aoSair() {
     await sair();
     setSessao(null);
@@ -67,6 +85,7 @@ export function App() {
   if (caminho === "/entrar") conteudo = <Entrar aoEntrar={() => window.location.assign("/")} />;
   else if (caminho === "/recuperar-senha") conteudo = <RecuperarSenha />;
   else if (caminho === "/redefinir-senha") conteudo = <RedefinirSenha />;
+  else if (caminho === "/aparelhos" && sessao?.falta === "nada") conteudo = <MeusAparelhos />;
   else if (sessao?.falta === "ativar")
     conteudo = (
       <AtivarDoisFatores
@@ -95,6 +114,13 @@ export function App() {
             <span className="font-semibold tracking-tight">Mago OS</span>
           </div>
           <div className="flex items-center gap-1">
+            {sessao?.falta === "nada" && (
+              <Button variant="fantasma" size="icone" asChild>
+                <a href="/aparelhos" aria-label="Meus aparelhos" title="Meus aparelhos">
+                  <MonitorSmartphone />
+                </a>
+              </Button>
+            )}
             {sessao && (
               <>
                 <span className="hidden max-w-40 truncate px-2 text-sm text-texto-2 sm:inline">
@@ -133,6 +159,9 @@ export function App() {
         </div>
       </header>
 
+      {sessao?.falta === "nada" && (
+        <AvisosDeAcesso avisos={avisos} aoResponder={() => void carregarAvisos()} />
+      )}
       {conteudo}
     </div>
   );
