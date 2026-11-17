@@ -1,6 +1,6 @@
 # Spec da Fase 1: M1 Acesso
 
-Parte da [spec da Fase 1](README.md). Estado em 17/11/2026: em andamento (M1-01 a M1-04 feitas, M1-05 em revisão; tela simples de entrar da M1-10 adiantada).
+Parte da [spec da Fase 1](README.md). Estado em 17/11/2026: em andamento (M1-01 a M1-05 feitas; telas simples de entrar e do 2FA (da M1-10) adiantadas).
 
 **Pronto quando:** o Sandro entra em teste.osmago.com com Google e passkey, convida um funcionário de teste, vê e encerra sessões, e cada uma dessas ações aparece na auditoria. Os testes provam que uma empresa não vê dados da outra.
 
