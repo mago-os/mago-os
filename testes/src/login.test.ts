@@ -17,6 +17,12 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { bancoDisponivel } from "./preparar-banco.ts";
 
 const SITE = "https://teste.osmago.invalid";
+
+/** O cookie da sessão, entre os que a resposta manda (há também o do aparelho, desde a M1-08). */
+function cookieDaSessao(r: { headers: Record<string, unknown> }): string {
+  const todos = ([] as string[]).concat((r.headers["set-cookie"] as string[] | string | undefined) ?? []);
+  return (todos.find((c) => c.startsWith("mago.session_token=")) ?? "").split(";")[0] ?? "";
+}
 const SENHA = "uma frase longa e boa para entrar";
 
 describe.skipIf(!bancoDisponivel)("login por e-mail e senha", () => {
@@ -104,7 +110,7 @@ describe.skipIf(!bancoDisponivel)("login por e-mail e senha", () => {
 
     const entrada = await pedir("/sign-in/email", { email: "Dona@Teste.invalid", password: SENHA }, ip);
     expect(entrada.statusCode).toBe(200);
-    const cookie = String(entrada.headers["set-cookie"]).split(";")[0] ?? "";
+    const cookie = cookieDaSessao(entrada);
     expect(cookie).toMatch(/^mago\.session_token=/);
     expect(String(entrada.headers["set-cookie"])).toMatch(/HttpOnly/i);
 
@@ -220,7 +226,7 @@ describe.skipIf(!bancoDisponivel)("login por e-mail e senha", () => {
   it("trocar a senha pelo link derruba as sessões abertas", async () => {
     const ip = novoIp();
     const entrada = await pedir("/sign-in/email", { email: "dona@teste.invalid", password: SENHA }, ip);
-    const cookie = String(entrada.headers["set-cookie"]).split(";")[0] ?? "";
+    const cookie = cookieDaSessao(entrada);
     expect((await pedir("/get-session", undefined, ip, cookie)).json()).not.toBeNull();
     await definirSenha("dona@teste.invalid", `${SENHA} nova`, ip);
     expect((await pedir("/get-session", undefined, ip, cookie)).json()).toBeNull();

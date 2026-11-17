@@ -12,6 +12,13 @@ import { haveIBeenPwned } from "better-auth/plugins/haveibeenpwned";
 import { twoFactor } from "better-auth/plugins/two-factor";
 import pg from "pg";
 import {
+  COOKIE_DO_APARELHO,
+  DIAS_DE_INATIVIDADE,
+  novaEtiqueta,
+  registrarAparelho,
+  SEGUNDOS_DA_ETIQUETA,
+} from "./aparelhos.ts";
+import {
   aparelhoConfiavel,
   CAMINHOS_QUE_CONFIRMAM,
   DIAS_APARELHO_CONFIAVEL,
@@ -20,9 +27,12 @@ import {
 
 export const SENHA_MINIMA = 10;
 export const SENHA_MAXIMA = 128;
-/** A sessão vale 7 dias e se renova uma vez por dia enquanto a pessoa usa. */
-export const SESSAO_SEGUNDOS = 7 * 24 * 60 * 60;
-export const RENOVAR_SESSAO_SEGUNDOS = 24 * 60 * 60;
+/**
+ * A sessão cai depois de 3 dias sem uso (M1-08): o prazo se renova a cada hora de uso. O máximo de 30 dias e o
+ * último uso são conferidos pelo Mago OS (aparelhos.ts).
+ */
+export const SESSAO_SEGUNDOS = DIAS_DE_INATIVIDADE * 24 * 60 * 60;
+export const RENOVAR_SESSAO_SEGUNDOS = 60 * 60;
 /** O link de recuperação de senha vale 1 hora e só pode ser usado uma vez. */
 export const LINK_SENHA_SEGUNDOS = 60 * 60;
 
@@ -139,6 +149,8 @@ export function criarLogin(opcoes: OpcoesDoLogin, pool: pg.Pool) {
           required: false,
           input: false,
         },
+        // Aparelho de onde a sessão foi aberta (M1-08).
+        aparelhoId: { type: "string", fieldName: "aparelho_id", required: false, input: false },
       },
     },
     account: {
@@ -239,9 +251,32 @@ export function criarLogin(opcoes: OpcoesDoLogin, pool: pg.Pool) {
             if (metodo && (quando === null || CAMINHOS_QUE_CONFIRMAM.has(caminho) || metodo === "aparelho")) {
               quando = new Date();
             }
+            // Aparelho (M1-08): a etiqueta fica num cookie do aparelho; aparelho novo gera aviso.
+            let aparelhoId = (sessao as { aparelhoId?: string | null }).aparelhoId ?? null;
+            if (contexto && !aparelhoId) {
+              let etiqueta = contexto.getCookie(COOKIE_DO_APARELHO);
+              if (!etiqueta || etiqueta.length < 20) {
+                etiqueta = novaEtiqueta();
+                contexto.setCookie(COOKIE_DO_APARELHO, etiqueta, {
+                  httpOnly: true,
+                  secure: opcoes.ambiente !== "local",
+                  sameSite: "lax",
+                  path: "/",
+                  maxAge: SEGUNDOS_DA_ETIQUETA,
+                });
+              }
+              const aparelho = await registrarAparelho(pool, {
+                pessoaId: sessao.userId,
+                etiqueta,
+                navegador: sessao.userAgent ?? null,
+                ip: sessao.ipAddress ?? null,
+              });
+              aparelhoId = aparelho.aparelhoId;
+            }
             return {
               data: {
                 ...sessao,
+                aparelhoId,
                 empresaId: r.rows[0]?.empresa ?? null,
                 doisFatoresEm: metodo ? quando : null,
                 doisFatoresMetodo: metodo,

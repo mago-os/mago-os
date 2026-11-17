@@ -19,3 +19,4 @@ Uma nota curta por decisão importante: o que foi decidido, por quê e o que foi
 | [0010](0010-login-com-google.md) | Login com Google: sem cadastro, ligação só com o mesmo e-mail confirmado dos dois lados | Aceita |
 | [0011](0011-dois-fatores.md) | 2FA: app autenticador, passkey e códigos; obrigatório para Dono e administradores; confirmação nas ações perigosas | Aceita |
 | [0012](0012-permissoes.md) | Perfis e permissões por módulo: padrão do perfil, ajustes por pessoa, dados sensíveis e verificação central | Aceita |
+| [0013](0013-sessoes-e-aparelhos.md) | Sessões e aparelhos: etiqueta do aparelho, aviso de aparelho novo, 3 dias de inatividade e 30 de máximo | Aceita |

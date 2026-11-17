@@ -1,3 +1,4 @@
+export * from "./aparelhos.ts";
 export * from "./carteiro.ts";
 export * from "./desligar-dois-fatores.ts";
 export * from "./dois-fatores.ts";

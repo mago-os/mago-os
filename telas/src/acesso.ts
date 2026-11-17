@@ -201,3 +201,45 @@ export async function entrarComGoogle(): Promise<Resultado> {
   }
   return r.ok ? { ok: false, mensagem: "O login com Google ainda não está ligado." } : r;
 }
+
+export interface AparelhoConectado {
+  sessaoId: string;
+  aparelho: string;
+  ip: string | null;
+  entrouEm: string;
+  ultimoUsoEm: string;
+  esteAparelho: boolean;
+}
+
+export interface AvisoDeAcesso {
+  avisoId: string;
+  aparelho: string;
+  ip: string | null;
+  em: string;
+}
+
+async function ler<T>(caminho: string): Promise<T | null> {
+  try {
+    const r = await fetch(`${BASE}${caminho}`, { credentials: "same-origin" });
+    return r.ok ? ((await r.json()) as T) : null;
+  } catch {
+    return null;
+  }
+}
+
+export const listarAparelhos = () => ler<AparelhoConectado[]>("/aparelhos");
+export const listarAvisos = () => ler<AvisoDeAcesso[]>("/avisos");
+
+export function desconectarAparelho(sessaoId: string) {
+  return enviar("/aparelhos/desconectar", { sessaoId });
+}
+
+export function desconectarOutros() {
+  return enviar("/aparelhos/desconectar-outros", {});
+}
+
+export async function responderAviso(avisoId: string, resposta: "foi_eu" | "nao_fui_eu"): Promise<Resultado> {
+  const r = await enviar("/avisos/responder", { avisoId, resposta });
+  const mensagem = (r.dados as { mensagem?: string } | undefined)?.mensagem;
+  return mensagem ? { ...r, mensagem } : r;
+}

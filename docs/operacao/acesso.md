@@ -71,3 +71,12 @@ ssh vps02 "docker run --rm --network mago-os_mago_db --env-file /opt/mago-os/api
 ```
 
 - As passkeys ficam presas ao domínio (`teste.osmago.com`). Em outro domínio (produção), cada pessoa cadastra a sua de novo.
+
+## Sessões e aparelhos
+
+- Cada pessoa vê e desconecta os próprios aparelhos em **teste.osmago.com/aparelhos**. A sessão cai depois de 3 dias sem uso e, no máximo, depois de 30 dias. Detalhes na [decisão 0013](../decisoes/0013-sessoes-e-aparelhos.md).
+- **Desconectar todos os aparelhos de uma pessoa** (por exemplo, conta comprometida), sem mexer no 2FA:
+
+```bash
+ssh vps02 "docker exec -i mago-os-db-1 psql -U mago -d mago -c \"delete from acesso.sessoes where pessoa_id = (select id from pessoas where email = 'pessoa@exemplo.com')\""
+```

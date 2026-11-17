@@ -55,6 +55,25 @@ erDiagram
     timestamp_with_time_zone entrou_em
     timestamp_with_time_zone desligado_em
   }
+  acesso_aparelhos {
+    uuid id PK
+    uuid pessoa_id FK
+    text etiqueta
+    text nome
+    timestamp_with_time_zone primeiro_acesso
+    timestamp_with_time_zone ultimo_acesso
+  }
+  acesso_avisos {
+    uuid id PK
+    uuid pessoa_id FK
+    text tipo
+    uuid aparelho_id FK
+    text aparelho_nome
+    text ip
+    timestamp_with_time_zone criado_em
+    timestamp_with_time_zone respondido_em
+    text resposta
+  }
   acesso_credenciais {
     uuid id PK
     uuid pessoa_id FK
@@ -114,6 +133,8 @@ erDiagram
     timestamp_with_time_zone atualizada_em
     timestamp_with_time_zone dois_fatores_em
     text dois_fatores_metodo
+    uuid aparelho_id FK
+    timestamp_with_time_zone ultimo_uso_em
   }
   acesso_travas {
     text email PK
@@ -135,11 +156,15 @@ erDiagram
   pessoas ||--o{ papeis_plataforma : "pessoa_id"
   empresas ||--o{ vinculos : "empresa_id"
   pessoas ||--o{ vinculos : "pessoa_id"
+  pessoas ||--o{ acesso_aparelhos : "pessoa_id"
+  pessoas ||--o{ acesso_avisos : "pessoa_id"
+  acesso_aparelhos ||--o{ acesso_avisos : "aparelho_id"
   pessoas ||--o{ acesso_credenciais : "pessoa_id"
   pessoas ||--o{ acesso_dois_fatores : "pessoa_id"
   pessoas ||--o{ acesso_passkeys : "pessoa_id"
   pessoas ||--o{ acesso_sessoes : "pessoa_id"
   empresas ||--o{ acesso_sessoes : "empresa_id"
+  acesso_aparelhos ||--o{ acesso_sessoes : "aparelho_id"
 ```
 
 ## Marcas
@@ -235,6 +260,39 @@ Isolamento por empresa (Row Level Security): ligado e forçado.
 | convidado_em | timestamp with time zone | sim | `now()` | sistema | Quando a pessoa foi convidada. |
 | entrou_em | timestamp with time zone | não |  | sistema | Quando a pessoa aceitou o convite. |
 | desligado_em | timestamp with time zone | não |  | sistema | Quando a pessoa foi desligada (ou o convite foi cancelado). |
+
+### acesso.aparelhos
+
+Aparelhos que cada pessoa já usou para entrar, reconhecidos por uma etiqueta guardada num cookie do aparelho.
+
+Isolamento por empresa (Row Level Security): fora das empresas (esquema acesso, só o papel mago_acesso mexe).
+
+| Coluna | Tipo | Obrigatória | Padrão | Marca | Descrição |
+| --- | --- | --- | --- | --- | --- |
+| id | uuid | sim | `uuidv7()` | sistema | Identificador do aparelho (UUID v7). Chave primária. |
+| pessoa_id | uuid | sim |  | sistema | Pessoa que usa o aparelho. Aponta para pessoas.id. |
+| etiqueta | text | sim |  | sistema | Impressão digital (SHA-256) da etiqueta do aparelho. A etiqueta em si só existe no cookie. |
+| nome | text | sim |  | pessoal | Nome legível do aparelho (ex.: Chrome no Mac). |
+| primeiro_acesso | timestamp with time zone | sim | `now()` | sistema | Primeira vez que a pessoa entrou por este aparelho. |
+| ultimo_acesso | timestamp with time zone | sim | `now()` | sistema | Última vez que a pessoa entrou por este aparelho. |
+
+### acesso.avisos
+
+Avisos de segurança para a própria pessoa, como um acesso por aparelho novo.
+
+Isolamento por empresa (Row Level Security): fora das empresas (esquema acesso, só o papel mago_acesso mexe).
+
+| Coluna | Tipo | Obrigatória | Padrão | Marca | Descrição |
+| --- | --- | --- | --- | --- | --- |
+| id | uuid | sim | `uuidv7()` | sistema | Identificador do aviso (UUID v7). Chave primária. |
+| pessoa_id | uuid | sim |  | sistema | Pessoa avisada. Aponta para pessoas.id. |
+| tipo | text | sim |  | sistema | Tipo do aviso: aparelho_novo. |
+| aparelho_id | uuid | não |  | sistema | Aparelho do acesso avisado. Aponta para acesso.aparelhos.id. |
+| aparelho_nome | text | sim |  | pessoal | Nome do aparelho no momento do aviso. |
+| ip | text | não |  | pessoal | IP do acesso avisado. |
+| criado_em | timestamp with time zone | sim | `now()` | sistema | Quando o acesso aconteceu. |
+| respondido_em | timestamp with time zone | não |  | sistema | Quando a pessoa respondeu ao aviso. |
+| resposta | text | não |  | sistema | foi_eu ou nao_fui_eu (este desconecta o aparelho). |
 
 ### acesso.credenciais
 
@@ -337,6 +395,8 @@ Isolamento por empresa (Row Level Security): fora das empresas (esquema acesso, 
 | atualizada_em | timestamp with time zone | sim | `now()` | sistema | Última renovação da sessão. |
 | dois_fatores_em | timestamp with time zone | não |  | sistema | Última vez que esta sessão passou pelo segundo fator (código, código de recuperação ou passkey). |
 | dois_fatores_metodo | text | não |  | sistema | Como a sessão passou pelo segundo fator: passkey, app, recuperacao (código de recuperação) ou aparelho (confiável). |
+| aparelho_id | uuid | não |  | sistema | Aparelho de onde a sessão foi aberta. Aponta para acesso.aparelhos.id. |
+| ultimo_uso_em | timestamp with time zone | sim | `now()` | sistema | Último uso da sessão (atualizado no máximo a cada 5 minutos). |
 
 ### acesso.travas
 

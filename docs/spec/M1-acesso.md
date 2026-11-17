@@ -1,6 +1,6 @@
 # Spec da Fase 1: M1 Acesso
 
-Parte da [spec da Fase 1](README.md). Estado em 17/11/2026: em andamento (M1-01 a M1-06 feitas; telas simples de entrar e do 2FA (da M1-10) adiantadas).
+Parte da [spec da Fase 1](README.md). Estado em 17/11/2026: em andamento (M1-01 a M1-06 feitas, M1-08 em revisão; telas simples de entrar e do 2FA (da M1-10) adiantadas).
 
 **Pronto quando:** o Sandro entra em teste.osmago.com com Google e passkey, convida um funcionário de teste, vê e encerra sessões, e cada uma dessas ações aparece na auditoria. Os testes provam que uma empresa não vê dados da outra.
 
@@ -75,9 +75,9 @@ Pronto quando: a pessoa desligada perde o acesso no mesmo instante, em todos os 
 
 ### M1-08 Sessões e aparelhos
 
-- [ ] Lista de aparelhos conectados, com desconectar um ou todos
-- [ ] Sessão expira por inatividade
-- [ ] Alerta de login em aparelho novo
+- [x] Lista de aparelhos conectados, com desconectar um ou todos ([decisão 0013](../decisoes/0013-sessoes-e-aparelhos.md))
+- [x] Sessão expira por inatividade (3 dias sem uso; 30 dias no máximo)
+- [x] Alerta de login em aparelho novo (aviso no próprio Mago OS; por e-mail com o Resend, na M1-07)
 
 Pronto quando: o Sandro desconecta o celular pelo computador e o celular sai na hora.
 

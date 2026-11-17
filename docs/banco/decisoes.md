@@ -104,3 +104,7 @@ O pg-boss guarda a fila no esquema `pgboss`, criado pela migração 0001 com o `
 
 - `ajustes_de_permissao` guarda os ajustes que o administrador faz para cada pessoa, por módulo e ação, isolada por empresa como as outras tabelas. Quem pode mudar (o administrador, por padrão) é conferido pelo núcleo.
 - `vinculos.area` passa a valer também para o funcionário (a equipe dele); o administrador nunca tem área.
+
+## 12. Aparelhos e avisos (17/11/2026, M1-08)
+
+**Decisão:** o login reconhece cada aparelho por uma etiqueta guardada num cookie, e o banco guarda só a impressão digital dela (`acesso.aparelhos`). Cada sessão aponta para o aparelho e registra o último uso; acessos por aparelho novo viram avisos (`acesso.avisos`). Tudo no esquema `acesso`, só com o papel `mago_acesso`. Detalhes na [decisão 0013](../decisoes/0013-sessoes-e-aparelhos.md).
