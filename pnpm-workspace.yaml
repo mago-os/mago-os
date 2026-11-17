@@ -40,6 +40,7 @@ catalog:
   "@types/react-dom": 19.3.0
   radix-ui: 1.8.1
   "@playwright/test": 1.65.1
+  typebox: 1.4.7
 
 # Só instala versões publicadas há pelo menos 1 dia (protege contra pacote adulterado recém-publicado).
 minimumReleaseAge: 1440
