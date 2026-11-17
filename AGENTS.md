@@ -61,6 +61,8 @@ O Mago OS é um sistema operacional de agentes para empresas: pessoas e agentes 
 
 **Spec:** correção pequena (detalhe, situação, texto) entra junto com a tarefa e é avisada. Mudança de escopo só com aprovação do Sandro. Decisão técnica importante vira uma nota nova em `docs/decisoes/`.
 
+**Plano:** toda mudança no plano ou funcionalidade nova que aparecer durante a codificação (decisão do Sandro, troca de tecnologia, regra nova, item que entrou ou saiu) é registrada também no plano "Agentic OS: funcionalidades e arquitetura" (documento no claude.ai, na seção do tema, com a data), no mesmo dia, e a cópia em `Gestao/Docs & Guias/Docs/` do cliente ganha uma revisão nova. Pedido do Sandro em 17/11/2026.
+
 ## Comandos
 
 | Comando | O que faz |
