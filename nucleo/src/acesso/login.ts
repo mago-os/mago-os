@@ -41,6 +41,14 @@ export const LINK_SENHA_SEGUNDOS = 60 * 60;
 /** Quem entrega os e-mails do sistema. O Resend entra numa tarefa própria; até lá, o link vai para o log. */
 export interface Carteiro {
   enviarLinkDeSenha(dados: { para: string; nome: string; link: string }): Promise<void>;
+  /** Convite para entrar numa empresa (M1-07). */
+  enviarConvite?(dados: {
+    para: string;
+    nome: string;
+    empresa: string;
+    quemConvidou: string;
+    link: string;
+  }): Promise<void>;
 }
 
 export interface OpcoesDoLogin {

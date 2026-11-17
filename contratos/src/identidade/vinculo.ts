@@ -86,3 +86,28 @@ export const regrasDoVinculo: Regra<Vinculo>[] = [
 export function conferirVinculo(valor: unknown) {
   return conferir(Vinculo, valor, regrasDoVinculo);
 }
+
+/** O que a API recebe para convidar uma pessoa (M1-07). O e-mail entra em minúsculas (normalizarEmail). */
+export const PedidoDeConvite = Type.Object(
+  {
+    email: Type.String({ format: "email", maxLength: 254 }),
+    nome: Type.String({ minLength: 1, maxLength: 200, pattern: "\\S" }),
+    perfil: Perfil,
+    area: OuNulo(Area),
+  },
+  { additionalProperties: false },
+);
+export type PedidoDeConvite = Static<typeof PedidoDeConvite>;
+
+export function conferirPedidoDeConvite(valor: unknown) {
+  return conferir(PedidoDeConvite, valor, [
+    (p): Problema[] => {
+      if (p.perfil === "gestor_area" && p.area === null)
+        return [{ caminho: "/area", mensagem: "gestor de área precisa de uma área" }];
+      if (p.perfil === "administrador" && p.area !== null) {
+        return [{ caminho: "/area", mensagem: "administrador não tem área: vê a empresa toda" }];
+      }
+      return [];
+    },
+  ]);
+}

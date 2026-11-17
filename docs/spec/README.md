@@ -53,7 +53,7 @@ Respondidas pelo Sandro em 15/11/2026:
 
 1. **Como a VPS recebe a versão nova (M0-10):** a VPS busca a versão nova sozinha, e o GitHub não guarda nenhuma chave de acesso à VPS. Para não esperar: o GitHub toca uma "campainha" assinada assim que a mudança é aprovada, e a VPS busca na hora. A campainha só faz a VPS conferir antes; ela não dá acesso a nada. A conferência a cada minuto continua como reserva, e o Sandro e o Claude também podem pedir "atualizar agora" pela própria VPS.
 2. **Acesso à VPS02 (M0-09):** usuário próprio para o Mago OS, root só para emergências. Cuidado: a Ratoeira roda direto na VPS, fora de container. Antes de mexer em firewall, portas ou no Caddy, conferir o que a Ratoeira usa e não tocar em nada dela.
-3. **E-mail do sistema (M1-03 e M1-07):** criar a conta no Resend durante o M1, junto com o Sandro.
+3. **E-mail do sistema (M1-03 e M1-07):** criar a conta no Resend durante o M1, junto com o Sandro. Feito em 17/11/2026: domínio `osmago.com`, remetente `nao-responda@osmago.com`, chave só de envio no Infisical.
 4. **Login com Microsoft e Apple:** fica para a Fase 2.
 5. **Infisical (M0-08):** conta criada em 16/11/2026. Foi criada no Infisical Cloud (plano grátis), para os segredos não ficarem no mesmo servidor do sistema. O bucket de backup foi criado no M0-11 (Backblaze B2 no lugar do R2, em 16/11/2026).
 6. **Aprovação das mudanças:** o Claude faz o trabalho e o Sandro aprova o mínimo. Entra sozinho, com testes verdes e revisão automática: todo o resto. Precisa do Sandro: contratos entre módulos, estrutura do banco que mexe no isolamento entre empresas, segurança e login, pagamentos, publicação em produção e qualquer mudança de escopo.

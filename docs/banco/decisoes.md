@@ -121,3 +121,10 @@ O pg-boss guarda a fila no esquema `pgboss`, criado pela migração 0001 com o `
 ## 14. Regras e papéis pelo app (17/11/2026, M1-10)
 
 O login (`mago_acesso`) não lê papéis nem as regras da plataforma direto. As telas usam funções que rodam como dono e conferem quem pede: `acesso.e_dono_da_plataforma`, `acesso.regras_da_plataforma_para` e `acesso.mudar_regras_da_plataforma` (só o Dono). A pessoa também passa a mudar idioma e fuso do próprio perfil. A segurança da empresa (`exigir_dois_fatores`, `exigir_passkey`) é mudada pela API das empresas, só com a permissão `seguranca.editar` (padrão: o administrador).
+
+## 15. Convites e desligamento (17/11/2026, M1-07)
+
+- `acesso.convites` guarda os convites (só a impressão digital do código, validade de 7 dias, uso único). Só o login (`mago_acesso`) lê e grava.
+- A API das empresas não grava direto em pessoas e vínculos: `convidar`, `cancelar_convite` e `desligar_vinculo` rodam como dono e só agem na empresa ativa do pedido. Quem pode chamar cada uma é conferido pelo núcleo (`pessoas.criar` e `pessoas.excluir`).
+- `desligar_vinculo` recusa desligar a si mesmo e o último administrador ativo, e devolve se a pessoa ainda tem outra empresa (para o núcleo decidir entre apagar as sessões e só tirar a empresa delas).
+- Aceitar passa por `acesso.abrir_convite`, `acesso.aceitar_convite` e `acesso.pessoa_do_convite`, que conferem código, validade e pessoa. Ver [decisão 0015](../decisoes/0015-convites.md).

@@ -68,8 +68,8 @@ Pronto quando: um funcionário de teste é barrado no que não foi liberado para
 
 ### M1-07 Convites e desligamento
 
-- [ ] Admin convida por e-mail, a pessoa aceita e define senha ou entra com Google
-- [ ] Desligar uma pessoa corta tudo na hora: login, sessões e chaves ligadas a ela
+- [x] Admin convida por e-mail, a pessoa aceita e define senha ou entra com Google ([decisão 0015](../decisoes/0015-convites.md); e-mail pelo Resend)
+- [x] Desligar uma pessoa corta tudo na hora: login, sessões e chaves ligadas a ela (sem outra empresa, todas as sessões caem; com outra, só saem desta)
 
 Pronto quando: a pessoa desligada perde o acesso no mesmo instante, em todos os aparelhos.
 
@@ -77,7 +77,7 @@ Pronto quando: a pessoa desligada perde o acesso no mesmo instante, em todos os 
 
 - [x] Lista de aparelhos conectados, com desconectar um ou todos ([decisão 0013](../decisoes/0013-sessoes-e-aparelhos.md))
 - [x] Sessão expira por inatividade (3 dias sem uso; 30 dias no máximo)
-- [x] Alerta de login em aparelho novo (aviso no próprio Mago OS; por e-mail com o Resend, na M1-07)
+- [x] Alerta de login em aparelho novo (aviso no próprio Mago OS; o aviso por e-mail fica para depois da M1-07)
 
 Pronto quando: o Sandro desconecta o celular pelo computador e o celular sai na hora.
 
@@ -92,7 +92,7 @@ Pronto quando: alterar um registro à mão no banco é detectado pela verificaç
 
 ### M1-10 Telas de acesso
 
-- [ ] Entrar, 2FA, aceitar convite, meu perfil, minhas sessões e usuários da empresa (17/11/2026: casca do app, entrar, 2FA, meu perfil, meus aparelhos, pessoas com os ajustes de permissão, segurança da empresa e da plataforma, e auditoria; falta só aceitar convite, que entra com a M1-07)
+- [x] Entrar, 2FA, aceitar convite, meu perfil, minhas sessões e usuários da empresa (aceitar convite, convidar e desligar entraram com a M1-07)
 - [x] Pensadas primeiro para o celular, no design aprovado
 - [x] Testes de tela com Playwright
 

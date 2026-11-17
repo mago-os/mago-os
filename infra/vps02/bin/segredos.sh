@@ -49,7 +49,7 @@ arquivos = {
         "MAGO_ACESSO_SEGREDO": s["MAGO_ACESSO_SEGREDO"],
         "MAGO_URL_PUBLICA": "https://teste.osmago.com",
         # Login com Google (M1-04), opcional: sem os dois, a API sobe só com e-mail e senha.
-        **{k: s[k] for k in ("MAGO_GOOGLE_ID", "MAGO_GOOGLE_SEGREDO") if s.get(k)},
+        **{k: s[k] for k in ("MAGO_GOOGLE_ID", "MAGO_GOOGLE_SEGREDO", "MAGO_RESEND_CHAVE") if s.get(k)},
     },
     "campainha.env": {"MAGO_CAMPAINHA_SEGREDO": s["MAGO_CAMPAINHA_SEGREDO"]},
     # Cópia travada da auditoria (M1-09), opcional até o depósito existir. Mesma região do backup.

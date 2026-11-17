@@ -187,11 +187,20 @@ export function definirSenha(token: string, senha: string) {
   return enviar("/reset-password", { token, newPassword: senha });
 }
 
-/** Pede à API o endereço do Google e vai para lá. Na volta, o Google traz a pessoa para a tela inicial. */
-export async function entrarComGoogle(): Promise<Resultado> {
+/**
+ * Para onde voltar depois de entrar (?volta=/convite?codigo=...). Só caminhos do próprio site: um endereço de fora
+ * (//outro.site ou https://...) é ignorado, e a pessoa vai para a tela inicial.
+ */
+export function destinoDepoisDeEntrar(): string {
+  const volta = new URLSearchParams(window.location.search).get("volta") ?? "";
+  return /^\/(?![/\\])/.test(volta) ? volta : "/";
+}
+
+/** Pede à API o endereço do Google e vai para lá. Na volta, o Google traz a pessoa para a tela pedida. */
+export async function entrarComGoogle(volta = destinoDepoisDeEntrar()): Promise<Resultado> {
   const r = await enviar("/sign-in/social", {
     provider: "google",
-    callbackURL: `${window.location.origin}/`,
+    callbackURL: `${window.location.origin}${volta}`,
     errorCallbackURL: `${window.location.origin}/entrar`,
   });
   const url = (r.dados as { url?: string } | undefined)?.url;
@@ -393,3 +402,27 @@ export function listarAuditoria(filtros: { acao?: string; desde?: string; ate?: 
   for (const [k, v] of Object.entries(filtros)) if (v) q.set(k, v);
   return lerConta<EventoDaAuditoria[]>(`/empresa/auditoria?${q}`);
 }
+
+// Convites e desligamento (M1-07).
+
+export const convidar = (dados: { email: string; nome: string; perfil: string; area: string | null }) =>
+  enviarConta("POST", "/empresa/convites", dados);
+export const reenviarConvite = (vinculoId: string) =>
+  enviarConta("POST", `/empresa/convites/${vinculoId}/reenviar`, {});
+export const cancelarConvite = (vinculoId: string) =>
+  enviarConta("POST", `/empresa/convites/${vinculoId}/cancelar`, {});
+export const desligarPessoa = (vinculoId: string) =>
+  enviarConta("POST", `/empresa/pessoas/${vinculoId}/desligar`, {});
+
+export interface ConviteAberto {
+  empresa: string;
+  email: string;
+  nome: string;
+  quemConvidou: string;
+  temConta: boolean;
+}
+
+export const abrirConvite = (codigo: string) =>
+  lerConta<ConviteAberto>(`/acesso/convite/${encodeURIComponent(codigo)}`);
+export const aceitarConvite = (codigo: string, senha?: string) =>
+  enviarConta("POST", "/acesso/convite/aceitar", senha ? { codigo, senha } : { codigo });
