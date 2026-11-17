@@ -228,12 +228,19 @@ export function registrarRotasDasContas(app: FastifyInstance, o: OpcoesDasContas
       return resposta.code(400).send({ code: "PEDIDO_INVALIDO" });
     }
     const conta = corpo.conta;
+    const limpo = (v: unknown) => (typeof v === "string" ? v.trim() || null : (v ?? null));
+    const documento =
+      typeof conta.documento === "string"
+        ? normalizarDocumento(conta.documento) || null
+        : (conta.documento ?? null);
     const dados = conferirPedidoDeNovaEmpresa({
       ...conta,
-      documento: typeof conta.documento === "string" ? normalizarDocumento(conta.documento) : conta.documento,
-      nome: typeof conta.nome === "string" ? conta.nome.trim() : conta.nome,
-      nomeLegal: typeof conta.nomeLegal === "string" ? conta.nomeLegal.trim() : conta.nomeLegal,
-      telefone: typeof conta.telefone === "string" && conta.telefone.trim() ? conta.telefone.trim() : null,
+      // Sem documento, o tipo não vale nada: fica vazio também (tipo e documento andam juntos).
+      tipo: documento === null ? null : (conta.tipo ?? null),
+      documento,
+      nome: limpo(conta.nome),
+      nomeLegal: limpo(conta.nomeLegal),
+      telefone: limpo(conta.telefone),
     });
     if (!dados.ok) {
       const doc = dados.problemas.find((p) => p.caminho === "/documento");

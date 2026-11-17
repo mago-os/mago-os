@@ -33,6 +33,22 @@ describe("CPF e CNPJ", () => {
     expect(mascararDocumento("11222333000181")).toBe("11.222.333/0001-81");
   });
 
+  it("na conta nova, só o nome e o fuso são obrigatórios", () => {
+    const minimo = {
+      tipo: null,
+      documento: null,
+      nomeLegal: null,
+      nome: "Maria",
+      fusoHorario: "America/Sao_Paulo",
+      idioma: "pt-BR",
+      telefone: null,
+    };
+    expect(conferirPedidoDeNovaEmpresa(minimo).ok).toBe(true);
+    expect(conferirPedidoDeNovaEmpresa({ ...minimo, nome: " " }).ok).toBe(false);
+    expect(conferirPedidoDeNovaEmpresa({ ...minimo, tipo: "pf" }).ok).toBe(false);
+    expect(conferirPedidoDeNovaEmpresa({ ...minimo, documento: "52998224725" }).ok).toBe(false);
+  });
+
   it("o pedido de nova conta confere o documento pelo tipo", () => {
     const base = {
       nomeLegal: "Maria da Silva",

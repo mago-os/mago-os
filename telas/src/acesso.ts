@@ -467,9 +467,9 @@ export interface ConviteDeContaAberto {
 }
 
 export interface DadosDaNovaConta {
-  tipo: "pj" | "pf";
-  documento: string;
-  nomeLegal: string;
+  tipo: "pj" | "pf" | null;
+  documento: string | null;
+  nomeLegal: string | null;
   nome: string;
   fusoHorario: string;
   idioma: string;

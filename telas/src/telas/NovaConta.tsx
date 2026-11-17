@@ -41,7 +41,6 @@ export function NovaConta() {
   const [tipo, setTipo] = useState<"pj" | "pf">("pj");
   const [nomeLegal, setNomeLegal] = useState("");
   const [nome, setNome] = useState("");
-  const [nomeMexido, setNomeMexido] = useState(false);
   const [aviso, setAviso] = useState<{ texto: string; tipo: "erro" | "ok" } | null>(
     erroDoGoogle ? { tipo: "erro", texto: mensagemDoErro(erroDoGoogle) } : null,
   );
@@ -97,8 +96,8 @@ export function NovaConta() {
   async function aoEnviar(evento: React.FormEvent<HTMLFormElement>) {
     evento.preventDefault();
     const f = new FormData(evento.currentTarget);
-    const documento = normalizarDocumento(String(f.get("documento")));
-    if (!documentoValido(tipo, documento))
+    const documento = normalizarDocumento(String(f.get("documento") ?? ""));
+    if (documento && !documentoValido(tipo, documento))
       return setAviso({
         tipo: "erro",
         texto: tipo === "pf" ? "Confira o CPF: ele não é válido." : "Confira o CNPJ: ele não é válido.",
@@ -111,10 +110,10 @@ export function NovaConta() {
     const r = await criarContaPeloConvite(
       codigo,
       {
-        tipo,
-        documento,
-        nomeLegal: nomeLegal.trim(),
-        nome: (nome || nomeLegal).trim(),
+        tipo: documento ? tipo : null,
+        documento: documento || null,
+        nomeLegal: nomeLegal.trim() || null,
+        nome: nome.trim(),
         fusoHorario: String(f.get("fuso")).trim(),
         idioma: idiomaDoNavegador(),
         telefone: String(f.get("telefone") ?? "").trim(),
@@ -162,8 +161,19 @@ export function NovaConta() {
         </>
       )}
       <form className="grid gap-4" onSubmit={(e) => void aoEnviar(e)}>
-        <fieldset className="grid gap-2">
-          <legend className="mb-1 text-sm font-medium">A conta é de</legend>
+        <Campo
+          id="nome-exibicao"
+          name="nome"
+          rotulo="Nome no Mago OS"
+          placeholder="Como a conta aparece no sistema"
+          value={nome}
+          onChange={(e) => setNome(e.target.value)}
+          maxLength={200}
+          required
+        />
+        <Campo id="fuso" name="fuso" rotulo="Fuso horário" defaultValue={fusoDoNavegador()} required />
+        <fieldset className="grid gap-3 rounded-md border border-linha p-3">
+          <legend className="px-1 text-sm font-medium">Dados para nota fiscal (pode preencher depois)</legend>
           <div className="grid grid-cols-2 gap-2">
             {(
               [
@@ -189,40 +199,24 @@ export function NovaConta() {
               </label>
             ))}
           </div>
+          <Campo
+            id="documento"
+            name="documento"
+            rotulo={tipo === "pf" ? "CPF" : "CNPJ"}
+            inputMode={tipo === "pf" ? "numeric" : "text"}
+            placeholder={tipo === "pf" ? "000.000.000-00" : "00.000.000/0000-00"}
+            autoComplete="off"
+          />
+          <Campo
+            id="nome-legal"
+            name="nomeLegal"
+            rotulo={tipo === "pf" ? "Nome completo" : "Razão social"}
+            value={nomeLegal}
+            onChange={(e) => setNomeLegal(e.target.value)}
+            maxLength={200}
+          />
+          <Campo id="telefone" name="telefone" type="tel" rotulo="Telefone" autoComplete="tel" />
         </fieldset>
-        <Campo
-          id="documento"
-          name="documento"
-          rotulo={tipo === "pf" ? "CPF" : "CNPJ"}
-          inputMode={tipo === "pf" ? "numeric" : "text"}
-          placeholder={tipo === "pf" ? "000.000.000-00" : "00.000.000/0000-00"}
-          autoComplete="off"
-          required
-        />
-        <Campo
-          id="nome-legal"
-          name="nomeLegal"
-          rotulo={tipo === "pf" ? "Nome completo" : "Razão social"}
-          value={nomeLegal}
-          onChange={(e) => setNomeLegal(e.target.value)}
-          maxLength={200}
-          required
-        />
-        <Campo
-          id="nome-exibicao"
-          name="nome"
-          rotulo="Nome no Mago OS"
-          placeholder="Como a conta aparece no sistema"
-          value={nomeMexido ? nome : nome || nomeLegal}
-          onChange={(e) => {
-            setNomeMexido(true);
-            setNome(e.target.value);
-          }}
-          maxLength={200}
-          required
-        />
-        <Campo id="fuso" name="fuso" rotulo="Fuso horário" defaultValue={fusoDoNavegador()} required />
-        <Campo id="telefone" name="telefone" type="tel" rotulo="Telefone (opcional)" autoComplete="tel" />
         {!sessao && (
           <>
             <p className="text-sm text-texto-2">
