@@ -17,3 +17,4 @@ Uma nota curta por decisão importante: o que foi decidido, por quê e o que foi
 | [0008](0008-contratos-com-typebox.md) | Contratos com TypeBox; formatos de pessoa, empresa, vínculo, sessão e auditoria encadeada | Aceita |
 | [0009](0009-login-com-better-auth.md) | Login por e-mail e senha com o Better Auth, papel mago_acesso, trava e senhas vazadas | Aceita |
 | [0010](0010-login-com-google.md) | Login com Google: sem cadastro, ligação só com o mesmo e-mail confirmado dos dois lados | Aceita |
+| [0011](0011-dois-fatores.md) | 2FA: app autenticador, passkey e códigos; obrigatório para Dono e administradores; confirmação nas ações perigosas | Aceita |

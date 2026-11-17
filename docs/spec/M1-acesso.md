@@ -1,6 +1,6 @@
 # Spec da Fase 1: M1 Acesso
 
-Parte da [spec da Fase 1](README.md). Estado em 17/11/2026: em andamento (M1-01 a M1-04 feitas; tela simples de entrar da M1-10 adiantada).
+Parte da [spec da Fase 1](README.md). Estado em 17/11/2026: em andamento (M1-01 a M1-04 feitas, M1-05 em revisão; tela simples de entrar da M1-10 adiantada).
 
 **Pronto quando:** o Sandro entra em teste.osmago.com com Google e passkey, convida um funcionário de teste, vê e encerra sessões, e cada uma dessas ações aparece na auditoria. Os testes provam que uma empresa não vê dados da outra.
 
@@ -51,9 +51,9 @@ Pronto quando: o Sandro entra com a conta Google dele.
 
 ### M1-05 Autenticação em 2 fatores
 
-- [ ] App autenticador e passkey
-- [ ] Obrigatório para Dono da plataforma e Administrador; o admin pode exigir de todos
-- [ ] Códigos de recuperação e "confiar neste aparelho por 30 dias"
+- [x] App autenticador e passkey ([decisão 0011](../decisoes/0011-dois-fatores.md))
+- [x] Obrigatório para Dono da plataforma e Administrador; o admin pode exigir de todos (a opção existe no banco; a tela de configuração da empresa vem na M1-10)
+- [x] Códigos de recuperação e "confiar neste aparelho por 30 dias"
 
 Pronto quando: o Sandro entra com passkey, e um admin sem 2FA não consegue entrar.
 

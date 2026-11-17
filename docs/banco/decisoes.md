@@ -88,3 +88,12 @@ O pg-boss guarda a fila no esquema `pgboss`, criado pela migração 0001 com o `
 2. `mago_app` (a API das empresas) não tem acesso ao esquema `acesso`: nenhum pedido de empresa consegue ler senha ou sessão.
 3. A empresa ativa de uma sessão nova vem de `acesso.empresa_inicial(pessoa)`, que roda como dono e devolve só o identificador da única empresa onde a pessoa tem vínculo ativo (ou nulo se houver várias).
 4. A documentação gerada e o teste de descrições e marcas passam a cobrir também o esquema `acesso` (tabelas aparecem como `acesso.nome`). As regras de `empresa_id` e Row Level Security continuam valendo só para o esquema `public`; um teste próprio confere a separação entre os dois papéis.
+
+## 10. Segundo fator na sessão (17/11/2026, M1-05)
+
+**Decisão:** cada sessão guarda quando passou pelo segundo fator (`acesso.sessoes.dois_fatores_em`), e a API só libera os dados para quem precisa de 2FA depois disso. Detalhes na [decisão 0011](../decisoes/0011-dois-fatores.md).
+
+- `acesso.dois_fatores` (segredo do app e códigos de recuperação, criptografados) e `acesso.passkeys` (só a chave pública) ficam no esquema do login, como as senhas.
+- `pessoas.dois_fatores_ativo` marca quem ativou o app; `empresas.exigir_dois_fatores` marca a empresa que exige de todos. O papel `mago_acesso` altera só a primeira.
+- Quem tem o 2FA obrigatório vem de `acesso.dois_fatores_obrigatorio(pessoa)`, que roda como dono e devolve só sim ou não: o login continua sem enxergar empresas nem vínculos. Do mesmo jeito, `acesso.exige_passkey(pessoa)` diz se só a passkey vale.
+- O piso da plataforma fica em `acesso.regras_da_plataforma` (uma linha só, decidida pelo Dono); as empresas só apertam (`exigir_dois_fatores`, `exigir_passkey`). Cada sessão guarda também o método do segundo fator (`dois_fatores_metodo`).

@@ -24,7 +24,8 @@
     "dev": "pnpm local:subir && pnpm --filter @mago-os/telas dev",
     "telas:testes": "playwright test",
     "plataforma:iniciar": "pnpm --filter @mago-os/nucleo plataforma:iniciar",
-    "plataforma:senha": "pnpm --filter @mago-os/nucleo plataforma:senha"
+    "plataforma:senha": "pnpm --filter @mago-os/nucleo plataforma:senha",
+    "plataforma:desligar-2fa": "pnpm --filter @mago-os/nucleo plataforma:desligar-2fa"
   },
   "devDependencies": {
     "@biomejs/biome": "catalog:",

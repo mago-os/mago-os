@@ -199,4 +199,35 @@ describe.skipIf(!bancoDisponivel)("login com Google", () => {
     expect(String(volta.headers["set-cookie"] ?? "")).not.toMatch(/session_token=[^;]+/);
     expect(volta.statusCode).not.toBe(200);
   });
+
+  it("entrar pelo Google não pula o 2FA do Mago OS", async () => {
+    const cookieDa = (volta: { headers: Record<string, unknown> }) =>
+      ([] as string[])
+        .concat((volta.headers["set-cookie"] as string[] | string | undefined) ?? [])
+        .map((c) => c.split(";")[0])
+        .join("; ");
+    const estado = async (cookie: string) =>
+      (await app.inject({ method: "GET", url: "/acesso/estado", headers: { cookie } })).json();
+
+    // Dono da plataforma sem 2FA: entra, mas só pode ativar.
+    const primeira = await entrarComGoogle({
+      sub: "google-123",
+      email: "dona@teste.invalid",
+      email_verified: true,
+    });
+    expect(await estado(cookieDa(primeira.volta))).toMatchObject({ completa: false, falta: "ativar" });
+
+    // Com o app autenticador ativo: entra pelo Google, mas precisa confirmar o código.
+    await dono.query(
+      `insert into acesso.dois_fatores (pessoa_id, segredo, codigos_recuperacao, verificado)
+         select id, 'x', 'x', true from pessoas where email = 'dona@teste.invalid'`,
+    );
+    await dono.query("update pessoas set dois_fatores_ativo = true where email = 'dona@teste.invalid'");
+    const segunda = await entrarComGoogle({
+      sub: "google-123",
+      email: "dona@teste.invalid",
+      email_verified: true,
+    });
+    expect(await estado(cookieDa(segunda.volta))).toMatchObject({ completa: false, falta: "confirmar" });
+  });
 });

@@ -2,14 +2,24 @@
  * Telas de acesso, versão simples (adiantada da M1-10): entrar, pedir o link de senha e definir a senha.
  * A M1-10 completa com 2FA, convite, perfil e sessões, no design aprovado.
  */
+
+import { Fingerprint } from "lucide-react";
 import { useState } from "react";
-import { definirSenha, entrar, entrarComGoogle, mensagemDoErro, pedirLinkDeSenha } from "@/acesso";
+import {
+  definirSenha,
+  entrar,
+  entrarComGoogle,
+  entrarComPasskey,
+  mensagemDoErro,
+  pedirLinkDeSenha,
+} from "@/acesso";
 import { Mago } from "@/componentes/Mago";
 import { Button } from "@/componentes/ui/button";
 import { Campo } from "@/componentes/ui/campo";
 import { Card, CardDescricao, CardTitulo } from "@/componentes/ui/card";
+import { ConfirmarSegundoFator } from "./DoisFatores";
 
-function Moldura({
+export function Moldura({
   titulo,
   descricao,
   children,
@@ -34,7 +44,7 @@ function Moldura({
   );
 }
 
-function Aviso({ texto, tipo }: { texto: string; tipo: "erro" | "ok" }) {
+export function Aviso({ texto, tipo }: { texto: string; tipo: "erro" | "ok" }) {
   return (
     <p
       role={tipo === "erro" ? "alert" : "status"}
@@ -59,6 +69,7 @@ export function Entrar({ aoEntrar }: { aoEntrar: () => void }) {
   const erroDoGoogle = new URLSearchParams(window.location.search).get("error");
   const [erro, setErro] = useState<string | null>(erroDoGoogle ? mensagemDoErro(erroDoGoogle) : null);
   const [enviando, setEnviando] = useState(false);
+  const [pedeCodigo, setPedeCodigo] = useState(false);
 
   async function aoEnviar(evento: React.FormEvent<HTMLFormElement>) {
     evento.preventDefault();
@@ -67,9 +78,19 @@ export function Entrar({ aoEntrar }: { aoEntrar: () => void }) {
     setErro(null);
     const r = await entrar(String(dados.get("email")), String(dados.get("senha")));
     setEnviando(false);
+    if (r.ok && r.precisaDoCodigo) setPedeCodigo(true);
+    else if (r.ok) aoEntrar();
+    else setErro(r.mensagem ?? null);
+  }
+
+  async function comPasskey() {
+    setErro(null);
+    const r = await entrarComPasskey();
     if (r.ok) aoEntrar();
     else setErro(r.mensagem ?? null);
   }
+
+  if (pedeCodigo) return <ConfirmarSegundoFator aoConfirmar={aoEntrar} />;
 
   async function comGoogle() {
     setErro(null);
@@ -96,6 +117,10 @@ export function Entrar({ aoEntrar }: { aoEntrar: () => void }) {
           />
         </svg>
         Entrar com Google
+      </Button>
+      <Button variant="contorno" onClick={() => void comPasskey()}>
+        <Fingerprint />
+        Entrar com passkey
       </Button>
       <Separador />
       <form className="grid gap-4" onSubmit={(e) => void aoEnviar(e)}>

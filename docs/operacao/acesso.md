@@ -50,3 +50,24 @@ ssh vps02 "docker exec -i mago-os-db-1 psql -U mago -d mago -c \"delete from ace
 - **Público: "Testando".** Só entra pelo Google quem está em "Usuários de teste" (até 100). Hoje: `nlk.osmago77@gmail.com`. Para publicar ("Em produção"), o Google pede a página inicial e a Política de Privacidade no Branding: fica para quando o Mago OS tiver a página de privacidade. Sem logo, os escopos básicos não precisam de revisão do Google.
 - **Outro ambiente (produção):** criar outro cliente (ou somar os endereços) com a origem e o endereço de volta do novo domínio.
 - **Trocar a chave secreta:** em Clientes › Mago OS teste, criar uma chave nova, gravar no Infisical, rodar `segredos.sh` e `publicar.sh forcar` na VPS02, e só então apagar a antiga no Google.
+
+## 2FA (app autenticador e passkey)
+
+- Obrigatório para o Dono da plataforma e para administradores (e para todos de uma empresa com `exigir_dois_fatores`). Quem precisa e não tem entra numa tela que só deixa ativar. Detalhes na [decisão 0011](../decisoes/0011-dois-fatores.md).
+- **Regras** (até as telas de configuração da M1-10). A empresa só aperta; o piso do Dono vale para todas:
+
+```bash
+# Empresa: exigir 2FA de todos, ou passkey de todos
+ssh vps02 "docker exec -i mago-os-db-1 psql -U mago -d mago -c \"update empresas set exigir_dois_fatores = true where nome = '4xpert'\""
+ssh vps02 "docker exec -i mago-os-db-1 psql -U mago -d mago -c \"update empresas set exigir_passkey = true where nome = '4xpert'\""
+# Piso da plataforma (Dono): administradores e Dono só com passkey, em todas as empresas
+ssh vps02 "docker exec -i mago-os-db-1 psql -U mago -d mago -c \"update acesso.regras_da_plataforma set exigir_passkey_administradores = true\""
+```
+
+- **Perdeu o celular e os códigos:** desliga o 2FA da pessoa e derruba as sessões; ela ativa de novo no próximo login. Confirmar antes, por outro canal, que é mesmo a pessoa.
+
+```bash
+ssh vps02 "docker run --rm --network mago-os_mago_db --env-file /opt/mago-os/api.env $IMG node src/acesso/desligar-dois-fatores.ts --email 'pessoa@exemplo.com'"
+```
+
+- As passkeys ficam presas ao domínio (`teste.osmago.com`). Em outro domínio (produção), cada pessoa cadastra a sua de novo.
