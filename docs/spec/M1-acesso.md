@@ -1,6 +1,6 @@
 # Spec da Fase 1: M1 Acesso
 
-Parte da [spec da Fase 1](README.md). Estado em 17/11/2026: em andamento (M1-01 e M1-02 feitas, M1-03 em revisão).
+Parte da [spec da Fase 1](README.md). Estado em 17/11/2026: em andamento (M1-01 a M1-03 feitas, M1-04 em revisão).
 
 **Pronto quando:** o Sandro entra em teste.osmago.com com Google e passkey, convida um funcionário de teste, vê e encerra sessões, e cada uma dessas ações aparece na auditoria. Os testes provam que uma empresa não vê dados da outra.
 
@@ -44,8 +44,8 @@ Pronto quando: entrar, sair e recuperar a senha funcionam, e a trava age após a
 ### M1-04 Login com Google
 
 - [ ] Configurar o login Google no console do Google (com o Sandro)
-- [ ] O convite fica ligado ao e-mail: quem entra com Google precisa usar a conta daquele e-mail
-- [ ] Pedir só nome, e-mail e foto
+- [x] O convite fica ligado ao e-mail: quem entra com Google precisa usar a conta daquele e-mail
+- [x] Pedir só nome, e-mail e foto ([decisão 0010](../decisoes/0010-login-com-google.md))
 
 Pronto quando: o Sandro entra com a conta Google dele.
 

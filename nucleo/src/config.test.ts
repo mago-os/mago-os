@@ -53,7 +53,22 @@ describe("configuração", () => {
       segredo: ACESSO.MAGO_ACESSO_SEGREDO,
       urlPublica: "https://teste.osmago.com",
       conferirSenhasVazadas: true,
+      google: null,
     });
+  });
+
+  it("o login com Google precisa do ID e da chave juntos", () => {
+    expect(() => lerConfig({ DATABASE_URL: URL, AMBIENTE: "teste", ...ACESSO, MAGO_GOOGLE_ID: "x" })).toThrow(
+      /MAGO_GOOGLE_ID e MAGO_GOOGLE_SEGREDO juntos/,
+    );
+    const config = lerConfig({
+      DATABASE_URL: URL,
+      AMBIENTE: "teste",
+      ...ACESSO,
+      MAGO_GOOGLE_ID: "id.apps.googleusercontent.com",
+      MAGO_GOOGLE_SEGREDO: "segredo",
+    });
+    expect(config.acesso?.google).toEqual({ id: "id.apps.googleusercontent.com", segredo: "segredo" });
   });
 
   it("recusa segredo curto, endereço sem https fora do Mac e senhas vazadas desligadas no teste", () => {
