@@ -11,7 +11,8 @@
     "./empresa": "./src/empresa.ts",
     "./migrar": "./src/migrar.ts",
     "./plataforma": "./src/plataforma.ts",
-    "./acesso": "./src/acesso/index.ts"
+    "./acesso": "./src/acesso/index.ts",
+    "./permissoes": "./src/permissoes/index.ts"
   },
   "scripts": {
     "tipos": "tsc -p tsconfig.json",

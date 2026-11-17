@@ -7,6 +7,16 @@
 
 ```mermaid
 erDiagram
+  ajustes_de_permissao {
+    uuid id PK
+    uuid empresa_id FK
+    uuid vinculo_id FK
+    text modulo
+    text acao
+    text alcance
+    uuid feito_por FK
+    timestamp_with_time_zone feito_em
+  }
   empresas {
     uuid id PK
     text nome
@@ -119,6 +129,9 @@ erDiagram
     timestamp_with_time_zone criada_em
     timestamp_with_time_zone atualizada_em
   }
+  empresas ||--o{ ajustes_de_permissao : "empresa_id"
+  vinculos ||--o{ ajustes_de_permissao : "vinculo_id"
+  pessoas ||--o{ ajustes_de_permissao : "feito_por"
   pessoas ||--o{ papeis_plataforma : "pessoa_id"
   empresas ||--o{ vinculos : "empresa_id"
   pessoas ||--o{ vinculos : "pessoa_id"
@@ -139,6 +152,23 @@ erDiagram
 | `sistema` | Controle técnico do sistema |
 
 ## Dicionário de dados
+
+### ajustes_de_permissao
+
+Ajustes que o administrador faz nas permissões de uma pessoa, por módulo e ação, por cima do perfil dela.
+
+Isolamento por empresa (Row Level Security): ligado e forçado.
+
+| Coluna | Tipo | Obrigatória | Padrão | Marca | Descrição |
+| --- | --- | --- | --- | --- | --- |
+| id | uuid | sim | `uuidv7()` | sistema | Identificador do ajuste (UUID v7). Chave primária. |
+| empresa_id | uuid | sim |  | sistema | Empresa do ajuste. Aponta para empresas.id. |
+| vinculo_id | uuid | sim |  | sistema | Vínculo (pessoa na empresa) ajustado. Aponta para vinculos.id. |
+| modulo | text | sim |  | empresa | Módulo ajustado (ex.: crm, pessoas). |
+| acao | text | sim |  | empresa | Ação ajustada: ver, criar, editar, aprovar, excluir ou ver_sensiveis. |
+| alcance | text | sim |  | empresa | Alcance dado: nada, meus (itens), equipe ou tudo. |
+| feito_por | uuid | sim |  | sistema | Pessoa que fez o ajuste. Aponta para pessoas.id. |
+| feito_em | timestamp with time zone | sim | `now()` | sistema | Quando o ajuste foi feito. |
 
 ### empresas
 
@@ -200,7 +230,7 @@ Isolamento por empresa (Row Level Security): ligado e forçado.
 | empresa_id | uuid | sim |  | sistema | Empresa do vínculo. Aponta para empresas.id. |
 | pessoa_id | uuid | sim |  | sistema | Pessoa do vínculo. Aponta para pessoas.id. |
 | perfil | text | sim |  | empresa | administrador, gestor_area ou funcionario. |
-| area | text | não |  | empresa | Área que o gestor cuida (ex.: comercial). Só o gestor de área tem. |
+| area | text | não |  | empresa | Área da pessoa (ex.: comercial). O gestor cuida dela; o funcionário faz parte dela (a equipe); o administrador não tem. |
 | situacao | text | sim | `'convidado'::text` | sistema | convidado: ainda não aceitou. ativo: trabalha na empresa. desligado: perdeu o acesso. |
 | convidado_em | timestamp with time zone | sim | `now()` | sistema | Quando a pessoa foi convidada. |
 | entrou_em | timestamp with time zone | não |  | sistema | Quando a pessoa aceitou o convite. |

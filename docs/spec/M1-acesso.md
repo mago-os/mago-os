@@ -1,6 +1,6 @@
 # Spec da Fase 1: M1 Acesso
 
-Parte da [spec da Fase 1](README.md). Estado em 17/11/2026: em andamento (M1-01 a M1-05 feitas; telas simples de entrar e do 2FA (da M1-10) adiantadas).
+Parte da [spec da Fase 1](README.md). Estado em 17/11/2026: em andamento (M1-01 a M1-05 feitas, M1-06 em revisão; telas simples de entrar e do 2FA (da M1-10) adiantadas).
 
 **Pronto quando:** o Sandro entra em teste.osmago.com com Google e passkey, convida um funcionário de teste, vê e encerra sessões, e cada uma dessas ações aparece na auditoria. Os testes provam que uma empresa não vê dados da outra.
 
@@ -59,10 +59,10 @@ Pronto quando: o Sandro entra com passkey, e um admin sem 2FA não consegue entr
 
 ### M1-06 Perfis e permissões por módulo
 
-- [ ] Perfis Dono da plataforma, Administrador, Gestor de área e Funcionário
-- [ ] Ajuste por módulo: ver, criar, editar, aprovar e excluir, com alcance "tudo", "da minha equipe" ou "só meus itens"
-- [ ] Uma verificação central no núcleo, usada por todas as rotas
-- [ ] Testes para cada perfil
+- [x] Perfis Dono da plataforma, Administrador, Gestor de área e Funcionário ([decisão 0012](../decisoes/0012-permissoes.md))
+- [x] Ajuste por módulo: ver, criar, editar, aprovar e excluir, com alcance "tudo", "da minha equipe" ou "só meus itens"
+- [x] Uma verificação central no núcleo, usada por todas as rotas
+- [x] Testes para cada perfil
 
 Pronto quando: um funcionário de teste é barrado no que não foi liberado para ele.
 
