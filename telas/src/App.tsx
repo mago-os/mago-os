@@ -1,20 +1,26 @@
+import { ScrollText, Shield, Users } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import {
   type AvisoDeAcesso,
   type EmpresaMinha,
+  lerPerfil,
   lerSessao,
   listarAvisos,
   listarEmpresas,
+  listarPessoas,
+  type MinhasPermissoes,
+  minhasPermissoes,
   type Sessao,
   sair,
   trocarEmpresa,
 } from "./acesso";
-import { BotaoDoTema, Casca, Logo } from "./componentes/Casca";
+import { BotaoDoTema, Casca, type ItemDoMenu, Logo } from "./componentes/Casca";
 import { EstadoDoSistema } from "./componentes/EstadoDoSistema";
 import { Mago } from "./componentes/Mago";
 import { Button } from "./componentes/ui/button";
 import { Card } from "./componentes/ui/card";
 import { Entrar, RecuperarSenha, RedefinirSenha } from "./telas/Acesso";
+import { Auditoria, Pessoas, Seguranca } from "./telas/Administrador";
 import { AvisosDeAcesso, MeusAparelhos } from "./telas/Aparelhos";
 import { AtivarDoisFatores, ConfirmarSegundoFator } from "./telas/DoisFatores";
 import { MeuPerfil } from "./telas/Perfil";
@@ -87,6 +93,9 @@ export function App() {
   const [sessao, setSessao] = useState<Sessao | null | undefined>(undefined);
   const [empresas, setEmpresas] = useState<EmpresaMinha[]>([]);
   const [avisos, setAvisos] = useState<AvisoDeAcesso[]>([]);
+  const [permissoes, setPermissoes] = useState<MinhasPermissoes | null>(null);
+  const [dono, setDono] = useState(false);
+  const [nomes, setNomes] = useState<Map<string, string>>(new Map());
 
   useEffect(() => aplicarTema(tema), [tema]);
 
@@ -102,7 +111,20 @@ export function App() {
     if (!completa) return;
     void carregarEmpresas();
     void carregarAvisos();
+    void lerPerfil().then((p) => setDono(p?.donoDaPlataforma ?? false));
   }, [completa, carregarEmpresas, carregarAvisos]);
+
+  // Permissões na empresa ativa (só existe com uma empresa escolhida; sem empresa, não há o que pedir à API).
+  const temEmpresaAtiva = empresas.some((e) => e.ativa);
+  useEffect(() => {
+    if (temEmpresaAtiva) void minhasPermissoes().then(setPermissoes);
+  }, [temEmpresaAtiva]);
+
+  // Nomes das pessoas da empresa, para a auditoria mostrar quem fez.
+  useEffect(() => {
+    if (caminho !== "/auditoria" || !completa || !temEmpresaAtiva) return;
+    void listarPessoas().then((l) => setNomes(new Map((l ?? []).map((p) => [p.id, p.nome]))));
+  }, [caminho, completa, temEmpresaAtiva]);
 
   // A cada minuto, confere se a sessão ainda vale: um aparelho desconectado em outro lugar sai na hora.
   useEffect(() => {
@@ -162,8 +184,27 @@ export function App() {
     );
   }
 
+  // Telas do administrador: aparecem só para quem tem a permissão (a API confere de novo).
+  const pode = (modulo: string, acao: "ver" | "editar") =>
+    (permissoes?.modulos[modulo]?.acoes[acao] ?? "nada") !== "nada";
+  const menuExtra: ItemDoMenu[] = [
+    ...(pode("pessoas", "ver") && permissoes?.perfil !== "funcionario"
+      ? [{ caminho: "/pessoas", nome: "Pessoas", icone: Users }]
+      : []),
+    ...(pode("seguranca", "ver") || dono
+      ? [{ caminho: "/seguranca", nome: "Segurança", icone: Shield }]
+      : []),
+    ...(pode("auditoria", "ver") ? [{ caminho: "/auditoria", nome: "Auditoria", icone: ScrollText }] : []),
+  ];
+
   let conteudo: React.ReactNode;
   if (caminho === "/perfil") conteudo = <MeuPerfil />;
+  else if (caminho === "/pessoas" && menuExtra.some((m) => m.caminho === "/pessoas"))
+    conteudo = <Pessoas podeAjustar={pode("permissoes", "editar")} />;
+  else if (caminho === "/seguranca" && menuExtra.some((m) => m.caminho === "/seguranca"))
+    conteudo = <Seguranca podeEditar={pode("seguranca", "editar")} donoDaPlataforma={dono} />;
+  else if (caminho === "/auditoria" && menuExtra.some((m) => m.caminho === "/auditoria"))
+    conteudo = <Auditoria nomes={nomes} />;
   else if (caminho === "/aparelhos") conteudo = <MeusAparelhos />;
   else conteudo = <Inicio sessao={sessao} empresa={empresas.find((e) => e.ativa)?.nome ?? null} />;
 
@@ -172,6 +213,7 @@ export function App() {
       sessao={sessao}
       empresas={empresas}
       caminho={caminho}
+      menuExtra={menuExtra}
       tema={tema}
       aoTrocarTema={setTema}
       aoTrocarEmpresa={(id) => void aoTrocarEmpresa(id)}

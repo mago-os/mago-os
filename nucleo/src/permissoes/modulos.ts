@@ -14,6 +14,14 @@ export const MODULOS_DO_NUCLEO: readonly DeclaracaoDeModulo[] = [
   },
   { id: "permissoes", nome: "Permissões", acoes: ["ver", "editar"], temDadosSensiveis: false, area: null },
   { id: "auditoria", nome: "Auditoria", acoes: ["ver"], temDadosSensiveis: true, area: null },
+  // Segurança da empresa (exigir 2FA ou passkey de todos). Padrão: só o administrador.
+  {
+    id: "seguranca",
+    nome: "Segurança da empresa",
+    acoes: ["ver", "editar"],
+    temDadosSensiveis: false,
+    area: null,
+  },
 ];
 
 /** Catálogo de módulos. Recusa na subida uma declaração fora do contrato ou um id repetido. */

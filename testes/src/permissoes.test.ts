@@ -9,6 +9,7 @@ import {
   criarVerificador,
   registrarRotaDaAuditoria,
   registrarRotasDePermissoes,
+  registrarRotasDoAdministrador,
 } from "@mago-os/nucleo/permissoes";
 import Fastify, { type FastifyInstance } from "fastify";
 import pg from "pg";
@@ -122,6 +123,7 @@ describe.skipIf(!bancoDisponivel)("perfis e permissões", () => {
     const verificador = criarVerificador(login, poolAcesso, poolApp, catalogoDeModulos());
     registrarRotasDePermissoes(app, verificador, poolApp);
     registrarRotaDaAuditoria(app, verificador, poolApp);
+    registrarRotasDoAdministrador(app, verificador, poolApp);
     await app.ready();
   });
 
@@ -286,5 +288,45 @@ describe.skipIf(!bancoDisponivel)("perfis e permissões", () => {
     expect((await pedir("GET", "/empresa/auditoria", await entrar("fabio@teste.invalid"))).statusCode).toBe(
       403,
     );
+  });
+
+  it("telas do administrador: vê as permissões calculadas de uma pessoa, com os ajustes", async () => {
+    const ana = await entrar("ana@teste.invalid");
+    const lista = (await pedir("GET", "/empresa/pessoas", ana)).json();
+    const fabio = lista.find((p: { nome: string }) => p.nome === "Fabio Func");
+    expect(fabio.vinculoId).toBe(vinculos["fabio@teste.invalid"]);
+    const r = await pedir("GET", `/empresa/pessoas/${fabio.vinculoId}/permissoes`, ana);
+    expect(r.statusCode).toBe(200);
+    const pessoas = r.json().modulos.find((m: { id: string }) => m.id === "pessoas");
+    expect(pessoas.permissao.acoes.ver).toBe("equipe");
+    expect(pessoas.ajustes).toMatchObject({ ver: "equipe" });
+    expect(
+      (
+        await pedir(
+          "GET",
+          `/empresa/pessoas/${fabio.vinculoId}/permissoes`,
+          await entrar("fabio@teste.invalid"),
+        )
+      ).statusCode,
+    ).toBe(403);
+  });
+
+  it("segurança da empresa: só o administrador vê e muda", async () => {
+    const ana = await entrar("ana@teste.invalid");
+    expect((await pedir("GET", "/empresa/seguranca", ana)).json()).toEqual({
+      exigirDoisFatores: false,
+      exigirPasskey: false,
+    });
+    expect(
+      (await pedir("PUT", "/empresa/seguranca", ana, { exigirDoisFatores: true, exigirPasskey: false }))
+        .statusCode,
+    ).toBe(200);
+    expect((await pedir("GET", "/empresa/seguranca", ana)).json().exigirDoisFatores).toBe(true);
+    const gil = await entrar("gil@teste.invalid");
+    expect(
+      (await pedir("PUT", "/empresa/seguranca", gil, { exigirDoisFatores: false, exigirPasskey: false }))
+        .statusCode,
+    ).toBe(403);
+    await pedir("PUT", "/empresa/seguranca", ana, { exigirDoisFatores: false, exigirPasskey: false });
   });
 });

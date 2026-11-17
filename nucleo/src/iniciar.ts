@@ -10,7 +10,11 @@ import { ErroDeConfig, lerConfig } from "./config.ts";
 import { registrarRotasDaConta } from "./conta/rotas.ts";
 import { criarFila } from "./fila.ts";
 import { catalogoDeModulos } from "./permissoes/modulos.ts";
-import { registrarRotaDaAuditoria, registrarRotasDePermissoes } from "./permissoes/rotas.ts";
+import {
+  registrarRotaDaAuditoria,
+  registrarRotasDePermissoes,
+  registrarRotasDoAdministrador,
+} from "./permissoes/rotas.ts";
 import { criarVerificador } from "./permissoes/verificar.ts";
 import { criarServidor } from "./servidor.ts";
 
@@ -29,6 +33,7 @@ async function iniciar(): Promise<void> {
     const verificador = criarVerificador(login, poolDoLogin, banco.pool, catalogoDeModulos());
     registrarRotasDePermissoes(app, verificador, banco.pool);
     registrarRotaDaAuditoria(app, verificador, banco.pool);
+    registrarRotasDoAdministrador(app, verificador, banco.pool);
     registrarRotasDaConta(app, login, poolDoLogin, banco.pool);
   } else {
     app.log.warn("Login desligado: DATABASE_URL_ACESSO não foi informada (só permitido no Mac)");

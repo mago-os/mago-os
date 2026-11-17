@@ -19,7 +19,13 @@ export interface PessoaDeTeste {
 
 export async function criarPessoaDeTeste(
   rotulo: string,
-  opcoes: { nome?: string; perfil?: "administrador" | "gestor_area" | "funcionario"; area?: string } = {},
+  opcoes: {
+    nome?: string;
+    perfil?: "administrador" | "gestor_area" | "funcionario";
+    area?: string;
+    /** Põe a pessoa numa empresa que já existe, em vez de criar uma nova. */
+    empresaId?: string;
+  } = {},
 ): Promise<PessoaDeTeste> {
   const nome = opcoes.nome ?? "Pessoa Teste";
   const email = `${rotulo}-${randomUUID().slice(0, 8)}@teste.invalid`;
@@ -34,12 +40,15 @@ export async function criarPessoaDeTeste(
     "insert into acesso.credenciais (pessoa_id, provedor, conta_no_provedor, senha) values ($1, 'credential', $2, $3)",
     [id, id, await embaralharSenha(SENHA)],
   );
-  let empresaId: string | null = null;
+  let empresaId: string | null = opcoes.empresaId ?? null;
+  const criouEmpresa = opcoes.perfil !== undefined && !opcoes.empresaId;
   if (opcoes.perfil) {
-    const e = await dono.query<{ id: string }>("insert into empresas (nome) values ($1) returning id", [
-      `Empresa ${email}`,
-    ]);
-    empresaId = e.rows[0]?.id ?? null;
+    if (!empresaId) {
+      const e = await dono.query<{ id: string }>("insert into empresas (nome) values ($1) returning id", [
+        `Empresa ${email}`,
+      ]);
+      empresaId = e.rows[0]?.id ?? null;
+    }
     await dono.query(
       `insert into vinculos (empresa_id, pessoa_id, perfil, area, situacao, convidado_em, entrou_em)
          values ($1, $2, $3, $4, 'ativo', now(), now())`,
@@ -57,7 +66,9 @@ export async function criarPessoaDeTeste(
       await c.query("delete from acesso.travas where email = $1", [email]);
       await c.query("delete from pessoas where email = $1", [email]);
       // A empresa de teste fica (suspensa): a auditoria guarda os eventos dela e não deixa apagar.
-      if (empresaId) await c.query("update empresas set situacao = 'suspensa' where id = $1", [empresaId]);
+      if (empresaId && criouEmpresa) {
+        await c.query("update empresas set situacao = 'suspensa' where id = $1", [empresaId]);
+      }
       await c.end();
     },
   };

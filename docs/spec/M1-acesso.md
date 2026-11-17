@@ -92,9 +92,9 @@ Pronto quando: alterar um registro à mão no banco é detectado pela verificaç
 
 ### M1-10 Telas de acesso
 
-- [ ] Entrar, 2FA, aceitar convite, meu perfil, minhas sessões e usuários da empresa (parte 1 em 17/11/2026: casca do app, entrar, 2FA, meu perfil e meus aparelhos; falta: pessoas, segurança e auditoria do administrador, e aceitar convite com a M1-07)
-- [ ] Pensadas primeiro para o celular, no design aprovado
-- [ ] Testes de tela com Playwright
+- [ ] Entrar, 2FA, aceitar convite, meu perfil, minhas sessões e usuários da empresa (17/11/2026: casca do app, entrar, 2FA, meu perfil, meus aparelhos, pessoas com os ajustes de permissão, segurança da empresa e da plataforma, e auditoria; falta só aceitar convite, que entra com a M1-07)
+- [x] Pensadas primeiro para o celular, no design aprovado
+- [x] Testes de tela com Playwright
 
 Pronto quando: o fluxo inteiro do "Pronto quando" do M1 funciona pelo celular.
 

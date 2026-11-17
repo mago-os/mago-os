@@ -117,3 +117,7 @@ O pg-boss guarda a fila no esquema `pgboss`, criado pela migração 0001 com o `
 - Um gatilho barra alteração e exclusão até para o dono; a única mudança aceita é marcar `copiado_em` (cópia travada no Backblaze), uma vez.
 - A API das empresas lê só os eventos da empresa ativa (Row Level Security); a corrente da plataforma não aparece para nenhuma empresa.
 - A documentação gerada e o teste de descrições e marcas cobrem também o esquema `auditoria`.
+
+## 14. Regras e papéis pelo app (17/11/2026, M1-10)
+
+O login (`mago_acesso`) não lê papéis nem as regras da plataforma direto. As telas usam funções que rodam como dono e conferem quem pede: `acesso.e_dono_da_plataforma`, `acesso.regras_da_plataforma_para` e `acesso.mudar_regras_da_plataforma` (só o Dono). A pessoa também passa a mudar idioma e fuso do próprio perfil. A segurança da empresa (`exigir_dois_fatores`, `exigir_passkey`) é mudada pela API das empresas, só com a permissão `seguranca.editar` (padrão: o administrador).

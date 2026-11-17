@@ -263,6 +263,7 @@ export interface Perfil {
   temSenha: boolean;
   googleLigado: boolean;
   doisFatores: { obrigatorio: boolean; appAutenticador: boolean; passkeys: number; exigePasskey: boolean };
+  donoDaPlataforma: boolean;
 }
 
 export interface PasskeyCadastrada {
@@ -319,4 +320,76 @@ export async function gerarCodigosNovos(senha?: string): Promise<Resultado & { c
   const r = await enviar("/two-factor/generate-backup-codes", senha ? { password: senha } : {});
   const codigos = (r.dados as { backupCodes?: string[] } | undefined)?.backupCodes;
   return r.ok && codigos ? { ok: true, codigos } : r;
+}
+
+// Administração da empresa (M1-10, parte 2).
+
+export type Alcance = "nada" | "meus" | "equipe" | "tudo";
+export type AcaoNoModulo = "ver" | "criar" | "editar" | "aprovar" | "excluir";
+
+export interface PermissaoNoModulo {
+  acoes: Record<AcaoNoModulo, Alcance>;
+  verSensiveis: boolean;
+}
+
+export interface MinhasPermissoes {
+  perfil: string;
+  area: string | null;
+  modulos: Record<string, PermissaoNoModulo>;
+}
+
+export interface PessoaDaEmpresa {
+  vinculoId: string;
+  id: string;
+  nome: string;
+  email: string | null;
+  perfil: "administrador" | "gestor_area" | "funcionario";
+  area: string | null;
+  situacao: "convidado" | "ativo" | "desligado";
+}
+
+export interface ModuloComPermissao {
+  id: string;
+  nome: string;
+  acoes: AcaoNoModulo[];
+  temDadosSensiveis: boolean;
+  permissao: PermissaoNoModulo;
+  ajustes: Partial<Record<AcaoNoModulo | "ver_sensiveis", Alcance>>;
+}
+
+export interface EventoDaAuditoria {
+  sequencia: number;
+  ator: { tipo: string; pessoaId?: string; agenteId?: string; servico?: string };
+  acao: string;
+  alvo: { tipo: string; id: string } | null;
+  origem: { canal: string; ip: string | null; aparelho: string | null };
+  ocorrido_em: string;
+  detalhes: Record<string, unknown>;
+}
+
+export const minhasPermissoes = () => lerConta<MinhasPermissoes>("/empresa/minhas-permissoes");
+export const listarPessoas = () => lerConta<PessoaDaEmpresa[]>("/empresa/pessoas");
+export const permissoesDaPessoa = (vinculoId: string) =>
+  lerConta<{ pessoa: { nome: string; perfil: string; area: string | null }; modulos: ModuloComPermissao[] }>(
+    `/empresa/pessoas/${vinculoId}/permissoes`,
+  );
+export const ajustarPermissao = (dados: {
+  vinculoId: string;
+  modulo: string;
+  acao: AcaoNoModulo | "ver_sensiveis";
+  alcance: Alcance;
+}) => enviarConta("PUT", "/empresa/permissoes", dados);
+export const lerSeguranca = () =>
+  lerConta<{ exigirDoisFatores: boolean; exigirPasskey: boolean }>("/empresa/seguranca");
+export const salvarSeguranca = (dados: { exigirDoisFatores: boolean; exigirPasskey: boolean }) =>
+  enviarConta("PUT", "/empresa/seguranca", dados);
+export const lerRegrasDaPlataforma = () =>
+  lerConta<{ exigirPasskeyAdministradores: boolean }>("/plataforma/regras");
+export const salvarRegrasDaPlataforma = (exigirPasskeyAdministradores: boolean) =>
+  enviarConta("PUT", "/plataforma/regras", { exigirPasskeyAdministradores });
+
+export function listarAuditoria(filtros: { acao?: string; desde?: string; ate?: string }) {
+  const q = new URLSearchParams({ limite: "200" });
+  for (const [k, v] of Object.entries(filtros)) if (v) q.set(k, v);
+  return lerConta<EventoDaAuditoria[]>(`/empresa/auditoria?${q}`);
 }

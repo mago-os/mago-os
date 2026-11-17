@@ -2,12 +2,13 @@
  * Rotas do núcleo que usam as permissões (M1-06): as pessoas da empresa (cada um vê conforme o alcance) e o
  * ajuste de permissão pelo administrador. As telas chegam na M1-10.
  */
-import { conferirPedidoDeAjuste } from "@mago-os/contratos";
+import { conferirPedidoDeAjuste, type Perfil } from "@mago-os/contratos";
 import type { FastifyInstance } from "fastify";
 import type pg from "pg";
 import { origemDoPedido } from "../acesso/rotas.ts";
 import { auditar } from "../auditoria/registrar.ts";
 import { comPessoa } from "../empresa.ts";
+import { type Ajuste, permissaoNoModulo } from "./calcular.ts";
 import { acessoDo, permissoesNaEmpresa, type Verificador } from "./verificar.ts";
 
 export function registrarRotasDePermissoes(
@@ -27,6 +28,7 @@ export function registrarRotasDePermissoes(
             ? { sql: "(v.area = $1 or p.id = $2)", valores: [filtro.area, filtro.pessoaId] }
             : { sql: "p.id = $1", valores: [filtro.pessoaId] };
       const r = await c.query<{
+        vinculo_id: string;
         id: string;
         nome: string;
         email: string;
@@ -34,7 +36,7 @@ export function registrarRotasDePermissoes(
         area: string | null;
         situacao: string;
       }>(
-        `select p.id, p.nome, p.email, v.perfil, v.area, v.situacao
+        `select v.id as vinculo_id, p.id, p.nome, p.email, v.perfil, v.area, v.situacao
            from vinculos v join pessoas p on p.id = v.pessoa_id
           where v.empresa_id = empresa_ativa() and ${condicao.sql}
           order by p.nome`,
@@ -42,7 +44,11 @@ export function registrarRotasDePermissoes(
       );
       return r.rows;
     });
-    return linhas.map((l) => ({ ...l, email: verSensiveis ? l.email : null }));
+    return linhas.map(({ vinculo_id, ...l }) => ({
+      ...l,
+      vinculoId: vinculo_id,
+      email: verSensiveis ? l.email : null,
+    }));
   });
 
   // O que a própria pessoa pode, para a tela mostrar só o que vale para ela.
@@ -184,6 +190,96 @@ export function registrarRotaDaAuditoria(
         );
         return r.rows;
       });
+    },
+  );
+}
+
+/** Telas do administrador (M1-10): permissões de uma pessoa e a segurança da empresa. */
+export function registrarRotasDoAdministrador(
+  app: FastifyInstance,
+  verificador: Verificador,
+  poolApp: pg.Pool,
+): void {
+  // As permissões calculadas de uma pessoa da empresa, módulo por módulo, com os ajustes feitos.
+  app.get(
+    "/empresa/pessoas/:vinculoId/permissoes",
+    { preHandler: verificador.exigir("permissoes", "ver") },
+    async (pedido, resposta) => {
+      const { sessao } = acessoDo(pedido);
+      const { vinculoId } = pedido.params as { vinculoId: string };
+      if (!/^[0-9a-f-]{36}$/i.test(vinculoId)) return resposta.code(400).send({ code: "PEDIDO_INVALIDO" });
+      const dados = await comPessoa(poolApp, sessao.pessoa.id, sessao.empresaId, async (c) => {
+        const v = await c.query<{ perfil: Perfil; area: string | null; nome: string; pessoa_id: string }>(
+          `select v.perfil, v.area, p.nome, p.id as pessoa_id from vinculos v join pessoas p on p.id = v.pessoa_id
+            where v.id = $1 and v.empresa_id = empresa_ativa()`,
+          [vinculoId],
+        );
+        const a = await c.query<Ajuste>(
+          "select modulo, acao, alcance from ajustes_de_permissao where vinculo_id = $1",
+          [vinculoId],
+        );
+        return { vinculo: v.rows[0], ajustes: a.rows };
+      });
+      if (!dados.vinculo) return resposta.code(404).send({ code: "VINCULO_NAO_ENCONTRADO" });
+      const { vinculo, ajustes } = dados;
+      return {
+        pessoa: { nome: vinculo.nome, perfil: vinculo.perfil, area: vinculo.area },
+        modulos: [...verificador.catalogo.values()].map((m) => ({
+          id: m.id,
+          nome: m.nome,
+          acoes: m.acoes,
+          temDadosSensiveis: m.temDadosSensiveis,
+          permissao: permissaoNoModulo(vinculo, m, ajustes),
+          ajustes: Object.fromEntries(
+            ajustes.filter((x) => x.modulo === m.id).map((x) => [x.acao, x.alcance]),
+          ),
+        })),
+      };
+    },
+  );
+
+  app.get("/empresa/seguranca", { preHandler: verificador.exigir("seguranca", "ver") }, async (pedido) => {
+    const { sessao } = acessoDo(pedido);
+    return comPessoa(poolApp, sessao.pessoa.id, sessao.empresaId, async (c) => {
+      const r = await c.query<{ exigir_dois_fatores: boolean; exigir_passkey: boolean }>(
+        "select exigir_dois_fatores, exigir_passkey from empresas where id = empresa_ativa()",
+      );
+      return {
+        exigirDoisFatores: r.rows[0]?.exigir_dois_fatores ?? false,
+        exigirPasskey: r.rows[0]?.exigir_passkey ?? false,
+      };
+    });
+  });
+
+  app.put(
+    "/empresa/seguranca",
+    { preHandler: verificador.exigir("seguranca", "editar") },
+    async (pedido, resposta) => {
+      const { sessao } = acessoDo(pedido);
+      const corpo = (pedido.body ?? {}) as { exigirDoisFatores?: unknown; exigirPasskey?: unknown };
+      if (typeof corpo.exigirDoisFatores !== "boolean" || typeof corpo.exigirPasskey !== "boolean") {
+        return resposta.code(400).send({ code: "PEDIDO_INVALIDO" });
+      }
+      await comPessoa(poolApp, sessao.pessoa.id, sessao.empresaId, (c) =>
+        c.query(
+          "update empresas set exigir_dois_fatores = $1, exigir_passkey = $2, atualizada_em = now() where id = empresa_ativa()",
+          [corpo.exigirDoisFatores, corpo.exigirPasskey],
+        ),
+      );
+      await auditar(
+        poolApp,
+        {
+          empresaId: sessao.empresaId,
+          ator: { tipo: "pessoa", pessoaId: sessao.pessoa.id },
+          acao: "empresa.alterou",
+          alvo: { tipo: "empresa", id: sessao.empresaId },
+          origem: origemDoPedido(pedido),
+          rastreio: pedido.id,
+          detalhes: { exigirDoisFatores: corpo.exigirDoisFatores, exigirPasskey: corpo.exigirPasskey },
+        },
+        pedido.log,
+      );
+      return { ok: true };
     },
   );
 }

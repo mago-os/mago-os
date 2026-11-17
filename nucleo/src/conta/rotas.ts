@@ -36,6 +36,47 @@ export function registrarRotasDaConta(
     return sessao;
   };
 
+  const eDono = async (pessoaId: string) =>
+    (await poolAcesso.query<{ e: boolean }>("select acesso.e_dono_da_plataforma($1) as e", [pessoaId]))
+      .rows[0]?.e === true;
+
+  // Piso de segurança da plataforma (M1-05), só para o Dono: as funções do banco conferem de novo.
+  app.get("/plataforma/regras", async (pedido, resposta) => {
+    const sessao = await exigirCompleta(pedido, resposta);
+    if (!sessao) return resposta;
+    if (!(await eDono(sessao.pessoa.id)))
+      return resposta.code(403).send({ code: "SEM_PERMISSAO", message: "Só o Dono da plataforma." });
+    const r = await poolAcesso.query<{ exigir_passkey_administradores: boolean }>(
+      "select * from acesso.regras_da_plataforma_para($1)",
+      [sessao.pessoa.id],
+    );
+    return { exigirPasskeyAdministradores: r.rows[0]?.exigir_passkey_administradores ?? false };
+  });
+
+  app.put("/plataforma/regras", async (pedido, resposta) => {
+    const sessao = await exigirCompleta(pedido, resposta);
+    if (!sessao) return resposta;
+    const valor = (pedido.body as { exigirPasskeyAdministradores?: unknown } | undefined)
+      ?.exigirPasskeyAdministradores;
+    if (typeof valor !== "boolean") return resposta.code(400).send({ code: "PEDIDO_INVALIDO" });
+    if (!(await eDono(sessao.pessoa.id)))
+      return resposta.code(403).send({ code: "SEM_PERMISSAO", message: "Só o Dono da plataforma." });
+    await poolAcesso.query("select acesso.mudar_regras_da_plataforma($1, $2)", [sessao.pessoa.id, valor]);
+    await auditar(
+      poolAcesso,
+      {
+        empresaId: null,
+        ator: { tipo: "pessoa", pessoaId: sessao.pessoa.id },
+        acao: "plataforma.alterou_regras",
+        origem: origemDoPedido(pedido),
+        rastreio: pedido.id,
+        detalhes: { exigirPasskeyAdministradores: valor },
+      },
+      pedido.log,
+    );
+    return { ok: true };
+  });
+
   app.get("/conta/perfil", async (pedido, resposta) => {
     const sessao = await exigirCompleta(pedido, resposta);
     if (!sessao) return resposta;
@@ -61,6 +102,7 @@ export function registrarRotasDaConta(
       temSenha: tem.rows[0]?.senha ?? false,
       googleLigado: tem.rows[0]?.google ?? false,
       doisFatores: sessao.estado.dois,
+      donoDaPlataforma: await eDono(sessao.pessoa.id),
     };
   });
 
