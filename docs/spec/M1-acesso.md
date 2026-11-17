@@ -92,7 +92,7 @@ Pronto quando: alterar um registro à mão no banco é detectado pela verificaç
 
 ### M1-10 Telas de acesso
 
-- [ ] Entrar, 2FA, aceitar convite, meu perfil, minhas sessões e usuários da empresa
+- [ ] Entrar, 2FA, aceitar convite, meu perfil, minhas sessões e usuários da empresa (versão simples de entrar, recuperar e definir a senha adiantada em 17/11/2026)
 - [ ] Pensadas primeiro para o celular, no design aprovado
 - [ ] Testes de tela com Playwright
 

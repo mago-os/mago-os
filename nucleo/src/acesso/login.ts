@@ -178,3 +178,6 @@ export function criarLogin(opcoes: OpcoesDoLogin, pool: pg.Pool) {
 }
 
 export type Login = ReturnType<typeof criarLogin>;
+
+/** Embaralha uma senha do mesmo jeito que o login (scrypt). Só para dados de teste: nunca em produção. */
+export { hashPassword as embaralharSenha } from "better-auth/crypto";
