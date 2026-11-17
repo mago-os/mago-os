@@ -1,6 +1,6 @@
 # Spec da Fase 1: M1 Acesso
 
-Parte da [spec da Fase 1](README.md). Estado em 17/11/2026: em andamento (M1-01 em revisão).
+Parte da [spec da Fase 1](README.md). Estado em 17/11/2026: em andamento (M1-01 feita, M1-02 em revisão).
 
 **Pronto quando:** o Sandro entra em teste.osmago.com com Google e passkey, convida um funcionário de teste, vê e encerra sessões, e cada uma dessas ações aparece na auditoria. Os testes provam que uma empresa não vê dados da outra.
 
@@ -26,10 +26,10 @@ Pronto quando: os formatos estão aprovados e as outras tarefas usam só eles.
 
 ### M1-02 Empresas e uma pessoa em várias empresas
 
-- [ ] Criar a empresa Nolask e o Sandro como Dono da plataforma
-- [ ] Estrutura para o mesmo login estar em várias empresas, cada uma com as próprias permissões (o seletor completo fica para a Fase 2)
-- [ ] A empresa ativa vai junto em cada pedido e o banco só mostra dados dela
-- [ ] Teste de vazamento com duas empresas e uma pessoa nas duas
+- [x] Criar a empresa 4xpert e o Sandro como Dono da plataforma (comando `pnpm plataforma:iniciar`, que roda de novo para cada empresa dele: Nolask, CandleFast, DFO e outras)
+- [x] Estrutura para o mesmo login estar em várias empresas, cada uma com as próprias permissões (o seletor completo fica para a Fase 2)
+- [x] A empresa ativa vai junto em cada pedido e o banco só mostra dados dela
+- [x] Teste de vazamento com duas empresas e uma pessoa nas duas
 
 Pronto quando: a mesma pessoa em duas empresas nunca vê dados de uma na outra.
 
