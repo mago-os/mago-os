@@ -13,3 +13,4 @@ Uma nota curta por decisão importante: o que foi decidido, por quê e o que foi
 | [0004](0004-telas.md) | Telas: React, Tailwind, shadcn, app instalável e o mago | Aceita |
 | [0005](0005-main-sem-trava-por-enquanto.md) | Main sem trava do GitHub por enquanto, com regra escrita (rever antes de novos agentes ou do M6) | Aceita |
 | [0006](0006-ssh-da-vps02.md) | SSH da VPS02 só com chave, porta 22 aberta enquanto dividir com a Ratoeira | Aceita |
+| [0007](0007-backup-em-tres-depositos.md) | Backup em três depósitos (30 dias, 3 meses e 1 ano), teste de restauração mensal | Aceita |

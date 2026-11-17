@@ -15,8 +15,11 @@ Explicação completa: Wiki do cliente MagoOS, páginas `infraestrutura.md` e `b
 | `pgbackrest/pgbackrest.conf` | `/opt/mago-os/pgbackrest/pgbackrest.conf` |
 | `bin/segredos.sh` | `/opt/mago-os/bin/segredos.sh` (busca todos os segredos no Infisical) |
 | `bin/segredos-backup.sh` | `/opt/mago-os/bin/segredos-backup.sh` (nome antigo, chama o `segredos.sh`) |
-| `bin/backup-diario.sh` | `/opt/mago-os/bin/backup-diario.sh` |
-| `caddy/mago-os.caddy` | `/etc/caddy/mago-os.caddy` (incluído no fim do `/etc/caddy/Caddyfile`) |
+| `bin/backup.sh` | `/opt/mago-os/bin/backup.sh` (backup diário, semanal e mensal) |
+| `bin/backup-diario.sh` | `/opt/mago-os/bin/backup-diario.sh` (nome antigo, chama o `backup.sh`) |
+| `bin/restauracao-teste.sh` | `/opt/mago-os/bin/restauracao-teste.sh` (teste de restauração mensal) |
+| `bin/avisar.sh` | `/opt/mago-os/bin/avisar.sh` (avisa o monitoramento) |
+| `caddy/mago-os.caddy` | versão antiga, de antes da publicação automática; hoje o `/etc/caddy/mago-os.caddy` é gerado de `caddy/mago-os.caddy.modelo` |
 | `cron/mago-os-backup` | `/etc/cron.d/mago-os-backup` |
 | `sudoers/90-mago-admin` | `/etc/sudoers.d/90-mago-admin` (usuário de administração `mago-admin`) |
 | `campainha.env.example` | `/opt/mago-os/campainha.env` (gerado por `bin/segredos.sh`) |

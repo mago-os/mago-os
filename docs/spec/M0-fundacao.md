@@ -7,16 +7,16 @@ Parte da [spec da Fase 1](README.md). Estado em 16/11/2026: em andamento.
 | Número | Tarefa | Depende de | Tamanho | Situação |
 | --- | --- | --- | --- | --- |
 | M0-01 | Repositório e estrutura de pastas | nada | M | Feito |
-| M0-02 | Quadro Kanban e modelos de tarefa | M0-01 | P | Em revisão |
-| M0-03 | Ambiente local com containers | M0-01 | M | Em revisão |
-| M0-04 | Núcleo mínimo da API | M0-01 | M | Em revisão |
-| M0-05 | Banco, migrações e isolamento por empresa | M0-03, M0-04 | M | Em revisão |
-| M0-06 | Tela inicial com o design aprovado | M0-01 | M | Em revisão |
-| M0-07 | Testes automáticos e proteção da main | M0-04, M0-06 | M | Em revisão |
-| M0-08 | Segredos no Infisical | M0-04 | P | Em revisão |
-| M0-09 | Preparação e segurança da VPS | nada | M | Em revisão |
-| M0-10 | Pacote e publicação automática no teste | M0-07, M0-08, M0-09 | M | Em revisão |
-| M0-11 | Backup do banco no Backblaze B2 | M0-10 | M | Primeira etapa feita |
+| M0-02 | Quadro Kanban e modelos de tarefa | M0-01 | P | Feito |
+| M0-03 | Ambiente local com containers | M0-01 | M | Feito |
+| M0-04 | Núcleo mínimo da API | M0-01 | M | Feito |
+| M0-05 | Banco, migrações e isolamento por empresa | M0-03, M0-04 | M | Feito |
+| M0-06 | Tela inicial com o design aprovado | M0-01 | M | Feito |
+| M0-07 | Testes automáticos e proteção da main | M0-04, M0-06 | M | Feito |
+| M0-08 | Segredos no Infisical | M0-04 | P | Feito |
+| M0-09 | Preparação e segurança da VPS | nada | M | Feito |
+| M0-10 | Pacote e publicação automática no teste | M0-07, M0-08, M0-09 | M | Feito |
+| M0-11 | Backup do banco no Backblaze B2 | M0-10 | M | Em revisão |
 | M0-12 | Monitoramento | M0-10 | P | A fazer |
 
 ## M0-01 Repositório e estrutura de pastas
@@ -120,10 +120,11 @@ O Backblaze B2 substituiu o Cloudflare R2 em 16/11/2026 (grátis até 10 GB, sem
 
 - [x] Criar o bucket no Backblaze B2 e guardar a chave no Infisical (bucket privado `mago-os-backup`, com Object Lock)
 - [x] pgBackRest com cópia completa diária e registro contínuo das alterações, criptografados
-- [ ] Guardar por 30 dias, 3 meses e 1 ano, como no plano (30 dias feito; faltam as cópias semanais e mensais)
+- [x] Guardar por 30 dias, 3 meses e 1 ano, como no plano (três depósitos, decisão 0007)
 - [x] Fazer uma restauração de teste completa (feita em 16/11/2026, num container separado)
-- [ ] Escrever o passo a passo da restauração no manual de operação (docs/operacao)
-- [ ] Segunda etapa: prazo de trava do Object Lock, teste de restauração automático mensal e aviso se um backup falhar
+- [x] Escrever o passo a passo da restauração no manual de operação (`docs/operacao/backup.md`)
+- [x] Teste de restauração automático mensal e aviso se um backup falhar (o aviso chega ao Sandro pelo monitoramento da M0-12)
+- [ ] Prazo de trava do Object Lock (espera decisão do Sandro)
 
 Pronto quando: o banco é restaurado a partir do B2 num ambiente separado.
 
