@@ -313,4 +313,25 @@ describe.skipIf(!bancoDisponivel)("convite para criar empresa", () => {
       404,
     );
   });
+
+  it("antes de entrar com o Google, a pessoa do convite passa a existir com o e-mail confirmado", async () => {
+    await pedir("POST", "/plataforma/empresas/convites", sandro, {
+      nome: "Gabi Google",
+      email: "gabi@teste.invalid",
+    });
+    const codigo = codigoDe(ultimoPara("gabi@teste.invalid"));
+    expect(
+      (await pedir("POST", "/acesso/convite-de-empresa/preparar-google", "", { codigo: "errado" }))
+        .statusCode,
+    ).toBe(404);
+    expect((await dono.query("select 1 from pessoas where email = 'gabi@teste.invalid'")).rowCount).toBe(0);
+    const r = await pedir("POST", "/acesso/convite-de-empresa/preparar-google", "", { codigo });
+    expect(r.statusCode).toBe(200);
+    const p = await dono.query(
+      "select nome, email_verificado from pessoas where email = 'gabi@teste.invalid'",
+    );
+    expect(p.rows[0]).toEqual({ nome: "Gabi Google", email_verificado: true });
+    // Ainda sem como entrar (o Google liga a conta depois) e o convite continua valendo.
+    expect((await pedir("GET", `/acesso/convite-de-empresa/${codigo}`)).json().temConta).toBe(false);
+  });
 });

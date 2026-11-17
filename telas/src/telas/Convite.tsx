@@ -1,20 +1,33 @@
 /**
  * Aceitar o convite (M1-07), aberta pelo link do e-mail: /convite?codigo=...
  *
- * - Quem ainda não tem conta define a senha aqui mesmo e depois entra.
+ * - Quem ainda não tem conta define a senha aqui mesmo e depois entra, ou entra com o Google do e-mail convidado.
  * - Quem já tem conta entra antes (senha, passkey ou Google) e volta para cá para aceitar.
  */
 import { useEffect, useState } from "react";
-import { abrirConvite, aceitarConvite, type ConviteAberto, lerSessao, type Sessao, sair } from "@/acesso";
+import {
+  abrirConvite,
+  aceitarConvite,
+  type ConviteAberto,
+  entrarComGoogle,
+  lerSessao,
+  mensagemDoErro,
+  type Sessao,
+  sair,
+} from "@/acesso";
 import { Button } from "@/componentes/ui/button";
 import { Campo } from "@/componentes/ui/campo";
-import { Aviso, Moldura } from "./Acesso";
+import { Aviso, BotaoDoGoogle, Moldura, Separador } from "./Acesso";
 
 export function AceitarConvite() {
-  const codigo = new URLSearchParams(window.location.search).get("codigo") ?? "";
+  const busca = new URLSearchParams(window.location.search);
+  const codigo = busca.get("codigo") ?? "";
+  const erroDoGoogle = busca.get("error");
   const [convite, setConvite] = useState<ConviteAberto | null | undefined>(undefined);
   const [sessao, setSessao] = useState<Sessao | null>(null);
-  const [aviso, setAviso] = useState<{ texto: string; tipo: "erro" | "ok" } | null>(null);
+  const [aviso, setAviso] = useState<{ texto: string; tipo: "erro" | "ok" } | null>(
+    erroDoGoogle ? { tipo: "erro", texto: mensagemDoErro(erroDoGoogle) } : null,
+  );
   const [enviando, setEnviando] = useState(false);
   const [pronto, setPronto] = useState(false);
 
@@ -48,6 +61,14 @@ export function AceitarConvite() {
     if (!r.ok) return setAviso({ tipo: "erro", texto: r.mensagem ?? "" });
     if (sessao) window.location.assign("/");
     else setPronto(true);
+  }
+
+  // O Google liga a conta dele à pessoa do convite (o e-mail já foi confirmado ao abrir o link) e volta aqui.
+  async function comGoogle() {
+    setAviso(null);
+    const aqui = `/convite?codigo=${encodeURIComponent(codigo)}`;
+    const r = await entrarComGoogle(aqui, aqui);
+    if (!r.ok) setAviso({ tipo: "erro", texto: r.mensagem ?? "" });
   }
 
   async function aoDefinirSenha(evento: React.FormEvent<HTMLFormElement>) {
@@ -108,6 +129,9 @@ export function AceitarConvite() {
   // Ainda sem conta: define a senha aqui.
   return (
     <Moldura titulo={`Bem-vindo, ${c.nome.split(" ")[0]}`} descricao={descricao}>
+      <BotaoDoGoogle rotulo="Continuar com Google" aoClicar={() => void comGoogle()} />
+      <p className="-mt-2 text-center text-xs text-texto-2">Use a conta Google de {c.email}.</p>
+      <Separador />
       <p className="text-sm text-texto-2">
         Crie a sua senha para entrar com <strong className="text-texto">{c.email}</strong>. Use pelo menos 10
         caracteres: uma frase longa é mais segura e mais fácil de lembrar.

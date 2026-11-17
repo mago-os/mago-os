@@ -197,11 +197,14 @@ export function destinoDepoisDeEntrar(): string {
 }
 
 /** Pede à API o endereço do Google e vai para lá. Na volta, o Google traz a pessoa para a tela pedida. */
-export async function entrarComGoogle(volta = destinoDepoisDeEntrar()): Promise<Resultado> {
+export async function entrarComGoogle(
+  volta = destinoDepoisDeEntrar(),
+  voltaNoErro = "/entrar",
+): Promise<Resultado> {
   const r = await enviar("/sign-in/social", {
     provider: "google",
     callbackURL: `${window.location.origin}${volta}`,
-    errorCallbackURL: `${window.location.origin}/entrar`,
+    errorCallbackURL: `${window.location.origin}${voltaNoErro}`,
   });
   const url = (r.dados as { url?: string } | undefined)?.url;
   if (r.ok && url) {
@@ -481,3 +484,7 @@ export const criarContaPeloConvite = (codigo: string, conta: DadosDaNovaConta, s
     "/acesso/convite-de-empresa/criar",
     senha ? { codigo, senha, conta } : { codigo, conta },
   );
+
+/** Prepara o convite de conta nova para entrar com o Google: cria a pessoa do convite, com o e-mail confirmado. */
+export const prepararConviteDeContaParaGoogle = (codigo: string) =>
+  enviarConta("POST", "/acesso/convite-de-empresa/preparar-google", { codigo });
