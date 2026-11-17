@@ -49,10 +49,10 @@ export interface Tabela {
 }
 
 /**
- * Esquemas documentados: public (dados das empresas) e acesso (login). As tabelas do acesso aparecem como
- * "acesso.nome"; as do public, só pelo nome.
+ * Esquemas documentados: public (dados das empresas), acesso (login) e auditoria. As tabelas dos dois últimos
+ * aparecem como "esquema.nome"; as do public, só pelo nome.
  */
-export const ESQUEMAS = ["public", "acesso"] as const;
+export const ESQUEMAS = ["public", "acesso", "auditoria"] as const;
 
 /** Lê do catálogo do PostgreSQL as tabelas e colunas dos esquemas documentados. */
 export async function lerEstrutura(
@@ -144,11 +144,15 @@ export function gerarMarkdown(estrutura: { tabelas: Tabela[]; colunas: Coluna[] 
   for (const t of tabelas) {
     const isolamento = t.tabela.startsWith("acesso.")
       ? "fora das empresas (esquema acesso, só o papel mago_acesso mexe)"
-      : t.rls && t.rlsForcado
-        ? "ligado e forçado"
-        : t.rls
-          ? "ligado (não forçado)"
-          : "DESLIGADO";
+      : t.tabela.startsWith("auditoria.")
+        ? t.rls
+          ? "ligado e forçado (cada empresa lê só os próprios eventos; só acrescenta)"
+          : "esquema auditoria (só as funções de gravação mexem)"
+        : t.rls && t.rlsForcado
+          ? "ligado e forçado"
+          : t.rls
+            ? "ligado (não forçado)"
+            : "DESLIGADO";
     linhas.push(
       "",
       `### ${t.tabela}`,

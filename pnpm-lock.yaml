@@ -250,6 +250,9 @@ importers:
 
   testes:
     dependencies:
+      '@mago-os/contratos':
+        specifier: workspace:*
+        version: link:../contratos
       '@mago-os/nucleo':
         specifier: workspace:*
         version: link:../nucleo
