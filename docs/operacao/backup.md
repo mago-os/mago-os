@@ -15,7 +15,8 @@ Estado em 16/11/2026 (M0-11). Explicação para leigos e histórico na Wiki do c
 
 - **Agendamento** (`/etc/cron.d/mago-os-backup`): backup todo dia às 03:30 UTC (`bin/backup.sh`) e teste de restauração toda segunda-feira às 04:30 UTC (`bin/restauracao-teste.sh`). Registro em `/var/log/mago-os-backup.log`.
 - **Avisos:** os dois scripts avisam o monitoramento (`bin/avisar.sh`) com "ok" ou "falha". Se o aviso de "ok" não chegar no prazo, o Uptime Kuma avisa o Sandro (M0-12).
-- **Arquivos apagados no B2:** quando o pgBackRest apaga uma cópia vencida, o B2 a esconde e só a apaga de vez 30 dias depois (regra de ciclo de vida do bucket). Isso dá uma janela para recuperar algo apagado por engano.
+- **Trava (Object Lock) em modo compliance, 30 dias** (ligada em 17/11/2026, decisão do Sandro): todo arquivo gravado no bucket fica lacrado por 30 dias. Ninguém consegue apagá-lo antes disso, nem com a chave da VPS, nem o Sandro, nem o suporte do Backblaze. Protege contra um invasor que tente apagar os backups. Para os arquivos novos, o prazo pode ser mudado ou desligado no painel do Backblaze. Os lacres já aplicados não podem ser soltos antes do prazo.
+- **Arquivos apagados no B2:** quando o pgBackRest apaga uma cópia vencida, o B2 a esconde e só a apaga de vez 30 dias depois (regra de ciclo de vida do bucket). Isso dá uma janela para recuperar algo apagado por engano. Um arquivo lacrado só é apagado de verdade depois que o lacre vence.
 - **Senha de criptografia:** `PGBACKREST_CIPHER_PASS` no Infisical, com reserva no Mac em `~/Credenciais/Nolask/Clientes/MagoOS/pgbackrest-cipher-pass-mago-os.txt`. **Sem ela, nenhum backup pode ser restaurado.**
 
 ## Ver o estado
