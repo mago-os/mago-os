@@ -5,7 +5,8 @@
 import { normalizarEmail } from "@mago-os/contratos";
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import type pg from "pg";
-import { sessaoAindaVale } from "./aparelhos.ts";
+import { auditar, type DadosDoEvento } from "../auditoria/registrar.ts";
+import { nomeDoAparelho, sessaoAindaVale } from "./aparelhos.ts";
 import {
   ACOES_PERIGOSAS,
   CAMINHOS_QUE_CONFIRMAM,
@@ -41,6 +42,14 @@ function paraRequest(pedido: FastifyRequest, baseURL: string): Request {
 function emailDoPedido(pedido: FastifyRequest): string | null {
   const corpo = pedido.body as { email?: unknown } | undefined;
   return typeof corpo?.email === "string" ? normalizarEmail(corpo.email) : null;
+}
+
+/** De onde veio o pedido, para a auditoria. */
+export function origemDoPedido(pedido: FastifyRequest): DadosDoEvento["origem"] {
+  const encaminhado = pedido.headers["x-forwarded-for"];
+  const ip =
+    (Array.isArray(encaminhado) ? encaminhado[0] : encaminhado)?.split(",")[0]?.trim() || pedido.ip || null;
+  return { canal: "painel", ip, aparelho: nomeDoAparelho(pedido.headers["user-agent"]) };
 }
 
 export interface SessaoDoPedido {
@@ -180,6 +189,19 @@ export function registrarRotasDoLogin(app: FastifyInstance, login: Login, pool: 
       .catch(() => ({ rowCount: 0 }));
     if (r.rowCount === 0) return resposta.code(404).send({ code: "SESSAO_NAO_ENCONTRADA" });
     pedido.log.info({ evento: "sessao.encerrou", motivo: "desconectado" }, "Aparelho desconectado");
+    await auditar(
+      pool,
+      {
+        empresaId: sessao.empresaId,
+        ator: { tipo: "pessoa", pessoaId: sessao.pessoa.id },
+        acao: "sessao.encerrou",
+        alvo: { tipo: "sessao", id: sessaoId },
+        origem: origemDoPedido(pedido),
+        rastreio: pedido.id,
+        detalhes: { motivo: "desconectado" },
+      },
+      pedido.log,
+    );
     return { ok: true };
   });
 
@@ -193,6 +215,18 @@ export function registrarRotasDoLogin(app: FastifyInstance, login: Login, pool: 
     pedido.log.info(
       { evento: "sessao.encerrou", motivo: "outros", quantos: r.rowCount },
       "Outros aparelhos desconectados",
+    );
+    await auditar(
+      pool,
+      {
+        empresaId: sessao.empresaId,
+        ator: { tipo: "pessoa", pessoaId: sessao.pessoa.id },
+        acao: "sessao.encerrou",
+        origem: origemDoPedido(pedido),
+        rastreio: pedido.id,
+        detalhes: { motivo: "outros_aparelhos", quantos: r.rowCount ?? 0 },
+      },
+      pedido.log,
     );
     return { ok: true, desconectados: r.rowCount };
   });
@@ -243,6 +277,19 @@ export function registrarRotasDoLogin(app: FastifyInstance, login: Login, pool: 
         { evento: "sessao.encerrou", motivo: "nao_fui_eu" },
         "Acesso não reconhecido desconectado",
       );
+      await auditar(
+        pool,
+        {
+          empresaId: sessao.empresaId,
+          ator: { tipo: "pessoa", pessoaId: sessao.pessoa.id },
+          acao: "sessao.encerrou",
+          alvo: { tipo: "aparelho", id: linha.aparelho_id },
+          origem: origemDoPedido(pedido),
+          rastreio: pedido.id,
+          detalhes: { motivo: "nao_fui_eu" },
+        },
+        pedido.log,
+      );
       return {
         ok: true,
         mensagem: "Desconectamos esse aparelho. Por segurança, troque a sua senha agora.",
@@ -256,6 +303,9 @@ export function registrarRotasDoLogin(app: FastifyInstance, login: Login, pool: 
     url: "/acesso/*",
     async handler(pedido, resposta) {
       const caminho = (pedido.url.split("?")[0] ?? "").replace(/^\/acesso/, "");
+      const origem = origemDoPedido(pedido);
+      const saindo = pedido.method === "POST" && caminho.startsWith("/sign-out");
+      const quemSai = saindo ? await sessaoDoPedido(login, pool, pedido) : null;
       const entrando = pedido.method === "POST" && caminho === "/sign-in/email";
 
       // Ações perigosas (trocar senha, mexer no 2FA ou nas passkeys) pedem o segundo fator recente.
@@ -315,6 +365,18 @@ export function registrarRotasDoLogin(app: FastifyInstance, login: Login, pool: 
         if (respostaDoLogin.status === 401) {
           const travou = await registrarFalha(pool, email);
           pedido.log.warn({ evento: travou ? "acesso.travou" : "acesso.falhou" }, "Senha errada no login");
+          await auditar(
+            pool,
+            {
+              empresaId: null,
+              ator: { tipo: "sistema", servico: "login" },
+              acao: travou ? "acesso.travou" : "acesso.falhou",
+              origem,
+              rastreio: pedido.id,
+              detalhes: { email },
+            },
+            pedido.log,
+          );
         } else if (respostaDoLogin.ok) {
           await registrarAcerto(pool, email);
           pedido.log.info({ evento: "acesso.entrou" }, "Pessoa entrou");
@@ -322,8 +384,36 @@ export function registrarRotasDoLogin(app: FastifyInstance, login: Login, pool: 
       }
       // Código certo numa sessão já aberta (ativar o app, ou confirmar depois do Google): a sessão fica confirmada.
       if (sessao && confirmandoCodigo && respostaDoLogin.ok) {
-        await marcarConfirmacao(pool, sessao.sessaoId, CAMINHOS_QUE_CONFIRMAM.get(caminho) ?? "app");
+        const metodo = CAMINHOS_QUE_CONFIRMAM.get(caminho) ?? "app";
+        await marcarConfirmacao(pool, sessao.sessaoId, metodo);
         pedido.log.info({ evento: "dois_fatores.verificou" }, "Segundo fator confirmado");
+        await auditar(
+          pool,
+          {
+            empresaId: sessao.empresaId,
+            ator: { tipo: "pessoa", pessoaId: sessao.pessoa.id },
+            acao:
+              caminho === "/passkey/verify-registration" ? "dois_fatores.ativou" : "dois_fatores.verificou",
+            origem,
+            rastreio: pedido.id,
+            detalhes: { metodo },
+          },
+          pedido.log,
+        );
+      }
+      if (quemSai && respostaDoLogin.ok) {
+        await auditar(
+          pool,
+          {
+            empresaId: quemSai.empresaId,
+            ator: { tipo: "pessoa", pessoaId: quemSai.pessoa.id },
+            acao: "acesso.saiu",
+            alvo: { tipo: "sessao", id: quemSai.sessaoId },
+            origem,
+            rastreio: pedido.id,
+          },
+          pedido.log,
+        );
       }
       if (caminho.startsWith("/sign-out") && respostaDoLogin.ok) {
         pedido.log.info({ evento: "acesso.saiu" }, "Pessoa saiu");

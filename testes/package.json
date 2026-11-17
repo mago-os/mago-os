@@ -9,6 +9,7 @@
     "tipos": "tsc -p tsconfig.json"
   },
   "dependencies": {
+    "@mago-os/contratos": "workspace:*",
     "@mago-os/nucleo": "workspace:*",
     "pg": "catalog:"
   },

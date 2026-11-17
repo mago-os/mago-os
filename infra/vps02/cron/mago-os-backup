@@ -4,3 +4,5 @@
 # Teste de restauração toda segunda-feira às 04:30 UTC, num container separado (o Uptime Kuma alerta se passar
 # de 8 dias sem aviso de "ok"; o Kuma não aceita prazo maior que 24 dias, por isso semanal e não mensal).
 30 4 * * 1 root /opt/mago-os/bin/restauracao-teste.sh >> /var/log/mago-os-backup.log 2>&1
+# Verificação da auditoria (M1-09) todo dia às 05:00 UTC: corrente no banco e cópia travada no Backblaze.
+0 5 * * * root /opt/mago-os/bin/auditoria-verificar.sh >> /var/log/mago-os-auditoria.log 2>&1

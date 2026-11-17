@@ -103,7 +103,7 @@ describe.skipIf(!bancoDisponivel)("regras do banco", () => {
   it("funções que rodam como dono do banco fixam o search_path", async () => {
     const r = await cliente.query<{ funcao: string }>(`
       select p.proname as funcao from pg_proc p join pg_namespace n on n.oid = p.pronamespace
-       where n.nspname in ('public', 'acesso') and p.prosecdef
+       where n.nspname in ('public', 'acesso', 'auditoria') and p.prosecdef
          and not exists (select 1 from unnest(coalesce(p.proconfig, '{}')) c where c like 'search_path=%')`);
     expect(r.rows.map((x) => x.funcao)).toEqual([]);
   });

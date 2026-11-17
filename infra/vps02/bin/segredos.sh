@@ -6,6 +6,7 @@
 #   /opt/mago-os/api.env      conexões da API (papéis mago_app e mago_acesso), das migrações (dono) e do login
 #   /opt/mago-os/campainha.env segredo que confere a assinatura da campainha do GitHub (M0-10)
 #   /opt/mago-os/avisos.env   endereços de aviso do Uptime Kuma para o backup e a restauração (M0-12)
+#   /opt/mago-os/auditoria.env chaves do depósito travado da auditoria (M1-09), quando existirem
 # e entra no ghcr.io com o token só de leitura, para baixar a imagem do Mago OS.
 # Uso: /opt/mago-os/bin/segredos.sh   (depois: docker compose up -d --force-recreate, para os containers lerem)
 # Nenhum valor aparece na tela nem no log.
@@ -51,6 +52,12 @@ arquivos = {
         **{k: s[k] for k in ("MAGO_GOOGLE_ID", "MAGO_GOOGLE_SEGREDO") if s.get(k)},
     },
     "campainha.env": {"MAGO_CAMPAINHA_SEGREDO": s["MAGO_CAMPAINHA_SEGREDO"]},
+    # Cópia travada da auditoria (M1-09), opcional até o depósito existir. Mesma região do backup.
+    "auditoria.env": {
+        "AUDITORIA_CHAVE": s["B2_AUDITORIA_KEY_ID"], "AUDITORIA_SEGREDO": s["B2_AUDITORIA_APPLICATION_KEY"],
+        "AUDITORIA_ENDPOINT": s["B2_ENDPOINT"].replace("https://", ""), "AUDITORIA_REGIAO": s["B2_REGION"],
+        "AUDITORIA_DEPOSITO": "mago-os-auditoria",
+    } if s.get("B2_AUDITORIA_KEY_ID") and s.get("B2_AUDITORIA_APPLICATION_KEY") else {},
     # Opcionais: sem eles, o avisar.sh só registra no log.
     "avisos.env": {k: v for k, v in s.items() if k.startswith("MAGO_AVISO_")},
 }

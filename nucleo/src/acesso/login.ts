@@ -11,9 +11,11 @@ import { APIError, betterAuth } from "better-auth";
 import { haveIBeenPwned } from "better-auth/plugins/haveibeenpwned";
 import { twoFactor } from "better-auth/plugins/two-factor";
 import pg from "pg";
+import { auditar } from "../auditoria/registrar.ts";
 import {
   COOKIE_DO_APARELHO,
   DIAS_DE_INATIVIDADE,
+  nomeDoAparelho,
   novaEtiqueta,
   registrarAparelho,
   SEGUNDOS_DA_ETIQUETA,
@@ -110,6 +112,13 @@ export function criarLogin(opcoes: OpcoesDoLogin, pool: pg.Pool) {
         await pool.query("update pessoas set email_verificado = true, atualizada_em = now() where id = $1", [
           user.id,
         ]);
+        await auditar(pool, {
+          empresaId: null,
+          ator: { tipo: "pessoa", pessoaId: user.id },
+          acao: "senha.trocou",
+          origem: { canal: "painel", ip: null, aparelho: null },
+          detalhes: { como: "link" },
+        });
       },
       resetPasswordTokenExpiresIn: LINK_SENHA_SEGUNDOS,
       async sendResetPassword({ user, token }) {
@@ -272,6 +281,15 @@ export function criarLogin(opcoes: OpcoesDoLogin, pool: pg.Pool) {
                 ip: sessao.ipAddress ?? null,
               });
               aparelhoId = aparelho.aparelhoId;
+              if (aparelho.avisou) {
+                await auditar(pool, {
+                  empresaId: r.rows[0]?.empresa ?? null,
+                  ator: { tipo: "pessoa", pessoaId: sessao.userId },
+                  acao: "sessao.aparelho_novo",
+                  alvo: { tipo: "aparelho", id: aparelho.aparelhoId },
+                  origem: { canal: "painel", ip: sessao.ipAddress ?? null, aparelho: aparelho.nome },
+                });
+              }
             }
             return {
               data: {
@@ -282,6 +300,39 @@ export function criarLogin(opcoes: OpcoesDoLogin, pool: pg.Pool) {
                 doisFatoresMetodo: metodo,
               },
             };
+          },
+          // Auditoria (M1-09): a entrada fica registrada quando a sessão nasce de verdade. Não conta a sessão que
+          // o 2FA vai barrar (senha certa, falta o código) nem as recriadas ao ligar ou desligar o 2FA.
+          async after(sessao, contexto) {
+            const caminho = contexto?.path ?? "";
+            if (caminho.startsWith("/two-factor/enable") || caminho.startsWith("/two-factor/disable")) return;
+            const s = sessao as typeof sessao & {
+              empresaId?: string | null;
+              doisFatoresMetodo?: string | null;
+              aparelhoId?: string | null;
+            };
+            if (caminho === "/sign-in/email" && !s.doisFatoresMetodo) {
+              const app = await pool.query<{ app: boolean }>(
+                "select dois_fatores_ativo as app from pessoas where id = $1",
+                [s.userId],
+              );
+              if (app.rows[0]?.app) return;
+            }
+            const como = caminho.startsWith("/callback/")
+              ? "google"
+              : caminho.startsWith("/passkey/")
+                ? "passkey"
+                : caminho.startsWith("/two-factor/")
+                  ? "senha_e_codigo"
+                  : "senha";
+            await auditar(pool, {
+              empresaId: s.empresaId ?? null,
+              ator: { tipo: "pessoa", pessoaId: s.userId },
+              acao: "acesso.entrou",
+              alvo: { tipo: "sessao", id: s.id },
+              origem: { canal: "painel", ip: s.ipAddress ?? null, aparelho: nomeDoAparelho(s.userAgent) },
+              detalhes: { como },
+            });
           },
         },
       },

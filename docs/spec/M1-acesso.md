@@ -1,6 +1,6 @@
 # Spec da Fase 1: M1 Acesso
 
-Parte da [spec da Fase 1](README.md). Estado em 17/11/2026: em andamento (M1-01 a M1-06 e M1-08 feitas; telas simples de entrar e do 2FA (da M1-10) adiantadas).
+Parte da [spec da Fase 1](README.md). Estado em 17/11/2026: em andamento (M1-01 a M1-06 e M1-08 feitas, M1-09 em revisão; telas simples de entrar e do 2FA (da M1-10) adiantadas).
 
 **Pronto quando:** o Sandro entra em teste.osmago.com com Google e passkey, convida um funcionário de teste, vê e encerra sessões, e cada uma dessas ações aparece na auditoria. Os testes provam que uma empresa não vê dados da outra.
 
@@ -83,10 +83,10 @@ Pronto quando: o Sandro desconecta o celular pelo computador e o celular sai na 
 
 ### M1-09 Auditoria à prova de alteração
 
-- [ ] Registro de quem fez o quê, quando e de onde, incluindo agentes
-- [ ] Cada registro encadeado ao anterior, para que qualquer alteração seja percebida
-- [ ] Cópia guardada fora do alcance de quem administra o sistema
-- [ ] Consulta simples para o administrador
+- [x] Registro de quem fez o quê, quando e de onde, incluindo agentes ([decisão 0014](../decisoes/0014-auditoria.md))
+- [x] Cada registro encadeado ao anterior, para que qualquer alteração seja percebida
+- [x] Cópia guardada fora do alcance de quem administra o sistema (Backblaze com trava compliance de 1 ano)
+- [x] Consulta simples para o administrador (rota; a tela vem na M1-10)
 
 Pronto quando: alterar um registro à mão no banco é detectado pela verificação.
 
