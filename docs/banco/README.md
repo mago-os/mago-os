@@ -13,6 +13,7 @@ erDiagram
     timestamp_with_time_zone criada_em
     timestamp_with_time_zone atualizada_em
     text situacao
+    boolean exigir_dois_fatores
   }
   papeis_plataforma {
     uuid pessoa_id PK
@@ -30,6 +31,7 @@ erDiagram
     timestamp_with_time_zone criada_em
     timestamp_with_time_zone atualizada_em
     boolean email_verificado
+    boolean dois_fatores_ativo
   }
   vinculos {
     uuid id PK
@@ -57,11 +59,33 @@ erDiagram
     timestamp_with_time_zone criada_em
     timestamp_with_time_zone atualizada_em
   }
+  acesso_dois_fatores {
+    uuid id PK
+    uuid pessoa_id FK
+    text segredo
+    text codigos_recuperacao
+    boolean verificado
+    integer falhas
+    timestamp_with_time_zone travado_ate
+  }
   acesso_limites {
     uuid id PK
     text chave
     integer pedidos
     bigint ultimo_pedido
+  }
+  acesso_passkeys {
+    uuid id PK
+    uuid pessoa_id FK
+    text nome
+    text chave_publica
+    text credencial_id
+    integer contador
+    text tipo_aparelho
+    boolean copia_na_nuvem
+    text transportes
+    text aaguid
+    timestamp_with_time_zone criada_em
   }
   acesso_sessoes {
     uuid id PK
@@ -73,6 +97,7 @@ erDiagram
     timestamp_with_time_zone expira_em
     timestamp_with_time_zone criada_em
     timestamp_with_time_zone atualizada_em
+    timestamp_with_time_zone dois_fatores_em
   }
   acesso_travas {
     text email PK
@@ -92,6 +117,8 @@ erDiagram
   empresas ||--o{ vinculos : "empresa_id"
   pessoas ||--o{ vinculos : "pessoa_id"
   pessoas ||--o{ acesso_credenciais : "pessoa_id"
+  pessoas ||--o{ acesso_dois_fatores : "pessoa_id"
+  pessoas ||--o{ acesso_passkeys : "pessoa_id"
   pessoas ||--o{ acesso_sessoes : "pessoa_id"
   empresas ||--o{ acesso_sessoes : "empresa_id"
 ```
@@ -120,6 +147,7 @@ Isolamento por empresa (Row Level Security): ligado e forçado.
 | criada_em | timestamp with time zone | sim | `now()` | sistema | Quando a empresa foi cadastrada. |
 | atualizada_em | timestamp with time zone | sim | `now()` | sistema | Última alteração no cadastro da empresa. |
 | situacao | text | sim | `'ativa'::text` | sistema | ativa: funciona normalmente. suspensa: ninguém da empresa entra e nenhum dado dela aparece. |
+| exigir_dois_fatores | boolean | sim | `false` | empresa | Se o administrador exigiu o 2FA de todas as pessoas da empresa (para administradores ele é sempre obrigatório). |
 
 ### papeis_plataforma
 
@@ -151,6 +179,7 @@ Isolamento por empresa (Row Level Security): ligado e forçado.
 | criada_em | timestamp with time zone | sim | `now()` | sistema | Quando a pessoa foi cadastrada. |
 | atualizada_em | timestamp with time zone | sim | `now()` | sistema | Última alteração no cadastro da pessoa. |
 | email_verificado | boolean | sim | `false` | sistema | Se o e-mail já foi confirmado (pelo convite, pelo Google ou por um link enviado a ele). |
+| dois_fatores_ativo | boolean | sim | `false` | sistema | Se a pessoa ativou o app autenticador (o código é pedido a cada login, fora dos aparelhos confiáveis). |
 
 ### vinculos
 
@@ -192,6 +221,22 @@ Isolamento por empresa (Row Level Security): fora das empresas (esquema acesso, 
 | criada_em | timestamp with time zone | sim | `now()` | sistema | Quando a credencial foi criada. |
 | atualizada_em | timestamp with time zone | sim | `now()` | sistema | Última alteração da credencial. |
 
+### acesso.dois_fatores
+
+App autenticador de cada pessoa: segredo e códigos de recuperação, criptografados.
+
+Isolamento por empresa (Row Level Security): fora das empresas (esquema acesso, só o papel mago_acesso mexe).
+
+| Coluna | Tipo | Obrigatória | Padrão | Marca | Descrição |
+| --- | --- | --- | --- | --- | --- |
+| id | uuid | sim | `uuidv7()` | sistema | Identificador (UUID v7). Chave primária. |
+| pessoa_id | uuid | sim |  | sistema | Pessoa dona do app autenticador. Aponta para pessoas.id. |
+| segredo | text | sim |  | sensivel | Segredo do app autenticador, criptografado com o segredo do login. |
+| codigos_recuperacao | text | sim |  | sensivel | Os 10 códigos de recuperação de uso único, criptografados. |
+| verificado | boolean | sim | `false` | sistema | Se a pessoa já confirmou o app com um código (antes disso, o 2FA não vale). |
+| falhas | integer | sim | `0` | sistema | Códigos errados seguidos. |
+| travado_ate | timestamp with time zone | não |  | sistema | Até quando os códigos ficam travados depois de muitos erros. |
+
 ### acesso.limites
 
 Contagem de pedidos por endereço de internet, para limitar tentativas por minuto.
@@ -204,6 +249,26 @@ Isolamento por empresa (Row Level Security): fora das empresas (esquema acesso, 
 | chave | text | sim |  | pessoal | IP e caminho pedido. |
 | pedidos | integer | sim |  | sistema | Quantos pedidos dentro da janela atual. |
 | ultimo_pedido | bigint | sim |  | sistema | Hora do último pedido, em milissegundos. |
+
+### acesso.passkeys
+
+Passkeys de cada pessoa (Face ID, Touch ID, digital, chave física). Só a parte pública da chave fica aqui.
+
+Isolamento por empresa (Row Level Security): fora das empresas (esquema acesso, só o papel mago_acesso mexe).
+
+| Coluna | Tipo | Obrigatória | Padrão | Marca | Descrição |
+| --- | --- | --- | --- | --- | --- |
+| id | uuid | sim | `uuidv7()` | sistema | Identificador (UUID v7). Chave primária. |
+| pessoa_id | uuid | sim |  | sistema | Pessoa dona da passkey. Aponta para pessoas.id. |
+| nome | text | não |  | pessoal | Nome dado à passkey (ex.: MacBook do Sandro). |
+| chave_publica | text | sim |  | sistema | Chave pública da passkey: confere a assinatura, não serve para entrar. |
+| credencial_id | text | sim |  | sistema | Identificador da passkey no aparelho. |
+| contador | integer | sim | `0` | sistema | Contador de uso, que ajuda a perceber uma passkey copiada. |
+| tipo_aparelho | text | sim |  | sistema | singleDevice (só neste aparelho) ou multiDevice (sincronizada). |
+| copia_na_nuvem | boolean | sim | `false` | sistema | Se a passkey tem cópia sincronizada (iCloud, Google). |
+| transportes | text | não |  | sistema | Como o aparelho se conecta (interno, USB, NFC, Bluetooth). |
+| aaguid | text | não |  | sistema | Modelo do autenticador (não identifica a pessoa nem o aparelho). |
+| criada_em | timestamp with time zone | sim | `now()` | sistema | Quando a passkey foi cadastrada. |
 
 ### acesso.sessoes
 
@@ -222,6 +287,7 @@ Isolamento por empresa (Row Level Security): fora das empresas (esquema acesso, 
 | expira_em | timestamp with time zone | sim |  | sistema | Quando a sessão deixa de valer. |
 | criada_em | timestamp with time zone | sim | `now()` | sistema | Quando a pessoa entrou. |
 | atualizada_em | timestamp with time zone | sim | `now()` | sistema | Última renovação da sessão. |
+| dois_fatores_em | timestamp with time zone | não |  | sistema | Última vez que esta sessão passou pelo segundo fator (código, código de recuperação ou passkey). |
 
 ### acesso.travas
 

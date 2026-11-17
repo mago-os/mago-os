@@ -28,6 +28,12 @@ test.describe("telas de acesso", () => {
     );
   });
 
+  // Cada teste com um IP próprio, para o limite de tentativas por minuto de um não atrapalhar o outro.
+  test.beforeEach(async ({ page }) => {
+    const parte = () => Math.floor(Math.random() * 250) + 1;
+    await page.setExtraHTTPHeaders({ "x-forwarded-for": `10.${parte()}.${parte()}.${parte()}` });
+  });
+
   test.afterAll(async () => {
     await dono.query("delete from acesso.travas where email = $1", [email]);
     await dono.query("delete from pessoas where email = $1", [email]);
@@ -48,7 +54,7 @@ test.describe("telas de acesso", () => {
 
   test("senha errada mostra a mensagem em português", async ({ page }) => {
     await page.goto("/entrar");
-    await page.getByLabel("E-mail").fill("ninguem@teste.invalid");
+    await page.getByLabel("E-mail").fill(`ninguem-${randomUUID().slice(0, 8)}@teste.invalid`);
     await page.getByLabel("Senha").fill("senha errada qualquer");
     await page.getByRole("button", { name: "Entrar", exact: true }).click();
     await expect(page.getByRole("alert")).toHaveText("E-mail ou senha incorretos.");

@@ -19,7 +19,9 @@
     "lucide-react": "catalog:",
     "@fontsource-variable/geist": "catalog:",
     "@fontsource-variable/geist-mono": "catalog:",
-    "radix-ui": "catalog:"
+    "radix-ui": "catalog:",
+    "@simplewebauthn/browser": "catalog:",
+    "qrcode": "catalog:"
   },
   "devDependencies": {
     "vite": "catalog:",
@@ -28,6 +30,7 @@
     "@tailwindcss/vite": "catalog:",
     "vite-plugin-pwa": "catalog:",
     "@types/react": "catalog:",
-    "@types/react-dom": "catalog:"
+    "@types/react-dom": "catalog:",
+    "@types/qrcode": "catalog:"
   }
 }

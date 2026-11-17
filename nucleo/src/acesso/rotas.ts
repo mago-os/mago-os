@@ -3,8 +3,16 @@
  * Antes de conferir a senha, olha a trava do e-mail; depois, conta o erro ou zera a contagem.
  */
 import { normalizarEmail } from "@mago-os/contratos";
-import type { FastifyInstance, FastifyRequest } from "fastify";
+import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import type pg from "pg";
+import {
+  ACOES_PERIGOSAS,
+  type EstadoDaSessao,
+  estadoDaSessao,
+  marcarConfirmacao,
+  podeFazerAcaoPerigosa,
+  situacaoDosDoisFatores,
+} from "./dois-fatores.ts";
 import type { Login } from "./login.ts";
 import { registrarAcerto, registrarFalha, travadoAte } from "./trava.ts";
 
@@ -32,13 +40,121 @@ function emailDoPedido(pedido: FastifyRequest): string | null {
   return typeof corpo?.email === "string" ? normalizarEmail(corpo.email) : null;
 }
 
+export interface SessaoDoPedido {
+  sessaoId: string;
+  pessoa: { id: string; nome: string; email: string };
+  empresaId: string | null;
+  estado: EstadoDaSessao;
+}
+
+/** Quem está pedindo, e se a sessão já pode ver dados (2FA). Nulo sem sessão. */
+export async function sessaoDoPedido(
+  login: Login,
+  pool: pg.Pool,
+  pedido: FastifyRequest,
+): Promise<SessaoDoPedido | null> {
+  const baseURL = String(login.options.baseURL);
+  const dados = await login.api.getSession({ headers: paraRequest(pedido, baseURL).headers });
+  if (!dados) return null;
+  const sessao = dados.session as typeof dados.session & {
+    empresaId?: string | null;
+    doisFatoresEm?: Date | string | null;
+  };
+  const dois = await situacaoDosDoisFatores(pool, dados.user.id);
+  const confirmadoEm = sessao.doisFatoresEm ? new Date(sessao.doisFatoresEm) : null;
+  return {
+    sessaoId: sessao.id,
+    pessoa: { id: dados.user.id, nome: dados.user.name, email: dados.user.email },
+    empresaId: sessao.empresaId ?? null,
+    estado: estadoDaSessao(dois, confirmadoEm),
+  };
+}
+
+/**
+ * Proteção para as rotas de dados: sem sessão, 401; sessão que ainda precisa do 2FA, 403.
+ * Toda rota que mostra ou muda dados de empresa usa esta verificação (M1-06 em diante).
+ */
+export function exigirSessaoCompleta(login: Login, pool: pg.Pool) {
+  return async (pedido: FastifyRequest, resposta: FastifyReply) => {
+    const sessao = await sessaoDoPedido(login, pool, pedido);
+    if (!sessao)
+      return resposta.code(401).send({ code: "SEM_SESSAO", message: "Entre no Mago OS para continuar." });
+    if (!sessao.estado.completa) {
+      return resposta.code(403).send({
+        code: sessao.estado.falta === "ativar" ? "DOIS_FATORES_ATIVAR" : "DOIS_FATORES_CONFIRMAR",
+        message:
+          sessao.estado.falta === "ativar"
+            ? "Ative a autenticação em 2 fatores para continuar."
+            : "Confirme com o código do app ou com a passkey para continuar.",
+      });
+    }
+    (pedido as FastifyRequest & { sessao?: SessaoDoPedido }).sessao = sessao;
+  };
+}
+
 export function registrarRotasDoLogin(app: FastifyInstance, login: Login, pool: pg.Pool): void {
   const baseURL = String(login.options.baseURL);
+
+  // Estado do acesso para a tela: quem está conectado e o que falta do 2FA.
+  app.get("/acesso/estado", async (pedido) => {
+    const sessao = await sessaoDoPedido(login, pool, pedido);
+    if (!sessao) return null;
+    const { estado } = sessao;
+    return {
+      pessoa: sessao.pessoa,
+      empresaId: sessao.empresaId,
+      doisFatores: {
+        obrigatorio: estado.dois.obrigatorio,
+        appAutenticador: estado.dois.appAutenticador,
+        passkeys: estado.dois.passkeys,
+        precisa: estado.precisa,
+        confirmadoEm: estado.confirmadoEm,
+      },
+      completa: estado.completa,
+      falta: estado.falta,
+    };
+  });
+
   app.route({
     method: ["GET", "POST"],
     url: "/acesso/*",
     async handler(pedido, resposta) {
-      const entrando = pedido.method === "POST" && pedido.url.split("?")[0] === "/acesso/sign-in/email";
+      const caminho = (pedido.url.split("?")[0] ?? "").replace(/^\/acesso/, "");
+      const entrando = pedido.method === "POST" && caminho === "/sign-in/email";
+
+      // Ações perigosas (trocar senha, mexer no 2FA ou nas passkeys) pedem o segundo fator recente.
+      const confirmandoCodigo =
+        caminho === "/two-factor/verify-totp" || caminho === "/two-factor/verify-backup-code";
+      const sessao =
+        pedido.method === "POST" && (ACOES_PERIGOSAS.has(caminho) || confirmandoCodigo)
+          ? await sessaoDoPedido(login, pool, pedido)
+          : null;
+      if (sessao && ACOES_PERIGOSAS.has(caminho)) {
+        const { dois, confirmadoEm } = sessao.estado;
+        if (caminho === "/two-factor/disable" && dois.obrigatorio) {
+          return resposta.code(403).send({
+            code: "DOIS_FATORES_OBRIGATORIO",
+            message: "Para o seu perfil, a autenticação em 2 fatores é obrigatória e não pode ser desligada.",
+          });
+        }
+        if (
+          caminho === "/passkey/delete-passkey" &&
+          dois.obrigatorio &&
+          !dois.appAutenticador &&
+          dois.passkeys <= 1
+        ) {
+          return resposta.code(403).send({
+            code: "DOIS_FATORES_OBRIGATORIO",
+            message: "Essa é a sua única forma de 2FA. Ative o app autenticador antes de apagar a passkey.",
+          });
+        }
+        if (!podeFazerAcaoPerigosa(dois, confirmadoEm)) {
+          return resposta.code(403).send({
+            code: "CONFIRMACAO_NECESSARIA",
+            message: "Por segurança, confirme com o código do app ou com a passkey antes de continuar.",
+          });
+        }
+      }
       const email = entrando ? emailDoPedido(pedido) : null;
 
       if (email !== null) {
@@ -64,7 +180,12 @@ export function registrarRotasDoLogin(app: FastifyInstance, login: Login, pool: 
           pedido.log.info({ evento: "acesso.entrou" }, "Pessoa entrou");
         }
       }
-      if (pedido.url.startsWith("/acesso/sign-out") && respostaDoLogin.ok) {
+      // Código certo numa sessão já aberta (ativar o app, ou confirmar depois do Google): a sessão fica confirmada.
+      if (sessao && confirmandoCodigo && respostaDoLogin.ok) {
+        await marcarConfirmacao(pool, sessao.sessaoId);
+        pedido.log.info({ evento: "dois_fatores.verificou" }, "Segundo fator confirmado");
+      }
+      if (caminho.startsWith("/sign-out") && respostaDoLogin.ok) {
         pedido.log.info({ evento: "acesso.saiu" }, "Pessoa saiu");
       }
 

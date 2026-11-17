@@ -20,9 +20,11 @@
     "migrar:voltar": "node src/migrar.ts voltar",
     "banco:documentar": "node src/documentar-banco.ts",
     "plataforma:iniciar": "node src/plataforma.ts iniciar",
-    "plataforma:senha": "node src/acesso/link-de-senha.ts"
+    "plataforma:senha": "node src/acesso/link-de-senha.ts",
+    "plataforma:desligar-2fa": "node src/acesso/desligar-dois-fatores.ts"
   },
   "dependencies": {
+    "@better-auth/passkey": "catalog:",
     "@fastify/otel": "catalog:",
     "@mago-os/contratos": "workspace:*",
     "@opentelemetry/api": "catalog:",

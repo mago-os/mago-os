@@ -6,6 +6,7 @@ import { Mago } from "./componentes/Mago";
 import { Button } from "./componentes/ui/button";
 import { Card } from "./componentes/ui/card";
 import { Entrar, RecuperarSenha, RedefinirSenha } from "./telas/Acesso";
+import { AtivarDoisFatores, ConfirmarSegundoFator } from "./telas/DoisFatores";
 import { aplicarTema, lerTema, NOME_DO_TEMA, PROXIMO_TEMA, type Tema } from "./tema";
 
 /** Telas de acesso, escolhidas pelo endereço (sem biblioteca de rotas por enquanto). */
@@ -66,6 +67,15 @@ export function App() {
   if (caminho === "/entrar") conteudo = <Entrar aoEntrar={() => window.location.assign("/")} />;
   else if (caminho === "/recuperar-senha") conteudo = <RecuperarSenha />;
   else if (caminho === "/redefinir-senha") conteudo = <RedefinirSenha />;
+  else if (sessao?.falta === "ativar")
+    conteudo = (
+      <AtivarDoisFatores
+        obrigatorio={sessao.doisFatores.obrigatorio}
+        aoConcluir={() => void conferirSessao()}
+      />
+    );
+  else if (sessao?.falta === "confirmar")
+    conteudo = <ConfirmarSegundoFator aoConfirmar={() => void conferirSessao()} />;
   else conteudo = <Inicio sessao={sessao ?? null} />;
 
   return (
