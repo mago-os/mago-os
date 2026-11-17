@@ -34,6 +34,8 @@ export interface OpcoesDoLogin {
   /** Recusar senhas que já vazaram (Have I Been Pwned). Só os testes automáticos desligam. */
   conferirSenhasVazadas: boolean;
   carteiro: Carteiro;
+  /** Login com Google (M1-04). Sem ele, só e-mail e senha. */
+  google?: { id: string; segredo: string } | null;
 }
 
 export function criarPoolDoLogin(bancoUrl: string): pg.Pool {
@@ -60,6 +62,24 @@ export function criarLogin(opcoes: OpcoesDoLogin, pool: pg.Pool) {
     database: pool,
     trustedOrigins: [site.origin],
     telemetry: { enabled: false },
+    // Erros no retorno do Google voltam para a tela de entrar, com ?error=<código>.
+    onAPIError: { errorURL: `${site.origin}/entrar` },
+    ...(opcoes.google
+      ? {
+          socialProviders: {
+            google: {
+              clientId: opcoes.google.id,
+              clientSecret: opcoes.google.segredo,
+              // Só entra quem já existe no sistema: o Google nunca cria pessoa nova.
+              disableSignUp: true,
+              // Pede ao Google só nome, e-mail e foto (openid, email e profile, o padrão).
+              prompt: "select_account" as const,
+              // Mantém o nome que a pessoa tem no Mago OS, mesmo se o do Google for outro.
+              overrideUserInfoOnSignIn: false,
+            },
+          },
+        }
+      : {}),
     emailAndPassword: {
       enabled: true,
       disableSignUp: true,
@@ -67,6 +87,12 @@ export function criarLogin(opcoes: OpcoesDoLogin, pool: pg.Pool) {
       maxPasswordLength: SENHA_MAXIMA,
       autoSignIn: false,
       revokeSessionsOnPasswordReset: true,
+      // Quem usou o link mandado ao e-mail provou que o e-mail é dele.
+      async onPasswordReset({ user }) {
+        await pool.query("update pessoas set email_verificado = true, atualizada_em = now() where id = $1", [
+          user.id,
+        ]);
+      },
       resetPasswordTokenExpiresIn: LINK_SENHA_SEGUNDOS,
       async sendResetPassword({ user, token }) {
         const link = `${site.origin}/redefinir-senha?token=${encodeURIComponent(token)}`;
@@ -101,6 +127,8 @@ export function criarLogin(opcoes: OpcoesDoLogin, pool: pg.Pool) {
     },
     account: {
       modelName: "credenciais",
+      // A conta Google só se liga à pessoa com o mesmo e-mail, confirmado pelo Google e pelo Mago OS.
+      accountLinking: { enabled: true, allowDifferentEmails: false, updateUserInfoOnLink: false },
       fields: {
         accountId: "conta_no_provedor",
         providerId: "provedor",
@@ -137,6 +165,7 @@ export function criarLogin(opcoes: OpcoesDoLogin, pool: pg.Pool) {
       max: 100,
       customRules: {
         "/sign-in/email": { window: 60, max: 10 },
+        "/sign-in/social": { window: 60, max: 10 },
         "/request-password-reset": { window: 60, max: 3 },
         "/reset-password": { window: 60, max: 10 },
       },

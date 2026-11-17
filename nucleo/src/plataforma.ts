@@ -41,8 +41,9 @@ export async function iniciarPlataforma(
   await cliente.query("begin");
   try {
     const pessoa = await cliente.query<{ id: string; nova: boolean }>(
-      `insert into pessoas (nome, email) values ($1, $2)
-         on conflict (email) do update set email = excluded.email
+      // O Dono da plataforma digitou o próprio e-mail: ele vale como confirmado (o login com Google exige isso).
+      `insert into pessoas (nome, email, email_verificado) values ($1, $2, true)
+         on conflict (email) do update set email_verificado = true
        returning id, (xmax = 0) as nova`,
       [nome, email],
     );

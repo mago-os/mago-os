@@ -31,6 +31,8 @@ export interface ConfigDoAcesso {
   urlPublica: string;
   /** Recusar senhas que já vazaram. Variável MAGO_SENHAS_VAZADAS: "conferir" (padrão) ou "nao_conferir". */
   conferirSenhasVazadas: boolean;
+  /** Login com Google. Variáveis MAGO_GOOGLE_ID e MAGO_GOOGLE_SEGREDO, as duas ou nenhuma. */
+  google: { id: string; segredo: string } | null;
 }
 
 const NIVEIS: readonly NivelDeRegistro[] = ["fatal", "error", "warn", "info", "debug", "trace", "silent"];
@@ -114,5 +116,12 @@ function lerAcesso(
     problemas.push("MAGO_SENHAS_VAZADAS só pode ser desligada no Mac");
   }
 
-  return { bancoUrl, segredo, urlPublica, conferirSenhasVazadas: vazadas !== "nao_conferir" };
+  const googleId = env.MAGO_GOOGLE_ID ?? "";
+  const googleSegredo = env.MAGO_GOOGLE_SEGREDO ?? "";
+  if ((googleId === "") !== (googleSegredo === "")) {
+    problemas.push("Login com Google: informe MAGO_GOOGLE_ID e MAGO_GOOGLE_SEGREDO juntos");
+  }
+  const google = googleId && googleSegredo ? { id: googleId, segredo: googleSegredo } : null;
+
+  return { bancoUrl, segredo, urlPublica, conferirSenhasVazadas: vazadas !== "nao_conferir", google };
 }
