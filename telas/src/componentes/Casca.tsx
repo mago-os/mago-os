@@ -155,6 +155,27 @@ export function Casca(props: PropsDaCasca) {
           </div>
         </header>
 
+        {/* No celular, as telas do administrador ficam numa faixa logo abaixo do topo. */}
+        {props.menuExtra && props.menuExtra.length > 0 && (
+          <nav
+            aria-label="Administração"
+            className="flex gap-2 overflow-x-auto border-b border-linha px-4 py-2 md:hidden"
+          >
+            {props.menuExtra.map((item) => (
+              <a
+                key={item.caminho}
+                href={item.caminho}
+                aria-current={item.caminho === caminho ? "page" : undefined}
+                className={cn(
+                  "shrink-0 rounded-full border border-linha px-3 py-1.5 text-sm",
+                  item.caminho === caminho ? "bg-tinta text-sobre-tinta" : "text-texto-2",
+                )}
+              >
+                {item.nome}
+              </a>
+            ))}
+          </nav>
+        )}
         <div className="flex-1">{props.children}</div>
       </div>
 

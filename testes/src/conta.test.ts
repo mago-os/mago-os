@@ -134,4 +134,25 @@ describe.skipIf(!bancoDisponivel)("conta da pessoa", () => {
     const r = await app.inject({ method: "GET", url: "/conta/perfil" });
     expect(r.statusCode).toBe(401);
   });
+
+  it("piso da plataforma: só o Dono vê e muda", async () => {
+    expect((await pedir("GET", "/plataforma/regras")).statusCode).toBe(403);
+    await dono.query(
+      "insert into papeis_plataforma (pessoa_id, papel) select id, 'dono' from pessoas where email = 'duda@teste.invalid'",
+    );
+    // Dono precisa de 2FA: uma passkey e a sessão confirmada (o 2FA tem testes próprios).
+    await dono.query(
+      "insert into acesso.passkeys (pessoa_id, chave_publica, credencial_id, tipo_aparelho) select id, 'c', 'duda', 'multiDevice' from pessoas where email = 'duda@teste.invalid'",
+    );
+    await dono.query("update acesso.sessoes set dois_fatores_em = now(), dois_fatores_metodo = 'passkey'");
+    expect((await pedir("GET", "/plataforma/regras")).json()).toEqual({
+      exigirPasskeyAdministradores: false,
+    });
+    expect(
+      (await pedir("PUT", "/plataforma/regras", { exigirPasskeyAdministradores: true })).statusCode,
+    ).toBe(200);
+    const r = await dono.query("select exigir_passkey_administradores as v from acesso.regras_da_plataforma");
+    expect(r.rows[0].v).toBe(true);
+    expect((await pedir("GET", "/conta/perfil")).json().donoDaPlataforma).toBe(true);
+  });
 });
