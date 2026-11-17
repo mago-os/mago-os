@@ -25,6 +25,12 @@ erDiagram
     text situacao
     boolean exigir_dois_fatores
     boolean exigir_passkey
+    text tipo
+    text documento
+    text nome_legal
+    text fuso_horario
+    text idioma
+    text telefone
   }
   papeis_plataforma {
     uuid pessoa_id PK
@@ -106,6 +112,18 @@ erDiagram
     timestamp_with_time_zone expira_em
     timestamp_with_time_zone usado_em
     timestamp_with_time_zone cancelado_em
+  }
+  acesso_convites_de_empresa {
+    uuid id PK
+    text nome
+    text email
+    text codigo
+    uuid convidado_por FK
+    timestamp_with_time_zone criado_em
+    timestamp_with_time_zone expira_em
+    timestamp_with_time_zone usado_em
+    timestamp_with_time_zone cancelado_em
+    uuid empresa_id FK
   }
   acesso_credenciais {
     uuid id PK
@@ -197,6 +215,8 @@ erDiagram
   vinculos ||--o{ acesso_convites : "vinculo_id"
   pessoas ||--o{ acesso_convites : "pessoa_id"
   pessoas ||--o{ acesso_convites : "convidado_por"
+  pessoas ||--o{ acesso_convites_de_empresa : "convidado_por"
+  empresas ||--o{ acesso_convites_de_empresa : "empresa_id"
   pessoas ||--o{ acesso_credenciais : "pessoa_id"
   pessoas ||--o{ acesso_dois_fatores : "pessoa_id"
   pessoas ||--o{ acesso_passkeys : "pessoa_id"
@@ -248,6 +268,12 @@ Isolamento por empresa (Row Level Security): ligado e forçado.
 | situacao | text | sim | `'ativa'::text` | sistema | ativa: funciona normalmente. suspensa: ninguém da empresa entra e nenhum dado dela aparece. |
 | exigir_dois_fatores | boolean | sim | `false` | empresa | Se o administrador exigiu o 2FA de todas as pessoas da empresa (para administradores ele é sempre obrigatório). |
 | exigir_passkey | boolean | sim | `false` | empresa | Se o administrador exigiu passkey de todas as pessoas da empresa (o código do app deixa de valer sozinho). |
+| tipo | text | não |  | empresa | pj: empresa com CNPJ. pf: pessoa física com CPF. Vazio nas contas criadas antes da M1-11. |
+| documento | text | não |  | pessoal | CNPJ ou CPF, sem pontuação. Um documento, uma conta. O CPF é dado pessoal: aparece mascarado para quem não é administrador nem Dono. |
+| nome_legal | text | não |  | empresa | Razão social (CNPJ) ou nome completo (CPF). |
+| fuso_horario | text | sim | `'America/Sao_Paulo'::text` | empresa | Fuso horário IANA da conta (ex.: America/Sao_Paulo). |
+| idioma | text | sim | `'pt-BR'::text` | empresa | Idioma da conta (ex.: pt-BR). |
+| telefone | text | não |  | empresa | Telefone de contato da conta (opcional). |
 
 ### papeis_plataforma
 
@@ -385,6 +411,25 @@ Isolamento por empresa (Row Level Security): fora das empresas (esquema acesso, 
 | expira_em | timestamp with time zone | sim |  | sistema | Até quando o link vale. |
 | usado_em | timestamp with time zone | não |  | sistema | Quando o convite foi aceito. |
 | cancelado_em | timestamp with time zone | não |  | sistema | Quando o convite foi cancelado ou trocado por um novo. |
+
+### acesso.convites_de_empresa
+
+Convites do Dono para alguém criar uma conta nova no Mago OS. O link vale 7 dias e funciona uma vez só.
+
+Isolamento por empresa (Row Level Security): fora das empresas (esquema acesso, só o papel mago_acesso mexe).
+
+| Coluna | Tipo | Obrigatória | Padrão | Marca | Descrição |
+| --- | --- | --- | --- | --- | --- |
+| id | uuid | sim | `uuidv7()` | sistema | Identificador do convite (UUID v7). Chave primária. |
+| nome | text | sim |  | pessoal | Nome do responsável pela conta nova. |
+| email | text | sim |  | pessoal | E-mail do responsável (vira o login dele). |
+| codigo | text | sim |  | sensivel | Impressão digital (SHA-256) do código do link. O código em si só existe no e-mail. |
+| convidado_por | uuid | sim |  | sistema | Quem convidou (o Dono). Aponta para pessoas.id. |
+| criado_em | timestamp with time zone | sim | `now()` | sistema | Quando o convite foi enviado. |
+| expira_em | timestamp with time zone | sim |  | sistema | Até quando o link vale. |
+| usado_em | timestamp with time zone | não |  | sistema | Quando a conta foi criada pelo link. |
+| cancelado_em | timestamp with time zone | não |  | sistema | Quando o convite foi cancelado ou trocado por um novo. |
+| empresa_id | uuid | não |  | sistema | Conta criada pelo convite. Aponta para empresas.id. |
 
 ### acesso.credenciais
 

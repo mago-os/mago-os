@@ -128,3 +128,9 @@ O login (`mago_acesso`) não lê papéis nem as regras da plataforma direto. As 
 - A API das empresas não grava direto em pessoas e vínculos: `convidar`, `cancelar_convite` e `desligar_vinculo` rodam como dono e só agem na empresa ativa do pedido. Quem pode chamar cada uma é conferido pelo núcleo (`pessoas.criar` e `pessoas.excluir`).
 - `desligar_vinculo` recusa desligar a si mesmo e o último administrador ativo, e devolve se a pessoa ainda tem outra empresa (para o núcleo decidir entre apagar as sessões e só tirar a empresa delas).
 - Aceitar passa por `acesso.abrir_convite`, `acesso.aceitar_convite` e `acesso.pessoa_do_convite`, que conferem código, validade e pessoa. Ver [decisão 0015](../decisoes/0015-convites.md).
+
+## 16. Conta com CNPJ ou CPF e convite para criar empresa (17/11/2026, M1-11)
+
+- `empresas` ganha `tipo` (pj ou pf), `documento` (único, sem pontuação), `nome_legal`, `fuso_horario`, `idioma` e `telefone`. As contas antigas ficam sem documento; uma regra garante que tipo e documento andam juntos e com o tamanho certo.
+- `acesso.convites_de_empresa` guarda os convites do Dono (só a impressão digital do código). Só o login (`mago_acesso`) lê e grava.
+- Funções que rodam como dono: `acesso.empresas_da_plataforma` (lista só o cadastro, só para o Dono), `acesso.abrir_convite_de_empresa`, `acesso.pessoa_do_convite_de_empresa` (cria a pessoa se ainda não existe) e `acesso.criar_empresa_pelo_convite` (cria a conta e o vínculo de administrador, só para o e-mail do convite). Ver [decisão 0016](../decisoes/0016-convite-para-criar-empresa.md).

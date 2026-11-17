@@ -15,7 +15,8 @@
     "./permissoes": "./src/permissoes/index.ts",
     "./auditoria": "./src/auditoria/index.ts",
     "./conta": "./src/conta/index.ts",
-    "./convites": "./src/convites/index.ts"
+    "./convites": "./src/convites/index.ts",
+    "./contas": "./src/contas/index.ts"
   },
   "scripts": {
     "tipos": "tsc -p tsconfig.json",

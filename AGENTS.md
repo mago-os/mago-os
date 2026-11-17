@@ -61,6 +61,8 @@ O Mago OS é um sistema operacional de agentes para empresas: pessoas e agentes 
 
 **Spec:** correção pequena (detalhe, situação, texto) entra junto com a tarefa e é avisada. Mudança de escopo só com aprovação do Sandro. Decisão técnica importante vira uma nota nova em `docs/decisoes/`.
 
+**Plano:** toda mudança no plano ou funcionalidade nova que aparecer durante a codificação (decisão do Sandro, troca de tecnologia, regra nova, item que entrou ou saiu) é registrada também no plano "Agentic OS: funcionalidades e arquitetura" (documento no claude.ai, na seção do tema, com a data), no mesmo dia, e a cópia em `Gestao/Docs & Guias/Docs/` do cliente ganha uma revisão nova. Pedido do Sandro em 17/11/2026.
+
 ## Comandos
 
 | Comando | O que faz |
@@ -76,7 +78,7 @@ O Mago OS é um sistema operacional de agentes para empresas: pessoas e agentes 
 | `pnpm local:parar` | Para os containers locais |
 | `pnpm migrar` | Roda as migrações pendentes (precisa de `DATABASE_URL_DONO`) |
 | `pnpm banco:documentar` | Gera de novo a documentação do banco em `docs/banco` |
-| `pnpm plataforma:iniciar --nome "..." --email "..." --empresa "..."` | Cria o Dono da plataforma e uma empresa onde ele é administrador. Roda de novo para cada empresa nova (precisa de `DATABASE_URL_DONO`) |
+| `pnpm plataforma:iniciar --nome "..." --email "..." --empresa "..."` | Cria o Dono da plataforma e uma empresa onde ele é administrador (plano B: o caminho normal para contas novas é o convite pela tela Empresas, M1-11). Precisa de `DATABASE_URL_DONO` |
 | `pnpm plataforma:senha --email "..."` | Gera o link para a pessoa definir a senha (primeiro acesso). Roda com a configuração da API e mostra o link só no terminal |
 | `pnpm plataforma:desligar-2fa --email "..."` | Desliga o 2FA de quem perdeu o celular e os códigos (apaga app, passkeys, aparelhos confiáveis e sessões). Roda com a configuração da API |
 | `pnpm icones` | Gera de novo os ícones do app a partir do desenho do mago |

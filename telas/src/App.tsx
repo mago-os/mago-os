@@ -1,4 +1,4 @@
-import { ScrollText, Shield, Users } from "lucide-react";
+import { Building2, ScrollText, Shield, Users } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import {
   type AvisoDeAcesso,
@@ -25,11 +25,13 @@ import { Auditoria, Pessoas, Seguranca } from "./telas/Administrador";
 import { AvisosDeAcesso, MeusAparelhos } from "./telas/Aparelhos";
 import { AceitarConvite } from "./telas/Convite";
 import { AtivarDoisFatores, ConfirmarSegundoFator } from "./telas/DoisFatores";
+import { Empresas } from "./telas/Empresas";
+import { NovaConta } from "./telas/NovaConta";
 import { MeuPerfil } from "./telas/Perfil";
 import { aplicarTema, lerTema, type Tema } from "./tema";
 
 /** Telas de acesso, abertas sem login (sem biblioteca de rotas por enquanto: o endereço escolhe a tela). */
-const TELAS_DE_ACESSO = ["/entrar", "/recuperar-senha", "/redefinir-senha", "/convite"];
+const TELAS_DE_ACESSO = ["/entrar", "/recuperar-senha", "/redefinir-senha", "/convite", "/nova-conta"];
 
 function saudacao(hora = new Date().getHours()): string {
   if (hora < 5) return "Boa noite";
@@ -154,6 +156,7 @@ export function App() {
         <TopoSimples tema={tema} aoTrocarTema={setTema} />
         {caminho === "/entrar" && <Entrar aoEntrar={() => window.location.assign(destinoDepoisDeEntrar())} />}
         {caminho === "/convite" && <AceitarConvite />}
+        {caminho === "/nova-conta" && <NovaConta />}
         {caminho === "/recuperar-senha" && <RecuperarSenha />}
         {caminho === "/redefinir-senha" && <RedefinirSenha />}
       </div>
@@ -198,6 +201,7 @@ export function App() {
       ? [{ caminho: "/seguranca", nome: "Segurança", icone: Shield }]
       : []),
     ...(pode("auditoria", "ver") ? [{ caminho: "/auditoria", nome: "Auditoria", icone: ScrollText }] : []),
+    ...(dono ? [{ caminho: "/empresas", nome: "Empresas", icone: Building2 }] : []),
   ];
 
   let conteudo: React.ReactNode;
@@ -215,6 +219,7 @@ export function App() {
     conteudo = <Seguranca podeEditar={pode("seguranca", "editar")} donoDaPlataforma={dono} />;
   else if (caminho === "/auditoria" && menuExtra.some((m) => m.caminho === "/auditoria"))
     conteudo = <Auditoria nomes={nomes} />;
+  else if (caminho === "/empresas" && dono) conteudo = <Empresas />;
   else if (caminho === "/aparelhos") conteudo = <MeusAparelhos />;
   else conteudo = <Inicio sessao={sessao} empresa={empresas.find((e) => e.ativa)?.nome ?? null} />;
 

@@ -10,6 +10,7 @@ export const VERSAO_CONTRATOS = 1 as const;
 
 export * from "./auditoria.ts";
 export * from "./comum.ts";
+export * from "./identidade/documento.ts";
 export * from "./identidade/empresa.ts";
 export * from "./identidade/pessoa.ts";
 export * from "./identidade/plataforma.ts";

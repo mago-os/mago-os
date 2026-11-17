@@ -8,9 +8,13 @@ Os comandos abaixo rodam no Mac, com o alias `vps02` do SSH. `IMG` é a versão 
 IMG='$(cat /opt/mago-os/estado/atual)'
 ```
 
-## Criar uma pessoa com uma empresa (Dono da plataforma)
+## Conta nova para um cliente (M1-11)
 
-Enquanto os convites (M1-07) não existem, só o Dono da plataforma entra, criado pelo comando de início. Ele também cria cada empresa nova onde o Dono é administrador:
+O caminho normal é pela tela: o Dono abre **Empresas › Convidar nova conta** e informa o nome e o e-mail do responsável. O responsável recebe o e-mail, cria a senha e os dados da conta (empresa com CNPJ ou pessoa física com CPF) e vira o administrador. O Dono não entra na conta. Ver [decisão 0016](../decisoes/0016-convite-para-criar-empresa.md).
+
+## Plano B: criar uma conta pelo comando (Dono da plataforma)
+
+O comando de início cria o Dono da plataforma e uma conta onde ele é administrador. Hoje só é usado em emergência ou para uma conta do próprio Sandro:
 
 ```bash
 ssh vps02 "docker run --rm --network mago-os_mago_db --env-file /opt/mago-os/api.env $IMG node src/plataforma.ts iniciar --nome 'Sandro' --email 'pessoa@exemplo.com' --empresa '4xpert'"
