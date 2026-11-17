@@ -9,14 +9,16 @@
     "./banco-temporario": "./src/banco-temporario.ts",
     "./documentar-banco": "./src/documentar-banco.ts",
     "./empresa": "./src/empresa.ts",
-    "./migrar": "./src/migrar.ts"
+    "./migrar": "./src/migrar.ts",
+    "./plataforma": "./src/plataforma.ts"
   },
   "scripts": {
     "tipos": "tsc -p tsconfig.json",
     "iniciar": "node --import ./src/rastreio.ts src/iniciar.ts",
     "migrar": "node src/migrar.ts subir",
     "migrar:voltar": "node src/migrar.ts voltar",
-    "banco:documentar": "node src/documentar-banco.ts"
+    "banco:documentar": "node src/documentar-banco.ts",
+    "plataforma:iniciar": "node src/plataforma.ts iniciar"
   },
   "dependencies": {
     "@fastify/otel": "catalog:",

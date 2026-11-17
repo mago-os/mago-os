@@ -7,8 +7,11 @@ import pg from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { bancoDisponivel } from "./preparar-banco.ts";
 
-/** A tabela de empresas é a única sem empresa_id: ela é a própria empresa. */
-const SEM_EMPRESA_ID = new Set(["empresas"]);
+/**
+ * Tabelas sem empresa_id (docs/banco/decisoes.md, seções 3 e 8): empresas é a própria empresa; pessoas e
+ * papeis_plataforma valem para o sistema inteiro. A lista é fechada: tabela nova aqui só com aprovação do Sandro.
+ */
+const SEM_EMPRESA_ID = new Set(["empresas", "pessoas", "papeis_plataforma"]);
 
 describe.skipIf(!bancoDisponivel)("regras do banco", () => {
   let banco: BancoTemporario;
@@ -59,15 +62,27 @@ describe.skipIf(!bancoDisponivel)("regras do banco", () => {
     expect(problemas).toEqual([]);
   });
 
-  it("toda tabela tem política de acesso que usa a empresa ativa", async () => {
-    const r = await cliente.query<{ tabela: string }>(`
-      select c.relname as tabela
+  it("toda tabela tem política de acesso que usa a empresa ativa (ou a pessoa, nas tabelas sem empresa)", async () => {
+    const r = await cliente.query<{ tabela: string; empresa: boolean; pessoa: boolean }>(`
+      select c.relname as tabela,
+             exists (select 1 from pg_policies p where p.schemaname = 'public' and p.tablename = c.relname
+                       and p.qual like '%empresa_ativa()%') as empresa,
+             exists (select 1 from pg_policies p where p.schemaname = 'public' and p.tablename = c.relname
+                       and p.qual like '%pessoa_ativa()%') as pessoa
         from pg_class c join pg_namespace n on n.oid = c.relnamespace
-       where n.nspname = 'public' and c.relkind in ('r','p')
-         and not exists (select 1 from pg_policies p
-                          where p.schemaname = 'public' and p.tablename = c.relname
-                            and p.qual like '%empresa_ativa()%')`);
-    expect(r.rows.map((x) => x.tabela)).toEqual([]);
+       where n.nspname = 'public' and c.relkind in ('r','p')`);
+    const problemas = r.rows
+      .filter((x) => !(x.empresa || (SEM_EMPRESA_ID.has(x.tabela) && x.pessoa)))
+      .map((x) => x.tabela);
+    expect(problemas).toEqual([]);
+  });
+
+  it("funções que rodam como dono do banco fixam o search_path", async () => {
+    const r = await cliente.query<{ funcao: string }>(`
+      select p.proname as funcao from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+       where n.nspname = 'public' and p.prosecdef
+         and not exists (select 1 from unnest(coalesce(p.proconfig, '{}')) c where c like 'search_path=%')`);
+    expect(r.rows.map((x) => x.funcao)).toEqual([]);
   });
 
   it("o papel da API não é dono de nenhuma tabela e não pode ignorar o isolamento", async () => {

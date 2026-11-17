@@ -22,7 +22,8 @@
     "migrar": "pnpm --filter @mago-os/nucleo migrar",
     "icones": "node infra/ferramentas/gerar-icones.mjs",
     "dev": "pnpm local:subir && pnpm --filter @mago-os/telas dev",
-    "telas:testes": "playwright test"
+    "telas:testes": "playwright test",
+    "plataforma:iniciar": "pnpm --filter @mago-os/nucleo plataforma:iniciar"
   },
   "devDependencies": {
     "@biomejs/biome": "catalog:",

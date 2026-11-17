@@ -1,7 +1,7 @@
 -- Dados falsos do ambiente local (M0-03). Nunca colocar aqui dados reais de pessoas ou empresas.
 -- Os arquivos rodam em ordem de nome, depois das migrações, a cada "pnpm local:subir" e "pnpm local:zerar".
 -- Cada arquivo precisa poder rodar de novo sem erro (use ON CONFLICT DO NOTHING ou IF NOT EXISTS).
--- As empresas falsas "Empresa Teste A" e "Empresa Teste B" ficam em 010-empresas.sql.
+-- As empresas falsas ficam em 010-empresas.sql e as pessoas falsas em 020-pessoas.sql.
 
 -- Confere que o banco local é o mesmo da VPS02: PostgreSQL 18 com pgvector disponível.
 DO $$

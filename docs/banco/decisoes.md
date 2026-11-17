@@ -55,3 +55,25 @@ Ferramenta: node-pg-migrate, com arquivos `.sql` numerados em `nucleo/migracoes`
 ## 7. Fila no esquema pgboss (16/11/2026, M0-05)
 
 O pg-boss guarda a fila no esquema `pgboss`, criado pela migração 0001 com o `mago_app` como dono. A fila não tem dados de empresa por enquanto; quando um trabalho levar dados de uma empresa, ele leva o `empresa_id` e o trabalho roda dentro de `comEmpresa`.
+
+## 8. Pessoas em várias empresas e a pessoa do pedido (17/11/2026, M1-02)
+
+**Decisão:** além da empresa ativa, a API informa ao banco a pessoa do pedido (`set_config('mago.pessoa_id', '<id>', true)`, função `pessoa_ativa()`). No código, isso é `comPessoa` (`nucleo/src/empresa.ts`); trabalhos do próprio sistema continuam com `comEmpresa`, sem pessoa.
+
+**Como funciona:**
+
+1. `pessoas` e `papeis_plataforma` não têm `empresa_id`: uma pessoa vale para o sistema inteiro (um e-mail, um login) e a ligação com cada empresa fica em `vinculos`, que tem `empresa_id` como as outras tabelas. A lista de tabelas sem `empresa_id` é fechada no teste `regras-do-banco` e só cresce com aprovação do Sandro.
+2. Com uma pessoa no pedido, `empresa_ativa()` só devolve a empresa se a pessoa tiver vínculo **ativo** nela, a pessoa estiver ativa e a empresa não estiver suspensa. Se o código errar a empresa, ou se a pessoa tiver sido desligada no meio do caminho, o banco não mostra nada daquela empresa. A função roda como dono do banco (`SECURITY DEFINER`, com `search_path` fixo) para poder olhar vínculos sem cair nas políticas que dependem dela.
+3. O que cada pessoa vê:
+   - `pessoas`: ela mesma e quem tem vínculo com a empresa ativa.
+   - `vinculos`: os da empresa ativa e os dela mesma (para saber em que empresas está).
+   - `empresas`: a ativa e aquelas onde ela tem vínculo ativo (é o que permite escolher a empresa).
+   - `papeis_plataforma`: só o próprio papel. Uma empresa nunca vê quem são os donos da plataforma.
+4. Ser Dono da plataforma **não** abre os dados de nenhuma empresa: o Sandro vê os dados de uma empresa porque tem vínculo nela, como qualquer pessoa. Entrar numa empresa para dar suporte fica para a Fase 2, com registro na auditoria.
+5. Nesta tarefa a API só lê pessoas, vínculos e papéis. Criar e alterar chega com o login (M1-03) e os convites (M1-07). Até lá, só o dono do banco grava, pelo comando `pnpm plataforma:iniciar`, que cria o Dono da plataforma e uma empresa onde ele é administrador, e pode rodar de novo para cada empresa nova. Nome e e-mail reais entram só pelo comando, nunca no código.
+
+**Descartado:**
+
+- *Copiar a pessoa em cada empresa (uma linha por empresa):* o mesmo login viraria vários cadastros, com senha e 2FA separados.
+- *Confiar só no código para conferir o vínculo:* um esquecimento abriria a empresa errada. O banco confere de novo.
+- *Dono da plataforma enxergar todas as empresas:* abriria dados de clientes sem registro nem motivo.
