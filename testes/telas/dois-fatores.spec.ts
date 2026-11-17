@@ -58,7 +58,8 @@ test.describe("2FA nas telas", () => {
 
   test.afterAll(async () => {
     await dono.query("delete from pessoas where email = $1", [email]);
-    await dono.query("delete from empresas where id = $1", [empresaId]);
+    // A empresa de teste fica (suspensa): a auditoria guarda os eventos dela e não deixa apagar.
+    await dono.query("update empresas set situacao = 'suspensa' where id = $1", [empresaId]);
     await dono.end();
   });
 
@@ -133,7 +134,8 @@ test.describe("passkey nas telas", () => {
 
   test.afterAll(async () => {
     await dono.query("delete from pessoas where email = $1", [email]);
-    await dono.query("delete from empresas where id = $1", [empresaId]);
+    // A empresa de teste fica (suspensa): a auditoria guarda os eventos dela e não deixa apagar.
+    await dono.query("update empresas set situacao = 'suspensa' where id = $1", [empresaId]);
     await dono.end();
   });
 
