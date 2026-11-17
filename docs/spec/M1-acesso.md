@@ -1,6 +1,6 @@
 # Spec da Fase 1: M1 Acesso
 
-Parte da [spec da Fase 1](README.md). Estado em 16/11/2026: não iniciado.
+Parte da [spec da Fase 1](README.md). Estado em 17/11/2026: em andamento (M1-01 em revisão).
 
 **Pronto quando:** o Sandro entra em teste.osmago.com com Google e passkey, convida um funcionário de teste, vê e encerra sessões, e cada uma dessas ações aparece na auditoria. Os testes provam que uma empresa não vê dados da outra.
 
@@ -19,8 +19,8 @@ Parte da [spec da Fase 1](README.md). Estado em 16/11/2026: não iniciado.
 
 ### M1-01 Contratos de identidade
 
-- [ ] Definir na pasta de contratos os formatos de pessoa, empresa, vínculo (pessoa numa empresa, com perfil), sessão e evento de auditoria
-- [ ] Aprovação do Sandro (é contrato)
+- [x] Definir na pasta de contratos os formatos de pessoa, empresa, vínculo (pessoa numa empresa, com perfil), sessão e evento de auditoria
+- [x] Aprovação do Sandro (é contrato): aprovado em 17/11/2026, ver [decisão 0008](../decisoes/0008-contratos-com-typebox.md)
 
 Pronto quando: os formatos estão aprovados e as outras tarefas usam só eles.
 
