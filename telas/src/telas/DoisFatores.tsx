@@ -131,16 +131,19 @@ type Etapa =
 export function AtivarDoisFatores({
   obrigatorio,
   soPasskey = false,
+  apenasApp = false,
   aoConcluir,
 }: {
   obrigatorio: boolean;
   /** Só a passkey vale: o app autenticador não aparece como opção. */
   soPasskey?: boolean;
+  /** Só o app autenticador (a tela "Meu perfil" cadastra passkeys por conta própria). */
+  apenasApp?: boolean;
   aoConcluir: () => void;
 }) {
   const [etapa, setEtapa] = useState<Etapa>({ tipo: "escolher" });
   const [erro, setErro] = useState<string | null>(null);
-  const passkey = usePasskeyPronta("cadastro", etapa.tipo === "escolher");
+  const passkey = usePasskeyPronta("cadastro", etapa.tipo === "escolher" && !apenasApp);
 
   async function comPasskey() {
     setErro(null);
@@ -163,11 +166,13 @@ export function AtivarDoisFatores({
     }
   }
 
-  const descricao = soPasskey
-    ? "Para o seu perfil, a confirmação é com passkey. Cadastre a deste aparelho para continuar."
-    : obrigatorio
-      ? "Para o seu perfil, a autenticação em 2 fatores é obrigatória. Escolha como quer confirmar que é você."
-      : "Uma segunda prova, além da senha, de que é você mesmo.";
+  const descricao = apenasApp
+    ? "Instale um app autenticador no celular e aponte a câmera para o QR code que vai aparecer."
+    : soPasskey
+      ? "Para o seu perfil, a confirmação é com passkey. Cadastre a deste aparelho para continuar."
+      : obrigatorio
+        ? "Para o seu perfil, a autenticação em 2 fatores é obrigatória. Escolha como quer confirmar que é você."
+        : "Uma segunda prova, além da senha, de que é você mesmo.";
 
   if (etapa.tipo === "senha") {
     return (
@@ -224,18 +229,28 @@ export function AtivarDoisFatores({
 
   return (
     <Moldura titulo="Ative a autenticação em 2 fatores" descricao={descricao}>
-      <Button disabled={!passkey.pronta && !passkey.erro} onClick={() => void comPasskey()}>
-        <Fingerprint />
-        {soPasskey ? "Cadastrar passkey" : "Usar passkey (recomendado)"}
-      </Button>
-      <p className="-mt-2 text-xs text-texto-3">Face ID, Touch ID, digital, Windows Hello ou chave física.</p>
-      <Button variant="contorno" onClick={() => void comApp()}>
-        <Smartphone />
-        Usar app autenticador
-      </Button>
-      <p className="-mt-2 text-xs text-texto-3">
-        Google Authenticator, Microsoft Authenticator, 1Password ou Authy.
-      </p>
+      {!apenasApp && (
+        <>
+          <Button disabled={!passkey.pronta && !passkey.erro} onClick={() => void comPasskey()}>
+            <Fingerprint />
+            {soPasskey ? "Cadastrar passkey" : "Usar passkey (recomendado)"}
+          </Button>
+          <p className="-mt-2 text-xs text-texto-3">
+            Face ID, Touch ID, digital, Windows Hello ou chave física.
+          </p>
+        </>
+      )}
+      {!soPasskey && (
+        <>
+          <Button variant={apenasApp ? "principal" : "contorno"} onClick={() => void comApp()}>
+            <Smartphone />
+            Usar app autenticador
+          </Button>
+          <p className="-mt-2 text-xs text-texto-3">
+            Google Authenticator, Microsoft Authenticator, 1Password ou Authy.
+          </p>
+        </>
+      )}
       {erro && <Aviso texto={erro} tipo="erro" />}
     </Moldura>
   );

@@ -243,3 +243,80 @@ export async function responderAviso(avisoId: string, resposta: "foi_eu" | "nao_
   const mensagem = (r.dados as { mensagem?: string } | undefined)?.mensagem;
   return mensagem ? { ...r, mensagem } : r;
 }
+
+// Conta da própria pessoa (M1-10).
+
+export interface EmpresaMinha {
+  id: string;
+  nome: string;
+  perfil: "administrador" | "gestor_area" | "funcionario";
+  area: string | null;
+  ativa: boolean;
+}
+
+export interface Perfil {
+  nome: string;
+  email: string;
+  foto: string | null;
+  idioma: string;
+  fusoHorario: string;
+  temSenha: boolean;
+  googleLigado: boolean;
+  doisFatores: { obrigatorio: boolean; appAutenticador: boolean; passkeys: number; exigePasskey: boolean };
+}
+
+export interface PasskeyCadastrada {
+  id: string;
+  name?: string | null;
+  createdAt: string;
+  deviceType?: string;
+}
+
+async function lerConta<T>(caminho: string): Promise<T | null> {
+  try {
+    const r = await fetch(`/api${caminho}`, { credentials: "same-origin" });
+    return r.ok ? ((await r.json()) as T) : null;
+  } catch {
+    return null;
+  }
+}
+
+async function enviarConta(metodo: "POST" | "PUT", caminho: string, corpo: unknown): Promise<Resultado> {
+  try {
+    const r = await fetch(`/api${caminho}`, {
+      method: metodo,
+      headers: { "content-type": "application/json" },
+      credentials: "same-origin",
+      body: JSON.stringify(corpo),
+    });
+    if (r.ok) return { ok: true };
+    const dados = (await r.json().catch(() => null)) as { code?: string; message?: string } | null;
+    return {
+      ok: false,
+      mensagem: dados?.message ?? mensagemDoErro(dados?.code),
+      ...(dados?.code ? { codigo: dados.code } : {}),
+    };
+  } catch {
+    return { ok: false, mensagem: "Sem conexão com o Mago OS. Confira a internet e tente de novo." };
+  }
+}
+
+export const listarEmpresas = () => lerConta<EmpresaMinha[]>("/conta/empresas");
+export const trocarEmpresa = (empresaId: string) =>
+  enviarConta("POST", "/conta/empresa-ativa", { empresaId });
+export const lerPerfil = () => lerConta<Perfil>("/conta/perfil");
+export const salvarPerfil = (dados: { nome: string; idioma: string; fusoHorario: string }) =>
+  enviarConta("PUT", "/conta/perfil", dados);
+
+export function trocarSenha(atual: string, nova: string) {
+  return enviar("/change-password", { currentPassword: atual, newPassword: nova, revokeOtherSessions: true });
+}
+
+export const listarPasskeys = () => ler<PasskeyCadastrada[]>("/passkey/list-user-passkeys");
+export const apagarPasskey = (id: string) => enviar("/passkey/delete-passkey", { id });
+
+export async function gerarCodigosNovos(senha?: string): Promise<Resultado & { codigos?: string[] }> {
+  const r = await enviar("/two-factor/generate-backup-codes", senha ? { password: senha } : {});
+  const codigos = (r.dados as { backupCodes?: string[] } | undefined)?.backupCodes;
+  return r.ok && codigos ? { ok: true, codigos } : r;
+}
