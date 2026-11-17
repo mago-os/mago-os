@@ -11,6 +11,7 @@ const variantesDoBotao = cva(
         principal: "bg-tinta text-sobre-tinta hover:opacity-90",
         contorno: "border border-linha bg-cartao text-tinta hover:bg-suave",
         fantasma: "text-tinta hover:bg-suave",
+        perigo: "bg-perigo text-white hover:opacity-90",
       },
       size: {
         padrao: "h-10 px-4",

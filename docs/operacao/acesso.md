@@ -24,7 +24,13 @@ A pessoa roda no próprio Mac e vê o link só no terminal dela. O link vale 1 h
 ssh vps02 "docker run --rm --network mago-os_mago_db --env-file /opt/mago-os/api.env $IMG node src/acesso/link-de-senha.ts --email 'pessoa@exemplo.com' 2>/dev/null"
 ```
 
-Enquanto o Resend não entra, o "Esqueci a senha" da tela também gera o link, mas ele vai só para o log da API (`docker logs mago-os-api-azul` ou `-verde`, evento `senha.pediu_recuperacao`).
+O "Esqueci a senha" da tela manda o link por e-mail, pelo Resend (remetente `nao-responda@osmago.com`). Sem a chave `MAGO_RESEND_CHAVE` (no Mac), o link vai só para o log da API (evento `senha.pediu_recuperacao`).
+
+## Convidar e desligar pessoas (M1-07)
+
+Pela tela: **Pessoas › Convidar pessoa**. O convite chega por e-mail, vale 7 dias e funciona uma vez só. Na ficha da pessoa: **Reenviar o convite** (o link anterior para de valer), **Cancelar o convite** e **Desligar** (o acesso àquela empresa cai na hora, em todos os aparelhos). Ninguém desliga a si mesmo nem o último administrador. Ver [decisão 0015](../decisoes/0015-convites.md).
+
+Se um e-mail não chegar: conferir no painel do Resend (Emails) se ele saiu e se o domínio `osmago.com` continua verificado; os registros `send`/`resend._domainkey` ficam na Cloudflare. Sem a chave no Mac, o link do convite aparece no log da API (evento `vinculo.convidou`).
 
 ## Trocar o e-mail de login de uma pessoa
 

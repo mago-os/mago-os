@@ -54,6 +54,7 @@ describe("configuração", () => {
       urlPublica: "https://teste.osmago.com",
       conferirSenhasVazadas: true,
       google: null,
+      resend: null,
     });
   });
 

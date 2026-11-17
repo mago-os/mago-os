@@ -2,6 +2,7 @@ import { ScrollText, Shield, Users } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import {
   type AvisoDeAcesso,
+  destinoDepoisDeEntrar,
   type EmpresaMinha,
   lerPerfil,
   lerSessao,
@@ -22,12 +23,13 @@ import { Card } from "./componentes/ui/card";
 import { Entrar, RecuperarSenha, RedefinirSenha } from "./telas/Acesso";
 import { Auditoria, Pessoas, Seguranca } from "./telas/Administrador";
 import { AvisosDeAcesso, MeusAparelhos } from "./telas/Aparelhos";
+import { AceitarConvite } from "./telas/Convite";
 import { AtivarDoisFatores, ConfirmarSegundoFator } from "./telas/DoisFatores";
 import { MeuPerfil } from "./telas/Perfil";
 import { aplicarTema, lerTema, type Tema } from "./tema";
 
 /** Telas de acesso, abertas sem login (sem biblioteca de rotas por enquanto: o endereço escolhe a tela). */
-const TELAS_DE_ACESSO = ["/entrar", "/recuperar-senha", "/redefinir-senha"];
+const TELAS_DE_ACESSO = ["/entrar", "/recuperar-senha", "/redefinir-senha", "/convite"];
 
 function saudacao(hora = new Date().getHours()): string {
   if (hora < 5) return "Boa noite";
@@ -150,7 +152,8 @@ export function App() {
     return (
       <div className="min-h-dvh">
         <TopoSimples tema={tema} aoTrocarTema={setTema} />
-        {caminho === "/entrar" && <Entrar aoEntrar={() => window.location.assign("/")} />}
+        {caminho === "/entrar" && <Entrar aoEntrar={() => window.location.assign(destinoDepoisDeEntrar())} />}
+        {caminho === "/convite" && <AceitarConvite />}
         {caminho === "/recuperar-senha" && <RecuperarSenha />}
         {caminho === "/redefinir-senha" && <RedefinirSenha />}
       </div>
@@ -185,7 +188,7 @@ export function App() {
   }
 
   // Telas do administrador: aparecem só para quem tem a permissão (a API confere de novo).
-  const pode = (modulo: string, acao: "ver" | "editar") =>
+  const pode = (modulo: string, acao: "ver" | "criar" | "editar" | "excluir") =>
     (permissoes?.modulos[modulo]?.acoes[acao] ?? "nada") !== "nada";
   const menuExtra: ItemDoMenu[] = [
     ...(pode("pessoas", "ver") && permissoes?.perfil !== "funcionario"
@@ -200,7 +203,14 @@ export function App() {
   let conteudo: React.ReactNode;
   if (caminho === "/perfil") conteudo = <MeuPerfil />;
   else if (caminho === "/pessoas" && menuExtra.some((m) => m.caminho === "/pessoas"))
-    conteudo = <Pessoas podeAjustar={pode("permissoes", "editar")} />;
+    conteudo = (
+      <Pessoas
+        podeAjustar={pode("permissoes", "editar")}
+        podeConvidar={pode("pessoas", "criar")}
+        podeDesligar={pode("pessoas", "excluir")}
+        euId={sessao.pessoa.id}
+      />
+    );
   else if (caminho === "/seguranca" && menuExtra.some((m) => m.caminho === "/seguranca"))
     conteudo = <Seguranca podeEditar={pode("seguranca", "editar")} donoDaPlataforma={dono} />;
   else if (caminho === "/auditoria" && menuExtra.some((m) => m.caminho === "/auditoria"))

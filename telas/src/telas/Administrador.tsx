@@ -8,6 +8,9 @@ import {
   type AcaoNoModulo,
   type Alcance,
   ajustarPermissao,
+  cancelarConvite,
+  convidar,
+  desligarPessoa,
   type EventoDaAuditoria,
   lerRegrasDaPlataforma,
   lerSeguranca,
@@ -16,10 +19,12 @@ import {
   type ModuloComPermissao,
   type PessoaDaEmpresa,
   permissoesDaPessoa,
+  reenviarConvite,
   salvarRegrasDaPlataforma,
   salvarSeguranca,
 } from "@/acesso";
 import { Button } from "@/componentes/ui/button";
+import { Campo } from "@/componentes/ui/campo";
 import { Card, CardDescricao, CardTitulo } from "@/componentes/ui/card";
 import { Aviso } from "./Acesso";
 
@@ -65,22 +70,61 @@ function Pagina({
   );
 }
 
-export function Pessoas({ podeAjustar }: { podeAjustar: boolean }) {
+interface PoderesEmPessoas {
+  podeAjustar: boolean;
+  podeConvidar: boolean;
+  podeDesligar: boolean;
+  euId: string;
+}
+
+export function Pessoas(poderes: PoderesEmPessoas) {
   const [pessoas, setPessoas] = useState<PessoaDaEmpresa[] | null>(null);
   const [aberta, setAberta] = useState<PessoaDaEmpresa | null>(null);
+  const [convidando, setConvidando] = useState(false);
+  const [mensagem, setMensagem] = useState<Mensagem>(null);
+  const carregar = useCallback(async () => setPessoas(await listarPessoas()), []);
   useEffect(() => {
-    void listarPessoas().then(setPessoas);
-  }, []);
+    void carregar();
+  }, [carregar]);
 
   if (aberta)
-    return <PermissoesDaPessoa pessoa={aberta} podeAjustar={podeAjustar} aoVoltar={() => setAberta(null)} />;
+    return (
+      <PermissoesDaPessoa
+        pessoa={aberta}
+        {...poderes}
+        aoVoltar={(texto) => {
+          setAberta(null);
+          setMensagem(texto ? { tipo: "ok", texto } : null);
+          void carregar();
+        }}
+      />
+    );
 
+  // Quem foi desligado ou teve o convite cancelado sai da lista (continua na auditoria).
+  const lista = pessoas?.filter((p) => p.situacao !== "desligado");
   return (
     <Pagina titulo="Pessoas" descricao="Quem está nesta empresa, com o perfil e a situação de cada um.">
+      {poderes.podeConvidar && !convidando && (
+        <Button className="justify-self-start" onClick={() => setConvidando(true)}>
+          Convidar pessoa
+        </Button>
+      )}
+      {convidando && (
+        <FormularioDeConvite
+          aoFechar={(texto) => {
+            setConvidando(false);
+            if (texto) {
+              setMensagem({ tipo: "ok", texto });
+              void carregar();
+            }
+          }}
+        />
+      )}
+      {mensagem && <Aviso {...mensagem} />}
       <Card className="gap-0 p-0">
         {pessoas === null && <p className="p-5 text-sm text-texto-2">Carregando...</p>}
         <ul>
-          {pessoas?.map((p) => (
+          {lista?.map((p) => (
             <li key={p.vinculoId} className="border-t border-linha first:border-t-0">
               <button
                 type="button"
@@ -122,11 +166,13 @@ export function Pessoas({ podeAjustar }: { podeAjustar: boolean }) {
 function PermissoesDaPessoa({
   pessoa,
   podeAjustar,
+  podeConvidar,
+  podeDesligar,
+  euId,
   aoVoltar,
-}: {
+}: PoderesEmPessoas & {
   pessoa: PessoaDaEmpresa;
-  podeAjustar: boolean;
-  aoVoltar: () => void;
+  aoVoltar: (mensagem?: string) => void;
 }) {
   const [modulos, setModulos] = useState<ModuloComPermissao[] | null>(null);
   const [mensagem, setMensagem] = useState<Mensagem>(null);
@@ -155,11 +201,18 @@ function PermissoesDaPessoa({
           : "O perfil é o ponto de partida; aqui você ajusta módulo por módulo."
       }`}
     >
-      <Button variant="fantasma" size="pequeno" className="justify-self-start" onClick={aoVoltar}>
+      <Button variant="fantasma" size="pequeno" className="justify-self-start" onClick={() => aoVoltar()}>
         <ChevronLeft />
         Pessoas
       </Button>
       {mensagem && <Aviso {...mensagem} />}
+      {pessoa.situacao === "convidado" && podeConvidar && (
+        <AcoesDoConvite
+          pessoa={pessoa}
+          aoMudar={aoVoltar}
+          aoErro={(texto) => setMensagem({ tipo: "erro", texto })}
+        />
+      )}
       {modulos?.map((m) => (
         <Card key={m.id} className="gap-3">
           <CardTitulo>{m.nome}</CardTitulo>
@@ -200,7 +253,188 @@ function PermissoesDaPessoa({
           )}
         </Card>
       ))}
+      {pessoa.situacao === "ativo" && podeDesligar && pessoa.id !== euId && (
+        <Desligar
+          pessoa={pessoa}
+          aoDesligar={aoVoltar}
+          aoErro={(texto) => setMensagem({ tipo: "erro", texto })}
+        />
+      )}
     </Pagina>
+  );
+}
+
+const AREA = /^[a-z][a-z0-9_]{1,39}$/;
+
+function FormularioDeConvite({ aoFechar }: { aoFechar: (mensagem?: string) => void }) {
+  const [perfil, setPerfil] = useState<PessoaDaEmpresa["perfil"]>("funcionario");
+  const [erro, setErro] = useState<string | null>(null);
+  const [enviando, setEnviando] = useState(false);
+
+  async function aoEnviar(evento: React.FormEvent<HTMLFormElement>) {
+    evento.preventDefault();
+    const dados = new FormData(evento.currentTarget);
+    const area = String(dados.get("area") ?? "")
+      .trim()
+      .toLowerCase();
+    if (perfil === "gestor_area" && !AREA.test(area))
+      return setErro("Informe a área do gestor, em letras minúsculas e sem espaço (ex.: comercial).");
+    if (area && !AREA.test(area))
+      return setErro("A área vai em letras minúsculas e sem espaço (ex.: comercial).");
+    setEnviando(true);
+    setErro(null);
+    const email = String(dados.get("email")).trim();
+    const r = await convidar({
+      email,
+      nome: String(dados.get("nome")).trim(),
+      perfil,
+      area: perfil === "administrador" || !area ? null : area,
+    });
+    setEnviando(false);
+    if (r.ok) aoFechar(`Convite enviado para ${email}. O link vale 7 dias.`);
+    else setErro(r.mensagem ?? null);
+  }
+
+  return (
+    <Card className="gap-4">
+      <div className="grid gap-1">
+        <CardTitulo>Convidar pessoa</CardTitulo>
+        <CardDescricao>
+          A pessoa recebe um e-mail com o link para entrar. O link vale 7 dias e funciona uma vez só.
+        </CardDescricao>
+      </div>
+      <form className="grid gap-4 sm:grid-cols-2" onSubmit={(e) => void aoEnviar(e)}>
+        <Campo id="convite-nome" name="nome" rotulo="Nome" autoComplete="off" required maxLength={200} />
+        <Campo id="convite-email" name="email" type="email" rotulo="E-mail" autoComplete="off" required />
+        <div className="grid gap-1.5">
+          <label htmlFor="convite-perfil" className="text-sm font-medium">
+            Perfil
+          </label>
+          <select
+            id="convite-perfil"
+            className="h-11 rounded-md border border-linha bg-cartao px-3 text-base"
+            value={perfil}
+            onChange={(e) => setPerfil(e.target.value as PessoaDaEmpresa["perfil"])}
+          >
+            {(Object.keys(NOME_DO_PERFIL) as PessoaDaEmpresa["perfil"][]).map((p) => (
+              <option key={p} value={p}>
+                {NOME_DO_PERFIL[p]}
+              </option>
+            ))}
+          </select>
+        </div>
+        {perfil !== "administrador" && (
+          <Campo
+            id="convite-area"
+            name="area"
+            rotulo={perfil === "gestor_area" ? "Área" : "Área (opcional)"}
+            placeholder="comercial"
+            required={perfil === "gestor_area"}
+          />
+        )}
+        {erro && (
+          <div className="sm:col-span-2">
+            <Aviso texto={erro} tipo="erro" />
+          </div>
+        )}
+        <div className="flex gap-2 sm:col-span-2">
+          <Button type="submit" disabled={enviando}>
+            {enviando ? "Enviando..." : "Enviar convite"}
+          </Button>
+          <Button type="button" variant="fantasma" onClick={() => aoFechar()}>
+            Cancelar
+          </Button>
+        </div>
+      </form>
+    </Card>
+  );
+}
+
+function AcoesDoConvite({
+  pessoa,
+  aoMudar,
+  aoErro,
+}: {
+  pessoa: PessoaDaEmpresa;
+  aoMudar: (mensagem: string) => void;
+  aoErro: (mensagem: string) => void;
+}) {
+  const [enviando, setEnviando] = useState(false);
+  async function fazer(acao: "reenviar" | "cancelar") {
+    setEnviando(true);
+    const r =
+      acao === "reenviar" ? await reenviarConvite(pessoa.vinculoId) : await cancelarConvite(pessoa.vinculoId);
+    setEnviando(false);
+    if (!r.ok) return aoErro(r.mensagem ?? "");
+    aoMudar(
+      acao === "reenviar"
+        ? `Convite reenviado para ${pessoa.nome}. O link anterior parou de valer.`
+        : `Convite de ${pessoa.nome} cancelado.`,
+    );
+  }
+  return (
+    <Card className="gap-3">
+      <CardTitulo>Convite pendente</CardTitulo>
+      <CardDescricao>
+        {pessoa.nome} ainda não aceitou o convite. Você pode mandar um link novo (o anterior para de valer) ou
+        cancelar.
+      </CardDescricao>
+      <div className="flex flex-wrap gap-2">
+        <Button variant="contorno" disabled={enviando} onClick={() => void fazer("reenviar")}>
+          Reenviar o convite
+        </Button>
+        <Button variant="fantasma" disabled={enviando} onClick={() => void fazer("cancelar")}>
+          Cancelar o convite
+        </Button>
+      </div>
+    </Card>
+  );
+}
+
+function Desligar({
+  pessoa,
+  aoDesligar,
+  aoErro,
+}: {
+  pessoa: PessoaDaEmpresa;
+  aoDesligar: (mensagem: string) => void;
+  aoErro: (mensagem: string) => void;
+}) {
+  const [confirmando, setConfirmando] = useState(false);
+  const [enviando, setEnviando] = useState(false);
+  async function desligar() {
+    setEnviando(true);
+    const r = await desligarPessoa(pessoa.vinculoId);
+    setEnviando(false);
+    if (r.ok) aoDesligar(`${pessoa.nome} foi desligado da empresa.`);
+    else {
+      setConfirmando(false);
+      aoErro(r.mensagem ?? "");
+    }
+  }
+  return (
+    <Card className="gap-3 border-perigo/40">
+      <CardTitulo>Desligar da empresa</CardTitulo>
+      <CardDescricao>
+        O acesso de {pessoa.nome} a esta empresa cai na hora, em todos os aparelhos. O histórico continua na
+        auditoria. Para voltar, é preciso um convite novo.
+      </CardDescricao>
+      {confirmando ? (
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-sm font-medium">Tem certeza?</span>
+          <Button variant="perigo" disabled={enviando} onClick={() => void desligar()}>
+            Sim, desligar {pessoa.nome.split(" ")[0]}
+          </Button>
+          <Button variant="fantasma" disabled={enviando} onClick={() => setConfirmando(false)}>
+            Não
+          </Button>
+        </div>
+      ) : (
+        <Button variant="contorno" className="justify-self-start" onClick={() => setConfirmando(true)}>
+          Desligar
+        </Button>
+      )}
+    </Card>
   );
 }
 

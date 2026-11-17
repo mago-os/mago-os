@@ -95,6 +95,18 @@ erDiagram
     timestamp_with_time_zone respondido_em
     text resposta
   }
+  acesso_convites {
+    uuid id PK
+    uuid empresa_id FK
+    uuid vinculo_id FK
+    uuid pessoa_id FK
+    text codigo
+    uuid convidado_por FK
+    timestamp_with_time_zone criado_em
+    timestamp_with_time_zone expira_em
+    timestamp_with_time_zone usado_em
+    timestamp_with_time_zone cancelado_em
+  }
   acesso_credenciais {
     uuid id PK
     uuid pessoa_id FK
@@ -181,6 +193,10 @@ erDiagram
   pessoas ||--o{ acesso_aparelhos : "pessoa_id"
   pessoas ||--o{ acesso_avisos : "pessoa_id"
   acesso_aparelhos ||--o{ acesso_avisos : "aparelho_id"
+  empresas ||--o{ acesso_convites : "empresa_id"
+  vinculos ||--o{ acesso_convites : "vinculo_id"
+  pessoas ||--o{ acesso_convites : "pessoa_id"
+  pessoas ||--o{ acesso_convites : "convidado_por"
   pessoas ||--o{ acesso_credenciais : "pessoa_id"
   pessoas ||--o{ acesso_dois_fatores : "pessoa_id"
   pessoas ||--o{ acesso_passkeys : "pessoa_id"
@@ -350,6 +366,25 @@ Isolamento por empresa (Row Level Security): fora das empresas (esquema acesso, 
 | criado_em | timestamp with time zone | sim | `now()` | sistema | Quando o acesso aconteceu. |
 | respondido_em | timestamp with time zone | não |  | sistema | Quando a pessoa respondeu ao aviso. |
 | resposta | text | não |  | sistema | foi_eu ou nao_fui_eu (este desconecta o aparelho). |
+
+### acesso.convites
+
+Convites para entrar numa empresa. O link vale 7 dias e funciona uma vez só.
+
+Isolamento por empresa (Row Level Security): fora das empresas (esquema acesso, só o papel mago_acesso mexe).
+
+| Coluna | Tipo | Obrigatória | Padrão | Marca | Descrição |
+| --- | --- | --- | --- | --- | --- |
+| id | uuid | sim | `uuidv7()` | sistema | Identificador do convite (UUID v7). Chave primária. |
+| empresa_id | uuid | sim |  | sistema | Empresa do convite. Aponta para empresas.id. |
+| vinculo_id | uuid | sim |  | sistema | Vínculo criado pelo convite (fica "convidado" até aceitar). Aponta para vinculos.id. |
+| pessoa_id | uuid | sim |  | sistema | Pessoa convidada. Aponta para pessoas.id. |
+| codigo | text | sim |  | sensivel | Impressão digital (SHA-256) do código do link. O código em si só existe no e-mail. |
+| convidado_por | uuid | sim |  | sistema | Quem convidou. Aponta para pessoas.id. |
+| criado_em | timestamp with time zone | sim | `now()` | sistema | Quando o convite foi enviado. |
+| expira_em | timestamp with time zone | sim |  | sistema | Até quando o link vale. |
+| usado_em | timestamp with time zone | não |  | sistema | Quando o convite foi aceito. |
+| cancelado_em | timestamp with time zone | não |  | sistema | Quando o convite foi cancelado ou trocado por um novo. |
 
 ### acesso.credenciais
 

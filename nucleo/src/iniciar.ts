@@ -2,12 +2,13 @@
  * Ponto de partida da API. Rodar com o rastreio carregado antes:
  *   node --import ./src/rastreio.ts src/iniciar.ts
  */
-import { carteiroDoLog } from "./acesso/carteiro.ts";
+import { carteiroDoLog, carteiroResend } from "./acesso/carteiro.ts";
 import { criarLogin, criarPoolDoLogin } from "./acesso/login.ts";
 import { registrarRotasDoLogin } from "./acesso/rotas.ts";
 import { criarBanco } from "./banco.ts";
 import { ErroDeConfig, lerConfig } from "./config.ts";
 import { registrarRotasDaConta } from "./conta/rotas.ts";
+import { registrarRotasDosConvites } from "./convites/rotas.ts";
 import { criarFila } from "./fila.ts";
 import { catalogoDeModulos } from "./permissoes/modulos.ts";
 import {
@@ -25,16 +26,25 @@ async function iniciar(): Promise<void> {
   const app = criarServidor(config, banco);
   const poolDoLogin = config.acesso ? criarPoolDoLogin(config.acesso.bancoUrl) : null;
   if (config.acesso && poolDoLogin) {
-    const login = criarLogin(
-      { ...config.acesso, ambiente: config.ambiente, carteiro: carteiroDoLog(app.log, config.ambiente) },
-      poolDoLogin,
-    );
+    const carteiro = config.acesso.resend
+      ? carteiroResend(config.acesso.resend)
+      : carteiroDoLog(app.log, config.ambiente);
+    const login = criarLogin({ ...config.acesso, ambiente: config.ambiente, carteiro }, poolDoLogin);
     registrarRotasDoLogin(app, login, poolDoLogin);
     const verificador = criarVerificador(login, poolDoLogin, banco.pool, catalogoDeModulos());
     registrarRotasDePermissoes(app, verificador, banco.pool);
     registrarRotaDaAuditoria(app, verificador, banco.pool);
     registrarRotasDoAdministrador(app, verificador, banco.pool);
     registrarRotasDaConta(app, login, poolDoLogin, banco.pool);
+    registrarRotasDosConvites(app, {
+      login,
+      verificador,
+      poolApp: banco.pool,
+      poolAcesso: poolDoLogin,
+      carteiro,
+      urlPublica: config.acesso.urlPublica,
+      conferirSenhasVazadas: config.acesso.conferirSenhasVazadas,
+    });
   } else {
     app.log.warn("Login desligado: DATABASE_URL_ACESSO não foi informada (só permitido no Mac)");
   }

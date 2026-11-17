@@ -31,6 +31,8 @@ export interface ConfigDoAcesso {
   urlPublica: string;
   /** Recusar senhas que já vazaram. Variável MAGO_SENHAS_VAZADAS: "conferir" (padrão) ou "nao_conferir". */
   conferirSenhasVazadas: boolean;
+  /** Chave do Resend (só envio) para os e-mails do sistema. Variável MAGO_RESEND_CHAVE; sem ela, o link vai para o log. */
+  resend: string | null;
   /** Login com Google. Variáveis MAGO_GOOGLE_ID e MAGO_GOOGLE_SEGREDO, as duas ou nenhuma. */
   google: { id: string; segredo: string } | null;
 }
@@ -123,5 +125,8 @@ function lerAcesso(
   }
   const google = googleId && googleSegredo ? { id: googleId, segredo: googleSegredo } : null;
 
-  return { bancoUrl, segredo, urlPublica, conferirSenhasVazadas: vazadas !== "nao_conferir", google };
+  const resend = env.MAGO_RESEND_CHAVE?.trim() || null;
+  if (resend && !resend.startsWith("re_")) problemas.push("MAGO_RESEND_CHAVE precisa começar com re_");
+
+  return { bancoUrl, segredo, urlPublica, conferirSenhasVazadas: vazadas !== "nao_conferir", google, resend };
 }
