@@ -13,6 +13,7 @@
     "pg": "catalog:"
   },
   "devDependencies": {
+    "@playwright/test": "catalog:",
     "@types/pg": "catalog:",
     "fastify": "catalog:"
   }
