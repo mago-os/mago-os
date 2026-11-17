@@ -80,3 +80,5 @@ ssh vps02 "docker run --rm --network mago-os_mago_db --env-file /opt/mago-os/api
 ```bash
 ssh vps02 "docker exec -i mago-os-db-1 psql -U mago -d mago -c \"delete from acesso.sessoes where pessoa_id = (select id from pessoas where email = 'pessoa@exemplo.com')\""
 ```
+
+- **IP dos acessos:** o site passa pela Cloudflare. O Caddy entrega à API o IP verdadeiro (`CF-Connecting-IP`) só para pedidos vindos dos IPs oficiais da Cloudflare, listados no modelo do Caddy. Se a Cloudflare mudar a lista (cloudflare.com/ips), atualizar o modelo, copiar para `/opt/mago-os/caddy/` e rodar `publicar.sh forcar`.

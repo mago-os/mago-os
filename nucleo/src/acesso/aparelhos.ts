@@ -72,6 +72,12 @@ export async function registrarAparelho(
     [dados.pessoaId, impressaoDaEtiqueta(dados.etiqueta), nome],
   );
   const aparelho = r.rows[0] as { id: string; novo: boolean };
+  // Uma sessão por aparelho: entrar de novo no mesmo aparelho (por exemplo, Google e depois passkey) tira as
+  // sessões antigas dele, que ficariam sobrando na lista.
+  await pool.query("delete from acesso.sessoes where pessoa_id = $1 and aparelho_id = $2", [
+    dados.pessoaId,
+    aparelho.id,
+  ]);
   if (aparelho.novo) {
     await pool.query(
       `insert into acesso.avisos (pessoa_id, tipo, aparelho_id, aparelho_nome, ip)

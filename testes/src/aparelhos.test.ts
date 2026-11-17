@@ -129,6 +129,11 @@ describe.skipIf(!bancoDisponivel)("sessões e aparelhos", () => {
     expect((await entrar(mac)).statusCode).toBe(200);
     const avisos = await dono.query("select count(*)::int as n from acesso.avisos");
     expect(avisos.rows[0].n).toBe(0);
+    // Entrar de novo no mesmo aparelho não deixa sessão sobrando.
+    const sessoes = await dono.query(
+      "select count(*)::int as n from acesso.sessoes where ip = '203.0.113.10'",
+    );
+    expect(sessoes.rows[0].n).toBe(1);
     const etiquetas = await dono.query("select etiqueta from acesso.aparelhos");
     expect(etiquetas.rows).toHaveLength(1);
     expect(etiquetas.rows[0].etiqueta).not.toBe(mac.cookies.get("mago_aparelho"));
@@ -149,7 +154,6 @@ describe.skipIf(!bancoDisponivel)("sessões e aparelhos", () => {
   it("meus aparelhos lista as sessões abertas, com 'este aparelho'", async () => {
     const lista = (await pedir(mac, "GET", "/acesso/aparelhos")).json();
     expect(lista.map((a: { aparelho: string }) => a.aparelho).sort()).toEqual([
-      "Chrome no Mac",
       "Chrome no Mac",
       "Safari no iPhone",
     ]);
