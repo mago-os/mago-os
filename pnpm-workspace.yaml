@@ -54,3 +54,11 @@ minimumReleaseAge: 1440
 # protobufjs: o script dele só mostra um aviso; não precisa rodar.
 allowBuilds:
   protobufjs: false
+
+# Alertas de segurança ignorados pelo `pnpm audit`, sempre com motivo, aprovação do Sandro e data para rever.
+auditConfig:
+  ignoreGhsas:
+    # picomatch <= 4.0.7, ReDoS com padrões extglob (alerta de 17/11/2026). Ainda não há versão corrigida no npm.
+    # Só as ferramentas de teste e de build usam (vitest, vite, tinyglobby); o sistema nunca passa texto de usuário
+    # para um padrão de glob. Aprovado pelo Sandro no chat em 17/11/2026. Tirar daqui assim que sair a 4.0.8.
+    - GHSA-fc5q-39xc-vjpf
