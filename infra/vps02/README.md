@@ -22,6 +22,7 @@ Explicação completa: Wiki do cliente MagoOS, páginas `infraestrutura.md` e `b
 | `caddy/mago-os.caddy` | versão antiga, de antes da publicação automática; hoje o `/etc/caddy/mago-os.caddy` é gerado de `caddy/mago-os.caddy.modelo` |
 | `cron/mago-os-backup` | `/etc/cron.d/mago-os-backup` |
 | `sudoers/90-mago-admin` | `/etc/sudoers.d/90-mago-admin` (usuário de administração `mago-admin`) |
+| `avisos.env.example` | `/opt/mago-os/avisos.env` (endereços de aviso do Uptime Kuma, gerado por `bin/segredos.sh`) |
 | `campainha.env.example` | `/opt/mago-os/campainha.env` (gerado por `bin/segredos.sh`) |
 | `bin/publicar.sh` | `/opt/mago-os/bin/publicar.sh` (publicação no teste, ver `docs/operacao/publicacao.md`) |
 | `caddy/mago-os.caddy.modelo` | `/opt/mago-os/caddy/mago-os.caddy.modelo` (o `publicar.sh` gera o `/etc/caddy/mago-os.caddy` a partir dele) |

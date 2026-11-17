@@ -17,7 +17,7 @@ Parte da [spec da Fase 1](README.md). Estado em 16/11/2026: em andamento.
 | M0-09 | Preparação e segurança da VPS | nada | M | Feito |
 | M0-10 | Pacote e publicação automática no teste | M0-07, M0-08, M0-09 | M | Feito |
 | M0-11 | Backup do banco no Backblaze B2 | M0-10 | M | Em revisão |
-| M0-12 | Monitoramento | M0-10 | P | A fazer |
+| M0-12 | Monitoramento | M0-10 | P | Em revisão |
 
 ## M0-01 Repositório e estrutura de pastas
 
@@ -123,14 +123,14 @@ O Backblaze B2 substituiu o Cloudflare R2 em 16/11/2026 (grátis até 10 GB, sem
 - [x] Guardar por 30 dias, 3 meses e 1 ano, como no plano (três depósitos, decisão 0007)
 - [x] Fazer uma restauração de teste completa (feita em 16/11/2026, num container separado)
 - [x] Escrever o passo a passo da restauração no manual de operação (`docs/operacao/backup.md`)
-- [x] Teste de restauração automático mensal e aviso se um backup falhar (o aviso chega ao Sandro pelo monitoramento da M0-12)
+- [x] Teste de restauração automático (semanal) e aviso se um backup falhar (o aviso chega ao Sandro pelo monitoramento da M0-12)
 - [ ] Prazo de trava do Object Lock (espera decisão do Sandro)
 
 Pronto quando: o banco é restaurado a partir do B2 num ambiente separado.
 
 ## M0-12 Monitoramento
 
-- [ ] Uptime Kuma vigiando teste.osmago.com e a rota de saúde
-- [ ] Aviso ao Sandro quando cair
+- [x] Uptime Kuma vigiando teste.osmago.com e a rota de saúde (o Kuma que já existia na VPS01, mais os avisos do backup e da restauração)
+- [x] Aviso ao Sandro quando cair (Telegram; testado derrubando a API em 16/11/2026)
 
 Pronto quando: derrubar a API de propósito gera um aviso.
