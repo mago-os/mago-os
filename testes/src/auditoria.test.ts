@@ -44,6 +44,9 @@ describe.skipIf(!bancoDisponivel)("auditoria à prova de alteração", () => {
     await dono.query("insert into empresas (id, nome) values ($1, 'Empresa A'), ($2, 'Empresa B')", [A, B]);
     app = new pg.Pool({ connectionString: banco.urlApp, max: 3 });
     acesso = new pg.Pool({ connectionString: banco.urlAcesso, max: 10 });
+    // Ao apagar o banco de teste (drop ... with force), uma conexão que ainda estava fechando recebe "terminating
+    // connection". Sem estes ouvintes, o Vitest conta isso como erro solto e o teste fica instável.
+    for (const pool of [app, acesso]) pool.on("error", () => {});
   });
 
   afterAll(async () => {
