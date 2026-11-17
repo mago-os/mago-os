@@ -42,14 +42,13 @@ test.describe("telas de acesso", () => {
 
   test("entra com e-mail e senha, vê o próprio nome e sai", async ({ page }) => {
     await page.goto("/");
-    await page.getByRole("link", { name: "Entrar" }).click();
     await expect(page).toHaveURL(/\/entrar$/);
     await page.getByLabel("E-mail").fill(email);
     await page.getByLabel("Senha").fill(SENHA);
     await page.getByRole("button", { name: "Entrar", exact: true }).click();
     await expect(page.getByRole("heading", { name: /, Teste!$/ })).toBeVisible();
     await page.getByRole("button", { name: "Sair" }).click();
-    await expect(page.getByRole("link", { name: "Entrar" })).toBeVisible();
+    await expect(page).toHaveURL(/\/entrar$/);
   });
 
   test("senha errada mostra a mensagem em português", async ({ page }) => {

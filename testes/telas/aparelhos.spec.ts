@@ -46,7 +46,7 @@ test.describe("meus aparelhos", () => {
     browser,
   }) => {
     await entrar(page);
-    await page.getByRole("link", { name: "Meus aparelhos" }).click();
+    await page.goto("/aparelhos");
     await expect(page.getByText("este aparelho")).toBeVisible();
 
     // Outro aparelho (outro navegador, sem os cookies deste) entra na mesma conta.
@@ -60,7 +60,7 @@ test.describe("meus aparelhos", () => {
     await expect(page.getByText("troque a sua senha")).toBeVisible();
 
     await outraPagina.reload();
-    await expect(outraPagina.getByRole("link", { name: "Entrar" })).toBeVisible();
+    await expect(outraPagina).toHaveURL(/\/entrar$/);
     await outro.close();
   });
 });

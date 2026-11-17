@@ -13,7 +13,8 @@
     "./plataforma": "./src/plataforma.ts",
     "./acesso": "./src/acesso/index.ts",
     "./permissoes": "./src/permissoes/index.ts",
-    "./auditoria": "./src/auditoria/index.ts"
+    "./auditoria": "./src/auditoria/index.ts",
+    "./conta": "./src/conta/index.ts"
   },
   "scripts": {
     "tipos": "tsc -p tsconfig.json",
