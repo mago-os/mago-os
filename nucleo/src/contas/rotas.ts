@@ -228,12 +228,19 @@ export function registrarRotasDasContas(app: FastifyInstance, o: OpcoesDasContas
       return resposta.code(400).send({ code: "PEDIDO_INVALIDO" });
     }
     const conta = corpo.conta;
+    const limpo = (v: unknown) => (typeof v === "string" ? v.trim() || null : (v ?? null));
+    const documento =
+      typeof conta.documento === "string"
+        ? normalizarDocumento(conta.documento) || null
+        : (conta.documento ?? null);
     const dados = conferirPedidoDeNovaEmpresa({
       ...conta,
-      documento: typeof conta.documento === "string" ? normalizarDocumento(conta.documento) : conta.documento,
-      nome: typeof conta.nome === "string" ? conta.nome.trim() : conta.nome,
-      nomeLegal: typeof conta.nomeLegal === "string" ? conta.nomeLegal.trim() : conta.nomeLegal,
-      telefone: typeof conta.telefone === "string" && conta.telefone.trim() ? conta.telefone.trim() : null,
+      // Sem documento, o tipo não vale nada: fica vazio também (tipo e documento andam juntos).
+      tipo: documento === null ? null : (conta.tipo ?? null),
+      documento,
+      nome: limpo(conta.nome),
+      nomeLegal: limpo(conta.nomeLegal),
+      telefone: limpo(conta.telefone),
     });
     if (!dados.ok) {
       const doc = dados.problemas.find((p) => p.caminho === "/documento");
@@ -262,7 +269,7 @@ export function registrarRotasDasContas(app: FastifyInstance, o: OpcoesDasContas
     }
     const embaralhada = sessao ? null : await (await o.login.$context).password.hash(senha);
 
-    // Tudo numa transação: se o documento já tiver conta, nada fica pela metade (nem a senha).
+    // Tudo numa transação: se algo falhar, nada fica pela metade (nem a senha).
     const c = await poolAcesso.connect();
     let empresaId: string;
     let pessoaId: string;
@@ -303,13 +310,6 @@ export function registrarRotasDasContas(app: FastifyInstance, o: OpcoesDasContas
     } catch (erro) {
       await c.query("rollback").catch(() => {});
       const texto = String(erro);
-      if (/empresas_documento_unico/.test(texto)) {
-        return resposta.code(409).send({
-          code: "DOCUMENTO_JA_TEM_CONTA",
-          message:
-            "Esse documento já tem conta no Mago OS. Fale com o administrador dela para receber um convite.",
-        });
-      }
       if (/outra pessoa/.test(texto)) {
         return resposta.code(403).send({
           code: "CONVITE_DE_OUTRA_PESSOA",

@@ -56,12 +56,16 @@ export function conferirPedidoDeConviteDeEmpresa(valor: unknown) {
   return conferir(PedidoDeConviteDeEmpresa, valor);
 }
 
-/** O que o responsável preenche ao abrir o link (o documento entra normalizado, com normalizarDocumento). */
+/**
+ * O que o responsável preenche ao abrir o link. Obrigatórios só o nome de exibição e o fuso (ajuste do Sandro em
+ * 17/11/2026): tipo, documento, nome legal e telefone podem ficar para depois. Tipo e documento andam juntos, e o
+ * documento entra normalizado (normalizarDocumento) e conferido pelos dígitos.
+ */
 export const PedidoDeNovaEmpresa = Type.Object(
   {
-    tipo: TipoDeConta,
-    documento: Documento,
-    nomeLegal: Texto(200, "Razão social (CNPJ) ou nome completo (CPF)."),
+    tipo: OuNulo(TipoDeConta),
+    documento: OuNulo(Documento),
+    nomeLegal: OuNulo(Texto(200, "Razão social (CNPJ) ou nome completo (CPF).")),
     nome: Texto(200, "Nome de exibição no Mago OS."),
     fusoHorario: FusoHorario,
     idioma: Idioma,
@@ -74,6 +78,11 @@ export type PedidoDeNovaEmpresa = Static<typeof PedidoDeNovaEmpresa>;
 export function conferirPedidoDeNovaEmpresa(valor: unknown) {
   return conferir(PedidoDeNovaEmpresa, valor, [
     (p): Problema[] => {
+      if (p.documento === null)
+        return p.tipo === null
+          ? []
+          : [{ caminho: "/documento", mensagem: "informe o documento do tipo escolhido" }];
+      if (p.tipo === null) return [{ caminho: "/tipo", mensagem: "diga se o documento é CNPJ ou CPF" }];
       if (p.tipo === "pf" && p.documento.length !== 11)
         return [{ caminho: "/documento", mensagem: "pessoa física usa CPF (11 dígitos)" }];
       if (p.tipo === "pj" && p.documento.length !== 14)

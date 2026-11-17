@@ -236,7 +236,7 @@ describe.skipIf(!bancoDisponivel)("convite para criar empresa", () => {
     expect(eventos.rows[0].empresa_id).toBeNull();
   });
 
-  it("um documento, uma conta", async () => {
+  it("várias marcas podem ter o mesmo documento, cada uma numa conta separada", async () => {
     await pedir("POST", "/plataforma/empresas/convites", sandro, {
       nome: "Outro",
       email: "outro@teste.invalid",
@@ -244,22 +244,11 @@ describe.skipIf(!bancoDisponivel)("convite para criar empresa", () => {
     const r = await pedir("POST", "/acesso/convite-de-empresa/criar", "", {
       codigo: codigoDe(ultimoPara("outro@teste.invalid")),
       senha: NOVA,
-      conta: conta({ nome: "Cópia" }),
+      conta: conta({ nome: "Cliente Um Marca Dois" }),
     });
-    expect(r.statusCode).toBe(409);
-    expect(r.json().code).toBe("DOCUMENTO_JA_TEM_CONTA");
-    // Nada ficou pela metade: nem a pessoa com senha, nem a conta.
-    expect(
-      (
-        await dono.query(
-          "select 1 from acesso.credenciais c join pessoas p on p.id = c.pessoa_id where p.email = 'outro@teste.invalid'",
-        )
-      ).rowCount,
-    ).toBe(0);
-    expect(
-      (await pedir("GET", `/acesso/convite-de-empresa/${codigoDe(ultimoPara("outro@teste.invalid"))}`))
-        .statusCode,
-    ).toBe(200);
+    expect(r.statusCode).toBe(200);
+    const e = await dono.query("select nome from empresas where documento = '11222333000181' order by nome");
+    expect(e.rows.map((l) => l.nome)).toEqual(["Cliente Um", "Cliente Um Marca Dois"]);
   });
 
   it("quem já tem conta entra antes; pessoa física com CPF", async () => {
@@ -333,5 +322,46 @@ describe.skipIf(!bancoDisponivel)("convite para criar empresa", () => {
     expect(p.rows[0]).toEqual({ nome: "Gabi Google", email_verificado: true });
     // Ainda sem como entrar (o Google liga a conta depois) e o convite continua valendo.
     expect((await pedir("GET", `/acesso/convite-de-empresa/${codigo}`)).json().temConta).toBe(false);
+  });
+
+  it("conta nova só com o nome e o fuso; os dados de nota fiscal ficam para depois", async () => {
+    await pedir("POST", "/plataforma/empresas/convites", sandro, {
+      nome: "Mia Mínima",
+      email: "mia@teste.invalid",
+    });
+    const codigo = codigoDe(ultimoPara("mia@teste.invalid"));
+    const minimo = {
+      tipo: "pj",
+      documento: "",
+      nomeLegal: " ",
+      nome: "Mia Studio",
+      fusoHorario: "America/Sao_Paulo",
+      idioma: "pt-BR",
+      telefone: "",
+    };
+    const r = await pedir("POST", "/acesso/convite-de-empresa/criar", "", {
+      codigo,
+      senha: NOVA,
+      conta: minimo,
+    });
+    expect(r.statusCode).toBe(200);
+    const e = await dono.query(
+      "select tipo, documento, nome_legal, telefone from empresas where nome = 'Mia Studio'",
+    );
+    expect(e.rows[0]).toEqual({ tipo: null, documento: null, nome_legal: null, telefone: null });
+  });
+
+  it("sem o nome no Mago OS, recusa", async () => {
+    await pedir("POST", "/plataforma/empresas/convites", sandro, {
+      nome: "Sem Nome",
+      email: "semnome@teste.invalid",
+    });
+    const codigo = codigoDe(ultimoPara("semnome@teste.invalid"));
+    const r = await pedir("POST", "/acesso/convite-de-empresa/criar", "", {
+      codigo,
+      senha: NOVA,
+      conta: conta({ nome: "  ", documento: "", nomeLegal: "" }),
+    });
+    expect(r.statusCode).toBe(400);
   });
 });
