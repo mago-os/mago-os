@@ -29,6 +29,7 @@ erDiagram
     text situacao
     timestamp_with_time_zone criada_em
     timestamp_with_time_zone atualizada_em
+    boolean email_verificado
   }
   vinculos {
     uuid id PK
@@ -41,9 +42,58 @@ erDiagram
     timestamp_with_time_zone entrou_em
     timestamp_with_time_zone desligado_em
   }
+  acesso_credenciais {
+    uuid id PK
+    uuid pessoa_id FK
+    text provedor
+    text conta_no_provedor
+    text senha
+    text token_acesso
+    text token_renovacao
+    text token_id
+    timestamp_with_time_zone token_acesso_expira_em
+    timestamp_with_time_zone token_renovacao_expira_em
+    text escopo
+    timestamp_with_time_zone criada_em
+    timestamp_with_time_zone atualizada_em
+  }
+  acesso_limites {
+    uuid id PK
+    text chave
+    integer pedidos
+    bigint ultimo_pedido
+  }
+  acesso_sessoes {
+    uuid id PK
+    uuid pessoa_id FK
+    uuid empresa_id FK
+    text token
+    text ip
+    text navegador
+    timestamp_with_time_zone expira_em
+    timestamp_with_time_zone criada_em
+    timestamp_with_time_zone atualizada_em
+  }
+  acesso_travas {
+    text email PK
+    integer falhas
+    timestamp_with_time_zone ultima_falha
+    timestamp_with_time_zone travada_ate
+  }
+  acesso_verificacoes {
+    uuid id PK
+    text identificador
+    text valor
+    timestamp_with_time_zone expira_em
+    timestamp_with_time_zone criada_em
+    timestamp_with_time_zone atualizada_em
+  }
   pessoas ||--o{ papeis_plataforma : "pessoa_id"
   empresas ||--o{ vinculos : "empresa_id"
   pessoas ||--o{ vinculos : "pessoa_id"
+  pessoas ||--o{ acesso_credenciais : "pessoa_id"
+  pessoas ||--o{ acesso_sessoes : "pessoa_id"
+  empresas ||--o{ acesso_sessoes : "empresa_id"
 ```
 
 ## Marcas
@@ -100,6 +150,7 @@ Isolamento por empresa (Row Level Security): ligado e forçado.
 | situacao | text | sim | `'ativa'::text` | sistema | ativa: pode entrar. bloqueada: não entra em nenhuma empresa. |
 | criada_em | timestamp with time zone | sim | `now()` | sistema | Quando a pessoa foi cadastrada. |
 | atualizada_em | timestamp with time zone | sim | `now()` | sistema | Última alteração no cadastro da pessoa. |
+| email_verificado | boolean | sim | `false` | sistema | Se o e-mail já foi confirmado (pelo convite, pelo Google ou por um link enviado a ele). |
 
 ### vinculos
 
@@ -118,3 +169,84 @@ Isolamento por empresa (Row Level Security): ligado e forçado.
 | convidado_em | timestamp with time zone | sim | `now()` | sistema | Quando a pessoa foi convidada. |
 | entrou_em | timestamp with time zone | não |  | sistema | Quando a pessoa aceitou o convite. |
 | desligado_em | timestamp with time zone | não |  | sistema | Quando a pessoa foi desligada (ou o convite foi cancelado). |
+
+### acesso.credenciais
+
+Formas de entrar de cada pessoa: senha (provedor "credential") e, a partir do M1-04, Google.
+
+Isolamento por empresa (Row Level Security): fora das empresas (esquema acesso, só o papel mago_acesso mexe).
+
+| Coluna | Tipo | Obrigatória | Padrão | Marca | Descrição |
+| --- | --- | --- | --- | --- | --- |
+| id | uuid | sim | `uuidv7()` | sistema | Identificador da credencial (UUID v7). Chave primária. |
+| pessoa_id | uuid | sim |  | sistema | Pessoa dona da credencial. Aponta para pessoas.id. |
+| provedor | text | sim |  | sistema | credential (e-mail e senha) ou o nome do provedor, como google. |
+| conta_no_provedor | text | sim |  | pessoal | Identificador da pessoa no provedor. |
+| senha | text | não |  | sensivel | Senha embaralhada sem volta (scrypt). Nunca a senha em si. |
+| token_acesso | text | não |  | sensivel | Token de acesso do provedor externo, quando houver. |
+| token_renovacao | text | não |  | sensivel | Token de renovação do provedor externo, quando houver. |
+| token_id | text | não |  | sensivel | Token de identidade do provedor externo, quando houver. |
+| token_acesso_expira_em | timestamp with time zone | não |  | sistema | Quando o token de acesso expira. |
+| token_renovacao_expira_em | timestamp with time zone | não |  | sistema | Quando o token de renovação expira. |
+| escopo | text | não |  | sistema | Permissões pedidas ao provedor externo. |
+| criada_em | timestamp with time zone | sim | `now()` | sistema | Quando a credencial foi criada. |
+| atualizada_em | timestamp with time zone | sim | `now()` | sistema | Última alteração da credencial. |
+
+### acesso.limites
+
+Contagem de pedidos por endereço de internet, para limitar tentativas por minuto.
+
+Isolamento por empresa (Row Level Security): fora das empresas (esquema acesso, só o papel mago_acesso mexe).
+
+| Coluna | Tipo | Obrigatória | Padrão | Marca | Descrição |
+| --- | --- | --- | --- | --- | --- |
+| id | uuid | sim | `uuidv7()` | sistema | Identificador da contagem. Chave primária. |
+| chave | text | sim |  | pessoal | IP e caminho pedido. |
+| pedidos | integer | sim |  | sistema | Quantos pedidos dentro da janela atual. |
+| ultimo_pedido | bigint | sim |  | sistema | Hora do último pedido, em milissegundos. |
+
+### acesso.sessoes
+
+Aparelhos conectados. Cada linha é uma sessão aberta; apagar a linha desconecta o aparelho na hora.
+
+Isolamento por empresa (Row Level Security): fora das empresas (esquema acesso, só o papel mago_acesso mexe).
+
+| Coluna | Tipo | Obrigatória | Padrão | Marca | Descrição |
+| --- | --- | --- | --- | --- | --- |
+| id | uuid | sim | `uuidv7()` | sistema | Identificador da sessão (UUID v7). Chave primária. |
+| pessoa_id | uuid | sim |  | sistema | Pessoa da sessão. Aponta para pessoas.id. |
+| empresa_id | uuid | não |  | sistema | Empresa ativa nesta sessão (nula enquanto a pessoa não escolhe). Aponta para empresas.id. |
+| token | text | sim |  | sensivel | Token da sessão, que vai assinado no cookie. |
+| ip | text | não |  | pessoal | IP de onde a sessão foi aberta. |
+| navegador | text | não |  | pessoal | Navegador e sistema do aparelho (user agent). |
+| expira_em | timestamp with time zone | sim |  | sistema | Quando a sessão deixa de valer. |
+| criada_em | timestamp with time zone | sim | `now()` | sistema | Quando a pessoa entrou. |
+| atualizada_em | timestamp with time zone | sim | `now()` | sistema | Última renovação da sessão. |
+
+### acesso.travas
+
+Senhas erradas seguidas por e-mail. Na quinta seguida, o e-mail trava por 15 minutos. Vale também para e-mails sem conta, para não revelar quais existem.
+
+Isolamento por empresa (Row Level Security): fora das empresas (esquema acesso, só o papel mago_acesso mexe).
+
+| Coluna | Tipo | Obrigatória | Padrão | Marca | Descrição |
+| --- | --- | --- | --- | --- | --- |
+| email | text | sim |  | pessoal | E-mail tentado, em minúsculas. Chave primária. |
+| falhas | integer | sim | `0` | sistema | Senhas erradas seguidas desde o último acerto. |
+| ultima_falha | timestamp with time zone | sim | `now()` | sistema | Quando foi a última senha errada. |
+| travada_ate | timestamp with time zone | não |  | sistema | Até quando o e-mail fica travado, se estiver. |
+
+### acesso.verificacoes
+
+Links de uso único (recuperar senha, confirmar e-mail), cada um com validade curta.
+
+Isolamento por empresa (Row Level Security): fora das empresas (esquema acesso, só o papel mago_acesso mexe).
+
+| Coluna | Tipo | Obrigatória | Padrão | Marca | Descrição |
+| --- | --- | --- | --- | --- | --- |
+| id | uuid | sim | `uuidv7()` | sistema | Identificador do link (UUID v7). Chave primária. |
+| identificador | text | sim |  | sensivel | Código do link, que só existe no e-mail enviado. |
+| valor | text | sim |  | sistema | A quem o link se refere (identificador da pessoa). |
+| expira_em | timestamp with time zone | sim |  | sistema | Até quando o link vale. |
+| criada_em | timestamp with time zone | sim | `now()` | sistema | Quando o link foi criado. |
+| atualizada_em | timestamp with time zone | sim | `now()` | sistema | Última alteração do link. |

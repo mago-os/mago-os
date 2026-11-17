@@ -40,10 +40,13 @@ log "Publicando a versão ${versao:0:7} ($MODO)."
 # 1. Migrações, com o papel dono das tabelas. Se falharem, nada muda.
 docker run --rm --network "$REDE_BANCO" --env-file "$BASE/api.env" "$alvo" node src/migrar.ts subir
 
-# 2. Senha do papel da API igual à do Infisical (a migração 0001 cria o papel sem senha).
-senha=$(grep '^MAGO_DB_SENHA_APP=' "$BASE/api.env" | cut -d= -f2-)
-[[ "$senha" =~ ^[A-Za-z0-9]+$ ]] || { log "MAGO_DB_SENHA_APP precisa ser só letras e números."; exit 1; }
-printf "ALTER ROLE mago_app PASSWORD '%s';\n" "$senha" | docker exec -i mago-os-db-1 psql -U mago -d mago -q -v ON_ERROR_STOP=1 >/dev/null
+# 2. Senhas dos papéis da API e do login iguais às do Infisical (as migrações criam os papéis sem senha).
+for par in mago_app:MAGO_DB_SENHA_APP mago_acesso:MAGO_DB_SENHA_ACESSO; do
+  papel=${par%%:*}; chave=${par#*:}
+  senha=$(grep "^$chave=" "$BASE/api.env" | cut -d= -f2-)
+  [[ "$senha" =~ ^[A-Za-z0-9]+$ ]] || { log "$chave precisa ser só letras e números."; exit 1; }
+  printf "ALTER ROLE %s PASSWORD '%s';\n" "$papel" "$senha" | docker exec -i mago-os-db-1 psql -U mago -d mago -q -v ON_ERROR_STOP=1 >/dev/null
+done
 
 # 3. Liga a versão nova ao lado da antiga (azul na porta 3101, verde na 3102).
 cor_atual=$(cat "$ESTADO/cor" 2>/dev/null || echo verde)

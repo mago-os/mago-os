@@ -48,27 +48,39 @@ export interface Tabela {
   rlsForcado: boolean;
 }
 
-/** Lê do catálogo do PostgreSQL as tabelas e colunas do esquema public. */
+/**
+ * Esquemas documentados: public (dados das empresas) e acesso (login). As tabelas do acesso aparecem como
+ * "acesso.nome"; as do public, só pelo nome.
+ */
+export const ESQUEMAS = ["public", "acesso"] as const;
+
+/** Lê do catálogo do PostgreSQL as tabelas e colunas dos esquemas documentados. */
 export async function lerEstrutura(
   cliente: pg.ClientBase,
 ): Promise<{ tabelas: Tabela[]; colunas: Coluna[] }> {
-  const tabelas = await cliente.query<Tabela>(`
-    select c.relname as tabela, obj_description(c.oid, 'pg_class') as descricao,
+  const tabelas = await cliente.query<Tabela>(
+    `
+    select case when n.nspname = 'public' then c.relname else n.nspname || '.' || c.relname end as tabela, obj_description(c.oid, 'pg_class') as descricao,
            c.relrowsecurity as rls, c.relforcerowsecurity as "rlsForcado"
       from pg_class c join pg_namespace n on n.oid = c.relnamespace
-     where n.nspname = 'public' and c.relkind in ('r', 'p')
-     order by c.relname`);
-  const colunas = await cliente.query<Coluna>(`
-    select c.relname as tabela, a.attname as coluna,
+     where n.nspname = any($1) and c.relkind in ('r', 'p')
+     order by n.nspname desc, c.relname`,
+    [ESQUEMAS],
+  );
+  const colunas = await cliente.query<Coluna>(
+    `
+    select case when n.nspname = 'public' then c.relname else n.nspname || '.' || c.relname end as tabela, a.attname as coluna,
            format_type(a.atttypid, a.atttypmod) as tipo,
            a.attnotnull as obrigatoria,
            pg_get_expr(d.adbin, d.adrelid) as padrao,
            col_description(c.oid, a.attnum) as descricao,
            exists (select 1 from pg_constraint k where k.conrelid = c.oid and k.contype = 'p'
                    and a.attnum = any (k.conkey)) as "chavePrimaria",
-           (select r.relname || '.' || ra.attname
+           (select case when rn.nspname = 'public' then r.relname else rn.nspname || '.' || r.relname end
+                   || '.' || ra.attname
               from pg_constraint k
               join pg_class r on r.oid = k.confrelid
+              join pg_namespace rn on rn.oid = r.relnamespace
               join pg_attribute ra on ra.attrelid = k.confrelid and ra.attnum = k.confkey[1]
              where k.conrelid = c.oid and k.contype = 'f' and k.conkey[1] = a.attnum
              limit 1) as referencia
@@ -76,8 +88,10 @@ export async function lerEstrutura(
       join pg_namespace n on n.oid = c.relnamespace
       join pg_attribute a on a.attrelid = c.oid and a.attnum > 0 and not a.attisdropped
       left join pg_attrdef d on d.adrelid = c.oid and d.adnum = a.attnum
-     where n.nspname = 'public' and c.relkind in ('r', 'p')
-     order by c.relname, a.attnum`);
+     where n.nspname = any($1) and c.relkind in ('r', 'p')
+     order by n.nspname desc, c.relname, a.attnum`,
+    [ESQUEMAS],
+  );
   return { tabelas: tabelas.rows, colunas: colunas.rows };
 }
 
@@ -88,6 +102,11 @@ export function separarMarca(descricao: string | null): { marca: Marca | null; t
     return { marca: null, texto: descricao ?? "" };
   }
   return { marca: achou[1] as Marca, texto: achou[2] ?? "" };
+}
+
+/** O Mermaid não aceita ponto no nome: acesso.sessoes vira acesso_sessoes no diagrama. */
+function nomeNoDiagrama(tabela: string): string {
+  return tabela.replaceAll(".", "_");
 }
 
 function celula(texto: string): string {
@@ -108,7 +127,7 @@ export function gerarMarkdown(estrutura: { tabelas: Tabela[]; colunas: Coluna[] 
     "erDiagram",
   ];
   for (const t of tabelas) {
-    linhas.push(`  ${t.tabela} {`);
+    linhas.push(`  ${nomeNoDiagrama(t.tabela)} {`);
     for (const c of colunas.filter((x) => x.tabela === t.tabela)) {
       const chave = c.chavePrimaria ? " PK" : c.referencia ? " FK" : "";
       linhas.push(`    ${c.tipo.replaceAll(" ", "_").replace(/\(.*\)/, "")} ${c.coluna}${chave}`);
@@ -116,15 +135,20 @@ export function gerarMarkdown(estrutura: { tabelas: Tabela[]; colunas: Coluna[] 
     linhas.push("  }");
   }
   for (const c of colunas.filter((x) => x.referencia)) {
-    const [destino] = (c.referencia ?? "").split(".");
-    linhas.push(`  ${destino} ||--o{ ${c.tabela} : "${c.coluna}"`);
+    const destino = (c.referencia ?? "").split(".").slice(0, -1).join(".");
+    linhas.push(`  ${nomeNoDiagrama(destino)} ||--o{ ${nomeNoDiagrama(c.tabela)} : "${c.coluna}"`);
   }
   linhas.push("```", "", "## Marcas", "", "| Marca | Significa |", "| --- | --- |");
   for (const [marca, significado] of Object.entries(MARCAS)) linhas.push(`| \`${marca}\` | ${significado} |`);
   linhas.push("", "## Dicionário de dados");
   for (const t of tabelas) {
-    const isolamento =
-      t.rls && t.rlsForcado ? "ligado e forçado" : t.rls ? "ligado (não forçado)" : "DESLIGADO";
+    const isolamento = t.tabela.startsWith("acesso.")
+      ? "fora das empresas (esquema acesso, só o papel mago_acesso mexe)"
+      : t.rls && t.rlsForcado
+        ? "ligado e forçado"
+        : t.rls
+          ? "ligado (não forçado)"
+          : "DESLIGADO";
     linhas.push(
       "",
       `### ${t.tabela}`,

@@ -15,3 +15,4 @@ Uma nota curta por decisão importante: o que foi decidido, por quê e o que foi
 | [0006](0006-ssh-da-vps02.md) | SSH da VPS02 só com chave, porta 22 aberta enquanto dividir com a Ratoeira | Aceita |
 | [0007](0007-backup-em-tres-depositos.md) | Backup em três depósitos (30 dias, 3 meses e 1 ano), teste de restauração mensal | Aceita |
 | [0008](0008-contratos-com-typebox.md) | Contratos com TypeBox; formatos de pessoa, empresa, vínculo, sessão e auditoria encadeada | Aceita |
+| [0009](0009-login-com-better-auth.md) | Login por e-mail e senha com o Better Auth, papel mago_acesso, trava e senhas vazadas | Aceita |

@@ -10,7 +10,8 @@
     "./documentar-banco": "./src/documentar-banco.ts",
     "./empresa": "./src/empresa.ts",
     "./migrar": "./src/migrar.ts",
-    "./plataforma": "./src/plataforma.ts"
+    "./plataforma": "./src/plataforma.ts",
+    "./acesso": "./src/acesso/index.ts"
   },
   "scripts": {
     "tipos": "tsc -p tsconfig.json",
@@ -18,7 +19,8 @@
     "migrar": "node src/migrar.ts subir",
     "migrar:voltar": "node src/migrar.ts voltar",
     "banco:documentar": "node src/documentar-banco.ts",
-    "plataforma:iniciar": "node src/plataforma.ts iniciar"
+    "plataforma:iniciar": "node src/plataforma.ts iniciar",
+    "plataforma:senha": "node src/acesso/link-de-senha.ts"
   },
   "dependencies": {
     "@fastify/otel": "catalog:",
@@ -27,6 +29,7 @@
     "@opentelemetry/instrumentation-http": "catalog:",
     "@opentelemetry/instrumentation-pg": "catalog:",
     "@opentelemetry/sdk-node": "catalog:",
+    "better-auth": "catalog:",
     "fastify": "catalog:",
     "node-pg-migrate": "catalog:",
     "pg": "catalog:",

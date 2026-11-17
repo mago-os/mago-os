@@ -3,7 +3,7 @@
 # só para o root ler:
 #   /opt/mago-os/.env         senha do dono do banco (container do PostgreSQL)
 #   /opt/mago-os/backup.env   chaves do Backblaze B2 e senha de criptografia do pgBackRest
-#   /opt/mago-os/api.env      conexões da API (papel mago_app) e das migrações (dono), a partir do M0-10
+#   /opt/mago-os/api.env      conexões da API (papéis mago_app e mago_acesso), das migrações (dono) e do login
 #   /opt/mago-os/campainha.env segredo que confere a assinatura da campainha do GitHub (M0-10)
 #   /opt/mago-os/avisos.env   endereços de aviso do Uptime Kuma para o backup e a restauração (M0-12)
 # e entra no ghcr.io com o token só de leitura, para baixar a imagem do Mago OS.
@@ -26,7 +26,7 @@ s = {x["secretKey"]: x["secretValue"].strip()
                 h={"Authorization": "Bearer " + t})["secrets"]}
 faltam = [k for k in ["MAGO_DB_SENHA_DONO", "MAGO_DB_SENHA_APP", "B2_KEY_ID", "B2_APPLICATION_KEY", "B2_ENDPOINT",
                       "B2_BUCKET", "B2_REGION", "PGBACKREST_CIPHER_PASS", "MAGO_CAMPAINHA_SEGREDO",
-                      "GHCR_LEITURA_TOKEN"] if not s.get(k)]
+                      "GHCR_LEITURA_TOKEN", "MAGO_DB_SENHA_ACESSO", "MAGO_ACESSO_SEGREDO"] if not s.get(k)]
 if faltam:
     sys.exit("Faltam no Infisical (staging): " + ", ".join(faltam))
 q = lambda v: urllib.parse.quote(v, safe="")
@@ -42,6 +42,11 @@ arquivos = {
         "DATABASE_URL": f"postgres://mago_app:{q(s['MAGO_DB_SENHA_APP'])}@db:5432/mago",
         "DATABASE_URL_DONO": f"postgres://mago:{q(s['MAGO_DB_SENHA_DONO'])}@db:5432/mago",
         "MAGO_DB_SENHA_APP": s["MAGO_DB_SENHA_APP"],
+        # Login (M1-03): papel mago_acesso, segredo dos cookies e o endereço público do site.
+        "DATABASE_URL_ACESSO": f"postgres://mago_acesso:{q(s['MAGO_DB_SENHA_ACESSO'])}@db:5432/mago",
+        "MAGO_DB_SENHA_ACESSO": s["MAGO_DB_SENHA_ACESSO"],
+        "MAGO_ACESSO_SEGREDO": s["MAGO_ACESSO_SEGREDO"],
+        "MAGO_URL_PUBLICA": "https://teste.osmago.com",
     },
     "campainha.env": {"MAGO_CAMPAINHA_SEGREDO": s["MAGO_CAMPAINHA_SEGREDO"]},
     # Opcionais: sem eles, o avisar.sh só registra no log.

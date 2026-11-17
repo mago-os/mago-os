@@ -1,6 +1,6 @@
 # Spec da Fase 1: M1 Acesso
 
-Parte da [spec da Fase 1](README.md). Estado em 17/11/2026: em andamento (M1-01 feita, M1-02 em revisão).
+Parte da [spec da Fase 1](README.md). Estado em 17/11/2026: em andamento (M1-01 e M1-02 feitas, M1-03 em revisão).
 
 **Pronto quando:** o Sandro entra em teste.osmago.com com Google e passkey, convida um funcionário de teste, vê e encerra sessões, e cada uma dessas ações aparece na auditoria. Os testes provam que uma empresa não vê dados da outra.
 
@@ -35,9 +35,9 @@ Pronto quando: a mesma pessoa em duas empresas nunca vê dados de uma na outra.
 
 ### M1-03 Login por e-mail e senha
 
-- [ ] Better Auth com e-mail e senha
-- [ ] Bloqueio de senhas que já vazaram na internet e trava após várias tentativas erradas
-- [ ] Recuperação de senha por e-mail (depende do provedor de e-mail, ver perguntas)
+- [x] Better Auth com e-mail e senha ([decisão 0009](../decisoes/0009-login-com-better-auth.md))
+- [x] Bloqueio de senhas que já vazaram na internet e trava após várias tentativas erradas
+- [x] Recuperação de senha por link (o envio pelo Resend fica numa tarefa própria; até lá, o link vai para o log no teste)
 
 Pronto quando: entrar, sair e recuperar a senha funcionam, e a trava age após as tentativas erradas.
 

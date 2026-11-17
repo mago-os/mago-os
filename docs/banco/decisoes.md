@@ -77,3 +77,14 @@ O pg-boss guarda a fila no esquema `pgboss`, criado pela migração 0001 com o `
 - *Copiar a pessoa em cada empresa (uma linha por empresa):* o mesmo login viraria vários cadastros, com senha e 2FA separados.
 - *Confiar só no código para conferir o vínculo:* um esquecimento abriria a empresa errada. O banco confere de novo.
 - *Dono da plataforma enxergar todas as empresas:* abriria dados de clientes sem registro nem motivo.
+
+## 9. Esquema do login e o papel mago_acesso (17/11/2026, M1-03)
+
+**Decisão:** senhas, sessões, links de uso único, limites por minuto e travas ficam no esquema `acesso`, fora do isolamento por empresa, e só o papel `mago_acesso` (usado pelo Better Auth) mexe nele. Detalhes na [decisão 0009](../decisoes/0009-login-com-better-auth.md).
+
+**Como funciona:**
+
+1. `mago_acesso` não é dono, não é superusuário e não ignora o Row Level Security. Ele lê todas as pessoas (o login precisa achar a pessoa pelo e-mail antes de saber quem ela é) e altera só nome, foto, e-mail verificado e data de alteração. Não cria nem apaga pessoas, e não vê empresas nem vínculos.
+2. `mago_app` (a API das empresas) não tem acesso ao esquema `acesso`: nenhum pedido de empresa consegue ler senha ou sessão.
+3. A empresa ativa de uma sessão nova vem de `acesso.empresa_inicial(pessoa)`, que roda como dono e devolve só o identificador da única empresa onde a pessoa tem vínculo ativo (ou nulo se houver várias).
+4. A documentação gerada e o teste de descrições e marcas passam a cobrir também o esquema `acesso` (tabelas aparecem como `acesso.nome`). As regras de `empresa_id` e Row Level Security continuam valendo só para o esquema `public`; um teste próprio confere a separação entre os dois papéis.

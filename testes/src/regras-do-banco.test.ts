@@ -18,12 +18,15 @@ describe.skipIf(!bancoDisponivel)("regras do banco", () => {
   let cliente: pg.Client;
   let tabelas: Tabela[];
   let colunas: Coluna[];
+  let tabelasDasEmpresas: Tabela[];
 
   beforeAll(async () => {
     banco = await criarBancoTemporario();
     cliente = new pg.Client({ connectionString: banco.urlDono });
     await cliente.connect();
     ({ tabelas, colunas } = await lerEstrutura(cliente));
+    // As regras de isolamento por empresa valem para o esquema public. O esquema acesso (login) tem regras próprias.
+    tabelasDasEmpresas = tabelas.filter((t) => !t.tabela.includes("."));
   });
 
   afterAll(async () => {
@@ -47,12 +50,12 @@ describe.skipIf(!bancoDisponivel)("regras do banco", () => {
   });
 
   it("toda tabela tem o isolamento por empresa ligado e forçado", () => {
-    const semIsolamento = tabelas.filter((t) => !t.rls || !t.rlsForcado).map((t) => t.tabela);
+    const semIsolamento = tabelasDasEmpresas.filter((t) => !t.rls || !t.rlsForcado).map((t) => t.tabela);
     expect(semIsolamento, "use ENABLE e FORCE ROW LEVEL SECURITY").toEqual([]);
   });
 
   it("todo dado leva a empresa: coluna empresa_id obrigatória apontando para empresas", () => {
-    const problemas = tabelas
+    const problemas = tabelasDasEmpresas
       .filter((t) => !SEM_EMPRESA_ID.has(t.tabela))
       .filter((t) => {
         const c = colunas.find((x) => x.tabela === t.tabela && x.coluna === "empresa_id");
@@ -77,10 +80,30 @@ describe.skipIf(!bancoDisponivel)("regras do banco", () => {
     expect(problemas).toEqual([]);
   });
 
+  it("o papel da API não enxerga o esquema do login, e o do login não enxerga as empresas", async () => {
+    const r = await cliente.query(`
+      select has_schema_privilege('mago_app', 'acesso', 'USAGE') as app_no_acesso,
+             has_table_privilege('mago_acesso', 'public.empresas', 'SELECT') as login_nas_empresas,
+             has_table_privilege('mago_acesso', 'public.vinculos', 'SELECT') as login_nos_vinculos,
+             has_table_privilege('mago_acesso', 'public.pessoas', 'INSERT') as login_cria_pessoas,
+             has_table_privilege('mago_acesso', 'public.pessoas', 'DELETE') as login_apaga_pessoas`);
+    expect(r.rows[0]).toEqual({
+      app_no_acesso: false,
+      login_nas_empresas: false,
+      login_nos_vinculos: false,
+      login_cria_pessoas: false,
+      login_apaga_pessoas: false,
+    });
+    const papel = await cliente.query(
+      "select rolsuper, rolbypassrls from pg_roles where rolname = 'mago_acesso'",
+    );
+    expect(papel.rows[0]).toEqual({ rolsuper: false, rolbypassrls: false });
+  });
+
   it("funções que rodam como dono do banco fixam o search_path", async () => {
     const r = await cliente.query<{ funcao: string }>(`
       select p.proname as funcao from pg_proc p join pg_namespace n on n.oid = p.pronamespace
-       where n.nspname = 'public' and p.prosecdef
+       where n.nspname in ('public', 'acesso') and p.prosecdef
          and not exists (select 1 from unnest(coalesce(p.proconfig, '{}')) c where c like 'search_path=%')`);
     expect(r.rows.map((x) => x.funcao)).toEqual([]);
   });
