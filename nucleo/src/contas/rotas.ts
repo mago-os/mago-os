@@ -189,6 +189,19 @@ export function registrarRotasDasContas(app: FastifyInstance, o: OpcoesDasContas
     return { ok: true };
   });
 
+  // Antes de entrar com o Google pelo link: a pessoa do convite passa a existir, com o e-mail confirmado, para o
+  // Google ligar a conta dele a ela (sem cadastro aberto: só o e-mail convidado entra).
+  app.post("/acesso/convite-de-empresa/preparar-google", async (pedido, resposta) => {
+    const codigo = (pedido.body as { codigo?: unknown } | undefined)?.codigo;
+    if (typeof codigo !== "string") return resposta.code(400).send({ code: "PEDIDO_INVALIDO" });
+    const p = await poolAcesso.query<{ id: string | null }>(
+      "select acesso.pessoa_do_convite_de_empresa($1) as id",
+      [impressao(codigo)],
+    );
+    if (!p.rows[0]?.id) return resposta.code(404).send(INVALIDO);
+    return { ok: true };
+  });
+
   // Abrir o link (sem login): para a tela mostrar o caminho certo.
   app.get("/acesso/convite-de-empresa/:codigo", async (pedido, resposta) => {
     const { codigo } = pedido.params as { codigo: string };

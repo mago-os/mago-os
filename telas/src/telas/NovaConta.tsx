@@ -1,7 +1,8 @@
 /**
  * Criar a conta pelo convite do Dono (M1-11), aberta pelo link do e-mail: /nova-conta?codigo=...
  *
- * Quem ainda não tem acesso cria a senha e os dados da conta na mesma tela. Quem já tem entra antes e volta para cá.
+ * Quem ainda não tem acesso cria a senha (ou entra com o Google do e-mail convidado) e os dados da conta na mesma
+ * tela. Quem já tem entra antes e volta para cá.
  * Quem cria vira o administrador da conta.
  */
 import { documentoValido, normalizarDocumento } from "@mago-os/contratos";
@@ -10,13 +11,16 @@ import {
   abrirConviteDeConta,
   type ConviteDeContaAberto,
   criarContaPeloConvite,
+  entrarComGoogle,
   lerSessao,
+  mensagemDoErro,
+  prepararConviteDeContaParaGoogle,
   type Sessao,
   sair,
 } from "@/acesso";
 import { Button } from "@/componentes/ui/button";
 import { Campo } from "@/componentes/ui/campo";
-import { Aviso, Moldura } from "./Acesso";
+import { Aviso, BotaoDoGoogle, Moldura, Separador } from "./Acesso";
 
 const fusoDoNavegador = () => {
   try {
@@ -29,14 +33,18 @@ const idiomaDoNavegador = () =>
   /^[a-z]{2,3}(-[A-Z]{2})?$/.test(navigator.language) ? navigator.language : "pt-BR";
 
 export function NovaConta() {
-  const codigo = new URLSearchParams(window.location.search).get("codigo") ?? "";
+  const busca = new URLSearchParams(window.location.search);
+  const codigo = busca.get("codigo") ?? "";
+  const erroDoGoogle = busca.get("error");
   const [convite, setConvite] = useState<ConviteDeContaAberto | null | undefined>(undefined);
   const [sessao, setSessao] = useState<Sessao | null>(null);
   const [tipo, setTipo] = useState<"pj" | "pf">("pj");
   const [nomeLegal, setNomeLegal] = useState("");
   const [nome, setNome] = useState("");
   const [nomeMexido, setNomeMexido] = useState(false);
-  const [aviso, setAviso] = useState<{ texto: string; tipo: "erro" | "ok" } | null>(null);
+  const [aviso, setAviso] = useState<{ texto: string; tipo: "erro" | "ok" } | null>(
+    erroDoGoogle ? { tipo: "erro", texto: mensagemDoErro(erroDoGoogle) } : null,
+  );
   const [enviando, setEnviando] = useState(false);
   const [pronto, setPronto] = useState(false);
 
@@ -75,6 +83,16 @@ export function NovaConta() {
 
   const precisaEntrar = convite.temConta && !sessao;
   const outraPessoa = sessao && sessao.pessoa.email !== convite.email;
+
+  // Google: a pessoa do convite passa a existir (e-mail confirmado), o Google liga a conta dele a ela e volta aqui.
+  async function comGoogle() {
+    setAviso(null);
+    const aqui = `/nova-conta?codigo=${encodeURIComponent(codigo)}`;
+    const p = await prepararConviteDeContaParaGoogle(codigo);
+    if (!p.ok) return setAviso({ tipo: "erro", texto: p.mensagem ?? "" });
+    const r = await entrarComGoogle(aqui, aqui);
+    if (!r.ok) setAviso({ tipo: "erro", texto: r.mensagem ?? "" });
+  }
 
   async function aoEnviar(evento: React.FormEvent<HTMLFormElement>) {
     evento.preventDefault();
@@ -136,6 +154,13 @@ export function NovaConta() {
 
   return (
     <Moldura titulo={`Bem-vindo, ${convite.nome.split(" ")[0]}`} descricao={descricao}>
+      {!sessao && (
+        <>
+          <BotaoDoGoogle rotulo="Continuar com Google" aoClicar={() => void comGoogle()} />
+          <p className="-mt-2 text-center text-xs text-texto-2">Use a conta Google de {convite.email}.</p>
+          <Separador />
+        </>
+      )}
       <form className="grid gap-4" onSubmit={(e) => void aoEnviar(e)}>
         <fieldset className="grid gap-2">
           <legend className="mb-1 text-sm font-medium">A conta é de</legend>

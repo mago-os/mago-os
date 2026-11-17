@@ -79,7 +79,7 @@ Pronto quando: a pessoa desligada perde o acesso no mesmo instante, em todos os 
 Entrou em 17/11/2026, a pedido do Sandro, antes do teste final do M1 ([decisão 0016](../decisoes/0016-convite-para-criar-empresa.md)).
 
 - [x] O Dono convida uma conta nova pela tela Empresas (nome e e-mail do responsável)
-- [x] O responsável cria a senha (ou entra) e os dados: empresa com CNPJ ou pessoa física com CPF, conferidos pelos dígitos
+- [x] O responsável cria a senha, usa o Google do e-mail convidado (ou entra, se já tem conta) e preenche os dados: empresa com CNPJ ou pessoa física com CPF, conferidos pelos dígitos
 - [x] Quem cria vira administrador; o Dono vê só a lista de contas
 - [x] Um documento, uma conta; CPF tratado como dado pessoal
 - [ ] Depois: o administrador completar e corrigir os dados ("Dados da empresa"), incluindo as contas antigas sem documento
