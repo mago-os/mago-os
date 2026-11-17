@@ -24,4 +24,4 @@ O plano pede guardar o backup por 30 dias, 3 meses e 1 ano. O pgBackRest guarda 
 ## Consequências
 
 - O diário de alterações é enviado aos três depósitos: com o banco pequeno de hoje, o custo é desprezível (dentro dos 10 GB grátis do B2).
-- O prazo de trava do Object Lock (proteção contra alguém apagar os backups com a chave) ainda não foi definido: depende de decisão do Sandro, porque o modo mais forte não pode ser desfeito.
+- Trava do Object Lock em modo compliance por 30 dias, ligada em 17/11/2026 por decisão do Sandro: nenhum arquivo de backup pode ser apagado antes de 30 dias, nem por quem tiver a chave. O modo governance foi descartado porque a chave da VPS consegue furá-lo. Prazo igual ao do depósito diário: protege tudo sem guardar mais do que já se guarda, dá tempo de perceber um ataque e segura dados apagados por LGPD por no máximo uns 30 dias no backup. Testado depois de ligar: cópia completa, expiração e conferência do pgBackRest funcionando.

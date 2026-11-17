@@ -6,7 +6,7 @@ Escrita em 15/11/2026 por Sandro Nolasco e Claude. Passou para cá em 16/11/2026
 
 | Arquivo | Marco | Situação |
 | --- | --- | --- |
-| [M0-fundacao.md](M0-fundacao.md) | M0 Fundação | Em andamento |
+| [M0-fundacao.md](M0-fundacao.md) | M0 Fundação | Concluído em 17/11/2026 |
 | [M1-acesso.md](M1-acesso.md) | M1 Acesso | Não iniciado |
 | [M2-a-M6.md](M2-a-M6.md) | M2 a M6 | Não iniciado (subtarefas escritas antes de cada marco) |
 

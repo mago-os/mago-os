@@ -1,6 +1,6 @@
 # Spec da Fase 1: M0 Fundação
 
-Parte da [spec da Fase 1](README.md). Estado em 16/11/2026: em andamento.
+Parte da [spec da Fase 1](README.md). Concluído em 17/11/2026.
 
 **Pronto quando:** teste.osmago.com mostra a tela inicial do Mago OS, publicada sozinha depois de uma mudança aprovada no GitHub, com o banco fazendo backup no Backblaze B2 e uma restauração de teste feita com sucesso.
 
@@ -16,8 +16,8 @@ Parte da [spec da Fase 1](README.md). Estado em 16/11/2026: em andamento.
 | M0-08 | Segredos no Infisical | M0-04 | P | Feito |
 | M0-09 | Preparação e segurança da VPS | nada | M | Feito |
 | M0-10 | Pacote e publicação automática no teste | M0-07, M0-08, M0-09 | M | Feito |
-| M0-11 | Backup do banco no Backblaze B2 | M0-10 | M | Em revisão |
-| M0-12 | Monitoramento | M0-10 | P | Em revisão |
+| M0-11 | Backup do banco no Backblaze B2 | M0-10 | M | Feito |
+| M0-12 | Monitoramento | M0-10 | P | Feito |
 
 ## M0-01 Repositório e estrutura de pastas
 
@@ -124,7 +124,7 @@ O Backblaze B2 substituiu o Cloudflare R2 em 16/11/2026 (grátis até 10 GB, sem
 - [x] Fazer uma restauração de teste completa (feita em 16/11/2026, num container separado)
 - [x] Escrever o passo a passo da restauração no manual de operação (`docs/operacao/backup.md`)
 - [x] Teste de restauração automático (semanal) e aviso se um backup falhar (o aviso chega ao Sandro pelo monitoramento da M0-12)
-- [ ] Prazo de trava do Object Lock (espera decisão do Sandro)
+- [x] Prazo de trava do Object Lock (compliance, 30 dias, ligada em 17/11/2026)
 
 Pronto quando: o banco é restaurado a partir do B2 num ambiente separado.
 
