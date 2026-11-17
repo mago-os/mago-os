@@ -28,4 +28,4 @@ A spec pede o registro de quem fez o quê, quando e de onde (inclusive agentes),
 
 - O prazo de 1 ano de trava pode ser aumentado, nunca diminuído.
 - O depósito e a chave foram criados pelo Sandro (a chave do backup é presa ao depósito do backup); os segredos `B2_AUDITORIA_KEY_ID` e `B2_AUDITORIA_APPLICATION_KEY` ficam no Infisical.
-- O monitoramento precisa de um vigia novo no Uptime Kuma para a verificação diária (`MAGO_AVISO_AUDITORIA`); sem ele, o resultado só vai para o log.
+- O vigia "Mago OS: verificação da auditoria" no Uptime Kuma (`MAGO_AVISO_AUDITORIA`) avisa no Telegram se a verificação falhar ou passar de 26 horas sem aviso.
