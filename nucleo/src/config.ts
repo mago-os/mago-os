@@ -18,6 +18,19 @@ export interface Config {
   ambiente: "local" | "teste" | "producao";
   /** Versão publicada (o commit da imagem). Variável MAGO_VERSAO, gravada na imagem pelo GitHub; padrão "local". */
   versao: string;
+  /** Login (M1-03). Obrigatório em teste e produção; no Mac, só liga se DATABASE_URL_ACESSO for informada. */
+  acesso: ConfigDoAcesso | null;
+}
+
+export interface ConfigDoAcesso {
+  /** Conexão com o papel mago_acesso. Variável DATABASE_URL_ACESSO. */
+  bancoUrl: string;
+  /** Segredo que assina os cookies, com pelo menos 32 caracteres. Variável MAGO_ACESSO_SEGREDO. */
+  segredo: string;
+  /** Endereço público do site, sem /api (ex.: https://teste.osmago.com). Variável MAGO_URL_PUBLICA. */
+  urlPublica: string;
+  /** Recusar senhas que já vazaram. Variável MAGO_SENHAS_VAZADAS: "conferir" (padrão) ou "nao_conferir". */
+  conferirSenhasVazadas: boolean;
 }
 
 const NIVEIS: readonly NivelDeRegistro[] = ["fatal", "error", "warn", "info", "debug", "trace", "silent"];
@@ -53,6 +66,8 @@ export function lerConfig(env: Record<string, string | undefined> = process.env)
     problemas.push(`AMBIENTE precisa ser um destes: ${AMBIENTES.join(", ")}`);
   }
 
+  const acesso = lerAcesso(env, ambiente, problemas);
+
   if (problemas.length > 0) {
     throw new ErroDeConfig(`Configuração inválida:\n- ${problemas.join("\n- ")}`);
   }
@@ -64,5 +79,40 @@ export function lerConfig(env: Record<string, string | undefined> = process.env)
     nivelRegistro,
     ambiente,
     versao: env.MAGO_VERSAO ?? "local",
+    acesso,
   };
+}
+
+function lerAcesso(
+  env: Record<string, string | undefined>,
+  ambiente: Config["ambiente"],
+  problemas: string[],
+): ConfigDoAcesso | null {
+  const bancoUrl = env.DATABASE_URL_ACESSO ?? "";
+  if (bancoUrl === "" && ambiente === "local") return null;
+  if (bancoUrl === "")
+    problemas.push("DATABASE_URL_ACESSO não foi informada (o login é obrigatório fora do Mac)");
+  else if (!/^postgres(ql)?:\/\//.test(bancoUrl))
+    problemas.push("DATABASE_URL_ACESSO precisa começar com postgres://");
+
+  const segredo = env.MAGO_ACESSO_SEGREDO ?? "";
+  if (segredo.length < 32) problemas.push("MAGO_ACESSO_SEGREDO precisa ter pelo menos 32 caracteres");
+
+  const urlPublica = env.MAGO_URL_PUBLICA ?? "";
+  if (!/^https?:\/\/[^/]+$/.test(urlPublica)) {
+    problemas.push(
+      "MAGO_URL_PUBLICA precisa ser o endereço do site, sem barra no fim (ex.: https://teste.osmago.com)",
+    );
+  } else if (ambiente !== "local" && !urlPublica.startsWith("https://")) {
+    problemas.push("MAGO_URL_PUBLICA precisa ser https fora do Mac");
+  }
+
+  const vazadas = env.MAGO_SENHAS_VAZADAS ?? "conferir";
+  if (vazadas !== "conferir" && vazadas !== "nao_conferir") {
+    problemas.push('MAGO_SENHAS_VAZADAS precisa ser "conferir" ou "nao_conferir"');
+  } else if (vazadas === "nao_conferir" && ambiente !== "local") {
+    problemas.push("MAGO_SENHAS_VAZADAS só pode ser desligada no Mac");
+  }
+
+  return { bancoUrl, segredo, urlPublica, conferirSenhasVazadas: vazadas !== "nao_conferir" };
 }

@@ -2,6 +2,9 @@
  * Ponto de partida da API. Rodar com o rastreio carregado antes:
  *   node --import ./src/rastreio.ts src/iniciar.ts
  */
+import { carteiroDoLog } from "./acesso/carteiro.ts";
+import { criarLogin, criarPoolDoLogin } from "./acesso/login.ts";
+import { registrarRotasDoLogin } from "./acesso/rotas.ts";
 import { criarBanco } from "./banco.ts";
 import { ErroDeConfig, lerConfig } from "./config.ts";
 import { criarFila } from "./fila.ts";
@@ -12,6 +15,16 @@ async function iniciar(): Promise<void> {
   const banco = criarBanco(config.bancoUrl);
   const fila = criarFila(config.bancoUrl);
   const app = criarServidor(config, banco);
+  const poolDoLogin = config.acesso ? criarPoolDoLogin(config.acesso.bancoUrl) : null;
+  if (config.acesso && poolDoLogin) {
+    const login = criarLogin(
+      { ...config.acesso, ambiente: config.ambiente, carteiro: carteiroDoLog(app.log, config.ambiente) },
+      poolDoLogin,
+    );
+    registrarRotasDoLogin(app, login, poolDoLogin);
+  } else {
+    app.log.warn("Login desligado: DATABASE_URL_ACESSO não foi informada (só permitido no Mac)");
+  }
 
   fila.on("error", (erro) => app.log.error({ erro }, "Erro na fila"));
   await fila.start();
@@ -25,6 +38,7 @@ async function iniciar(): Promise<void> {
     await app.close();
     await fila.stop({ graceful: true });
     await banco.fechar();
+    await poolDoLogin?.end();
     process.exit(0);
   };
   process.once("SIGTERM", () => void encerrar("SIGTERM"));

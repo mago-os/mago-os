@@ -31,6 +31,10 @@ services:
     environment:
       # A API usa o papel mago_app, que obedece o isolamento por empresa (as migrações usam o dono).
       DATABASE_URL: postgres://mago_app@db:5432/mago
+      # O login (M1-03) usa o papel mago_acesso. O segredo abaixo é só do Mac: em teste e produção vem do Infisical.
+      DATABASE_URL_ACESSO: postgres://mago_acesso@db:5432/mago
+      MAGO_ACESSO_SEGREDO: segredo-falso-do-ambiente-local-nao-usar-fora
+      MAGO_URL_PUBLICA: http://127.0.0.1:5173
       AMBIENTE: local
       NIVEL_REGISTRO: info
       PORTA: "3000"

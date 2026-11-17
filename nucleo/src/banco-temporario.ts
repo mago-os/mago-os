@@ -12,6 +12,8 @@ export interface BancoTemporario {
   urlDono: string;
   /** Conexão com o papel da API (mago_app), que obedece o isolamento por empresa. */
   urlApp: string;
+  /** Conexão com o papel do login (mago_acesso), que só mexe no esquema acesso e lê as pessoas. */
+  urlAcesso: string;
   apagar(): Promise<void>;
 }
 
@@ -62,6 +64,7 @@ export async function criarBancoTemporario(
     nome,
     urlDono,
     urlApp: trocarBanco(urlServidor, nome, "mago_app"),
+    urlAcesso: trocarBanco(urlServidor, nome, "mago_acesso"),
     async apagar() {
       const fim = new pg.Client({ connectionString: urlServidor });
       await fim.connect();

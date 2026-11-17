@@ -13,6 +13,7 @@
     "pg": "catalog:"
   },
   "devDependencies": {
-    "@types/pg": "catalog:"
+    "@types/pg": "catalog:",
+    "fastify": "catalog:"
   }
 }
