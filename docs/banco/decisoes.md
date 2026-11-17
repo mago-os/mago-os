@@ -131,6 +131,6 @@ O login (`mago_acesso`) não lê papéis nem as regras da plataforma direto. As 
 
 ## 16. Conta com CNPJ ou CPF e convite para criar empresa (17/11/2026, M1-11)
 
-- `empresas` ganha `tipo` (pj ou pf), `documento` (único, sem pontuação), `nome_legal`, `fuso_horario`, `idioma` e `telefone`. As contas antigas ficam sem documento; uma regra garante que tipo e documento andam juntos e com o tamanho certo.
+- `empresas` ganha `tipo` (pj ou pf), `documento` (sem pontuação; várias contas, uma por marca, podem ter o mesmo documento desde a migração 0012), `nome_legal`, `fuso_horario`, `idioma` e `telefone`. As contas antigas ficam sem documento; uma regra garante que tipo e documento andam juntos e com o tamanho certo.
 - `acesso.convites_de_empresa` guarda os convites do Dono (só a impressão digital do código). Só o login (`mago_acesso`) lê e grava.
 - Funções que rodam como dono: `acesso.empresas_da_plataforma` (lista só o cadastro, só para o Dono), `acesso.abrir_convite_de_empresa`, `acesso.pessoa_do_convite_de_empresa` (cria a pessoa se ainda não existe) e `acesso.criar_empresa_pelo_convite` (cria a conta e o vínculo de administrador, só para o e-mail do convite). Ver [decisão 0016](../decisoes/0016-convite-para-criar-empresa.md).

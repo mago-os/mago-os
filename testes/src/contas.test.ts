@@ -236,7 +236,7 @@ describe.skipIf(!bancoDisponivel)("convite para criar empresa", () => {
     expect(eventos.rows[0].empresa_id).toBeNull();
   });
 
-  it("um documento, uma conta", async () => {
+  it("várias marcas podem ter o mesmo documento, cada uma numa conta separada", async () => {
     await pedir("POST", "/plataforma/empresas/convites", sandro, {
       nome: "Outro",
       email: "outro@teste.invalid",
@@ -244,22 +244,11 @@ describe.skipIf(!bancoDisponivel)("convite para criar empresa", () => {
     const r = await pedir("POST", "/acesso/convite-de-empresa/criar", "", {
       codigo: codigoDe(ultimoPara("outro@teste.invalid")),
       senha: NOVA,
-      conta: conta({ nome: "Cópia" }),
+      conta: conta({ nome: "Cliente Um Marca Dois" }),
     });
-    expect(r.statusCode).toBe(409);
-    expect(r.json().code).toBe("DOCUMENTO_JA_TEM_CONTA");
-    // Nada ficou pela metade: nem a pessoa com senha, nem a conta.
-    expect(
-      (
-        await dono.query(
-          "select 1 from acesso.credenciais c join pessoas p on p.id = c.pessoa_id where p.email = 'outro@teste.invalid'",
-        )
-      ).rowCount,
-    ).toBe(0);
-    expect(
-      (await pedir("GET", `/acesso/convite-de-empresa/${codigoDe(ultimoPara("outro@teste.invalid"))}`))
-        .statusCode,
-    ).toBe(200);
+    expect(r.statusCode).toBe(200);
+    const e = await dono.query("select nome from empresas where documento = '11222333000181' order by nome");
+    expect(e.rows.map((l) => l.nome)).toEqual(["Cliente Um", "Cliente Um Marca Dois"]);
   });
 
   it("quem já tem conta entra antes; pessoa física com CPF", async () => {

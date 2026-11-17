@@ -269,7 +269,7 @@ Isolamento por empresa (Row Level Security): ligado e forçado.
 | exigir_dois_fatores | boolean | sim | `false` | empresa | Se o administrador exigiu o 2FA de todas as pessoas da empresa (para administradores ele é sempre obrigatório). |
 | exigir_passkey | boolean | sim | `false` | empresa | Se o administrador exigiu passkey de todas as pessoas da empresa (o código do app deixa de valer sozinho). |
 | tipo | text | não |  | empresa | pj: empresa com CNPJ. pf: pessoa física com CPF. Vazio nas contas criadas antes da M1-11. |
-| documento | text | não |  | pessoal | CNPJ ou CPF, sem pontuação. Um documento, uma conta. O CPF é dado pessoal: aparece mascarado para quem não é administrador nem Dono. |
+| documento | text | não |  | pessoal | CNPJ ou CPF, sem pontuação. Várias contas (marcas) podem ter o mesmo documento. O CPF é dado pessoal: aparece mascarado para quem não é administrador nem Dono. |
 | nome_legal | text | não |  | empresa | Razão social (CNPJ) ou nome completo (CPF). |
 | fuso_horario | text | sim | `'America/Sao_Paulo'::text` | empresa | Fuso horário IANA da conta (ex.: America/Sao_Paulo). |
 | idioma | text | sim | `'pt-BR'::text` | empresa | Idioma da conta (ex.: pt-BR). |

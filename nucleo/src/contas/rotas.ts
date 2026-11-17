@@ -269,7 +269,7 @@ export function registrarRotasDasContas(app: FastifyInstance, o: OpcoesDasContas
     }
     const embaralhada = sessao ? null : await (await o.login.$context).password.hash(senha);
 
-    // Tudo numa transação: se o documento já tiver conta, nada fica pela metade (nem a senha).
+    // Tudo numa transação: se algo falhar, nada fica pela metade (nem a senha).
     const c = await poolAcesso.connect();
     let empresaId: string;
     let pessoaId: string;
@@ -310,13 +310,6 @@ export function registrarRotasDasContas(app: FastifyInstance, o: OpcoesDasContas
     } catch (erro) {
       await c.query("rollback").catch(() => {});
       const texto = String(erro);
-      if (/empresas_documento_unico/.test(texto)) {
-        return resposta.code(409).send({
-          code: "DOCUMENTO_JA_TEM_CONTA",
-          message:
-            "Esse documento já tem conta no Mago OS. Fale com o administrador dela para receber um convite.",
-        });
-      }
       if (/outra pessoa/.test(texto)) {
         return resposta.code(403).send({
           code: "CONVITE_DE_OUTRA_PESSOA",
