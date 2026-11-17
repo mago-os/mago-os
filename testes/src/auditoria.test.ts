@@ -2,7 +2,12 @@
  * Auditoria à prova de alteração (M1-09), contra um PostgreSQL de verdade.
  */
 import { verificarCorrente } from "@mago-os/contratos";
-import { lerCorrente, registrarEvento } from "@mago-os/nucleo/auditoria";
+import {
+  exportarPendentes,
+  lerCorrente,
+  registrarEvento,
+  verificarAuditoria,
+} from "@mago-os/nucleo/auditoria";
 import { type BancoTemporario, criarBancoTemporario } from "@mago-os/nucleo/banco-temporario";
 import { comEmpresa } from "@mago-os/nucleo/empresa";
 import pg from "pg";
@@ -142,5 +147,40 @@ describe.skipIf(!bancoDisponivel)("auditoria à prova de alteração", () => {
     await expect(
       dono.query("update auditoria.eventos set copiado_em = now() where corrente = $1", [B]),
     ).rejects.toThrow(/não podem ser alterados/);
+  });
+
+  it("verificação: a cópia confere com o banco; quem reescrever a corrente inteira é pego pela cópia", async () => {
+    const empresa = "00000000-0000-7000-8000-0000000000cc";
+    await dono.query("insert into empresas (id, nome) values ($1, 'Empresa C')", [empresa]);
+    for (let i = 0; i < 3; i++) await registrarEvento(acesso, evento(empresa, "acesso.entrou", { i }));
+    const copia = (await exportarPendentes(dono)).filter((e) => e.empresaId === empresa);
+    expect(copia).toHaveLength(3);
+
+    const antes = await verificarAuditoria(dono, copia);
+    expect(antes.correntes.find((c) => c.corrente === empresa)?.integra).toBe(true);
+    expect(antes.copia?.divergentes).toEqual([]);
+
+    // Alguém com acesso total reescreve a corrente C no banco, recalculando as impressões digitais: a corrente
+    // continua "fechando", mas não bate mais com a cópia travada.
+    const eventos = await lerCorrente(dono, empresa);
+    await dono.query("alter table auditoria.eventos disable trigger eventos_so_acrescenta");
+    let anterior: string | null = null;
+    for (const e of eventos) {
+      const { hash: _h, ...resto } = { ...e, detalhes: { i: 99 }, hashAnterior: anterior };
+      const { calcularHash } = await import("@mago-os/contratos");
+      const novo = await calcularHash(resto);
+      await dono.query(
+        "update auditoria.eventos set detalhes = $1, hash_anterior = $2, hash = $3 where id = $4",
+        [JSON.stringify({ i: 99 }), anterior, novo, e.id],
+      );
+      anterior = novo;
+    }
+    await dono.query("alter table auditoria.eventos enable trigger eventos_so_acrescenta");
+    const depois = await verificarAuditoria(dono, copia);
+    expect(depois.correntes.find((c) => c.corrente === empresa)?.integra).toBe(true);
+    expect(depois.copia?.divergentes.map((d) => d.motivo)).toEqual(
+      Array(3).fill("diferente da cópia travada"),
+    );
+    expect(depois.ok).toBe(false);
   });
 });

@@ -1,0 +1,8 @@
+[Unit]
+Description=Mago OS: copiar os eventos novos da auditoria para o depósito travado (M1-09)
+
+[Service]
+Type=oneshot
+ExecStart=/opt/mago-os/bin/auditoria-copia.sh
+StandardOutput=append:/var/log/mago-os-auditoria.log
+StandardError=append:/var/log/mago-os-auditoria.log

@@ -13,6 +13,7 @@ Como publicar, voltar uma versão, restaurar o backup, trocar chaves e o que faz
 | Segredos: ambientes, identidades e como criar ou trocar | [segredos.md](segredos.md) | Já existe |
 | Monitoramento e o que fazer se cair | [monitoramento.md](monitoramento.md) | Já existe |
 | Login: primeiro acesso, trocar e-mail, destravar, cliente do Google | [acesso.md](acesso.md) | Já existe |
+| Auditoria: cópia travada, verificação e o que fazer se falhar | [auditoria.md](auditoria.md) | Já existe |
 
 ## Regras que valem sempre
 

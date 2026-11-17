@@ -9,7 +9,7 @@ import { criarBanco } from "./banco.ts";
 import { ErroDeConfig, lerConfig } from "./config.ts";
 import { criarFila } from "./fila.ts";
 import { catalogoDeModulos } from "./permissoes/modulos.ts";
-import { registrarRotasDePermissoes } from "./permissoes/rotas.ts";
+import { registrarRotaDaAuditoria, registrarRotasDePermissoes } from "./permissoes/rotas.ts";
 import { criarVerificador } from "./permissoes/verificar.ts";
 import { criarServidor } from "./servidor.ts";
 
@@ -27,6 +27,7 @@ async function iniciar(): Promise<void> {
     registrarRotasDoLogin(app, login, poolDoLogin);
     const verificador = criarVerificador(login, poolDoLogin, banco.pool, catalogoDeModulos());
     registrarRotasDePermissoes(app, verificador, banco.pool);
+    registrarRotaDaAuditoria(app, verificador, banco.pool);
   } else {
     app.log.warn("Login desligado: DATABASE_URL_ACESSO não foi informada (só permitido no Mac)");
   }

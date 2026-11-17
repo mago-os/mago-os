@@ -55,6 +55,27 @@ erDiagram
     timestamp_with_time_zone entrou_em
     timestamp_with_time_zone desligado_em
   }
+  auditoria_correntes {
+    uuid corrente PK
+    bigint ultima_sequencia
+    text ultimo_hash
+  }
+  auditoria_eventos {
+    uuid id PK
+    uuid empresa_id FK
+    uuid corrente
+    bigint sequencia
+    jsonb ator
+    text acao
+    jsonb alvo
+    jsonb origem
+    timestamp_with_time_zone ocorrido_em
+    text rastreio
+    jsonb detalhes
+    text hash_anterior
+    text hash
+    timestamp_with_time_zone copiado_em
+  }
   acesso_aparelhos {
     uuid id PK
     uuid pessoa_id FK
@@ -156,6 +177,7 @@ erDiagram
   pessoas ||--o{ papeis_plataforma : "pessoa_id"
   empresas ||--o{ vinculos : "empresa_id"
   pessoas ||--o{ vinculos : "pessoa_id"
+  empresas ||--o{ auditoria_eventos : "empresa_id"
   pessoas ||--o{ acesso_aparelhos : "pessoa_id"
   pessoas ||--o{ acesso_avisos : "pessoa_id"
   acesso_aparelhos ||--o{ acesso_avisos : "aparelho_id"
@@ -260,6 +282,41 @@ Isolamento por empresa (Row Level Security): ligado e forçado.
 | convidado_em | timestamp with time zone | sim | `now()` | sistema | Quando a pessoa foi convidada. |
 | entrou_em | timestamp with time zone | não |  | sistema | Quando a pessoa aceitou o convite. |
 | desligado_em | timestamp with time zone | não |  | sistema | Quando a pessoa foi desligada (ou o convite foi cancelado). |
+
+### auditoria.correntes
+
+Ponta de cada corrente: a última posição e a última impressão digital.
+
+Isolamento por empresa (Row Level Security): esquema auditoria (só as funções de gravação mexem).
+
+| Coluna | Tipo | Obrigatória | Padrão | Marca | Descrição |
+| --- | --- | --- | --- | --- | --- |
+| corrente | uuid | sim |  | sistema | Empresa da corrente (zeros para a plataforma). Chave primária. |
+| ultima_sequencia | bigint | sim | `0` | sistema | Posição do último evento gravado. |
+| ultimo_hash | text | não |  | sistema | Impressão digital do último evento gravado. |
+
+### auditoria.eventos
+
+Eventos de auditoria, encadeados por empresa (contrato EventoAuditoria). Só acrescenta.
+
+Isolamento por empresa (Row Level Security): ligado e forçado (cada empresa lê só os próprios eventos; só acrescenta).
+
+| Coluna | Tipo | Obrigatória | Padrão | Marca | Descrição |
+| --- | --- | --- | --- | --- | --- |
+| id | uuid | sim |  | sistema | Identificador do evento. Chave primária. |
+| empresa_id | uuid | não |  | sistema | Empresa do evento (nula: evento da plataforma). Aponta para empresas.id. |
+| corrente | uuid | não | `auditoria.corrente_de(empresa_id)` | sistema | Corrente do evento (a empresa, ou zeros para a plataforma). |
+| sequencia | bigint | sim |  | sistema | Posição na corrente, começando em 1. |
+| ator | jsonb | sim |  | pessoal | Quem fez: pessoa, agente ou sistema. |
+| acao | text | sim |  | sistema | Ação no formato assunto.verbo (ex.: acesso.entrou). |
+| alvo | jsonb | não |  | sistema | Item afetado (tipo e identificador). |
+| origem | jsonb | sim |  | pessoal | De onde: canal, IP e aparelho. |
+| ocorrido_em | timestamp with time zone | sim |  | sistema | Quando aconteceu. |
+| rastreio | text | não |  | sistema | Número de rastreio do pedido. |
+| detalhes | jsonb | sim | `'{}'::jsonb` | pessoal | Informações extras da ação. Nunca senha, token, código ou dado sensível. |
+| hash_anterior | text | não |  | sistema | Impressão digital do evento anterior da corrente. |
+| hash | text | sim |  | sistema | Impressão digital (SHA-256) deste evento. |
+| copiado_em | timestamp with time zone | não |  | sistema | Quando o evento foi para a cópia travada no Backblaze. |
 
 ### acesso.aparelhos
 

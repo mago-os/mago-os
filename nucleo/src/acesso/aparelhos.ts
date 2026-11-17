@@ -63,7 +63,7 @@ export function nomeDoAparelho(navegador: string | null | undefined): string {
 export async function registrarAparelho(
   pool: pg.Pool,
   dados: { pessoaId: string; etiqueta: string; navegador: string | null; ip: string | null },
-): Promise<{ aparelhoId: string; novo: boolean }> {
+): Promise<{ aparelhoId: string; novo: boolean; nome: string; avisou: boolean }> {
   const nome = nomeDoAparelho(dados.navegador);
   const r = await pool.query<{ id: string; novo: boolean }>(
     `insert into acesso.aparelhos as a (pessoa_id, etiqueta, nome) values ($1, $2, $3)
@@ -78,15 +78,17 @@ export async function registrarAparelho(
     dados.pessoaId,
     aparelho.id,
   ]);
+  let avisou = false;
   if (aparelho.novo) {
-    await pool.query(
+    const aviso = await pool.query(
       `insert into acesso.avisos (pessoa_id, tipo, aparelho_id, aparelho_nome, ip)
          select $1, 'aparelho_novo', $2, $3, $4
           where exists (select 1 from acesso.aparelhos where pessoa_id = $1 and id <> $2)`,
       [dados.pessoaId, aparelho.id, nome, dados.ip],
     );
+    avisou = aviso.rowCount === 1;
   }
-  return { aparelhoId: aparelho.id, novo: aparelho.novo };
+  return { aparelhoId: aparelho.id, novo: aparelho.novo, nome, avisou };
 }
 
 /**

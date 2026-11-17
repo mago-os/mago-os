@@ -247,4 +247,17 @@ describe.skipIf(!bancoDisponivel)("sessões e aparelhos", () => {
     );
     expect(r.rows[0].recente).toBe(true);
   });
+
+  it("auditoria: entradas, aparelho novo e desconexões ficam registrados", async () => {
+    const r = await dono.query<{ acao: string }>("select acao from auditoria.eventos");
+    const acoes = new Set(r.rows.map((l) => l.acao));
+    for (const acao of ["acesso.entrou", "sessao.aparelho_novo", "sessao.encerrou"])
+      expect(acoes.has(acao), acao).toBe(true);
+    const detalhes = await dono.query(
+      "select detalhes from auditoria.eventos where acao = 'sessao.encerrou'",
+    );
+    expect(detalhes.rows.map((l) => l.detalhes.motivo)).toEqual(
+      expect.arrayContaining(["desconectado", "nao_fui_eu"]),
+    );
+  });
 });

@@ -5,6 +5,8 @@
 import { conferirPedidoDeAjuste } from "@mago-os/contratos";
 import type { FastifyInstance } from "fastify";
 import type pg from "pg";
+import { origemDoPedido } from "../acesso/rotas.ts";
+import { auditar } from "../auditoria/registrar.ts";
 import { comPessoa } from "../empresa.ts";
 import { acessoDo, permissoesNaEmpresa, type Verificador } from "./verificar.ts";
 
@@ -107,7 +109,81 @@ export function registrarRotasDePermissoes(
         { evento: "permissao.alterou", vinculoId, modulo, acao, alcance },
         "Permissão ajustada",
       );
+      await auditar(
+        poolApp,
+        {
+          empresaId: sessao.empresaId,
+          ator: { tipo: "pessoa", pessoaId: sessao.pessoa.id },
+          acao: "permissao.alterou",
+          alvo: { tipo: "vinculo", id: vinculoId },
+          origem: origemDoPedido(pedido),
+          rastreio: pedido.id,
+          detalhes: { modulo, acao, alcance },
+        },
+        pedido.log,
+      );
       return { ok: true };
+    },
+  );
+}
+
+/** Filtros da consulta da auditoria, todos opcionais. */
+interface FiltrosDaAuditoria {
+  pessoa?: string;
+  acao?: string;
+  desde?: string;
+  ate?: string;
+  limite?: string;
+}
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+export function registrarRotaDaAuditoria(
+  app: FastifyInstance,
+  verificador: Verificador,
+  poolApp: pg.Pool,
+): void {
+  // Consulta simples para o administrador (M1-09): os eventos da empresa ativa, dos mais novos para os mais
+  // antigos, com filtro por pessoa, ação e período. O banco só mostra os eventos da própria empresa.
+  app.get(
+    "/empresa/auditoria",
+    { preHandler: verificador.exigir("auditoria", "ver") },
+    async (pedido, resposta) => {
+      const { sessao } = acessoDo(pedido);
+      const f = pedido.query as FiltrosDaAuditoria;
+      const condicoes: string[] = ["empresa_id = empresa_ativa()"];
+      const valores: unknown[] = [];
+      if (f.pessoa) {
+        if (!UUID.test(f.pessoa)) return resposta.code(400).send({ code: "PEDIDO_INVALIDO" });
+        valores.push(f.pessoa);
+        condicoes.push(`ator->>'pessoaId' = $${valores.length}`);
+      }
+      if (f.acao) {
+        if (!/^[a-z_.]{2,80}$/.test(f.acao)) return resposta.code(400).send({ code: "PEDIDO_INVALIDO" });
+        valores.push(f.acao.includes(".") ? f.acao : `${f.acao}.%`);
+        condicoes.push(f.acao.includes(".") ? `acao = $${valores.length}` : `acao like $${valores.length}`);
+      }
+      for (const [campo, operador] of [
+        ["desde", ">="],
+        ["ate", "<="],
+      ] as const) {
+        const valor = f[campo];
+        if (!valor) continue;
+        if (Number.isNaN(Date.parse(valor))) return resposta.code(400).send({ code: "PEDIDO_INVALIDO" });
+        valores.push(valor);
+        condicoes.push(`ocorrido_em ${operador} $${valores.length}`);
+      }
+      const limite = Math.min(Math.max(Number(f.limite ?? 100) || 100, 1), 500);
+      valores.push(limite);
+      return comPessoa(poolApp, sessao.pessoa.id, sessao.empresaId, async (c) => {
+        const r = await c.query(
+          `select sequencia, ator, acao, alvo, origem, ocorrido_em, rastreio, detalhes
+           from auditoria.eventos where ${condicoes.join(" and ")}
+          order by sequencia desc limit $${valores.length}`,
+          valores,
+        );
+        return r.rows;
+      });
     },
   );
 }

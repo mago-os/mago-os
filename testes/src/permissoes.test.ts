@@ -4,7 +4,12 @@
  */
 import { criarLogin, criarPoolDoLogin, embaralharSenha, registrarRotasDoLogin } from "@mago-os/nucleo/acesso";
 import { type BancoTemporario, criarBancoTemporario } from "@mago-os/nucleo/banco-temporario";
-import { catalogoDeModulos, criarVerificador, registrarRotasDePermissoes } from "@mago-os/nucleo/permissoes";
+import {
+  catalogoDeModulos,
+  criarVerificador,
+  registrarRotaDaAuditoria,
+  registrarRotasDePermissoes,
+} from "@mago-os/nucleo/permissoes";
 import Fastify, { type FastifyInstance } from "fastify";
 import pg from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -114,11 +119,9 @@ describe.skipIf(!bancoDisponivel)("perfis e permissões", () => {
     );
     app = Fastify();
     registrarRotasDoLogin(app, login, poolAcesso);
-    registrarRotasDePermissoes(
-      app,
-      criarVerificador(login, poolAcesso, poolApp, catalogoDeModulos()),
-      poolApp,
-    );
+    const verificador = criarVerificador(login, poolAcesso, poolApp, catalogoDeModulos());
+    registrarRotasDePermissoes(app, verificador, poolApp);
+    registrarRotaDaAuditoria(app, verificador, poolApp);
     await app.ready();
   });
 
@@ -267,5 +270,21 @@ describe.skipIf(!bancoDisponivel)("perfis e permissões", () => {
     const r = await pedir("GET", "/empresa/pessoas", cookie);
     expect(r.statusCode).toBe(403);
     expect(r.json().code).toBe("DOIS_FATORES_CONFIRMAR");
+  });
+
+  it("auditoria: a administradora vê os eventos da empresa (entradas e mudanças de permissão); o funcionário não", async () => {
+    const ana = await entrar("ana@teste.invalid");
+    const todos = await pedir("GET", "/empresa/auditoria?limite=500", ana);
+    expect(todos.statusCode).toBe(200);
+    const acoes = new Set(todos.json().map((e: { acao: string }) => e.acao));
+    expect(acoes.has("acesso.entrou")).toBe(true);
+    expect(acoes.has("permissao.alterou")).toBe(true);
+    const so = await pedir("GET", "/empresa/auditoria?acao=permissao", ana);
+    expect(so.json().length).toBeGreaterThan(0);
+    expect(so.json().every((e: { acao: string }) => e.acao.startsWith("permissao."))).toBe(true);
+    expect(so.json()[0].detalhes).toHaveProperty("modulo");
+    expect((await pedir("GET", "/empresa/auditoria", await entrar("fabio@teste.invalid"))).statusCode).toBe(
+      403,
+    );
   });
 });

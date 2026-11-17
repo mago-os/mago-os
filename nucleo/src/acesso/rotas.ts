@@ -216,6 +216,18 @@ export function registrarRotasDoLogin(app: FastifyInstance, login: Login, pool: 
       { evento: "sessao.encerrou", motivo: "outros", quantos: r.rowCount },
       "Outros aparelhos desconectados",
     );
+    await auditar(
+      pool,
+      {
+        empresaId: sessao.empresaId,
+        ator: { tipo: "pessoa", pessoaId: sessao.pessoa.id },
+        acao: "sessao.encerrou",
+        origem: origemDoPedido(pedido),
+        rastreio: pedido.id,
+        detalhes: { motivo: "outros_aparelhos", quantos: r.rowCount ?? 0 },
+      },
+      pedido.log,
+    );
     return { ok: true, desconectados: r.rowCount };
   });
 
@@ -264,6 +276,19 @@ export function registrarRotasDoLogin(app: FastifyInstance, login: Login, pool: 
       pedido.log.warn(
         { evento: "sessao.encerrou", motivo: "nao_fui_eu" },
         "Acesso não reconhecido desconectado",
+      );
+      await auditar(
+        pool,
+        {
+          empresaId: sessao.empresaId,
+          ator: { tipo: "pessoa", pessoaId: sessao.pessoa.id },
+          acao: "sessao.encerrou",
+          alvo: { tipo: "aparelho", id: linha.aparelho_id },
+          origem: origemDoPedido(pedido),
+          rastreio: pedido.id,
+          detalhes: { motivo: "nao_fui_eu" },
+        },
+        pedido.log,
       );
       return {
         ok: true,

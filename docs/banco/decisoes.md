@@ -108,3 +108,12 @@ O pg-boss guarda a fila no esquema `pgboss`, criado pela migração 0001 com o `
 ## 12. Aparelhos e avisos (17/11/2026, M1-08)
 
 **Decisão:** o login reconhece cada aparelho por uma etiqueta guardada num cookie, e o banco guarda só a impressão digital dela (`acesso.aparelhos`). Cada sessão aponta para o aparelho e registra o último uso; acessos por aparelho novo viram avisos (`acesso.avisos`). Tudo no esquema `acesso`, só com o papel `mago_acesso`. Detalhes na [decisão 0013](../decisoes/0013-sessoes-e-aparelhos.md).
+
+## 13. Esquema da auditoria (17/11/2026, M1-09)
+
+**Decisão:** os eventos de auditoria ficam no esquema `auditoria`, que só acrescenta. Detalhes na [decisão 0014](../decisoes/0014-auditoria.md).
+
+- `auditoria.eventos` (uma corrente por empresa, mais a da plataforma) e `auditoria.correntes` (a ponta de cada uma). Ninguém escreve direto: só as funções `auditoria.reservar` e `auditoria.gravar`, que rodam como dono e mantêm a ordem.
+- Um gatilho barra alteração e exclusão até para o dono; a única mudança aceita é marcar `copiado_em` (cópia travada no Backblaze), uma vez.
+- A API das empresas lê só os eventos da empresa ativa (Row Level Security); a corrente da plataforma não aparece para nenhuma empresa.
+- A documentação gerada e o teste de descrições e marcas cobrem também o esquema `auditoria`.

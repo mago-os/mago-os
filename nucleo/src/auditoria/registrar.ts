@@ -47,7 +47,8 @@ export async function registrarEvento(pool: pg.Pool, dados: DadosDoEvento): Prom
       alvo: dados.alvo ?? null,
       origem: dados.origem,
       ocorridoEm: new Date().toISOString(),
-      rastreio: dados.rastreio ?? null,
+      // Só o número de rastreio no formato do OpenTelemetry (32 hexadecimais); outro formato não barra o evento.
+      rastreio: dados.rastreio && /^[0-9a-f]{32}$/.test(dados.rastreio) ? dados.rastreio : null,
       detalhes: dados.detalhes ?? {},
       hashAnterior: hash_anterior,
     };
