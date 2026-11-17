@@ -1,0 +1,52 @@
+# Login (acesso)
+
+Como cuidar do login no teste (M1-03 e M1-04). O porquê das escolhas está nas decisões [0009](../decisoes/0009-login-com-better-auth.md) e [0010](../decisoes/0010-login-com-google.md); as tabelas, em [docs/banco](../banco/README.md) (esquema `acesso`).
+
+Os comandos abaixo rodam no Mac, com o alias `vps02` do SSH. `IMG` é a versão no ar:
+
+```bash
+IMG='$(cat /opt/mago-os/estado/atual)'
+```
+
+## Criar uma pessoa com uma empresa (Dono da plataforma)
+
+Enquanto os convites (M1-07) não existem, só o Dono da plataforma entra, criado pelo comando de início. Ele também cria cada empresa nova onde o Dono é administrador:
+
+```bash
+ssh vps02 "docker run --rm --network mago-os_mago_db --env-file /opt/mago-os/api.env $IMG node src/plataforma.ts iniciar --nome 'Sandro' --email 'pessoa@exemplo.com' --empresa '4xpert'"
+```
+
+## Primeiro acesso: link para definir a senha
+
+A pessoa roda no próprio Mac e vê o link só no terminal dela. O link vale 1 hora e só funciona uma vez. **Nunca mandar o link por chat ou e-mail aberto**: ele dá acesso à conta.
+
+```bash
+ssh vps02 "docker run --rm --network mago-os_mago_db --env-file /opt/mago-os/api.env $IMG node src/acesso/link-de-senha.ts --email 'pessoa@exemplo.com' 2>/dev/null"
+```
+
+Enquanto o Resend não entra, o "Esqueci a senha" da tela também gera o link, mas ele vai só para o log da API (`docker logs mago-os-api-azul` ou `-verde`, evento `senha.pediu_recuperacao`).
+
+## Trocar o e-mail de login de uma pessoa
+
+```bash
+ssh vps02 "docker exec -i mago-os-db-1 psql -U mago -d mago -c \"update pessoas set email = 'novo@exemplo.com', email_verificado = true, atualizada_em = now() where email = 'antigo@exemplo.com'\""
+```
+
+`email_verificado = true` só quando o novo e-mail foi informado pela própria pessoa (o login com Google exige e-mail confirmado). Senha, sessões, empresas e papéis continuam ligados à pessoa.
+
+## Destravar um e-mail
+
+Depois de 5 senhas erradas seguidas, o e-mail trava por 15 minutos. Para liberar antes:
+
+```bash
+ssh vps02 "docker exec -i mago-os-db-1 psql -U mago -d mago -c \"delete from acesso.travas where email = 'pessoa@exemplo.com'\""
+```
+
+## Cliente do Google (login com Google)
+
+- **Onde:** Google Cloud, projeto **Mago OS**, dono `nlk.osmago77@gmail.com` (conta separada, só para o Mago OS). Menu "Google Auth Platform".
+- **Cliente OAuth:** "Mago OS teste", aplicativo da Web. Origem `https://teste.osmago.com`; endereço de volta `https://teste.osmago.com/api/acesso/callback/google`. O ID e a chave secreta ficam no Infisical (`MAGO_GOOGLE_ID` e `MAGO_GOOGLE_SEGREDO`, ver [segredos.md](segredos.md)).
+- **Escopos:** só `openid`, `userinfo.email` e `userinfo.profile`. Domínio autorizado: `osmago.com`.
+- **Público: "Testando".** Só entra pelo Google quem está em "Usuários de teste" (até 100). Hoje: `nlk.osmago77@gmail.com`. Para publicar ("Em produção"), o Google pede a página inicial e a Política de Privacidade no Branding: fica para quando o Mago OS tiver a página de privacidade. Sem logo, os escopos básicos não precisam de revisão do Google.
+- **Outro ambiente (produção):** criar outro cliente (ou somar os endereços) com a origem e o endereço de volta do novo domínio.
+- **Trocar a chave secreta:** em Clientes › Mago OS teste, criar uma chave nova, gravar no Infisical, rodar `segredos.sh` e `publicar.sh forcar` na VPS02, e só então apagar a antiga no Google.

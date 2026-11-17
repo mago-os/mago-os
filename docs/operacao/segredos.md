@@ -23,6 +23,9 @@ Todos os segredos do Mago OS ficam no Infisical Cloud (região EUA, https://app.
 | --- | --- | --- |
 | `MAGO_DB_SENHA_DONO` | Senha do papel `mago`, dono das tabelas | Container do banco e migrações |
 | `MAGO_DB_SENHA_APP` | Senha do papel `mago_app`, usado pela API | API (a partir do M0-10) |
+| `MAGO_DB_SENHA_ACESSO` | Senha do papel `mago_acesso`, usado pelo login (só letras e números) | API, parte do login (M1-03) |
+| `MAGO_ACESSO_SEGREDO` | Segredo que assina os cookies de sessão (pelo menos 32 caracteres). Trocar derruba todas as sessões | API, parte do login (M1-03) |
+| `MAGO_GOOGLE_ID`, `MAGO_GOOGLE_SEGREDO` | ID e chave secreta do cliente OAuth "Mago OS teste" no Google Cloud (ver [acesso.md](acesso.md)). Opcionais: sem eles, só e-mail e senha | API, login com Google (M1-04) |
 | `B2_KEY_ID`, `B2_APPLICATION_KEY`, `B2_ENDPOINT`, `B2_REGION`, `B2_BUCKET` | Acesso ao bucket de backup no Backblaze B2 | pgBackRest |
 | `PGBACKREST_CIPHER_PASS` | Senha de criptografia dos backups. Sem ela, nenhum backup pode ser restaurado | pgBackRest |
 | `MAGO_CAMPAINHA_SEGREDO` | Assinatura da campainha de publicação (também em GitHub › Settings › Secrets) | Campainha na VPS e fluxo de publicação |
@@ -42,4 +45,4 @@ No Mac, com a identidade `claude-mac`, o valor entra pela entrada padrão e nunc
 openssl rand -base64 32 | python3 -I infra/ferramentas/infisical-gravar.py staging NOME_DO_SEGREDO
 ```
 
-Trocar a senha de um papel do banco exige também mudar a senha no PostgreSQL (`ALTER ROLE ... PASSWORD`) antes de recriar os containers. O passo a passo completo de troca de chaves entra no manual junto com a publicação (M0-10).
+Trocar a senha de um papel do banco exige também mudar a senha no PostgreSQL (`ALTER ROLE ... PASSWORD`) antes de recriar os containers. Para `mago_app` e `mago_acesso`, o `publicar.sh` já faz isso a cada publicação: basta rodar `segredos.sh` e depois `publicar.sh forcar`. O passo a passo completo de troca de chaves entra no manual junto com a publicação (M0-10).
