@@ -15,6 +15,7 @@ import {
 import { Button } from "@/componentes/ui/button";
 import { Campo } from "@/componentes/ui/campo";
 import { Aviso, Moldura } from "./Acesso";
+import { usePasskeyPronta } from "./usePasskey";
 
 /** Pede o código do app, um código de recuperação ou a passkey. Serve no login e numa sessão aberta. */
 export function ConfirmarSegundoFator({
@@ -28,6 +29,7 @@ export function ConfirmarSegundoFator({
   const [recuperacao, setRecuperacao] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
   const [enviando, setEnviando] = useState(false);
+  const passkey = usePasskeyPronta("entrada");
 
   async function aoEnviar(evento: React.FormEvent<HTMLFormElement>) {
     evento.preventDefault();
@@ -46,7 +48,8 @@ export function ConfirmarSegundoFator({
 
   async function comPasskey() {
     setErro(null);
-    const r = await entrarComPasskey();
+    if (passkey.erro) return setErro(passkey.erro.mensagem ?? null);
+    const r = await entrarComPasskey(passkey.opcoes);
     if (r.ok) aoConfirmar();
     else setErro(r.mensagem ?? null);
   }
@@ -62,7 +65,11 @@ export function ConfirmarSegundoFator({
             : "Digite o código de 6 dígitos do seu app autenticador, ou use a passkey."
       }
     >
-      <Button variant="contorno" onClick={() => void comPasskey()}>
+      <Button
+        variant="contorno"
+        disabled={!passkey.pronta && !passkey.erro}
+        onClick={() => void comPasskey()}
+      >
         <Fingerprint />
         Usar a passkey
       </Button>
@@ -133,10 +140,12 @@ export function AtivarDoisFatores({
 }) {
   const [etapa, setEtapa] = useState<Etapa>({ tipo: "escolher" });
   const [erro, setErro] = useState<string | null>(null);
+  const passkey = usePasskeyPronta("cadastro", etapa.tipo === "escolher");
 
   async function comPasskey() {
     setErro(null);
-    const r = await cadastrarPasskey(nomeDoAparelho());
+    if (passkey.erro) return setErro(passkey.erro.mensagem ?? null);
+    const r = await cadastrarPasskey(passkey.opcoes, nomeDoAparelho());
     if (r.ok) aoConcluir();
     else setErro(r.mensagem ?? null);
   }
@@ -215,7 +224,7 @@ export function AtivarDoisFatores({
 
   return (
     <Moldura titulo="Ative a autenticação em 2 fatores" descricao={descricao}>
-      <Button onClick={() => void comPasskey()}>
+      <Button disabled={!passkey.pronta && !passkey.erro} onClick={() => void comPasskey()}>
         <Fingerprint />
         {soPasskey ? "Cadastrar passkey" : "Usar passkey (recomendado)"}
       </Button>

@@ -3,6 +3,8 @@
  * O cookie da sessão é HttpOnly: a tela nunca vê o token, só pergunta à API quem está conectado.
  */
 
+import { startAuthentication, startRegistration } from "@simplewebauthn/browser";
+
 export interface Sessao {
   pessoa: { id: string; nome: string; email: string };
   empresaId: string | null;
@@ -131,14 +133,32 @@ function mensagemDaPasskey(erro: unknown): string {
   return "Não foi possível usar a passkey neste aparelho.";
 }
 
-/** Cadastra uma passkey neste aparelho (Face ID, Touch ID, digital ou chave física). */
-export async function cadastrarPasskey(nome: string): Promise<Resultado> {
+export type TipoDePasskey = "cadastro" | "entrada";
+
+/**
+ * Opções da passkey buscadas antes do clique. Alguns navegadores (Safari, e o Chrome em certos casos) só abrem
+ * a janela da passkey se ela for pedida logo depois do clique, sem esperar a rede no meio.
+ */
+export async function prepararPasskey(tipo: TipoDePasskey): Promise<unknown | Resultado> {
+  const caminho = tipo === "cadastro" ? "generate-register-options" : "generate-authenticate-options";
   try {
-    const { startRegistration } = await import("@simplewebauthn/browser");
-    const opcoes = await fetch(`${BASE}/passkey/generate-register-options`, { credentials: "same-origin" });
-    const dados = (await opcoes.json().catch(() => null)) as { code?: string; message?: string } | null;
-    if (!opcoes.ok) return { ok: false, mensagem: mensagemDoErro(dados?.code, dados?.message) };
-    const resposta = await startRegistration({ optionsJSON: dados as never });
+    const r = await fetch(`${BASE}/passkey/${caminho}`, { credentials: "same-origin" });
+    const dados = (await r.json().catch(() => null)) as { code?: string; message?: string } | null;
+    if (!r.ok)
+      return { ok: false, mensagem: mensagemDoErro(dados?.code, dados?.message) } satisfies Resultado;
+    return dados;
+  } catch {
+    return {
+      ok: false,
+      mensagem: "Sem conexão com o Mago OS. Confira a internet e tente de novo.",
+    } satisfies Resultado;
+  }
+}
+
+/** Cadastra uma passkey neste aparelho (Face ID, Touch ID, digital, chave física ou celular por QR code). */
+export async function cadastrarPasskey(opcoes: unknown, nome: string): Promise<Resultado> {
+  try {
+    const resposta = await startRegistration({ optionsJSON: opcoes as never });
     return await enviar("/passkey/verify-registration", { response: resposta, name: nome });
   } catch (erro) {
     return { ok: false, mensagem: mensagemDaPasskey(erro) };
@@ -146,14 +166,9 @@ export async function cadastrarPasskey(nome: string): Promise<Resultado> {
 }
 
 /** Entra (ou confirma a sessão) com a passkey. */
-export async function entrarComPasskey(): Promise<Resultado> {
+export async function entrarComPasskey(opcoes: unknown): Promise<Resultado> {
   try {
-    const { startAuthentication } = await import("@simplewebauthn/browser");
-    const opcoes = await fetch(`${BASE}/passkey/generate-authenticate-options`, {
-      credentials: "same-origin",
-    });
-    if (!opcoes.ok) return { ok: false, mensagem: PADRAO };
-    const resposta = await startAuthentication({ optionsJSON: (await opcoes.json()) as never });
+    const resposta = await startAuthentication({ optionsJSON: opcoes as never });
     return await enviar("/passkey/verify-authentication", { response: resposta });
   } catch (erro) {
     return { ok: false, mensagem: mensagemDaPasskey(erro) };
