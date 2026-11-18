@@ -19,7 +19,8 @@
     "./contas": "./src/contas/index.ts",
     "./tarefas": "./src/tarefas/index.ts",
     "./agentes": "./src/agentes/index.ts",
-    "./tempo-real": "./src/tempo-real/index.ts"
+    "./tempo-real": "./src/tempo-real/index.ts",
+    "./avisos": "./src/avisos/index.ts"
   },
   "scripts": {
     "tipos": "tsc -p tsconfig.json",

@@ -218,14 +218,3 @@ export async function alcanceCobreAgente(c: pg.PoolClient, filtro: Filtro, agent
   );
   return (r.rowCount ?? 0) > 0;
 }
-
-/** Nome e e-mail da pessoa responsável, para o aviso. */
-export async function contatoDoResponsavel(
-  c: pg.PoolClient,
-  pessoaId: string,
-): Promise<{ nome: string; email: string } | null> {
-  const r = await c.query<{ nome: string; email: string }>("select nome, email from pessoas where id = $1", [
-    pessoaId,
-  ]);
-  return r.rows[0] ?? null;
-}

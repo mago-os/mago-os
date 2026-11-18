@@ -5,7 +5,9 @@
 import { carteiroDoLog, carteiroResend } from "./acesso/carteiro.ts";
 import { criarLogin, criarPoolDoLogin } from "./acesso/login.ts";
 import { registrarRotasDoLogin } from "./acesso/rotas.ts";
-import { registrarRotasDosAgentes } from "./agentes/rotas.ts";
+import { verificarAgentesVivos } from "./agentes/chaves.ts";
+import { registrarRotasDoAgente, registrarRotasDosAgentes } from "./agentes/rotas.ts";
+import { registrarRotasDosAvisos } from "./avisos/index.ts";
 import { criarBanco } from "./banco.ts";
 import { ErroDeConfig, lerConfig } from "./config.ts";
 import { registrarRotasDaConta } from "./conta/rotas.ts";
@@ -23,12 +25,17 @@ import { criarServidor } from "./servidor.ts";
 import { registrarRotasDasTarefas } from "./tarefas/rotas.ts";
 import { registrarTempoReal } from "./tempo-real/index.ts";
 
+/** Fila da verificação de agente vivo (a cada minuto). */
+const FILA_AGENTES_VIVOS = "agentes-vivos";
+
 async function iniciar(): Promise<void> {
   const config = lerConfig();
   const banco = criarBanco(config.bancoUrl);
   const fila = criarFila(config.bancoUrl);
   const app = criarServidor(config, banco);
   const poolDoLogin = config.acesso ? criarPoolDoLogin(config.acesso.bancoUrl) : null;
+  /** Trabalhos da fila, ligados depois que ela começa. */
+  const trabalhos: (() => Promise<void>)[] = [];
   if (config.acesso && poolDoLogin) {
     const carteiro = config.acesso.resend
       ? carteiroResend(config.acesso.resend)
@@ -45,11 +52,24 @@ async function iniciar(): Promise<void> {
       verificador,
       bancoUrl: config.bancoUrl,
     });
-    registrarRotasDosAgentes(app, {
+    const opcoesDosAgentes = {
       verificador,
       poolApp: banco.pool,
       carteiro,
       urlPublica: config.acesso.urlPublica,
+    };
+    registrarRotasDosAgentes(app, opcoesDosAgentes);
+    registrarRotasDoAgente(app, opcoesDosAgentes);
+    registrarRotasDosAvisos(app, verificador, banco.pool);
+    // Verificação a cada minuto (M2-04): tarefas de agentes sem sinal voltam para A fazer. O pg-boss garante que só
+    // uma cópia da API roda cada vez.
+    trabalhos.push(async () => {
+      await fila.createQueue(FILA_AGENTES_VIVOS);
+      await fila.schedule(FILA_AGENTES_VIVOS, "* * * * *");
+      await fila.work(FILA_AGENTES_VIVOS, async () => {
+        const devolvidas = await verificarAgentesVivos({ ...opcoesDosAgentes, log: app.log });
+        if (devolvidas > 0) app.log.warn({ evento: "agente.sem_sinal", devolvidas }, "Tarefas devolvidas");
+      });
     });
     registrarRotaDaAuditoria(app, verificador, banco.pool);
     registrarRotasDoAdministrador(app, verificador, banco.pool);
@@ -76,6 +96,7 @@ async function iniciar(): Promise<void> {
 
   fila.on("error", (erro) => app.log.error({ erro }, "Erro na fila"));
   await fila.start();
+  for (const ligar of trabalhos) await ligar();
   await app.listen({ port: config.porta, host: config.host });
 
   let encerrando = false;

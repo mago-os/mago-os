@@ -141,8 +141,20 @@ COMMENT ON FUNCTION public.agentes_sem_sinal() IS
 REVOKE EXECUTE ON FUNCTION public.agentes_sem_sinal() FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.agentes_sem_sinal() TO mago_app;
 
+-- Contadores com mais de 2 horas não servem mais para nenhum limite.
+CREATE FUNCTION public.limpar_contadores_de_agente() RETURNS integer
+  LANGUAGE sql SECURITY DEFINER SET search_path = public, pg_temp
+  AS $$
+    WITH apagados AS (DELETE FROM public.contadores_de_agente WHERE inicio < now() - interval '2 hours' RETURNING 1)
+    SELECT count(*)::integer FROM apagados
+  $$;
+COMMENT ON FUNCTION public.limpar_contadores_de_agente() IS 'Apaga os contadores de limite com mais de 2 horas.';
+REVOKE EXECUTE ON FUNCTION public.limpar_contadores_de_agente() FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.limpar_contadores_de_agente() TO mago_app;
+
 -- Down Migration
 
+DROP FUNCTION public.limpar_contadores_de_agente();
 DROP FUNCTION public.agentes_sem_sinal();
 DROP TABLE public.avisos;
 DROP TABLE public.contadores_de_agente;

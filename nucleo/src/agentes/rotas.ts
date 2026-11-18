@@ -7,10 +7,12 @@
  */
 import {
   type ACOES_AGENTES,
+  type ACOES_CHAVES,
   type Agente,
   conferir,
   MINUTOS_SEM_SINAL_PADRAO,
   PedidoDeAgente,
+  PedidoDeChave,
   PedidoDeEditarAgente,
   type SituacaoAgente,
 } from "@mago-os/contratos";
@@ -19,14 +21,15 @@ import type pg from "pg";
 import type { Carteiro } from "../acesso/login.ts";
 import { origemDoPedido } from "../acesso/rotas.ts";
 import { auditar } from "../auditoria/registrar.ts";
+import { avisarResponsavel } from "../avisos/index.ts";
 import { comPessoa } from "../empresa.ts";
 import { acessoDo, type Verificador } from "../permissoes/verificar.ts";
 import { pessoaAtivaNaEmpresa } from "../tarefas/servico.ts";
+import { autenticarAgente, criarChave, listarChaves, revogarChave } from "./chaves.ts";
 import {
   alcanceCobreAgente,
   buscarAgente,
   cadastrarAgente,
-  contatoDoResponsavel,
   devolverTarefasPegadas,
   editarAgente,
   listarAgentes,
@@ -41,6 +44,8 @@ export interface OpcoesDosAgentes {
   poolApp: pg.Pool;
   carteiro: Carteiro;
   urlPublica: string;
+  /** Limites dos agentes (os testes usam valores pequenos). */
+  limites?: { pedidosPorMinuto: number; leiturasPorHora: number };
 }
 
 const naoEncontrado = (resposta: FastifyReply) =>
@@ -53,7 +58,6 @@ function nomeRepetido(erro: unknown): boolean {
 
 export function registrarRotasDosAgentes(app: FastifyInstance, o: OpcoesDosAgentes): void {
   const { verificador, poolApp } = o;
-  const site = new URL(o.urlPublica).origin;
 
   function naEmpresa<T>(pedido: FastifyRequest, trabalho: (c: pg.PoolClient) => Promise<T>) {
     const { sessao } = acessoDo(pedido);
@@ -193,30 +197,143 @@ export function registrarRotasDosAgentes(app: FastifyInstance, o: OpcoesDosAgent
           `O agente ${agente.nome} foi desligado e a tarefa voltou para A fazer.`,
         );
         const passadas = await passarTarefasAoResponsavel(c, agente, new Set(devolvidas.map((t) => t.id)));
-        const contato = await contatoDoResponsavel(c, agente.responsavelId);
         // Uma tarefa pode estar nas duas listas (pegada e atribuída ao agente): conta uma vez só.
         const tarefas = [...new Map([...devolvidas, ...passadas].map((t) => [t.id, t])).values()];
-        return { agente, tarefas, contato };
+        // Aviso no Mago OS (na transação) e por e-mail (depois). O e-mail não segura o desligamento.
+        const avisar = await avisarResponsavel(
+          c,
+          {
+            agenteId: id,
+            agenteNome: agente.nome,
+            responsavelId: agente.responsavelId,
+            tipo: "agente_desligado",
+            oQueAconteceu: "foi desligado",
+            tarefas: tarefas.map((t) => t.titulo),
+          },
+          o.carteiro,
+          o.urlPublica,
+          pedido.log,
+        );
+        return { agente, tarefas, avisar };
       });
       if (!feito) return naoEncontrado(resposta);
       if (feito === "desligado") return desligadoNaoMuda(resposta);
       await registrar(pedido, "agente.desligou", id, { tarefasDevolvidas: feito.tarefas.length });
-      if (feito.contato && o.carteiro.enviarAvisoDeAgente) {
-        // O aviso não segura o desligamento: se o e-mail falhar, fica no log.
-        await o.carteiro
-          .enviarAvisoDeAgente({
-            para: feito.contato.email,
-            nome: feito.contato.nome,
-            agente: feito.agente.nome,
-            oQueAconteceu: "foi desligado",
-            tarefas: feito.tarefas.map((t) => t.titulo),
-            link: `${site}/agentes/${id}`,
-          })
-          .catch((erro) => pedido.log.error({ erro }, "Aviso de agente desligado: e-mail não saiu"));
-      }
+      await feito.avisar();
       return feito.agente;
     },
   );
+
+  // Chaves do agente (M2-04): listar, criar (a chave inteira só na resposta) e revogar. Só quem edita o agente.
+  app.get(
+    "/agentes/:id/chaves",
+    { preHandler: verificador.exigir("agentes", "editar") },
+    async (pedido, resposta) => {
+      const { id } = pedido.params as { id: string };
+      const lista = await naEmpresa(pedido, async (c) =>
+        (await agenteAlcancado(c, pedido, id)) ? listarChaves(c, id) : null,
+      );
+      return lista ?? naoEncontrado(resposta);
+    },
+  );
+
+  app.post(
+    "/agentes/:id/chaves",
+    { preHandler: verificador.exigir("agentes", "editar") },
+    async (pedido, resposta) => {
+      const { id } = pedido.params as { id: string };
+      const r = conferir(PedidoDeChave, pedido.body);
+      if (!r.ok) return resposta.code(400).send({ code: "PEDIDO_INVALIDO", problemas: r.problemas });
+      if (r.valor.validaAte && Date.parse(r.valor.validaAte) <= Date.now()) {
+        return resposta
+          .code(400)
+          .send({ code: "VALIDADE_INVALIDA", message: "A validade precisa ser no futuro." });
+      }
+      const { sessao } = acessoDo(pedido);
+      const feito = await naEmpresa(pedido, async (c) => {
+        const agente = await agenteAlcancado(c, pedido, id);
+        if (!agente) return null;
+        if (agente.situacao === "desligado") return "desligado" as const;
+        return criarChave(c, {
+          agenteId: id,
+          nome: r.valor.nome,
+          validaAte: r.valor.validaAte ?? null,
+          criadaPor: sessao.pessoa.id,
+        });
+      });
+      if (!feito) return naoEncontrado(resposta);
+      if (feito === "desligado") return desligadoNaoMuda(resposta);
+      await registrarChave(pedido, "chave.criou", feito.chave.id, {
+        agenteId: id,
+        prefixo: feito.chave.prefixo,
+        comValidade: feito.chave.validaAte !== null,
+      });
+      // A chave inteira só aqui, e sem guardar em cache nenhum.
+      resposta.header("cache-control", "no-store");
+      return resposta.code(201).send(feito);
+    },
+  );
+
+  app.post(
+    "/agentes/:id/chaves/:chaveId/revogar",
+    { preHandler: verificador.exigir("agentes", "editar") },
+    async (pedido, resposta) => {
+      const { id, chaveId } = pedido.params as { id: string; chaveId: string };
+      const { sessao } = acessoDo(pedido);
+      const feito = await naEmpresa(pedido, async (c) =>
+        (await agenteAlcancado(c, pedido, id)) ? revogarChave(c, id, chaveId, sessao.pessoa.id) : null,
+      );
+      if (!feito) {
+        return resposta
+          .code(404)
+          .send({ code: "CHAVE_NAO_ENCONTRADA", message: "Chave não encontrada ou já revogada." });
+      }
+      await registrarChave(pedido, "chave.revogou", feito.id, { agenteId: id, prefixo: feito.prefixo });
+      return feito;
+    },
+  );
+
+  function registrarChave(
+    pedido: FastifyRequest,
+    acao: (typeof ACOES_CHAVES)[number],
+    chaveId: string,
+    detalhes: Record<string, unknown>,
+  ) {
+    const { sessao } = acessoDo(pedido);
+    return auditar(
+      poolApp,
+      {
+        empresaId: sessao.empresaId,
+        ator: { tipo: "pessoa", pessoaId: sessao.pessoa.id },
+        acao,
+        alvo: { tipo: "chave", id: chaveId },
+        origem: origemDoPedido(pedido),
+        rastreio: pedido.id,
+        detalhes,
+      },
+      pedido.log,
+    );
+  }
+}
+
+/**
+ * Pedido de um agente, com a chave no cabeçalho Authorization (M2-04). A M2-05 usa o mesmo caminho para o MCP.
+ * "estou vivo" só registra o sinal de vida (a conferência da chave já faz isso).
+ */
+export function registrarRotasDoAgente(app: FastifyInstance, o: OpcoesDosAgentes): void {
+  app.post("/agente/estou-vivo", async (pedido, resposta) => {
+    const r = await autenticarAgente(pedido.headers.authorization, {
+      poolApp: o.poolApp,
+      carteiro: o.carteiro,
+      urlPublica: o.urlPublica,
+      log: pedido.log,
+      origem: { ...origemDoPedido(pedido), canal: "api" },
+      rastreio: pedido.id,
+      ...(o.limites ? { limites: o.limites } : {}),
+    });
+    if (!r.ok) return resposta.code(r.status).send({ code: "CHAVE_RECUSADA", motivo: r.motivo });
+    return { ok: true, agenteId: r.agente.agenteId };
+  });
 }
 
 const responsavelInvalido = (resposta: FastifyReply) =>
