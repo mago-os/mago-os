@@ -76,7 +76,7 @@ function MarcaDeAgente({ quem }: { quem: Autor | Responsavel | null }) {
 }
 
 /** Lista das tarefas. */
-export function Tarefas({ podeCriar }: { podeCriar: boolean }) {
+export function Tarefas({ podeCriar, euId }: { podeCriar: boolean; euId: string }) {
   const [minhas, setMinhas] = useState(true);
   const [abertas, setAbertas] = useState(true);
   const [lista, setLista] = useState<{ tarefas: Tarefa[]; nomes: Record<string, string> } | null>(null);
@@ -107,6 +107,7 @@ export function Tarefas({ podeCriar }: { podeCriar: boolean }) {
       </div>
       {criando && (
         <NovaTarefa
+          euId={euId}
           aoCancelar={() => setCriando(false)}
           aoCriar={(t) => {
             window.location.assign(`/tarefas/${t.id}`);
@@ -183,12 +184,15 @@ function SeletorDeResponsavel({
   valor,
   aoMudar,
   pessoas,
+  extras,
   disabled,
 }: {
   id: string;
   valor: string;
   aoMudar: (v: string) => void;
   pessoas: PessoaDaEmpresa[];
+  /** Opções antes das pessoas (ex.: "Sem responsável"), com o valor que cada uma manda. */
+  extras: { valor: string; nome: string }[];
   disabled?: boolean;
 }) {
   return (
@@ -199,7 +203,11 @@ function SeletorDeResponsavel({
       disabled={disabled}
       onChange={(e) => aoMudar(e.target.value)}
     >
-      <option value="">Sem responsável</option>
+      {extras.map((x) => (
+        <option key={x.valor} value={x.valor}>
+          {x.nome}
+        </option>
+      ))}
       {pessoas.map((p) => (
         <option key={p.id} value={p.id}>
           {p.nome}
@@ -209,9 +217,18 @@ function SeletorDeResponsavel({
   );
 }
 
-function NovaTarefa({ aoCancelar, aoCriar }: { aoCancelar: () => void; aoCriar: (t: Tarefa) => void }) {
+function NovaTarefa({
+  euId,
+  aoCancelar,
+  aoCriar,
+}: {
+  euId: string;
+  aoCancelar: () => void;
+  aoCriar: (t: Tarefa) => void;
+}) {
   const pessoas = usePessoas();
-  const [responsavel, setResponsavel] = useState<string | null>(null);
+  // "": fica com quem criou (a API decide). "nenhum": sem responsável. Outro valor: a pessoa escolhida.
+  const [responsavel, setResponsavel] = useState("");
   const [mensagem, setMensagem] = useState<Mensagem>(null);
   const [enviando, setEnviando] = useState(false);
 
@@ -222,10 +239,11 @@ function NovaTarefa({ aoCancelar, aoCriar }: { aoCancelar: () => void; aoCriar: 
     const r = await criarTarefa({
       titulo: String(f.get("titulo")).trim(),
       descricao: String(f.get("descricao")).trim() || null,
-      // Sem escolha, a tarefa fica com quem criou (a API decide).
-      ...(responsavel === null
+      ...(responsavel === ""
         ? {}
-        : { responsavel: responsavel ? { tipo: "pessoa", pessoaId: responsavel } : null }),
+        : {
+            responsavel: responsavel === "nenhum" ? null : { tipo: "pessoa", pessoaId: responsavel },
+          }),
     });
     setEnviando(false);
     if (!r.ok || !r.dados) return setMensagem({ tipo: "erro", texto: r.mensagem ?? "" });
@@ -256,9 +274,13 @@ function NovaTarefa({ aoCancelar, aoCriar }: { aoCancelar: () => void; aoCriar: 
             </label>
             <SeletorDeResponsavel
               id="responsavel-nova"
-              valor={responsavel ?? ""}
+              valor={responsavel}
               aoMudar={setResponsavel}
-              pessoas={pessoas}
+              pessoas={pessoas.filter((p) => p.id !== euId)}
+              extras={[
+                { valor: "", nome: "Eu" },
+                { valor: "nenhum", nome: "Sem responsável" },
+              ]}
             />
           </div>
         )}
@@ -384,6 +406,13 @@ export function PaginaDaTarefa({
               valor={responsavelAtual}
               aoMudar={(v) => void aoTrocar(v)}
               pessoas={pessoas}
+              extras={[
+                { valor: "", nome: "Sem responsável" },
+                // Quem é responsável hoje aparece mesmo que a lista de pessoas não o mostre a quem vê.
+                ...(responsavelAtual && !pessoas.some((p) => p.id === responsavelAtual)
+                  ? [{ valor: responsavelAtual, nome: nomeDe(tarefa.responsavel, nomesTodos) }]
+                  : []),
+              ]}
             />
           ) : (
             <p className="flex items-center gap-2" id="responsavel">
@@ -395,12 +424,16 @@ export function PaginaDaTarefa({
           <div className="grid gap-1.5">
             <span className="text-sm font-medium">Status</span>
             <div className="flex flex-wrap gap-2">
-              {STATUS_TAREFA.filter((s) => s !== tarefa.status && s !== "concluida").map((s) => (
+              {/* Encerrada só sai reabrindo (volta para A fazer). */}
+              {(encerrada
+                ? (["a_fazer"] as StatusTarefa[])
+                : STATUS_TAREFA.filter((s) => s !== tarefa.status && s !== "concluida")
+              ).map((s) => (
                 <Button key={s} variant="contorno" size="pequeno" onClick={() => void aoMudarStatus(s)}>
-                  {s === "a_fazer" && encerrada ? "Reabrir" : NOMES_STATUS_TAREFA[s]}
+                  {encerrada ? "Reabrir" : s === "cancelada" ? "Cancelar" : NOMES_STATUS_TAREFA[s]}
                 </Button>
               ))}
-              {tarefa.status !== "concluida" && !concluindo && (
+              {!encerrada && !concluindo && (
                 <Button size="pequeno" onClick={() => setConcluindo(true)}>
                   Concluir
                 </Button>

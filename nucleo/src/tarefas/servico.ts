@@ -116,15 +116,11 @@ export async function listarTarefas(c: pg.PoolClient, quem: Quem, filtro: Filtro
   const alcance = condicaoDeAlcance(quem, 0);
   const valores: unknown[] = [...alcance.valores];
   const partes = [alcance.sql];
-  if (filtro.minhas) {
-    const minhas = condicaoDeAlcance(
-      quem.tipo === "pessoa"
-        ? { tipo: "pessoa", pessoaId: quem.pessoaId, filtro: { tipo: "meus", pessoaId: quem.pessoaId } }
-        : quem,
-      valores.length,
-    );
-    partes.push(minhas.sql);
-    valores.push(...minhas.valores);
+  // "Minhas" só muda algo para a pessoa: o agente já vê só as dele.
+  if (filtro.minhas && quem.tipo === "pessoa") {
+    valores.push(quem.pessoaId);
+    const eu = `$${valores.length}`;
+    partes.push(`(t.responsavel_pessoa_id = ${eu} or t.criada_por_pessoa_id = ${eu})`);
   }
   if (filtro.status && filtro.status.length > 0) {
     valores.push(filtro.status);

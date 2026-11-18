@@ -231,6 +231,16 @@ describe.skipIf(!bancoDisponivel)("tarefas", () => {
     expect(detalhes.rows.some((l) => l.d.includes("Proposta"))).toBe(false);
   });
 
+  it("tarefa encerrada só sai reabrindo, e repetir o status não apaga o resultado", async () => {
+    const flora = await como("flora@teste.invalid");
+    const pular = await pedir("POST", `/tarefas/${daFlora}/status`, flora, { status: "em_andamento" });
+    expect(pular.statusCode).toBe(409);
+    const repetir = await pedir("POST", `/tarefas/${daFlora}/status`, flora, { status: "concluida" });
+    expect(repetir.json().resultado).toBe("Proposta enviada.");
+    const varios = await pedir("GET", "/tarefas?status=a_fazer&status=concluida", flora);
+    expect(varios.statusCode).toBe(200);
+  });
+
   it("reabrir apaga o resultado e a data de encerramento", async () => {
     const r = await pedir("POST", `/tarefas/${daFlora}/status`, await como("flora@teste.invalid"), {
       status: "a_fazer",

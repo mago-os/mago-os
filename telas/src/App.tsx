@@ -209,7 +209,7 @@ export function App() {
   const tarefaAberta = /^\/tarefas\/([0-9a-f-]{36})$/i.exec(caminho)?.[1];
   if (caminho === "/perfil") conteudo = <MeuPerfil />;
   else if (caminho === "/tarefas" && temEmpresaAtiva)
-    conteudo = <Tarefas podeCriar={pode("tarefas", "criar")} />;
+    conteudo = <Tarefas podeCriar={pode("tarefas", "criar")} euId={sessao.pessoa.id} />;
   else if (tarefaAberta && temEmpresaAtiva)
     conteudo = (
       <PaginaDaTarefa

@@ -12,6 +12,7 @@ import {
   PedidoDeTarefa,
   PedidoDeTrocarResponsavel,
   type Responsavel,
+  STATUS_ENCERRADOS,
   type StatusTarefa,
 } from "@mago-os/contratos";
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
@@ -85,10 +86,14 @@ export function registrarRotasDasTarefas(
   }
 
   app.get("/tarefas", { preHandler: verificador.exigir("tarefas", "ver") }, async (pedido, resposta) => {
-    const q = pedido.query as { minhas?: string; status?: string };
+    const q = pedido.query as { minhas?: string | string[]; status?: string | string[] };
+    const status = [q.status ?? []]
+      .flat()
+      .flatMap((s) => s.split(","))
+      .filter(Boolean);
     const filtro = {
-      ...(q.minhas === "1" || q.minhas === "true" ? { minhas: true } : {}),
-      ...(q.status ? { status: q.status.split(",").filter(Boolean) } : {}),
+      ...([q.minhas].flat().some((m) => m === "1" || m === "true") ? { minhas: true } : {}),
+      ...(status.length > 0 ? { status } : {}),
     };
     const r = conferir(FiltroDeTarefas, filtro);
     if (!r.ok) return invalido(resposta, r.problemas);
@@ -150,12 +155,27 @@ export function registrarRotasDasTarefas(
         const tarefa = await buscarTarefa(c, quem, id, true);
         if (!tarefa) return null;
         const de: StatusTarefa = tarefa.status;
-        const nova = await mudarStatus(c, quem, tarefa, r.valor.status, r.valor.resultado ?? null);
-        if (r.valor.motivo) await comentar(c, autorDe(quem), tarefa.id, r.valor.motivo);
-        return { tarefa: nova, de };
+        // Tarefa encerrada só sai daqui reabrindo (volta para A fazer).
+        if (STATUS_ENCERRADOS.includes(de) && r.valor.status !== de && r.valor.status !== "a_fazer") {
+          return { recusa: "Para mexer numa tarefa encerrada, reabra antes." };
+        }
+        // Mesmo status sem resultado novo: nada muda (e o resultado entregue não se perde).
+        const mudou = r.valor.status !== de || r.valor.resultado !== undefined;
+        const nova = mudou
+          ? await mudarStatus(c, quem, tarefa, r.valor.status, r.valor.resultado ?? null)
+          : tarefa;
+        const comentario = r.valor.motivo
+          ? await comentar(c, autorDe(quem), tarefa.id, r.valor.motivo)
+          : null;
+        return { tarefa: nova, de, mudou, comentario };
       });
       if (!feito) return naoEncontrada(resposta);
-      if (feito.de !== feito.tarefa.status || r.valor.resultado) {
+      if ("recusa" in feito)
+        return resposta.code(409).send({ code: "TAREFA_ENCERRADA", message: feito.recusa });
+      if (feito.comentario) {
+        await registrar(pedido, "tarefa.comentou", id, { comentarioId: feito.comentario.id });
+      }
+      if (feito.mudou) {
         await registrar(pedido, "tarefa.mudou_status", id, {
           de: feito.de,
           para: feito.tarefa.status,
