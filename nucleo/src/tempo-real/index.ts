@@ -57,17 +57,24 @@ function escutar(
     novo.on("notification", (msg) => {
       if (msg.channel === CANAL && msg.payload) aoAvisar(msg.payload);
     });
-    novo.on("error", (erro) => {
-      log.error({ erro }, "Tempo real: a conexão de escuta caiu");
+    // Caiu com erro ou terminou sem erro: nos dois casos, volta a escutar (menos quando a API está parando).
+    const caiu = (erro?: unknown) => {
+      if (cliente !== novo) return;
+      if (erro) log.error({ erro }, "Tempo real: a conexão de escuta caiu");
+      cliente = null;
       void novo.end().catch(() => {});
-      if (cliente === novo) {
-        cliente = null;
-        agendar();
-      }
-    });
+      agendar();
+    };
+    novo.on("error", caiu);
+    novo.on("end", () => caiu());
     try {
       await novo.connect();
       await novo.query(`listen ${CANAL}`);
+      // A API pode ter começado a parar enquanto a conexão abria.
+      if (parado) {
+        await novo.end().catch(() => {});
+        return;
+      }
       cliente = novo;
       if (tentativas > 0) aoVoltar();
       tentativas = 0;
@@ -140,7 +147,18 @@ export async function registrarTempoReal(app: FastifyInstance, o: OpcoesDoTempoR
 
   await app.register(websocket, { options: { maxPayload: 1024 } });
   app.get("/tempo-real", { websocket: true }, async (socket, pedido) => {
+    // Os ouvintes entram antes de qualquer espera: se a aba fechar durante a conferência, nada fica para trás.
+    let fechado = false;
+    let limpar = () => {};
+    socket.on("close", () => {
+      fechado = true;
+      limpar();
+    });
+    // Erro de rede ou quadro grande demais: só fecha esta conexão, nunca derruba a API.
+    socket.on("error", (erro: unknown) => pedido.log.warn({ erro }, "Tempo real: erro numa conexão"));
+
     const inicio = await empresaDaSessao(pedido).catch(() => null);
+    if (fechado) return;
     if (!inicio) {
       socket.close(4401, "sem sessão");
       return;
@@ -155,20 +173,35 @@ export async function registrarTempoReal(app: FastifyInstance, o: OpcoesDoTempoR
     conjunto.add(conexao);
     porEmpresa.set(inicio.empresaId, conjunto);
 
+    // Ping com resposta: quem não respondeu ao anterior (celular que sumiu sem avisar) é desligado.
+    let respondeu = true;
+    socket.on("pong", () => {
+      respondeu = true;
+    });
     const ping = setInterval(() => {
+      if (!respondeu) {
+        socket.terminate();
+        return;
+      }
+      respondeu = false;
       if (socket.readyState === socket.OPEN) socket.ping();
     }, pingACada);
     const conferir = setInterval(async () => {
-      const agora = await empresaDaSessao(pedido).catch(() => null);
+      let agora: Awaited<ReturnType<typeof empresaDaSessao>>;
+      try {
+        agora = await empresaDaSessao(pedido);
+      } catch {
+        return; // Falha passageira do banco: confere de novo no próximo minuto, sem derrubar a conexão.
+      }
       if (!agora || agora.empresaId !== inicio.empresaId) socket.close(4401, "sessão mudou");
     }, conferirACada);
 
-    socket.on("close", () => {
+    limpar = () => {
       clearInterval(ping);
       clearInterval(conferir);
       conjunto.delete(conexao);
       if (conjunto.size === 0) porEmpresa.delete(inicio.empresaId);
-    });
+    };
     // A tela não manda nada: qualquer mensagem é ignorada.
     socket.on("message", () => {});
   });

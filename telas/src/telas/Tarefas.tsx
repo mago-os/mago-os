@@ -81,16 +81,27 @@ function MarcaDeAgente({ quem }: { quem: Autor | Responsavel | null }) {
 /** Ids que acabaram de mudar, destacados por 2,5 segundos. */
 export function useDestaques(): [Set<string>, (id: string) => void] {
   const [destaques, setDestaques] = useState<Set<string>>(new Set());
+  const relogios = useRef(new Map<string, ReturnType<typeof setTimeout>>());
+  useEffect(() => {
+    const todos = relogios.current;
+    return () => {
+      for (const r of todos.values()) clearTimeout(r);
+    };
+  }, []);
   const destacar = useCallback((id: string) => {
     setDestaques((d) => new Set(d).add(id));
-    setTimeout(
-      () =>
+    // Mudou de novo: o destaque recomeça do zero.
+    clearTimeout(relogios.current.get(id));
+    relogios.current.set(
+      id,
+      setTimeout(() => {
+        relogios.current.delete(id);
         setDestaques((d) => {
           const novo = new Set(d);
           novo.delete(id);
           return novo;
-        }),
-      2500,
+        });
+      }, 2500),
     );
   }, []);
   return [destaques, destacar];
@@ -104,8 +115,12 @@ export function Tarefas({ podeCriar, euId }: { podeCriar: boolean; euId: string 
   const [erro, setErro] = useState<string | null>(null);
   const [criando, setCriando] = useState(false);
 
+  const ultimoPedido = useRef(0);
   const carregar = useCallback(async () => {
+    // Vários avisos seguidos: só a resposta do pedido mais recente vale (uma antiga não sobrescreve a nova).
+    const numero = ++ultimoPedido.current;
     const r = await listarTarefas({ minhas, status: abertas ? ABERTOS : [] });
+    if (numero !== ultimoPedido.current) return;
     if (r.ok && r.dados) {
       setLista(r.dados);
       setErro(null);
@@ -386,8 +401,11 @@ export function PaginaDaTarefa({
   const pessoas = usePessoas();
   const agentes = useAgentesAtivos();
 
+  const ultimoPedido = useRef(0);
   const carregar = useCallback(async () => {
+    const numero = ++ultimoPedido.current;
     const r = await abrirTarefa(id);
+    if (numero !== ultimoPedido.current) return;
     setAberta(r.ok && r.dados ? r.dados : null);
   }, [id]);
   const [destaques, destacar] = useDestaques();

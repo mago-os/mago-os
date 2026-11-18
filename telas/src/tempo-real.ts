@@ -17,14 +17,14 @@ let socket: WebSocket | null = null;
 let tentativas = 0;
 let jaConectou = false;
 let espera: ReturnType<typeof setTimeout> | null = null;
-let encerrado = false;
+let escondidaDesde: number | null = null;
 
 function avisar(aviso: AvisoDeMudanca) {
   for (const o of ouvintes) o(aviso);
 }
 
 function conectar() {
-  if (encerrado || ouvintes.size === 0) return;
+  if (ouvintes.size === 0) return;
   if (socket && (socket.readyState === WebSocket.OPEN || socket.readyState === WebSocket.CONNECTING)) return;
   const protocolo = window.location.protocol === "https:" ? "wss" : "ws";
   const novo = new WebSocket(`${protocolo}://${window.location.host}/api/tempo-real`);
@@ -44,11 +44,9 @@ function conectar() {
   };
   novo.onclose = (evento) => {
     if (socket === novo) socket = null;
-    // 4401: a sessão acabou. A casca percebe e manda para a tela de entrar; não adianta insistir.
-    if (evento.code === 4401) {
-      encerrado = true;
-      return;
-    }
+    // 4401: a sessão acabou ou trocou de empresa. Se acabou, a casca manda para a tela de entrar; se não, tenta de
+    // novo com calma (espera longa), sem martelar a API.
+    if (evento.code === 4401) tentativas = Math.max(tentativas, 5);
     agendar();
   };
 }
@@ -67,7 +65,19 @@ function agendar() {
 
 // Voltou do segundo plano ou a internet voltou: reconecta na hora, sem esperar a próxima tentativa.
 function voltar() {
-  if (document.visibilityState !== "visible" || encerrado) return;
+  if (document.visibilityState !== "visible") {
+    escondidaDesde ??= Date.now();
+    return;
+  }
+  // Depois de um tempo no segundo plano, a conexão pode ter morrido sem o navegador perceber: abre outra.
+  const ficouLonge = escondidaDesde !== null && Date.now() - escondidaDesde > 20_000;
+  escondidaDesde = null;
+  if (ficouLonge && socket) {
+    const velho = socket;
+    socket = null;
+    velho.onclose = null;
+    velho.close(1000, "voltou do segundo plano");
+  }
   if (espera) {
     clearTimeout(espera);
     espera = null;
