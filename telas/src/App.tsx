@@ -28,6 +28,7 @@ import { AtivarDoisFatores, ConfirmarSegundoFator } from "./telas/DoisFatores";
 import { Empresas } from "./telas/Empresas";
 import { NovaConta } from "./telas/NovaConta";
 import { MeuPerfil } from "./telas/Perfil";
+import { PaginaDaTarefa, Tarefas } from "./telas/Tarefas";
 import { aplicarTema, lerTema, type Tema } from "./tema";
 
 /** Telas de acesso, abertas sem login (sem biblioteca de rotas por enquanto: o endereço escolhe a tela). */
@@ -205,7 +206,18 @@ export function App() {
   ];
 
   let conteudo: React.ReactNode;
+  const tarefaAberta = /^\/tarefas\/([0-9a-f-]{36})$/i.exec(caminho)?.[1];
   if (caminho === "/perfil") conteudo = <MeuPerfil />;
+  else if (caminho === "/tarefas" && temEmpresaAtiva)
+    conteudo = <Tarefas podeCriar={pode("tarefas", "criar")} />;
+  else if (tarefaAberta && temEmpresaAtiva)
+    conteudo = (
+      <PaginaDaTarefa
+        id={tarefaAberta}
+        podeEditar={pode("tarefas", "editar")}
+        podeExcluir={pode("tarefas", "excluir")}
+      />
+    );
   else if (caminho === "/pessoas" && menuExtra.some((m) => m.caminho === "/pessoas"))
     conteudo = (
       <Pessoas

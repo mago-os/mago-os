@@ -1,0 +1,498 @@
+/**
+ * Tarefas (M2-01), pensada para o celular: a lista com "Nova tarefa" e filtros, e a página da tarefa com status,
+ * responsável, comentários e resultado. Texto que vem de agente aparece sempre como texto (o React não monta HTML
+ * a partir dele), com a marca "agente".
+ */
+import {
+  type Autor,
+  NOMES_STATUS_TAREFA,
+  type Responsavel,
+  STATUS_TAREFA,
+  type StatusTarefa,
+  type Tarefa,
+} from "@mago-os/contratos";
+import { ArrowLeft, Bot, Plus } from "lucide-react";
+import { useCallback, useEffect, useState } from "react";
+import { listarPessoas, type PessoaDaEmpresa } from "@/acesso";
+import { Button } from "@/componentes/ui/button";
+import { Campo } from "@/componentes/ui/campo";
+import { Card, CardTitulo } from "@/componentes/ui/card";
+import { cn } from "@/lib/utils";
+import {
+  abrirTarefa,
+  comentarTarefa,
+  criarTarefa,
+  excluirTarefa,
+  listarTarefas,
+  mudarStatus,
+  type TarefaAberta,
+  trocarResponsavel,
+} from "@/tarefas";
+import { Aviso } from "./Acesso";
+import { useAoVoltar } from "./Administrador";
+
+type Mensagem = { texto: string; tipo: "erro" | "ok" } | null;
+
+const COR_DO_STATUS: Record<StatusTarefa, string> = {
+  a_fazer: "bg-suave text-texto-2",
+  em_andamento: "bg-tinta/10 text-tinta",
+  precisa_de_ajuda: "bg-perigo/10 text-perigo",
+  concluida: "bg-ok/10 text-ok",
+  cancelada: "bg-suave text-texto-2 line-through",
+};
+
+const ABERTOS: StatusTarefa[] = ["a_fazer", "em_andamento", "precisa_de_ajuda"];
+
+const quando = (iso: string) =>
+  new Date(iso).toLocaleString("pt-BR", {
+    day: "2-digit",
+    month: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+
+export function Etiqueta({ status }: { status: StatusTarefa }) {
+  return (
+    <span className={cn("rounded-full px-2.5 py-0.5 text-xs font-medium", COR_DO_STATUS[status])}>
+      {NOMES_STATUS_TAREFA[status]}
+    </span>
+  );
+}
+
+function nomeDe(quem: Autor | Responsavel | null, nomes: Record<string, string>): string {
+  if (!quem) return "Sem responsável";
+  if (quem.tipo === "pessoa") return nomes[quem.pessoaId] ?? "Pessoa";
+  if (quem.tipo === "agente") return nomes[quem.agenteId] ?? "Agente";
+  return "Mago OS";
+}
+
+function MarcaDeAgente({ quem }: { quem: Autor | Responsavel | null }) {
+  if (quem?.tipo !== "agente") return null;
+  return (
+    <span className="inline-flex items-center gap-1 rounded-full bg-suave px-2 py-0.5 text-[11px] text-texto-2">
+      <Bot className="size-3" /> agente
+    </span>
+  );
+}
+
+/** Lista das tarefas. */
+export function Tarefas({ podeCriar }: { podeCriar: boolean }) {
+  const [minhas, setMinhas] = useState(true);
+  const [abertas, setAbertas] = useState(true);
+  const [lista, setLista] = useState<{ tarefas: Tarefa[]; nomes: Record<string, string> } | null>(null);
+  const [erro, setErro] = useState<string | null>(null);
+  const [criando, setCriando] = useState(false);
+
+  const carregar = useCallback(async () => {
+    const r = await listarTarefas({ minhas, status: abertas ? ABERTOS : [] });
+    if (r.ok && r.dados) {
+      setLista(r.dados);
+      setErro(null);
+    } else setErro(r.mensagem ?? null);
+  }, [minhas, abertas]);
+  useEffect(() => {
+    void carregar();
+  }, [carregar]);
+  useAoVoltar(carregar);
+
+  return (
+    <main className="mx-auto grid max-w-3xl gap-4 px-4 py-5 md:py-8">
+      <div className="flex items-center justify-between gap-3">
+        <h1 className="text-2xl font-bold tracking-tight">Tarefas</h1>
+        {podeCriar && !criando && (
+          <Button onClick={() => setCriando(true)}>
+            <Plus /> Nova tarefa
+          </Button>
+        )}
+      </div>
+      {criando && (
+        <NovaTarefa
+          aoCancelar={() => setCriando(false)}
+          aoCriar={(t) => {
+            window.location.assign(`/tarefas/${t.id}`);
+          }}
+        />
+      )}
+      <fieldset className="flex flex-wrap gap-2" aria-label="Filtros">
+        <Filtro ativo={minhas} aoClicar={() => setMinhas(true)}>
+          Minhas
+        </Filtro>
+        <Filtro ativo={!minhas} aoClicar={() => setMinhas(false)}>
+          Todas que vejo
+        </Filtro>
+        <span className="w-px bg-linha" />
+        <Filtro ativo={abertas} aoClicar={() => setAbertas(true)}>
+          Abertas
+        </Filtro>
+        <Filtro ativo={!abertas} aoClicar={() => setAbertas(false)}>
+          Todas
+        </Filtro>
+      </fieldset>
+      {erro && <Aviso tipo="erro" texto={erro} />}
+      {lista && lista.tarefas.length === 0 && (
+        <p className="text-sm text-texto-2">Nenhuma tarefa por aqui.</p>
+      )}
+      <ul className="grid gap-2">
+        {lista?.tarefas.map((t) => (
+          <li key={t.id}>
+            <a
+              href={`/tarefas/${t.id}`}
+              className="grid gap-1.5 rounded-lg border border-linha bg-cartao p-3 transition-colors hover:bg-suave"
+            >
+              <span className="font-medium text-pretty">{t.titulo}</span>
+              <span className="flex flex-wrap items-center gap-2 text-xs text-texto-2">
+                <Etiqueta status={t.status} />
+                <span>{nomeDe(t.responsavel, lista.nomes)}</span>
+                <MarcaDeAgente quem={t.responsavel} />
+                <span className="ml-auto">{quando(t.atualizadaEm)}</span>
+              </span>
+            </a>
+          </li>
+        ))}
+      </ul>
+    </main>
+  );
+}
+
+function Filtro({ ativo, aoClicar, children }: { ativo: boolean; aoClicar: () => void; children: string }) {
+  return (
+    <button
+      type="button"
+      aria-pressed={ativo}
+      onClick={aoClicar}
+      className={cn(
+        "rounded-full border border-linha px-3 py-1.5 text-sm",
+        ativo ? "bg-tinta text-sobre-tinta" : "text-texto-2",
+      )}
+    >
+      {children}
+    </button>
+  );
+}
+
+function usePessoas() {
+  const [pessoas, setPessoas] = useState<PessoaDaEmpresa[]>([]);
+  useEffect(() => {
+    void listarPessoas().then((l) => setPessoas((l ?? []).filter((p) => p.situacao === "ativo")));
+  }, []);
+  return pessoas;
+}
+
+function SeletorDeResponsavel({
+  id,
+  valor,
+  aoMudar,
+  pessoas,
+  disabled,
+}: {
+  id: string;
+  valor: string;
+  aoMudar: (v: string) => void;
+  pessoas: PessoaDaEmpresa[];
+  disabled?: boolean;
+}) {
+  return (
+    <select
+      id={id}
+      className="h-11 rounded-md border border-linha bg-cartao px-3 text-base disabled:opacity-60"
+      value={valor}
+      disabled={disabled}
+      onChange={(e) => aoMudar(e.target.value)}
+    >
+      <option value="">Sem responsável</option>
+      {pessoas.map((p) => (
+        <option key={p.id} value={p.id}>
+          {p.nome}
+        </option>
+      ))}
+    </select>
+  );
+}
+
+function NovaTarefa({ aoCancelar, aoCriar }: { aoCancelar: () => void; aoCriar: (t: Tarefa) => void }) {
+  const pessoas = usePessoas();
+  const [responsavel, setResponsavel] = useState<string | null>(null);
+  const [mensagem, setMensagem] = useState<Mensagem>(null);
+  const [enviando, setEnviando] = useState(false);
+
+  async function aoEnviar(evento: React.FormEvent<HTMLFormElement>) {
+    evento.preventDefault();
+    const f = new FormData(evento.currentTarget);
+    setEnviando(true);
+    const r = await criarTarefa({
+      titulo: String(f.get("titulo")).trim(),
+      descricao: String(f.get("descricao")).trim() || null,
+      // Sem escolha, a tarefa fica com quem criou (a API decide).
+      ...(responsavel === null
+        ? {}
+        : { responsavel: responsavel ? { tipo: "pessoa", pessoaId: responsavel } : null }),
+    });
+    setEnviando(false);
+    if (!r.ok || !r.dados) return setMensagem({ tipo: "erro", texto: r.mensagem ?? "" });
+    aoCriar(r.dados);
+  }
+
+  return (
+    <Card className="gap-4">
+      <CardTitulo>Nova tarefa</CardTitulo>
+      <form className="grid gap-3" onSubmit={(e) => void aoEnviar(e)}>
+        <Campo id="titulo" name="titulo" rotulo="O que precisa ser feito" required maxLength={200} />
+        <div className="grid gap-1.5">
+          <label htmlFor="descricao" className="text-sm font-medium">
+            Detalhes (opcional)
+          </label>
+          <textarea
+            id="descricao"
+            name="descricao"
+            rows={3}
+            maxLength={20000}
+            className="rounded-md border border-linha bg-cartao px-3 py-2 text-base"
+          />
+        </div>
+        {pessoas.length > 1 && (
+          <div className="grid gap-1.5">
+            <label htmlFor="responsavel-nova" className="text-sm font-medium">
+              Responsável
+            </label>
+            <SeletorDeResponsavel
+              id="responsavel-nova"
+              valor={responsavel ?? ""}
+              aoMudar={setResponsavel}
+              pessoas={pessoas}
+            />
+          </div>
+        )}
+        {mensagem && <Aviso {...mensagem} />}
+        <div className="flex gap-2">
+          <Button type="submit" disabled={enviando}>
+            Criar tarefa
+          </Button>
+          <Button type="button" variant="fantasma" onClick={aoCancelar}>
+            Cancelar
+          </Button>
+        </div>
+      </form>
+    </Card>
+  );
+}
+
+/** Página de uma tarefa. */
+export function PaginaDaTarefa({
+  id,
+  podeEditar,
+  podeExcluir,
+}: {
+  id: string;
+  podeEditar: boolean;
+  podeExcluir: boolean;
+}) {
+  const [aberta, setAberta] = useState<Omit<TarefaAberta, "tarefas"> | null | undefined>(undefined);
+  const [mensagem, setMensagem] = useState<Mensagem>(null);
+  const [concluindo, setConcluindo] = useState(false);
+  const pessoas = usePessoas();
+
+  const carregar = useCallback(async () => {
+    const r = await abrirTarefa(id);
+    setAberta(r.ok && r.dados ? r.dados : null);
+  }, [id]);
+  useEffect(() => {
+    void carregar();
+  }, [carregar]);
+  useAoVoltar(carregar);
+
+  if (aberta === undefined) return <main className="min-h-dvh" aria-busy="true" />;
+  if (aberta === null) {
+    return (
+      <main className="mx-auto grid max-w-3xl gap-4 px-4 py-5 md:py-8">
+        <Voltar />
+        <p className="text-texto-2">Tarefa não encontrada, ou você não tem acesso a ela.</p>
+      </main>
+    );
+  }
+  const { tarefa, comentarios, nomes } = aberta;
+  const nomesTodos = { ...nomes, ...Object.fromEntries(pessoas.map((p) => [p.id, p.nome])) };
+
+  async function aoMudarStatus(status: StatusTarefa, extra: { resultado?: string } = {}) {
+    const r = await mudarStatus(tarefa.id, status, extra);
+    setMensagem(r.ok ? null : { tipo: "erro", texto: r.mensagem ?? "" });
+    if (r.ok) setConcluindo(false);
+    void carregar();
+  }
+
+  async function aoTrocar(pessoaId: string) {
+    const r = await trocarResponsavel(tarefa.id, pessoaId ? { tipo: "pessoa", pessoaId } : null);
+    setMensagem(
+      r.ok ? { tipo: "ok", texto: "Responsável trocado." } : { tipo: "erro", texto: r.mensagem ?? "" },
+    );
+    void carregar();
+  }
+
+  async function aoComentar(evento: React.FormEvent<HTMLFormElement>) {
+    evento.preventDefault();
+    const form = evento.currentTarget;
+    const texto = String(new FormData(form).get("comentario")).trim();
+    if (!texto) return;
+    const r = await comentarTarefa(tarefa.id, texto);
+    if (!r.ok) return setMensagem({ tipo: "erro", texto: r.mensagem ?? "" });
+    form.reset();
+    void carregar();
+  }
+
+  async function aoConcluir(evento: React.FormEvent<HTMLFormElement>) {
+    evento.preventDefault();
+    const resultado = String(new FormData(evento.currentTarget).get("resultado")).trim();
+    await aoMudarStatus("concluida", resultado ? { resultado } : {});
+  }
+
+  async function aoExcluir() {
+    if (!window.confirm("Excluir esta tarefa e os comentários dela? Isso não tem volta.")) return;
+    const r = await excluirTarefa(tarefa.id);
+    if (r.ok) window.location.assign("/tarefas");
+    else setMensagem({ tipo: "erro", texto: r.mensagem ?? "" });
+  }
+
+  const responsavelAtual = tarefa.responsavel?.tipo === "pessoa" ? tarefa.responsavel.pessoaId : "";
+  const encerrada = tarefa.status === "concluida" || tarefa.status === "cancelada";
+
+  return (
+    <main className="mx-auto grid max-w-3xl gap-4 px-4 py-5 md:py-8">
+      <Voltar />
+      <div className="grid gap-2">
+        <h1 className="text-2xl font-bold tracking-tight text-pretty">{tarefa.titulo}</h1>
+        <div className="flex flex-wrap items-center gap-2 text-sm text-texto-2">
+          <Etiqueta status={tarefa.status} />
+          <span>Criada por {nomeDe(tarefa.criadaPor, nomesTodos)}</span>
+          <span>em {quando(tarefa.criadaEm)}</span>
+        </div>
+        {tarefa.trava && (
+          <p className="text-sm text-texto-2">
+            Em andamento com {nomeDe(tarefa.trava.por, nomesTodos)} desde {quando(tarefa.trava.desde)}
+          </p>
+        )}
+      </div>
+      {tarefa.descricao && <p className="whitespace-pre-wrap text-pretty">{tarefa.descricao}</p>}
+      {mensagem && <Aviso {...mensagem} />}
+
+      <Card className="gap-3">
+        <div className="grid gap-1.5">
+          <label htmlFor="responsavel" className="text-sm font-medium">
+            Responsável
+          </label>
+          {podeEditar && tarefa.responsavel?.tipo !== "agente" ? (
+            <SeletorDeResponsavel
+              id="responsavel"
+              valor={responsavelAtual}
+              aoMudar={(v) => void aoTrocar(v)}
+              pessoas={pessoas}
+            />
+          ) : (
+            <p className="flex items-center gap-2" id="responsavel">
+              {nomeDe(tarefa.responsavel, nomesTodos)} <MarcaDeAgente quem={tarefa.responsavel} />
+            </p>
+          )}
+        </div>
+        {podeEditar && (
+          <div className="grid gap-1.5">
+            <span className="text-sm font-medium">Status</span>
+            <div className="flex flex-wrap gap-2">
+              {STATUS_TAREFA.filter((s) => s !== tarefa.status && s !== "concluida").map((s) => (
+                <Button key={s} variant="contorno" size="pequeno" onClick={() => void aoMudarStatus(s)}>
+                  {s === "a_fazer" && encerrada ? "Reabrir" : NOMES_STATUS_TAREFA[s]}
+                </Button>
+              ))}
+              {tarefa.status !== "concluida" && !concluindo && (
+                <Button size="pequeno" onClick={() => setConcluindo(true)}>
+                  Concluir
+                </Button>
+              )}
+            </div>
+          </div>
+        )}
+        {concluindo && (
+          <form className="grid gap-2" onSubmit={(e) => void aoConcluir(e)}>
+            <label htmlFor="resultado" className="text-sm font-medium">
+              Resultado (o que foi entregue)
+            </label>
+            <textarea
+              id="resultado"
+              name="resultado"
+              rows={4}
+              maxLength={50000}
+              className="rounded-md border border-linha bg-cartao px-3 py-2 text-base"
+            />
+            <div className="flex gap-2">
+              <Button type="submit" size="pequeno">
+                Concluir tarefa
+              </Button>
+              <Button type="button" variant="fantasma" size="pequeno" onClick={() => setConcluindo(false)}>
+                Cancelar
+              </Button>
+            </div>
+          </form>
+        )}
+      </Card>
+
+      {tarefa.resultado && (
+        <Card className="gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <CardTitulo>Resultado</CardTitulo>
+            <span className="text-sm text-texto-2">por {nomeDe(tarefa.resultadoPor, nomesTodos)}</span>
+            <MarcaDeAgente quem={tarefa.resultadoPor} />
+          </div>
+          <p className="whitespace-pre-wrap text-pretty">{tarefa.resultado}</p>
+        </Card>
+      )}
+
+      <section className="grid gap-3" aria-label="Comentários">
+        <h2 className="text-lg font-semibold">Comentários</h2>
+        {comentarios.length === 0 && <p className="text-sm text-texto-2">Nenhum comentário ainda.</p>}
+        <ul className="grid gap-2">
+          {comentarios.map((c) => (
+            <li key={c.id} className="grid gap-1 rounded-lg border border-linha bg-cartao p-3">
+              <span className="flex flex-wrap items-center gap-2 text-xs text-texto-2">
+                <span className="font-medium text-tinta">{nomeDe(c.autor, nomesTodos)}</span>
+                <MarcaDeAgente quem={c.autor} />
+                <span>{quando(c.criadoEm)}</span>
+              </span>
+              <p className="whitespace-pre-wrap text-pretty">{c.texto}</p>
+            </li>
+          ))}
+        </ul>
+        <form className="grid gap-2" onSubmit={(e) => void aoComentar(e)}>
+          <label htmlFor="comentario" className="sr-only">
+            Escrever um comentário
+          </label>
+          <textarea
+            id="comentario"
+            name="comentario"
+            rows={2}
+            maxLength={10000}
+            placeholder="Escreva um comentário"
+            className="rounded-md border border-linha bg-cartao px-3 py-2 text-base"
+          />
+          <Button type="submit" variant="contorno" className="justify-self-start">
+            Comentar
+          </Button>
+        </form>
+      </section>
+
+      {podeExcluir && (
+        <Button
+          variant="fantasma"
+          className="justify-self-start text-perigo"
+          onClick={() => void aoExcluir()}
+        >
+          Excluir tarefa
+        </Button>
+      )}
+    </main>
+  );
+}
+
+function Voltar() {
+  return (
+    <a href="/tarefas" className="inline-flex items-center gap-1 text-sm text-texto-2 hover:text-tinta">
+      <ArrowLeft className="size-4" /> Tarefas
+    </a>
+  );
+}

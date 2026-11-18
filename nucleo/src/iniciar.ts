@@ -19,6 +19,7 @@ import {
 } from "./permissoes/rotas.ts";
 import { criarVerificador } from "./permissoes/verificar.ts";
 import { criarServidor } from "./servidor.ts";
+import { registrarRotasDasTarefas } from "./tarefas/rotas.ts";
 
 async function iniciar(): Promise<void> {
   const config = lerConfig();
@@ -34,6 +35,7 @@ async function iniciar(): Promise<void> {
     registrarRotasDoLogin(app, login, poolDoLogin);
     const verificador = criarVerificador(login, poolDoLogin, banco.pool, catalogoDeModulos());
     registrarRotasDePermissoes(app, verificador, banco.pool);
+    registrarRotasDasTarefas(app, verificador, banco.pool);
     registrarRotaDaAuditoria(app, verificador, banco.pool);
     registrarRotasDoAdministrador(app, verificador, banco.pool);
     registrarRotasDaConta(app, login, poolDoLogin, banco.pool);

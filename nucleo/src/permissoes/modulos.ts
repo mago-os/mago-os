@@ -22,6 +22,14 @@ export const MODULOS_DO_NUCLEO: readonly DeclaracaoDeModulo[] = [
     temDadosSensiveis: false,
     area: null,
   },
+  // Tarefas (M2-01): o funcionário vê e edita as que é responsável ou criou; o gestor, também as da equipe.
+  {
+    id: "tarefas",
+    nome: "Tarefas",
+    acoes: ["ver", "criar", "editar", "excluir"],
+    temDadosSensiveis: false,
+    area: null,
+  },
 ];
 
 /** Catálogo de módulos. Recusa na subida uma declaração fora do contrato ou um id repetido. */

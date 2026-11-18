@@ -2,7 +2,17 @@
  * Casca do app (M1-10), no design aprovado (proposta v2): menu lateral no computador, menu embaixo no celular
  * com o mago no centro, e no topo o seletor de empresa, o tema e a pessoa.
  */
-import { Download, House, LogOut, Monitor, MonitorSmartphone, Moon, Sun, UserRound } from "lucide-react";
+import {
+  Download,
+  House,
+  ListChecks,
+  LogOut,
+  Monitor,
+  MonitorSmartphone,
+  Moon,
+  Sun,
+  UserRound,
+} from "lucide-react";
 import type * as React from "react";
 import type { EmpresaMinha, Sessao } from "@/acesso";
 import { cn } from "@/lib/utils";
@@ -18,6 +28,7 @@ export interface ItemDoMenu {
 
 export const MENU_DA_PESSOA: ItemDoMenu[] = [
   { caminho: "/", nome: "Início", icone: House },
+  { caminho: "/tarefas", nome: "Tarefas", icone: ListChecks },
   { caminho: "/perfil", nome: "Meu perfil", icone: UserRound },
   { caminho: "/aparelhos", nome: "Meus aparelhos", icone: MonitorSmartphone },
 ];
@@ -81,7 +92,7 @@ export function Casca(props: PropsDaCasca) {
         <nav aria-label="Menu principal" className="grid gap-1">
           {menu.map((item) => {
             const Icone = item.icone;
-            const aqui = item.caminho === caminho;
+            const aqui = item.caminho === "/" ? caminho === "/" : caminho.startsWith(item.caminho);
             return (
               <a
                 key={item.caminho}
@@ -182,16 +193,17 @@ export function Casca(props: PropsDaCasca) {
       {/* Menu de baixo (celular), ao alcance do polegar, com o mago no centro */}
       <nav
         aria-label="Menu do celular"
-        className="fixed inset-x-0 bottom-0 z-10 grid grid-cols-4 items-end border-t border-linha bg-cartao/95 px-2 pt-1 pb-[env(safe-area-inset-bottom)] backdrop-blur md:hidden"
+        className="fixed inset-x-0 bottom-0 z-10 grid grid-cols-5 items-end border-t border-linha bg-cartao/95 px-2 pt-1 pb-[env(safe-area-inset-bottom)] backdrop-blur md:hidden"
       >
         <ItemDeBaixo item={MENU_DA_PESSOA[0] as ItemDoMenu} aqui={caminho === "/"} />
-        <ItemDeBaixo item={MENU_DA_PESSOA[2] as ItemDoMenu} aqui={caminho === "/aparelhos"} />
+        <ItemDeBaixo item={MENU_DA_PESSOA[1] as ItemDoMenu} aqui={caminho.startsWith("/tarefas")} />
         <a href="/" aria-label="Fale com o mago" className="mx-auto -mt-5 grid">
           <span className="grid size-14 place-items-center rounded-full bg-tinta shadow-lg">
             <Mago tamanho={44} cor="sobre-tinta" />
           </span>
         </a>
-        <ItemDeBaixo item={MENU_DA_PESSOA[1] as ItemDoMenu} aqui={caminho === "/perfil"} />
+        <ItemDeBaixo item={MENU_DA_PESSOA[3] as ItemDoMenu} aqui={caminho === "/aparelhos"} />
+        <ItemDeBaixo item={MENU_DA_PESSOA[2] as ItemDoMenu} aqui={caminho === "/perfil"} />
       </nav>
     </div>
   );

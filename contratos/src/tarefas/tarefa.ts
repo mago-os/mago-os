@@ -213,6 +213,7 @@ export const ACOES_TAREFAS = [
   "tarefa.mudou_status",
   "tarefa.trocou_responsavel",
   "tarefa.comentou",
+  "tarefa.excluiu",
   "tarefa.pegou",
   "tarefa.soltou",
   "tarefa.destravou",

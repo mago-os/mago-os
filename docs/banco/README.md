@@ -17,6 +17,15 @@ erDiagram
     uuid feito_por FK
     timestamp_with_time_zone feito_em
   }
+  comentarios_de_tarefa {
+    uuid id PK
+    uuid empresa_id FK
+    uuid tarefa_id
+    uuid autor_pessoa_id
+    uuid autor_agente_id
+    text texto
+    timestamp_with_time_zone criado_em
+  }
   empresas {
     uuid id PK
     text nome
@@ -49,6 +58,26 @@ erDiagram
     timestamp_with_time_zone atualizada_em
     boolean email_verificado
     boolean dois_fatores_ativo
+  }
+  tarefas {
+    uuid id PK
+    uuid empresa_id FK
+    text titulo
+    text descricao
+    text status
+    uuid responsavel_pessoa_id
+    uuid responsavel_agente_id
+    uuid criada_por_pessoa_id
+    uuid criada_por_agente_id
+    uuid travada_por_pessoa_id
+    uuid travada_por_agente_id
+    timestamp_with_time_zone travada_em
+    text resultado
+    uuid resultado_por_pessoa_id
+    uuid resultado_por_agente_id
+    timestamp_with_time_zone criada_em
+    timestamp_with_time_zone atualizada_em
+    timestamp_with_time_zone encerrada_em
   }
   vinculos {
     uuid id PK
@@ -204,7 +233,9 @@ erDiagram
   empresas ||--o{ ajustes_de_permissao : "empresa_id"
   vinculos ||--o{ ajustes_de_permissao : "vinculo_id"
   pessoas ||--o{ ajustes_de_permissao : "feito_por"
+  empresas ||--o{ comentarios_de_tarefa : "empresa_id"
   pessoas ||--o{ papeis_plataforma : "pessoa_id"
+  empresas ||--o{ tarefas : "empresa_id"
   empresas ||--o{ vinculos : "empresa_id"
   pessoas ||--o{ vinculos : "pessoa_id"
   empresas ||--o{ auditoria_eventos : "empresa_id"
@@ -252,6 +283,22 @@ Isolamento por empresa (Row Level Security): ligado e forçado.
 | alcance | text | sim |  | empresa | Alcance dado: nada, meus (itens), equipe ou tudo. |
 | feito_por | uuid | sim |  | sistema | Pessoa que fez o ajuste. Aponta para pessoas.id. |
 | feito_em | timestamp with time zone | sim | `now()` | sistema | Quando o ajuste foi feito. |
+
+### comentarios_de_tarefa
+
+Comentários nas tarefas. Só se acrescentam: não se editam nem se apagam no M2.
+
+Isolamento por empresa (Row Level Security): ligado e forçado.
+
+| Coluna | Tipo | Obrigatória | Padrão | Marca | Descrição |
+| --- | --- | --- | --- | --- | --- |
+| id | uuid | sim | `uuidv7()` | sistema | Identificador do comentário (UUID v7). Chave primária. |
+| empresa_id | uuid | sim |  | sistema | Empresa do comentário (a mesma da tarefa). Aponta para empresas.id. |
+| tarefa_id | uuid | sim |  | sistema | Tarefa comentada. |
+| autor_pessoa_id | uuid | não |  | sistema | Pessoa que comentou. |
+| autor_agente_id | uuid | não |  | sistema | Agente que comentou. Os dois vazios: comentário do sistema. |
+| texto | text | sim |  | empresa | O comentário, em texto simples. Se veio de agente, é mostrado só como texto. |
+| criado_em | timestamp with time zone | sim | `now()` | sistema | Quando foi comentado. |
 
 ### empresas
 
@@ -306,6 +353,33 @@ Isolamento por empresa (Row Level Security): ligado e forçado.
 | atualizada_em | timestamp with time zone | sim | `now()` | sistema | Última alteração no cadastro da pessoa. |
 | email_verificado | boolean | sim | `false` | sistema | Se o e-mail já foi confirmado (pelo convite, pelo Google ou por um link enviado a ele). |
 | dois_fatores_ativo | boolean | sim | `false` | sistema | Se a pessoa ativou o app autenticador (o código é pedido a cada login, fora dos aparelhos confiáveis). |
+
+### tarefas
+
+Tarefas da empresa, feitas por pessoas ou agentes. Status fixos no M2; espaços, projetos e prazos vêm no M3.
+
+Isolamento por empresa (Row Level Security): ligado e forçado.
+
+| Coluna | Tipo | Obrigatória | Padrão | Marca | Descrição |
+| --- | --- | --- | --- | --- | --- |
+| id | uuid | sim | `uuidv7()` | sistema | Identificador da tarefa (UUID v7). Chave primária. |
+| empresa_id | uuid | sim |  | sistema | Empresa da tarefa. Aponta para empresas.id. |
+| titulo | text | sim |  | empresa | O que precisa ser feito, numa linha. |
+| descricao | text | não |  | empresa | Detalhes, contexto e o que se espera. |
+| status | text | sim | `'a_fazer'::text` | empresa | a_fazer, em_andamento, precisa_de_ajuda, concluida ou cancelada. |
+| responsavel_pessoa_id | uuid | não |  | sistema | Pessoa responsável (com vínculo na empresa), quando é uma pessoa. |
+| responsavel_agente_id | uuid | não |  | sistema | Agente responsável, quando é um agente (referência na M2-03). |
+| criada_por_pessoa_id | uuid | não |  | sistema | Pessoa que criou a tarefa. |
+| criada_por_agente_id | uuid | não |  | sistema | Agente que criou a tarefa. Os dois vazios: criada pelo sistema. |
+| travada_por_pessoa_id | uuid | não |  | sistema | Pessoa que pegou a tarefa (trava, M2-02). |
+| travada_por_agente_id | uuid | não |  | sistema | Agente que pegou a tarefa (trava, M2-02). |
+| travada_em | timestamp with time zone | não |  | sistema | Desde quando a tarefa está pegada. |
+| resultado | text | não |  | empresa | O que o responsável entregou ao concluir. Se veio de agente, é mostrado só como texto. |
+| resultado_por_pessoa_id | uuid | não |  | sistema | Pessoa que entregou o resultado. |
+| resultado_por_agente_id | uuid | não |  | sistema | Agente que entregou o resultado. |
+| criada_em | timestamp with time zone | sim | `now()` | sistema | Quando a tarefa foi criada. |
+| atualizada_em | timestamp with time zone | sim | `now()` | sistema | Última mudança na tarefa (inclui comentários). |
+| encerrada_em | timestamp with time zone | não |  | sistema | Quando foi concluída ou cancelada. |
 
 ### vinculos
 
