@@ -122,7 +122,9 @@ export async function listarTarefas(c: pg.PoolClient, quem: Quem, filtro: Filtro
   if (filtro.minhas && quem.tipo === "pessoa") {
     valores.push(quem.pessoaId);
     const eu = `$${valores.length}`;
-    partes.push(`(t.responsavel_pessoa_id = ${eu} or t.criada_por_pessoa_id = ${eu})`);
+    partes.push(
+      `(t.responsavel_pessoa_id = ${eu} or t.criada_por_pessoa_id = ${eu} or t.travada_por_pessoa_id = ${eu})`,
+    );
   }
   if (filtro.status && filtro.status.length > 0) {
     valores.push(filtro.status);
@@ -215,6 +217,7 @@ export async function mudarStatus(
   status: StatusTarefa,
   resultado: string | null,
 ): Promise<Tarefa> {
+  exigirQuemPegou(tarefa, quem);
   const encerra = status === "concluida" || status === "cancelada";
   const soltaTrava = encerra || status === "a_fazer";
   const [porPessoa, porAgente] = status === "concluida" && resultado ? colunas(autorDe(quem)) : [null, null];
@@ -240,14 +243,21 @@ export async function mudarStatus(
   return linhaParaTarefa(r.rows[0] as LinhaDaTarefa);
 }
 
+/**
+ * Troca o responsável. Se quem pegou passa a tarefa para outro, a trava sai junto (a tarefa fica livre para o
+ * novo responsável pegar), senão ninguém mais conseguiria mexer nela.
+ */
 export async function trocarResponsavel(
   c: pg.PoolClient,
+  quem: Quem,
   tarefa: Tarefa,
   responsavel: Responsavel | null,
 ): Promise<Tarefa> {
+  exigirQuemPegou(tarefa, quem);
   const [pessoa, agente] = colunas(responsavel);
   const r = await c.query<LinhaDaTarefa>(
-    `update tarefas t set responsavel_pessoa_id = $2, responsavel_agente_id = $3, atualizada_em = now()
+    `update tarefas t set responsavel_pessoa_id = $2, responsavel_agente_id = $3, atualizada_em = now(),
+            travada_por_pessoa_id = null, travada_por_agente_id = null, travada_em = null
       where t.id = $1 and t.empresa_id = empresa_ativa() returning ${COLUNAS}`,
     [tarefa.id, pessoa, agente],
   );
@@ -313,6 +323,18 @@ export function idsCitados(tarefas: Tarefa[], comentarios: ComentarioDeTarefa[] 
   }
   for (const c of comentarios) somar(c.autor);
   return ids;
+}
+
+/** Tentativa de mexer numa tarefa travada por outro (segunda barreira, além da conferência das rotas). */
+export class ErroDeTrava extends Error {
+  override name = "ErroDeTrava";
+}
+
+/** Só quem pegou mexe na tarefa travada. Sem trava, qualquer um que a alcança. */
+export function exigirQuemPegou(tarefa: Tarefa, quem: Quem): void {
+  if (tarefa.trava && !travadaPorQuem(tarefa, quem)) {
+    throw new ErroDeTrava("Tarefa travada por outro responsável");
+  }
 }
 
 /** Quem pede é quem travou a tarefa (pessoa ou agente). */

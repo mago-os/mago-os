@@ -231,6 +231,26 @@ describe.skipIf(!bancoDisponivel)("tarefa travada", () => {
     );
   });
 
+  it("pôr em andamento é pegar, passar a outro solta, e não se exclui a tarefa de quem está com ela", async () => {
+    const ana = await como("ana@teste.invalid");
+    const gil = await como("gil@teste.invalid");
+    const s = await pedir("POST", `/tarefas/${tarefa}/status`, gil, { status: "em_andamento" });
+    expect(s.json().trava).toMatchObject({
+      por: { tipo: "pessoa", pessoaId: await idDe("gil@teste.invalid") },
+    });
+    expect((await pedir("POST", `/tarefas/${tarefa}/pegar`, gil)).statusCode).toBe(200);
+    const mine = await pedir("GET", "/tarefas?minhas=1", gil);
+    expect(mine.json().tarefas.map((t: { id: string }) => t.id)).toContain(tarefa);
+    expect((await pedir("DELETE", `/tarefas/${tarefa}`, ana)).statusCode).toBe(409);
+    const passa = await pedir("POST", `/tarefas/${tarefa}/responsavel`, gil, {
+      responsavel: { tipo: "pessoa", pessoaId: await idDe("flora@teste.invalid") },
+    });
+    expect(passa.json()).toMatchObject({ trava: null });
+    expect(
+      (await pedir("POST", `/tarefas/${tarefa}/pegar`, await como("flora@teste.invalid"))).statusCode,
+    ).toBe(200);
+  });
+
   it("tarefa encerrada não se pega", async () => {
     const ana = await como("ana@teste.invalid");
     await pedir("POST", `/tarefas/${tarefa}/status`, ana, { status: "cancelada" });

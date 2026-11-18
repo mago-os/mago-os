@@ -178,13 +178,23 @@ export function registrarRotasDasTarefas(
         }
         // Mesmo status sem resultado novo: nada muda (e o resultado entregue não se perde).
         const mudou = r.valor.status !== de || r.valor.resultado !== undefined;
-        const nova = mudou
-          ? await mudarStatus(c, quem, tarefa, r.valor.status, r.valor.resultado ?? null)
-          : tarefa;
+        // Pôr em andamento uma tarefa livre é pegá-la: não existe "em andamento" sem alguém com ela.
+        const pegou = mudou && !tarefa.trava && ["em_andamento", "precisa_de_ajuda"].includes(r.valor.status);
+        // Quem pegou e volta para A fazer está soltando a tarefa.
+        const soltou = mudou && tarefa.trava !== null && r.valor.status === "a_fazer";
+        let nova = tarefa;
+        if (pegou) {
+          const pegada = await pegarTarefa(c, quem, tarefa.id);
+          if (!pegada) return { travada: true as const };
+          nova = pegada;
+        }
+        if (mudou && (!pegou || nova.status !== r.valor.status)) {
+          nova = await mudarStatus(c, quem, nova, r.valor.status, r.valor.resultado ?? null);
+        }
         const comentario = r.valor.motivo
           ? await comentar(c, autorDe(quem), tarefa.id, r.valor.motivo)
           : null;
-        return { tarefa: nova, de, mudou, comentario };
+        return { tarefa: nova, de, mudou, pegou, soltou, comentario };
       });
       if (!feito) return naoEncontrada(resposta);
       if ("travada" in feito) return travada(resposta);
@@ -193,6 +203,8 @@ export function registrarRotasDasTarefas(
       if (feito.comentario) {
         await registrar(pedido, "tarefa.comentou", id, { comentarioId: feito.comentario.id });
       }
+      if (feito.pegou) await registrar(pedido, "tarefa.pegou", id);
+      if (feito.soltou) await registrar(pedido, "tarefa.soltou", id);
       if (feito.mudou) {
         await registrar(pedido, "tarefa.mudou_status", id, {
           de: feito.de,
@@ -218,7 +230,10 @@ export function registrarRotasDasTarefas(
         if (tarefa.trava && !travadaPorQuem(tarefa, quem)) return { travada: true as const };
         const recusa = await responsavelRecusado(c, r.valor.responsavel);
         if (recusa) return { recusa };
-        return { tarefa: await trocarResponsavel(c, tarefa, r.valor.responsavel) };
+        return {
+          tarefa: await trocarResponsavel(c, quem, tarefa, r.valor.responsavel),
+          soltou: tarefa.trava !== null,
+        };
       });
       if (!feito) return naoEncontrada(resposta);
       if ("travada" in feito) return travada(resposta);
@@ -227,6 +242,7 @@ export function registrarRotasDasTarefas(
       await registrar(pedido, "tarefa.trocou_responsavel", id, {
         responsavel: r.valor.responsavel?.tipo ?? null,
       });
+      if (feito.soltou) await registrar(pedido, "tarefa.soltou", id);
       return feito.tarefa;
     },
   );
@@ -262,9 +278,12 @@ export function registrarRotasDasTarefas(
       const feito = await naEmpresa(pedido, async (c) => {
         const tarefa = await buscarTarefa(c, quem, id);
         if (!tarefa) return null;
-        return { tarefa: await pegarTarefa(c, quem, tarefa.id) };
+        // Pegar de novo o que já é seu (clique duplo, nova tentativa) não é erro.
+        if (travadaPorQuem(tarefa, quem)) return { tarefa, jaEra: true };
+        return { tarefa: await pegarTarefa(c, quem, tarefa.id), jaEra: false };
       });
       if (!feito) return naoEncontrada(resposta);
+      if (feito.jaEra) return feito.tarefa;
       if (!feito.tarefa) {
         return resposta.code(409).send({
           code: "TAREFA_INDISPONIVEL",
@@ -322,6 +341,7 @@ export function registrarRotasDasTarefas(
       if ("livre" in feito) {
         return resposta.code(409).send({ code: "NAO_TRAVADA", message: "Essa tarefa não está travada." });
       }
+      await registrar(pedido, "tarefa.comentou", id, { comentarioId: feito.comentario.id });
       await registrar(pedido, "tarefa.destravou", id, {
         travadaPor: feito.de,
         comentarioId: feito.comentario.id,
@@ -338,11 +358,14 @@ export function registrarRotasDasTarefas(
       const quem = quemDoPedido(pedido);
       const achou = await naEmpresa(pedido, async (c) => {
         const tarefa = await buscarTarefa(c, quem, id, true);
-        if (!tarefa) return false;
+        if (!tarefa) return "nao" as const;
+        // Ninguém apaga a tarefa debaixo de quem está trabalhando nela: destrave antes (fica o motivo).
+        if (tarefa.trava && !travadaPorQuem(tarefa, quem)) return "travada" as const;
         await excluirTarefa(c, tarefa.id);
-        return true;
+        return "ok" as const;
       });
-      if (!achou) return naoEncontrada(resposta);
+      if (achou === "nao") return naoEncontrada(resposta);
+      if (achou === "travada") return travada(resposta);
       await registrar(pedido, "tarefa.excluiu", id);
       return { ok: true };
     },
