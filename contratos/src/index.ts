@@ -8,6 +8,7 @@
 /** Versão do formato dos contratos. Sobe quando um contrato muda de forma incompatível. */
 export const VERSAO_CONTRATOS = 1 as const;
 
+export * from "./agentes/agente.ts";
 export * from "./auditoria.ts";
 export * from "./comum.ts";
 export * from "./identidade/documento.ts";
@@ -17,3 +18,4 @@ export * from "./identidade/plataforma.ts";
 export * from "./identidade/sessao.ts";
 export * from "./identidade/vinculo.ts";
 export * from "./permissoes.ts";
+export * from "./tarefas/tarefa.ts";

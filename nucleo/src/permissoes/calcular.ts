@@ -29,8 +29,11 @@ const PADRAO_DO_NUCLEO: Record<
   "gestor_area" | "funcionario",
   Record<string, Partial<Record<AcaoNoModulo, Alcance>>>
 > = {
-  gestor_area: { pessoas: { ver: "equipe" } },
-  funcionario: { pessoas: { ver: "meus" } },
+  gestor_area: {
+    pessoas: { ver: "equipe" },
+    tarefas: { ver: "equipe", criar: "equipe", editar: "equipe" },
+  },
+  funcionario: { pessoas: { ver: "meus" }, tarefas: { ver: "meus", criar: "meus", editar: "meus" } },
 };
 
 function nada(): Record<AcaoNoModulo, Alcance> {

@@ -134,3 +134,10 @@ O login (`mago_acesso`) não lê papéis nem as regras da plataforma direto. As 
 - `empresas` ganha `tipo` (pj ou pf), `documento` (sem pontuação; várias contas, uma por marca, podem ter o mesmo documento desde a migração 0012), `nome_legal`, `fuso_horario`, `idioma` e `telefone`. As contas antigas ficam sem documento; uma regra garante que tipo e documento andam juntos e com o tamanho certo.
 - `acesso.convites_de_empresa` guarda os convites do Dono (só a impressão digital do código). Só o login (`mago_acesso`) lê e grava.
 - Funções que rodam como dono: `acesso.empresas_da_plataforma` (lista só o cadastro, só para o Dono), `acesso.abrir_convite_de_empresa`, `acesso.pessoa_do_convite_de_empresa` (cria a pessoa se ainda não existe) e `acesso.criar_empresa_pelo_convite` (cria a conta e o vínculo de administrador, só para o e-mail do convite). Ver [decisão 0016](../decisoes/0016-convite-para-criar-empresa.md).
+
+## 17. Tarefas e comentários (18/11/2026, M2-01)
+
+- `tarefas` e `comentarios_de_tarefa` seguem o contrato de `contratos/src/tarefas/tarefa.ts`, com `empresa_id`, RLS forçado e a política de `empresa_ativa()`.
+- Responsável, quem criou, quem pegou (a trava da M2-02) e quem entregou o resultado são uma pessoa ou um agente: duas colunas para cada um, no máximo uma preenchida (as duas vazias, nos autores, quer dizer o sistema). A pessoa precisa ter vínculo na mesma empresa (chave composta com `vinculos`), então não dá para pôr alguém de outra empresa numa tarefa nem por erro do código. A referência para `agentes` entra na M2-03.
+- As regras do contrato estão também no banco: tarefa encerrada (concluída ou cancelada) tem data, resultado só em tarefa concluída e sempre com quem entregou, trava só em andamento ou precisando de ajuda.
+- Comentários só se acrescentam: a API (`mago_app`) não tem UPDATE nem DELETE neles. Saem junto só quando a tarefa é excluída.

@@ -21,15 +21,15 @@ A ordem da tabela é a ordem de construção: a M2-03 vem antes da M2-02 porque 
 
 ### M2-01 Tarefas simples
 
-- [ ] Contratos de tarefa e de agente (formato da tarefa, do comentário, do responsável pessoa ou agente e do agente), numa aprovação só do Sandro, porque são contratos
-- [ ] Tabelas `tarefas` e `comentarios_de_tarefa` com `empresa_id`, RLS e marcas de coluna; o responsável é uma pessoa ou um agente (o agente passa a valer quando a M2-03 entrar)
-- [ ] Status fixos no M2: A fazer, Em andamento, Precisa de ajuda, Concluída e Cancelada (status por projeto vem no M3)
-- [ ] Campo "resultado" da tarefa: o texto que o responsável entrega ao concluir
-- [ ] Módulo "tarefas" no catálogo de permissões (ver, criar, editar, excluir); o funcionário vê e edita as próprias tarefas e as que criou
-- [ ] Rotas: criar, listar (com filtro "minhas" e por status), ver, mudar status, trocar responsável, comentar
-- [ ] Eventos de auditoria: `tarefa.criou`, `tarefa.mudou_status`, `tarefa.trocou_responsavel`, `tarefa.comentou`
-- [ ] Tela Tarefas, pensada para o celular: lista com "Nova tarefa", e a página da tarefa com status, responsável, comentários e resultado
-- [ ] Testes de vazamento: uma empresa não vê tarefas nem comentários da outra
+- [x] Contratos de tarefa e de agente (formato da tarefa, do comentário, do responsável pessoa ou agente e do agente), numa aprovação só do Sandro, porque são contratos
+- [x] Tabelas `tarefas` e `comentarios_de_tarefa` com `empresa_id`, RLS e marcas de coluna; o responsável é uma pessoa ou um agente (o agente passa a valer quando a M2-03 entrar)
+- [x] Status fixos no M2: A fazer, Em andamento, Precisa de ajuda, Concluída e Cancelada (status por projeto vem no M3)
+- [x] Campo "resultado" da tarefa: o texto que o responsável entrega ao concluir
+- [x] Módulo "tarefas" no catálogo de permissões (ver, criar, editar, excluir); o funcionário vê e edita as próprias tarefas e as que criou
+- [x] Rotas: criar, listar (com filtro "minhas" e por status), ver, mudar status, trocar responsável, comentar
+- [x] Eventos de auditoria: `tarefa.criou`, `tarefa.mudou_status`, `tarefa.trocou_responsavel`, `tarefa.comentou`
+- [x] Tela Tarefas, pensada para o celular: lista com "Nova tarefa", e a página da tarefa com status, responsável, comentários e resultado
+- [x] Testes de vazamento: uma empresa não vê tarefas nem comentários da outra
 
 Pronto quando: o Sandro cria uma tarefa pelo celular, troca o status, comenta e vê tudo na auditoria, e o funcionário de teste não vê tarefas dos outros.
 
