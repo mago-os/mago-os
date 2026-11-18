@@ -7,7 +7,7 @@ Escrita em 15/11/2026 por Sandro Nolasco e Claude. Passou para cá em 16/11/2026
 | Arquivo | Marco | Situação |
 | --- | --- | --- |
 | [M0-fundacao.md](M0-fundacao.md) | M0 Fundação | Concluído em 17/11/2026 |
-| [M1-acesso.md](M1-acesso.md) | M1 Acesso | Em andamento |
+| [M1-acesso.md](M1-acesso.md) | M1 Acesso | Concluído em 18/11/2026 |
 | [M2-a-M6.md](M2-a-M6.md) | M2 a M6 | Não iniciado (subtarefas escritas antes de cada marco) |
 
 ## Como ler esta spec
