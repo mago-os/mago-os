@@ -75,3 +75,11 @@ export const comentarTarefa = (id: string, texto: string) =>
 
 export const excluirTarefa = (id: string) =>
   pedir<{ ok: true }>("DELETE", `/tarefas/${encodeURIComponent(id)}`);
+
+/** Pegar, soltar ou (administrador) destravar a tarefa (M2-02). Destravar pede o motivo. */
+export const acaoNaTrava = (id: string, acao: "pegar" | "soltar" | "destravar", motivo?: string) =>
+  pedir<Tarefa>(
+    "POST",
+    `/tarefas/${encodeURIComponent(id)}/${acao}`,
+    acao === "destravar" ? { motivo } : undefined,
+  );

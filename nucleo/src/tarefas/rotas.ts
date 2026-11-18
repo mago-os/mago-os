@@ -9,6 +9,7 @@ import {
   conferirPedidoDeMudarStatus,
   FiltroDeTarefas,
   PedidoDeComentario,
+  PedidoDeDestravar,
   PedidoDeTarefa,
   PedidoDeTrocarResponsavel,
   type Responsavel,
@@ -33,8 +34,11 @@ import {
   listarTarefas,
   mudarStatus,
   nomesCitados,
+  pegarTarefa,
   pessoaAtivaNaEmpresa,
   type Quem,
+  tirarTrava,
+  travadaPorQuem,
   trocarResponsavel,
 } from "./servico.ts";
 
@@ -42,6 +46,12 @@ type AcaoDeTarefa = (typeof ACOES_TAREFAS)[number];
 
 const naoEncontrada = (resposta: FastifyReply) =>
   resposta.code(404).send({ code: "TAREFA_NAO_ENCONTRADA", message: "Tarefa não encontrada." });
+
+const travada = (resposta: FastifyReply) =>
+  resposta.code(409).send({
+    code: "TAREFA_TRAVADA",
+    message: "Essa tarefa está em andamento com outro responsável. Você ainda pode comentar.",
+  });
 
 const invalido = (resposta: FastifyReply, problemas: unknown) =>
   resposta.code(400).send({ code: "PEDIDO_INVALIDO", problemas });
@@ -159,6 +169,8 @@ export function registrarRotasDasTarefas(
       const feito = await naEmpresa(pedido, async (c) => {
         const tarefa = await buscarTarefa(c, quem, id, true);
         if (!tarefa) return null;
+        // Travada: só quem pegou muda o status e entrega o resultado (M2-02).
+        if (tarefa.trava && !travadaPorQuem(tarefa, quem)) return { travada: true as const };
         const de: StatusTarefa = tarefa.status;
         // Tarefa encerrada só sai daqui reabrindo (volta para A fazer).
         if (STATUS_ENCERRADOS.includes(de) && r.valor.status !== de && r.valor.status !== "a_fazer") {
@@ -175,6 +187,7 @@ export function registrarRotasDasTarefas(
         return { tarefa: nova, de, mudou, comentario };
       });
       if (!feito) return naoEncontrada(resposta);
+      if ("travada" in feito) return travada(resposta);
       if ("recusa" in feito)
         return resposta.code(409).send({ code: "TAREFA_ENCERRADA", message: feito.recusa });
       if (feito.comentario) {
@@ -202,11 +215,13 @@ export function registrarRotasDasTarefas(
       const feito = await naEmpresa(pedido, async (c) => {
         const tarefa = await buscarTarefa(c, quem, id, true);
         if (!tarefa) return null;
+        if (tarefa.trava && !travadaPorQuem(tarefa, quem)) return { travada: true as const };
         const recusa = await responsavelRecusado(c, r.valor.responsavel);
         if (recusa) return { recusa };
         return { tarefa: await trocarResponsavel(c, tarefa, r.valor.responsavel) };
       });
       if (!feito) return naoEncontrada(resposta);
+      if ("travada" in feito) return travada(resposta);
       if ("recusa" in feito)
         return resposta.code(400).send({ code: "RESPONSAVEL_INVALIDO", message: feito.recusa });
       await registrar(pedido, "tarefa.trocou_responsavel", id, {
@@ -234,6 +249,84 @@ export function registrarRotasDasTarefas(
       if (!comentario) return naoEncontrada(resposta);
       await registrar(pedido, "tarefa.comentou", id, { comentarioId: comentario.id });
       return resposta.code(201).send(comentario);
+    },
+  );
+
+  // Pegar (M2-02): só um consegue, garantido no banco. Quem pega vira o responsável.
+  app.post(
+    "/tarefas/:id/pegar",
+    { preHandler: verificador.exigir("tarefas", "editar") },
+    async (pedido, resposta) => {
+      const { id } = pedido.params as { id: string };
+      const quem = quemDoPedido(pedido);
+      const feito = await naEmpresa(pedido, async (c) => {
+        const tarefa = await buscarTarefa(c, quem, id);
+        if (!tarefa) return null;
+        return { tarefa: await pegarTarefa(c, quem, tarefa.id) };
+      });
+      if (!feito) return naoEncontrada(resposta);
+      if (!feito.tarefa) {
+        return resposta.code(409).send({
+          code: "TAREFA_INDISPONIVEL",
+          message: "Essa tarefa já foi pegada por outro ou está encerrada.",
+        });
+      }
+      await registrar(pedido, "tarefa.pegou", id);
+      return feito.tarefa;
+    },
+  );
+
+  // Soltar: quem pegou devolve a tarefa para A fazer, sem resultado.
+  app.post(
+    "/tarefas/:id/soltar",
+    { preHandler: verificador.exigir("tarefas", "editar") },
+    async (pedido, resposta) => {
+      const { id } = pedido.params as { id: string };
+      const quem = quemDoPedido(pedido);
+      const feito = await naEmpresa(pedido, async (c) => {
+        const tarefa = await buscarTarefa(c, quem, id, true);
+        if (!tarefa) return null;
+        if (!travadaPorQuem(tarefa, quem)) return { naoE: true as const };
+        return { tarefa: await tirarTrava(c, tarefa.id) };
+      });
+      if (!feito) return naoEncontrada(resposta);
+      if ("naoE" in feito) {
+        return resposta
+          .code(409)
+          .send({ code: "NAO_PEGOU", message: "Só quem pegou a tarefa pode soltá-la." });
+      }
+      await registrar(pedido, "tarefa.soltou", id);
+      return feito.tarefa;
+    },
+  );
+
+  // Destravar: o administrador (ação "aprovar" das tarefas) tira a trava de outro, com motivo, que vira
+  // comentário. A tarefa volta para A fazer.
+  app.post(
+    "/tarefas/:id/destravar",
+    { preHandler: verificador.exigir("tarefas", "aprovar") },
+    async (pedido, resposta) => {
+      const { id } = pedido.params as { id: string };
+      const r = conferir(PedidoDeDestravar, pedido.body);
+      if (!r.ok) return invalido(resposta, r.problemas);
+      const quem = quemDoPedido(pedido);
+      const feito = await naEmpresa(pedido, async (c) => {
+        const tarefa = await buscarTarefa(c, quem, id, true);
+        if (!tarefa) return null;
+        if (!tarefa.trava) return { livre: true as const };
+        const nova = await tirarTrava(c, tarefa.id);
+        const comentario = await comentar(c, autorDe(quem), tarefa.id, `Destravou: ${r.valor.motivo}`);
+        return { tarefa: nova, de: tarefa.trava.por, comentario };
+      });
+      if (!feito) return naoEncontrada(resposta);
+      if ("livre" in feito) {
+        return resposta.code(409).send({ code: "NAO_TRAVADA", message: "Essa tarefa não está travada." });
+      }
+      await registrar(pedido, "tarefa.destravou", id, {
+        travadaPor: feito.de,
+        comentarioId: feito.comentario.id,
+      });
+      return feito.tarefa;
     },
   );
 

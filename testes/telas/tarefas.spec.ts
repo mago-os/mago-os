@@ -21,7 +21,7 @@ test.describe("tela de tarefas", () => {
     await func.limpar();
   });
 
-  test("cria uma tarefa, muda o status, comenta e conclui com o resultado", async ({ page }) => {
+  test("cria uma tarefa, pega, comenta e conclui com o resultado", async ({ page }) => {
     await entrar(page, func.email);
     await page.getByRole("link", { name: "Tarefas" }).first().click();
     await expect(page.getByRole("heading", { name: "Tarefas" })).toBeVisible();
@@ -34,8 +34,10 @@ test.describe("tela de tarefas", () => {
 
     await expect(page.getByRole("heading", { name: "Revisar o contrato" })).toBeVisible();
     await expect(page.getByText("Ver a cláusula de prazo.")).toBeVisible();
-    await page.getByRole("button", { name: "Em andamento" }).click();
-    await expect(page.locator("main").getByText("Em andamento").first()).toBeVisible();
+    await page.getByRole("button", { name: "Pegar a tarefa" }).click();
+    await expect(page.getByText("A tarefa é sua agora.")).toBeVisible();
+    await expect(page.getByText(/^Em andamento com Teo Tarefa/)).toBeVisible();
+    await expect(page.getByRole("button", { name: "Soltar" })).toBeVisible();
 
     await page.getByPlaceholder("Escreva um comentário").fill("<b>sem HTML</b> só texto");
     await page.getByRole("button", { name: "Comentar" }).click();

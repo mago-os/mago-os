@@ -48,12 +48,12 @@ Pronto quando: o Sandro cadastra o Claude no Mac, com ele mesmo de responsável,
 
 ### M2-02 Tarefa travada para quem a pegou
 
-- [ ] Ação "pegar a tarefa": muda para Em andamento e trava a tarefa para quem pegou (pessoa ou agente), com o horário
-- [ ] Enquanto travada, só quem pegou muda o status e entrega o resultado; os outros veem "em andamento com Claude no Mac" e ainda podem comentar
-- [ ] Dois pedidos ao mesmo tempo: só um consegue pegar (garantido no banco, não no código)
-- [ ] O administrador pode destravar, com motivo, e isso vai para a auditoria
-- [ ] Ação "soltar a tarefa": volta para A fazer sem resultado
-- [ ] Eventos de auditoria: `tarefa.pegou`, `tarefa.soltou`, `tarefa.destravou`
+- [x] Ação "pegar a tarefa": muda para Em andamento e trava a tarefa para quem pegou (pessoa ou agente), com o horário
+- [x] Enquanto travada, só quem pegou muda o status e entrega o resultado; os outros veem "em andamento com Claude no Mac" e ainda podem comentar
+- [x] Dois pedidos ao mesmo tempo: só um consegue pegar (garantido no banco, não no código)
+- [x] O administrador pode destravar, com motivo, e isso vai para a auditoria
+- [x] Ação "soltar a tarefa": volta para A fazer sem resultado
+- [x] Eventos de auditoria: `tarefa.pegou`, `tarefa.soltou`, `tarefa.destravou`
 
 Pronto quando: dois agentes de teste tentam pegar a mesma tarefa ao mesmo tempo e só um consegue, e o administrador consegue destravar.
 
