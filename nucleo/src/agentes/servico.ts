@@ -4,6 +4,7 @@
  */
 import type { Agente, SituacaoAgente } from "@mago-os/contratos";
 import type pg from "pg";
+import type { Filtro } from "../permissoes/calcular.ts";
 import { comentar } from "../tarefas/servico.ts";
 
 const FORMATO_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -51,15 +52,17 @@ export interface AgenteNaLista extends Agente {
   tarefasAbertas: number;
 }
 
-export async function listarAgentes(c: pg.PoolClient): Promise<AgenteNaLista[]> {
+export async function listarAgentes(c: pg.PoolClient, soEste?: string): Promise<AgenteNaLista[]> {
+  if (soEste !== undefined && !FORMATO_UUID.test(soEste)) return [];
   const r = await c.query<LinhaDoAgente & { responsavel_nome: string; tarefas_abertas: number }>(
     `select ${COLUNAS}, p.nome as responsavel_nome,
             (select count(*)::int from tarefas t where t.empresa_id = a.empresa_id
                and (t.responsavel_agente_id = a.id or t.travada_por_agente_id = a.id)
                and t.status not in ('concluida', 'cancelada')) as tarefas_abertas
        from agentes a join pessoas p on p.id = a.responsavel_id
-      where a.empresa_id = empresa_ativa()
+      where a.empresa_id = empresa_ativa() and ($1::uuid is null or a.id = $1)
       order by (a.situacao = 'desligado'), lower(a.nome)`,
+    [soEste ?? null],
   );
   return r.rows.map((l) => ({
     ...linhaParaAgente(l),
@@ -83,7 +86,8 @@ export async function buscarAgente(c: pg.PoolClient, id: string, paraMudar = fal
 export async function agenteRecebeTarefas(c: pg.PoolClient, agenteId: string): Promise<boolean> {
   if (!FORMATO_UUID.test(agenteId)) return false;
   const r = await c.query(
-    "select 1 from agentes where id = $1 and empresa_id = empresa_ativa() and situacao = 'ativo'",
+    // "for share": um desligamento ao mesmo tempo espera esta transação, e a tarefa não fica com agente desligado.
+    "select 1 from agentes where id = $1 and empresa_id = empresa_ativa() and situacao = 'ativo' for share",
     [agenteId],
   );
   return (r.rowCount ?? 0) > 0;
@@ -173,22 +177,46 @@ export async function devolverTarefasPegadas(
 export async function passarTarefasAoResponsavel(
   c: pg.PoolClient,
   agente: Agente,
+  jaComentadas: ReadonlySet<string> = new Set(),
 ): Promise<TarefaDevolvida[]> {
-  const r = await c.query<TarefaDevolvida>(
-    `update tarefas set responsavel_agente_id = null, responsavel_pessoa_id = $2, atualizada_em = now()
+  // Se a pessoa responsável já saiu da empresa, a tarefa fica sem responsável (e não com quem saiu).
+  const r = await c.query<TarefaDevolvida & { com_pessoa: boolean }>(
+    `update tarefas set responsavel_agente_id = null,
+            responsavel_pessoa_id = (select v.pessoa_id from vinculos v where v.empresa_id = empresa_ativa()
+                                       and v.pessoa_id = $2 and v.situacao = 'ativo'),
+            atualizada_em = now()
       where empresa_id = empresa_ativa() and responsavel_agente_id = $1
-        and status not in ('concluida', 'cancelada') returning id, titulo`,
+        and status not in ('concluida', 'cancelada')
+      returning id, titulo, responsavel_pessoa_id is not null as com_pessoa`,
     [agente.id, agente.responsavelId],
   );
   for (const t of r.rows) {
+    if (jaComentadas.has(t.id)) continue;
     await comentar(
       c,
       { tipo: "sistema" },
       t.id,
-      `O agente ${agente.nome} foi desligado e a tarefa passou para a pessoa responsável por ele.`,
+      t.com_pessoa
+        ? `O agente ${agente.nome} foi desligado e a tarefa passou para a pessoa responsável por ele.`
+        : `O agente ${agente.nome} foi desligado e a tarefa ficou sem responsável.`,
     );
   }
-  return r.rows;
+  return r.rows.map(({ id, titulo }) => ({ id, titulo }));
+}
+
+/**
+ * O alcance da permissão vale também para os agentes: "meus" são os agentes de que a pessoa é responsável;
+ * "equipe", também os de responsáveis da área dela.
+ */
+export async function alcanceCobreAgente(c: pg.PoolClient, filtro: Filtro, agente: Agente): Promise<boolean> {
+  if (filtro.tipo === "tudo") return true;
+  if (agente.responsavelId === filtro.pessoaId) return true;
+  if (filtro.tipo === "meus") return false;
+  const r = await c.query(
+    "select 1 from vinculos where empresa_id = empresa_ativa() and pessoa_id = $1 and area = $2",
+    [agente.responsavelId, filtro.area],
+  );
+  return (r.rowCount ?? 0) > 0;
 }
 
 /** Nome e e-mail da pessoa responsável, para o aviso. */

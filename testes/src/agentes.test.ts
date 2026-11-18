@@ -281,6 +281,26 @@ describe.skipIf(!bancoDisponivel)("central de agentes", () => {
     ).rejects.toThrow();
   });
 
+  it("com alcance 'meus', a pessoa só mexe nos agentes de que é responsável", async () => {
+    const ana = await como("ana@teste.invalid");
+    const daAna = await pedir("POST", "/agentes", ana, {
+      nome: "Da Ana",
+      responsavelId: await idDe("ana@teste.invalid"),
+    });
+    const doFabio = await pedir("POST", "/agentes", ana, {
+      nome: "Do Fabio",
+      responsavelId: await idDe("fabio@teste.invalid"),
+    });
+    await dono.query(
+      `insert into ajustes_de_permissao (empresa_id, vinculo_id, modulo, acao, alcance, feito_por)
+       values ($1, $2, 'agentes', 'editar', 'meus', $3)`,
+      [empresaId, vinculos["fabio@teste.invalid"], await idDe("ana@teste.invalid")],
+    );
+    const fabio = await como("fabio@teste.invalid");
+    expect((await pedir("POST", `/agentes/${daAna.json().id}/pausar`, fabio)).statusCode).toBe(404);
+    expect((await pedir("POST", `/agentes/${doFabio.json().id}/pausar`, fabio)).statusCode).toBe(200);
+  });
+
   it("a API não apaga agentes", async () => {
     const app = new pg.Client({ connectionString: banco.urlApp });
     await app.connect();

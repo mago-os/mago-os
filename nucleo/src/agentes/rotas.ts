@@ -23,6 +23,7 @@ import { comPessoa } from "../empresa.ts";
 import { acessoDo, type Verificador } from "../permissoes/verificar.ts";
 import { pessoaAtivaNaEmpresa } from "../tarefas/servico.ts";
 import {
+  alcanceCobreAgente,
   buscarAgente,
   cadastrarAgente,
   contatoDoResponsavel,
@@ -59,6 +60,13 @@ export function registrarRotasDosAgentes(app: FastifyInstance, o: OpcoesDosAgent
     return comPessoa(poolApp, sessao.pessoa.id, sessao.empresaId, trabalho);
   }
 
+  /** O agente, se existe e o alcance da ação de quem pede o cobre (ex.: "meus" = só os de que é responsável). */
+  async function agenteAlcancado(c: pg.PoolClient, pedido: FastifyRequest, id: string) {
+    const atual = await buscarAgente(c, id, true);
+    if (!atual) return null;
+    return (await alcanceCobreAgente(c, acessoDo(pedido).filtro, atual)) ? atual : null;
+  }
+
   function registrar(pedido: FastifyRequest, acao: AcaoDeAgente, agenteId: string, detalhes = {}) {
     const { sessao } = acessoDo(pedido);
     return auditar(
@@ -82,8 +90,8 @@ export function registrarRotasDosAgentes(app: FastifyInstance, o: OpcoesDosAgent
 
   app.get("/agentes/:id", { preHandler: verificador.exigir("agentes", "ver") }, async (pedido, resposta) => {
     const { id } = pedido.params as { id: string };
-    const lista = await naEmpresa(pedido, (c) => listarAgentes(c));
-    return lista.find((a) => a.id === id) ?? naoEncontrado(resposta);
+    const [agente] = await naEmpresa(pedido, (c) => listarAgentes(c, id));
+    return agente ?? naoEncontrado(resposta);
   });
 
   app.post("/agentes", { preHandler: verificador.exigir("agentes", "criar") }, async (pedido, resposta) => {
@@ -118,7 +126,7 @@ export function registrarRotasDosAgentes(app: FastifyInstance, o: OpcoesDosAgent
       if (!r.ok) return resposta.code(400).send({ code: "PEDIDO_INVALIDO", problemas: r.problemas });
       try {
         const feito = await naEmpresa(pedido, async (c) => {
-          const atual = await buscarAgente(c, id, true);
+          const atual = await agenteAlcancado(c, pedido, id);
           if (!atual) return "nao_encontrado" as const;
           if (atual.situacao === "desligado") return "desligado" as const;
           const responsavelId = r.valor.responsavelId ?? atual.responsavelId;
@@ -150,7 +158,7 @@ export function registrarRotasDosAgentes(app: FastifyInstance, o: OpcoesDosAgent
     app.post(caminho, { preHandler: verificador.exigir("agentes", "editar") }, async (pedido, resposta) => {
       const { id } = pedido.params as { id: string };
       const feito = await naEmpresa(pedido, async (c) => {
-        const atual = await buscarAgente(c, id, true);
+        const atual = await agenteAlcancado(c, pedido, id);
         if (!atual) return null;
         if (atual.situacao !== de) return atual.situacao;
         return mudarSituacao(c, id, para);
@@ -175,7 +183,7 @@ export function registrarRotasDosAgentes(app: FastifyInstance, o: OpcoesDosAgent
     async (pedido, resposta) => {
       const { id } = pedido.params as { id: string };
       const feito = await naEmpresa(pedido, async (c) => {
-        const atual = await buscarAgente(c, id, true);
+        const atual = await agenteAlcancado(c, pedido, id);
         if (!atual) return null;
         if (atual.situacao === "desligado") return "desligado" as const;
         const agente: Agente = await mudarSituacao(c, id, "desligado");
@@ -184,9 +192,11 @@ export function registrarRotasDosAgentes(app: FastifyInstance, o: OpcoesDosAgent
           id,
           `O agente ${agente.nome} foi desligado e a tarefa voltou para A fazer.`,
         );
-        const passadas = await passarTarefasAoResponsavel(c, agente);
+        const passadas = await passarTarefasAoResponsavel(c, agente, new Set(devolvidas.map((t) => t.id)));
         const contato = await contatoDoResponsavel(c, agente.responsavelId);
-        return { agente, tarefas: [...devolvidas, ...passadas], contato };
+        // Uma tarefa pode estar nas duas listas (pegada e atribuída ao agente): conta uma vez só.
+        const tarefas = [...new Map([...devolvidas, ...passadas].map((t) => [t.id, t])).values()];
+        return { agente, tarefas, contato };
       });
       if (!feito) return naoEncontrado(resposta);
       if (feito === "desligado") return desligadoNaoMuda(resposta);
@@ -199,7 +209,7 @@ export function registrarRotasDosAgentes(app: FastifyInstance, o: OpcoesDosAgent
             nome: feito.contato.nome,
             agente: feito.agente.nome,
             oQueAconteceu: "foi desligado",
-            tarefas: [...new Set(feito.tarefas.map((t) => t.titulo))],
+            tarefas: feito.tarefas.map((t) => t.titulo),
             link: `${site}/agentes/${id}`,
           })
           .catch((erro) => pedido.log.error({ erro }, "Aviso de agente desligado: e-mail não saiu"));

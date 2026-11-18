@@ -193,6 +193,10 @@ function FormularioDoAgente({
             key={pessoas.length}
             className="h-11 rounded-md border border-linha bg-cartao px-3 text-base"
           >
+            {/* Quem é responsável hoje aparece mesmo que já não esteja ativo: salvar não troca sem querer. */}
+            {atual && !pessoas.some((p) => p.id === atual.responsavelId) && (
+              <option value={atual.responsavelId}>{atual.responsavelNome}</option>
+            )}
             {pessoas.map((p) => (
               <option key={p.id} value={p.id}>
                 {p.nome}

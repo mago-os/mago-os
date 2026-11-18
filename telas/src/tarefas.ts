@@ -12,7 +12,7 @@ export interface Resposta<T> {
 const SEM_CONEXAO = "Sem conexão com o Mago OS. Confira a internet e tente de novo.";
 const PADRAO = "Não foi possível concluir agora. Tente de novo em instantes.";
 
-async function pedir<T>(
+export async function pedir<T>(
   metodo: "GET" | "POST" | "DELETE",
   caminho: string,
   corpo?: unknown,
