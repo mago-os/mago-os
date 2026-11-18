@@ -23,3 +23,4 @@ Uma nota curta por decisão importante: o que foi decidido, por quê e o que foi
 | [0014](0014-auditoria.md) | Auditoria: correntes que só acrescentam, cópia travada no Backblaze e verificação diária | Aceita |
 | [0015](0015-convites.md) | Convites e desligamento: link de 7 dias e uso único, e-mail pelo Resend, desligar corta as sessões na hora | Aceita |
 | [0016](0016-convite-para-criar-empresa.md) | Convite para criar empresa: o Dono convida, quem cria (CNPJ ou CPF) vira administrador e o Dono não entra | Aceita |
+| [0018](0018-tempo-real.md) | Tempo real: avisos por gatilho no PostgreSQL (LISTEN/NOTIFY) e WebSocket autenticado pela sessão | Aceita |

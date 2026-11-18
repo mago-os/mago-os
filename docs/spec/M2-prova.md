@@ -89,13 +89,13 @@ Pronto quando: um cliente MCP de teste lista as tarefas dele, pega uma, comenta 
 
 ### M2-06 Tempo real (WebSocket)
 
-- [ ] Conexão WebSocket da tela com o núcleo, autenticada pela sessão da pessoa, uma por aba
-- [ ] Avisos entre as cópias da API pelo próprio PostgreSQL (LISTEN/NOTIFY), para funcionar na troca azul e verde e com mais de uma cópia, sem estado no servidor (regra 9)
-- [ ] O aviso leva só o que mudou ("a tarefa X mudou") e a tela busca de novo pela rota normal, então a permissão continua valendo
-- [ ] A pessoa só recebe avisos da empresa ativa dela; teste de vazamento entre empresas também aqui
-- [ ] Reconexão sozinha quando a internet cai ou o celular volta do segundo plano, buscando o que mudou no meio tempo
-- [ ] Conferir que o Caddy e a Cloudflare deixam o WebSocket passar no teste.osmago.com
-- [ ] Na tela: lista e página da tarefa se atualizam sozinhas, com um destaque curto no que mudou
+- [x] Conexão WebSocket da tela com o núcleo, autenticada pela sessão da pessoa, uma por aba
+- [x] Avisos entre as cópias da API pelo próprio PostgreSQL (LISTEN/NOTIFY), para funcionar na troca azul e verde e com mais de uma cópia, sem estado no servidor (regra 9)
+- [x] O aviso leva só o que mudou ("a tarefa X mudou") e a tela busca de novo pela rota normal, então a permissão continua valendo
+- [x] A pessoa só recebe avisos da empresa ativa dela; teste de vazamento entre empresas também aqui
+- [x] Reconexão sozinha quando a internet cai ou o celular volta do segundo plano, buscando o que mudou no meio tempo
+- [ ] Conferir que o Caddy e a Cloudflare deixam o WebSocket passar no teste.osmago.com (depois do merge)
+- [x] Na tela: lista e página da tarefa se atualizam sozinhas, com um destaque curto no que mudou
 
 Pronto quando: com o Mago OS aberto no celular e no computador, um comentário feito num aparece no outro em menos de 2 segundos, sem recarregar.
 

@@ -12,7 +12,7 @@ import {
   type Tarefa,
 } from "@mago-os/contratos";
 import { ArrowLeft, Bot, Plus } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { listarPessoas, type PessoaDaEmpresa } from "@/acesso";
 import { type AgenteNaLista, listarAgentes } from "@/agentes";
 import { Button } from "@/componentes/ui/button";
@@ -30,6 +30,7 @@ import {
   type TarefaAberta,
   trocarResponsavel,
 } from "@/tarefas";
+import { useTempoReal } from "@/tempo-real";
 import { Aviso } from "./Acesso";
 import { useAoVoltar } from "./Administrador";
 
@@ -77,6 +78,24 @@ function MarcaDeAgente({ quem }: { quem: Autor | Responsavel | null }) {
   );
 }
 
+/** Ids que acabaram de mudar, destacados por 2,5 segundos. */
+export function useDestaques(): [Set<string>, (id: string) => void] {
+  const [destaques, setDestaques] = useState<Set<string>>(new Set());
+  const destacar = useCallback((id: string) => {
+    setDestaques((d) => new Set(d).add(id));
+    setTimeout(
+      () =>
+        setDestaques((d) => {
+          const novo = new Set(d);
+          novo.delete(id);
+          return novo;
+        }),
+      2500,
+    );
+  }, []);
+  return [destaques, destacar];
+}
+
 /** Lista das tarefas. */
 export function Tarefas({ podeCriar, euId }: { podeCriar: boolean; euId: string }) {
   const [minhas, setMinhas] = useState(true);
@@ -96,6 +115,14 @@ export function Tarefas({ podeCriar, euId }: { podeCriar: boolean; euId: string 
     void carregar();
   }, [carregar]);
   useAoVoltar(carregar);
+  const [destaques, destacar] = useDestaques();
+  useTempoReal((aviso) => {
+    if (aviso.tipo === "reconectou") void carregar();
+    if (aviso.tipo === "tarefa") {
+      void carregar();
+      destacar(aviso.id);
+    }
+  });
 
   return (
     <main className="mx-auto grid max-w-3xl gap-4 px-4 py-5 md:py-8">
@@ -140,7 +167,11 @@ export function Tarefas({ podeCriar, euId }: { podeCriar: boolean; euId: string 
           <li key={t.id}>
             <a
               href={`/tarefas/${t.id}`}
-              className="grid gap-1.5 rounded-lg border border-linha bg-cartao p-3 transition-colors hover:bg-suave"
+              data-destaque={destaques.has(t.id) || undefined}
+              className={cn(
+                "grid gap-1.5 rounded-lg border border-linha bg-cartao p-3 transition-colors duration-700 hover:bg-suave",
+                destaques.has(t.id) && "border-tinta/40 bg-suave",
+              )}
             >
               <span className="font-medium text-pretty">{t.titulo}</span>
               <span className="flex flex-wrap items-center gap-2 text-xs text-texto-2">
@@ -359,6 +390,18 @@ export function PaginaDaTarefa({
     const r = await abrirTarefa(id);
     setAberta(r.ok && r.dados ? r.dados : null);
   }, [id]);
+  const [destaques, destacar] = useDestaques();
+  const comentariosAntes = useRef<Set<string> | null>(null);
+  useTempoReal((aviso) => {
+    if (aviso.tipo === "reconectou" || (aviso.tipo === "tarefa" && aviso.id === id)) void carregar();
+  });
+  // Comentário que chegou depois de a página abrir ganha um destaque curto.
+  useEffect(() => {
+    if (!aberta) return;
+    const ids = new Set(aberta.comentarios.map((c) => c.id));
+    if (comentariosAntes.current) for (const c of ids) if (!comentariosAntes.current.has(c)) destacar(c);
+    comentariosAntes.current = ids;
+  }, [aberta, destacar]);
   useEffect(() => {
     void carregar();
   }, [carregar]);
@@ -588,7 +631,14 @@ export function PaginaDaTarefa({
         {comentarios.length === 0 && <p className="text-sm text-texto-2">Nenhum comentário ainda.</p>}
         <ul className="grid gap-2">
           {comentarios.map((c) => (
-            <li key={c.id} className="grid gap-1 rounded-lg border border-linha bg-cartao p-3">
+            <li
+              key={c.id}
+              data-destaque={destaques.has(c.id) || undefined}
+              className={cn(
+                "grid gap-1 rounded-lg border border-linha bg-cartao p-3 transition-colors duration-700",
+                destaques.has(c.id) && "border-tinta/40 bg-suave",
+              )}
+            >
               <span className="flex flex-wrap items-center gap-2 text-xs text-texto-2">
                 <span className="font-medium text-tinta">{nomeDe(c.autor, nomesTodos)}</span>
                 <MarcaDeAgente quem={c.autor} />

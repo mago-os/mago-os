@@ -21,6 +21,7 @@ import {
 import { criarVerificador } from "./permissoes/verificar.ts";
 import { criarServidor } from "./servidor.ts";
 import { registrarRotasDasTarefas } from "./tarefas/rotas.ts";
+import { registrarTempoReal } from "./tempo-real/index.ts";
 
 async function iniciar(): Promise<void> {
   const config = lerConfig();
@@ -37,6 +38,13 @@ async function iniciar(): Promise<void> {
     const verificador = criarVerificador(login, poolDoLogin, banco.pool, catalogoDeModulos());
     registrarRotasDePermissoes(app, verificador, banco.pool);
     registrarRotasDasTarefas(app, verificador, banco.pool);
+    await registrarTempoReal(app, {
+      login,
+      poolAcesso: poolDoLogin,
+      poolApp: banco.pool,
+      verificador,
+      bancoUrl: config.bancoUrl,
+    });
     registrarRotasDosAgentes(app, {
       verificador,
       poolApp: banco.pool,
