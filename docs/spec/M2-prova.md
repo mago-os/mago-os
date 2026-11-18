@@ -2,7 +2,7 @@
 
 Parte da [spec da Fase 1](README.md). Estado em 18/11/2026: **proposta, aguardando a aprovação do Sandro**. Nenhum código do M2 começa antes disso.
 
-**Pronto quando:** o Sandro cria em teste.osmago.com uma tarefa para o Hermes. O Hermes, na VPS01, pega a tarefa pelo MCP, faz o trabalho e entrega o resultado, que aparece na tela do Sandro sem recarregar. O mesmo vale para o Claude no Mac. O Sandro desliga um agente e a chave dele para de funcionar na hora. Cada passo aparece na auditoria, e os testes provam que um agente de uma empresa não vê nada da outra.
+**Pronto quando:** o Sandro cria em teste.osmago.com uma tarefa para o Claude no Mac. O Claude pega a tarefa pelo MCP, faz o trabalho e entrega o resultado, que aparece na tela do Sandro sem recarregar. O caminho do Hermes fica pronto e documentado, e o teste com ele vem quando o Hermes estiver em produção (ajuste do Sandro em 18/11/2026). O Sandro desliga um agente e a chave dele para de funcionar na hora. Cada passo aparece na auditoria, e os testes provam que um agente de uma empresa não vê nada da outra.
 
 | Número | Tarefa | Depende de | Tamanho |
 | --- | --- | --- | --- |
@@ -12,8 +12,8 @@ Parte da [spec da Fase 1](README.md). Estado em 18/11/2026: **proposta, aguardan
 | M2-04 | Chave do agente revogável e agente vivo | M2-03 | M |
 | M2-05 | Mago OS como servidor MCP, com a documentação gerada | M2-02, M2-04 | M |
 | M2-06 | Tempo real (WebSocket) | M2-01 | M |
-| M2-07 | Ligar o Hermes na VPS01 | M2-05 | P |
-| M2-08 | Ligar o Claude no Mac pelo MCP | M2-05 | P |
+| M2-07 | Deixar pronto o caminho do Hermes (teste depois) | M2-05 | P |
+| M2-08 | Ligar o Claude no Mac pelo MCP (o teste do marco) | M2-05 | P |
 
 A ordem da tabela é a ordem de construção: a M2-03 vem antes da M2-02 porque a trava precisa saber quem é o agente. A M2-06 não depende do MCP e pode ser feita em paralelo, depois da M2-01.
 
@@ -44,12 +44,12 @@ Pronto quando: o Sandro cria uma tarefa pelo celular, troca o status, comenta e 
 - [ ] Na tela da tarefa, dá para escolher um agente como responsável
 - [ ] Eventos de auditoria: `agente.cadastrou`, `agente.editou`, `agente.pausou`, `agente.retomou`, `agente.desligou`
 
-Pronto quando: o Sandro cadastra o Hermes, com ele mesmo de responsável, atribui uma tarefa a ele e desliga o agente pela tela.
+Pronto quando: o Sandro cadastra o Claude no Mac, com ele mesmo de responsável, atribui uma tarefa a ele e desliga o agente pela tela.
 
 ### M2-02 Tarefa travada para quem a pegou
 
 - [ ] Ação "pegar a tarefa": muda para Em andamento e trava a tarefa para quem pegou (pessoa ou agente), com o horário
-- [ ] Enquanto travada, só quem pegou muda o status e entrega o resultado; os outros veem "em andamento com Hermes" e ainda podem comentar
+- [ ] Enquanto travada, só quem pegou muda o status e entrega o resultado; os outros veem "em andamento com Claude no Mac" e ainda podem comentar
 - [ ] Dois pedidos ao mesmo tempo: só um consegue pegar (garantido no banco, não no código)
 - [ ] O administrador pode destravar, com motivo, e isso vai para a auditoria
 - [ ] Ação "soltar a tarefa": volta para A fazer sem resultado
@@ -99,18 +99,20 @@ Pronto quando: um cliente MCP de teste lista as tarefas dele, pega uma, comenta 
 
 Pronto quando: com o Mago OS aberto no celular e no computador, um comentário feito num aparece no outro em menos de 2 segundos, sem recarregar.
 
-### M2-07 Ligar o Hermes na VPS01
+### M2-07 Deixar pronto o caminho do Hermes (teste depois)
 
-O Hermes roda na VPS01 (Hermes Agent v0.23, em Docker). Ele entra no Mago OS de fora para dentro, como qualquer agente externo: nenhuma porta nova é aberta e nada da Ratoeira é tocado.
+O Hermes ainda não está em produção (Sandro, 18/11/2026). No M2 fica tudo preparado para ligá-lo quando estiver: ele roda hoje na VPS01 (Hermes Agent v0.23, em Docker) e vai entrar no Mago OS de fora para dentro, como qualquer agente externo, sem porta nova e sem tocar na Ratoeira. Os passos abaixo marcados "quando o Hermes estiver em produção" não seguram o fim do M2.
 
-- [ ] Cadastrar o Hermes na Central de agentes da 4xpert, com o Sandro como responsável, e criar a chave
-- [ ] Guardar a chave no Infisical e colocar no Hermes só pela configuração do servidor MCP dele (nunca em arquivo versionado)
-- [ ] Configurar o Mago OS como servidor MCP no Hermes
-- [ ] Rotina do Hermes que, a cada minuto, chama `minhas_tarefas` e trabalha a próxima (é ele que pergunta; o aviso do Mago OS para o agente, por webhook, é da Fase 2)
+- [ ] Agente de teste genérico (um script pequeno em `infra/ferramentas/`) que faz o mesmo ciclo que o Hermes vai fazer: pergunta a cada minuto, pega, comenta e entrega; serve de modelo e de teste para qualquer agente externo
+
+- [ ] Quando o Hermes estiver em produção: cadastrar o Hermes na Central de agentes da 4xpert, com o Sandro como responsável, e criar a chave
+- [ ] Quando o Hermes estiver em produção: guardar a chave no Infisical e colocar no Hermes só pela configuração do servidor MCP dele (nunca em arquivo versionado)
+- [ ] Quando o Hermes estiver em produção: configurar o Mago OS como servidor MCP no Hermes
+- [ ] Rotina pronta (configuração e instruções escritas) para o Hermes que, a cada minuto, chama `minhas_tarefas` e trabalha a próxima (é ele que pergunta; o aviso do Mago OS para o agente, por webhook, é da Fase 2)
 - [ ] Instruções curtas para o Hermes: pegar, comentar o andamento, entregar o resultado e soltar a tarefa quando não souber fazer
-- [ ] Guia em `docs/operacao/agentes.md`: como ligar, trocar a chave e desligar o Hermes
+- [ ] Guia em `docs/operacao/agentes.md`: como ligar qualquer agente externo, com a seção do Hermes passo a passo, trocar a chave e desligar
 
-Pronto quando: o Sandro cria a tarefa "verificar backup e espaço em disco da VPS01" para o Hermes, e o relatório aparece na tela sem recarregar, com cada passo na auditoria.
+Pronto quando: o agente de teste genérico faz o ciclo completo em teste.osmago.com, e o guia do Hermes está escrito. Depois do M2, quando o Hermes estiver em produção: o Sandro cria a tarefa "verificar backup e espaço em disco da VPS01" para o Hermes, e o relatório aparece na tela.
 
 ### M2-08 Ligar o Claude no Mac pelo MCP
 
@@ -126,8 +128,8 @@ Pronto quando: o Sandro pede no Claude Code do Mac "pega minhas tarefas no Mago 
 
 Estas escolhas estão na proposta acima como recomendação. Mudam o que o sistema faz, então só entram com o "aprovado":
 
-1. **Como o Hermes descobre que tem tarefa:** ele pergunta a cada minuto (recomendado: simples, sem porta aberta e sem nada novo no Mago OS). A alternativa é o Mago OS avisar o Hermes, que precisa de webhooks (Fase 2).
+1. **Como um agente externo descobre que tem tarefa:** ele pergunta a cada minuto (recomendado: simples, sem porta aberta e sem nada novo no Mago OS). A alternativa é o Mago OS avisar o agente, que precisa de webhooks (Fase 2).
 2. **Status fixos no M2:** A fazer, Em andamento, Precisa de ajuda, Concluída e Cancelada.
 3. **Endereço do MCP:** `teste.osmago.com/mcp`, sem mudança de DNS agora.
 4. **Tempo sem sinal de vida:** 15 minutos para a tarefa voltar à fila, alterável por agente.
-5. **Tarefa de teste do Hermes:** "verificar backup e espaço em disco da VPS01", um dos exemplos do plano.
+5. **Teste do marco com o Claude no Mac** (ajustado em 18/11/2026); o Hermes fica pronto e é testado quando estiver em produção, com a tarefa "verificar backup e espaço em disco da VPS01".
