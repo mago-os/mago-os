@@ -141,3 +141,9 @@ O login (`mago_acesso`) não lê papéis nem as regras da plataforma direto. As 
 - Responsável, quem criou, quem pegou (a trava da M2-02) e quem entregou o resultado são uma pessoa ou um agente: duas colunas para cada um, no máximo uma preenchida (as duas vazias, nos autores, quer dizer o sistema). A pessoa precisa ter vínculo na mesma empresa (chave composta com `vinculos`), então não dá para pôr alguém de outra empresa numa tarefa nem por erro do código. A referência para `agentes` entra na M2-03.
 - As regras do contrato estão também no banco: tarefa encerrada (concluída ou cancelada) tem data, resultado só em tarefa concluída e sempre com quem entregou, trava só em andamento ou precisando de ajuda.
 - Comentários só se acrescentam: a API (`mago_app`) não tem UPDATE nem DELETE neles. Saem junto só quando a tarefa é excluída.
+
+## 18. Agentes (18/11/2026, M2-03)
+
+- `agentes` segue o contrato de `contratos/src/agentes/agente.ts`, com `empresa_id`, RLS forçado e a política de `empresa_ativa()`. A pessoa responsável precisa ter vínculo na mesma empresa (chave composta com `vinculos`).
+- Agente não se apaga (a API não tem DELETE): desliga-se, com data. Dois agentes vivos da mesma empresa não podem ter o mesmo nome.
+- As colunas de agente de `tarefas` e `comentarios_de_tarefa` passam a apontar para `agentes` da mesma empresa (chave composta), então uma tarefa nunca fica com um agente de outra empresa.

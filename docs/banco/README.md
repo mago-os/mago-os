@@ -7,6 +7,21 @@
 
 ```mermaid
 erDiagram
+  agentes {
+    uuid id PK
+    uuid empresa_id FK
+    text nome
+    text descricao
+    text tipo
+    text onde_roda
+    uuid responsavel_id
+    text situacao
+    integer minutos_sem_sinal
+    timestamp_with_time_zone ultimo_sinal_em
+    timestamp_with_time_zone criado_em
+    timestamp_with_time_zone atualizado_em
+    timestamp_with_time_zone desligado_em
+  }
   ajustes_de_permissao {
     uuid id PK
     uuid empresa_id FK
@@ -230,6 +245,7 @@ erDiagram
     timestamp_with_time_zone criada_em
     timestamp_with_time_zone atualizada_em
   }
+  empresas ||--o{ agentes : "empresa_id"
   empresas ||--o{ ajustes_de_permissao : "empresa_id"
   vinculos ||--o{ ajustes_de_permissao : "vinculo_id"
   pessoas ||--o{ ajustes_de_permissao : "feito_por"
@@ -266,6 +282,28 @@ erDiagram
 | `sistema` | Controle técnico do sistema |
 
 ## Dicionário de dados
+
+### agentes
+
+Agentes de IA da empresa. No M2 só externos (rodam fora e entram pelo MCP), sempre com uma pessoa responsável.
+
+Isolamento por empresa (Row Level Security): ligado e forçado.
+
+| Coluna | Tipo | Obrigatória | Padrão | Marca | Descrição |
+| --- | --- | --- | --- | --- | --- |
+| id | uuid | sim | `uuidv7()` | sistema | Identificador do agente (UUID v7). Chave primária. |
+| empresa_id | uuid | sim |  | sistema | Empresa do agente. Aponta para empresas.id. |
+| nome | text | sim |  | empresa | Nome do agente nas telas (ex.: Claude no Mac). |
+| descricao | text | não |  | empresa | Para que serve o agente. |
+| tipo | text | sim | `'externo'::text` | empresa | externo: roda fora do Mago OS e entra pelo MCP. Os internos vêm no M4. |
+| onde_roda | text | não |  | empresa | Onde o agente roda, em texto livre (ex.: VPS01, Mac do Sandro). |
+| responsavel_id | uuid | sim |  | sistema | Pessoa da empresa que responde pelo agente e recebe os avisos dele. |
+| situacao | text | sim | `'ativo'::text` | empresa | ativo, pausado (sem tarefa nova) ou desligado (parado de vez). |
+| minutos_sem_sinal | integer | sim | `15` | empresa | Minutos sem sinal de vida até a tarefa pegada voltar para A fazer (M2-04). |
+| ultimo_sinal_em | timestamp with time zone | não |  | sistema | Último pedido do agente (sinal de vida, M2-04). |
+| criado_em | timestamp with time zone | sim | `now()` | sistema | Quando o agente foi cadastrado. |
+| atualizado_em | timestamp with time zone | sim | `now()` | sistema | Última mudança no cadastro. |
+| desligado_em | timestamp with time zone | não |  | sistema | Quando o agente foi desligado. |
 
 ### ajustes_de_permissao
 
@@ -368,7 +406,7 @@ Isolamento por empresa (Row Level Security): ligado e forçado.
 | descricao | text | não |  | empresa | Detalhes, contexto e o que se espera. |
 | status | text | sim | `'a_fazer'::text` | empresa | a_fazer, em_andamento, precisa_de_ajuda, concluida ou cancelada. |
 | responsavel_pessoa_id | uuid | não |  | sistema | Pessoa responsável (com vínculo na empresa), quando é uma pessoa. |
-| responsavel_agente_id | uuid | não |  | sistema | Agente responsável, quando é um agente (referência na M2-03). |
+| responsavel_agente_id | uuid | não |  | sistema | Agente responsável (da mesma empresa), quando é um agente. |
 | criada_por_pessoa_id | uuid | não |  | sistema | Pessoa que criou a tarefa. |
 | criada_por_agente_id | uuid | não |  | sistema | Agente que criou a tarefa. Os dois vazios: criada pelo sistema. |
 | travada_por_pessoa_id | uuid | não |  | sistema | Pessoa que pegou a tarefa (trava, M2-02). |

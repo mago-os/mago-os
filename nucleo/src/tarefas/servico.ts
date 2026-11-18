@@ -283,25 +283,25 @@ export async function excluirTarefa(c: pg.PoolClient, tarefaId: string): Promise
   await c.query("delete from tarefas where id = $1 and empresa_id = empresa_ativa()", [tarefaId]);
 }
 
-/** Nomes das pessoas citadas nas tarefas e comentários (responsável, quem criou, quem comentou). */
-export async function nomesDasPessoas(
-  c: pg.PoolClient,
-  ids: Iterable<string>,
-): Promise<Record<string, string>> {
+/** Nomes de quem aparece nas tarefas e comentários (pessoas e agentes). */
+export async function nomesCitados(c: pg.PoolClient, ids: Iterable<string>): Promise<Record<string, string>> {
   const lista = [...new Set(ids)];
   if (lista.length === 0) return {};
+  // Pessoas e agentes têm ids diferentes (UUID): um mapa só serve para os dois.
   const r = await c.query<{ id: string; nome: string }>(
-    "select id, nome from pessoas where id = any($1::uuid[])",
+    `select id, nome from pessoas where id = any($1::uuid[])
+     union all select id, nome from agentes where id = any($1::uuid[]) and empresa_id = empresa_ativa()`,
     [lista],
   );
   return Object.fromEntries(r.rows.map((l) => [l.id, l.nome]));
 }
 
-/** Os ids de pessoas que aparecem numa tarefa e nos comentários dela. */
-export function pessoasCitadas(tarefas: Tarefa[], comentarios: ComentarioDeTarefa[] = []): string[] {
+/** Os ids de pessoas e agentes que aparecem nas tarefas e nos comentários. */
+export function idsCitados(tarefas: Tarefa[], comentarios: ComentarioDeTarefa[] = []): string[] {
   const ids: string[] = [];
   const somar = (a: Autor | Responsavel | null) => {
     if (a?.tipo === "pessoa") ids.push(a.pessoaId);
+    if (a?.tipo === "agente") ids.push(a.agenteId);
   };
   for (const t of tarefas) {
     somar(t.responsavel);

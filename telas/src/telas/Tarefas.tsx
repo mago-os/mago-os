@@ -14,6 +14,7 @@ import {
 import { ArrowLeft, Bot, Plus } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { listarPessoas, type PessoaDaEmpresa } from "@/acesso";
+import { type AgenteNaLista, listarAgentes } from "@/agentes";
 import { Button } from "@/componentes/ui/button";
 import { Campo } from "@/componentes/ui/campo";
 import { Card, CardTitulo } from "@/componentes/ui/card";
@@ -179,11 +180,33 @@ function usePessoas() {
   return pessoas;
 }
 
+/** Agentes ativos (só eles recebem tarefa nova). */
+function useAgentesAtivos() {
+  const [agentes, setAgentes] = useState<AgenteNaLista[]>([]);
+  useEffect(() => {
+    void listarAgentes().then((r) => setAgentes((r.dados ?? []).filter((a) => a.situacao === "ativo")));
+  }, []);
+  return agentes;
+}
+
+/** No seletor, agente vale "agente:<id>" e pessoa vale o id dela. */
+function valorDoResponsavel(r: Responsavel | null): string {
+  if (r?.tipo === "agente") return `agente:${r.agenteId}`;
+  return r?.tipo === "pessoa" ? r.pessoaId : "";
+}
+
+function responsavelDoValor(v: string): Responsavel | null {
+  if (!v || v === "nenhum") return null;
+  if (v.startsWith("agente:")) return { tipo: "agente", agenteId: v.slice("agente:".length) };
+  return { tipo: "pessoa", pessoaId: v };
+}
+
 function SeletorDeResponsavel({
   id,
   valor,
   aoMudar,
   pessoas,
+  agentes,
   extras,
   disabled,
 }: {
@@ -191,6 +214,7 @@ function SeletorDeResponsavel({
   valor: string;
   aoMudar: (v: string) => void;
   pessoas: PessoaDaEmpresa[];
+  agentes: AgenteNaLista[];
   /** Opções antes das pessoas (ex.: "Sem responsável"), com o valor que cada uma manda. */
   extras: { valor: string; nome: string }[];
   disabled?: boolean;
@@ -213,6 +237,15 @@ function SeletorDeResponsavel({
           {p.nome}
         </option>
       ))}
+      {agentes.length > 0 && (
+        <optgroup label="Agentes">
+          {agentes.map((a) => (
+            <option key={a.id} value={`agente:${a.id}`}>
+              {a.nome}
+            </option>
+          ))}
+        </optgroup>
+      )}
     </select>
   );
 }
@@ -227,7 +260,8 @@ function NovaTarefa({
   aoCriar: (t: Tarefa) => void;
 }) {
   const pessoas = usePessoas();
-  // "": fica com quem criou (a API decide). "nenhum": sem responsável. Outro valor: a pessoa escolhida.
+  const agentes = useAgentesAtivos();
+  // "": fica com quem criou (a API decide). "nenhum": sem responsável. Outro valor: a pessoa ou o agente escolhido.
   const [responsavel, setResponsavel] = useState("");
   const [mensagem, setMensagem] = useState<Mensagem>(null);
   const [enviando, setEnviando] = useState(false);
@@ -242,7 +276,7 @@ function NovaTarefa({
       ...(responsavel === ""
         ? {}
         : {
-            responsavel: responsavel === "nenhum" ? null : { tipo: "pessoa", pessoaId: responsavel },
+            responsavel: responsavelDoValor(responsavel),
           }),
     });
     setEnviando(false);
@@ -267,7 +301,7 @@ function NovaTarefa({
             className="rounded-md border border-linha bg-cartao px-3 py-2 text-base"
           />
         </div>
-        {pessoas.length > 1 && (
+        {(pessoas.length > 1 || agentes.length > 0) && (
           <div className="grid gap-1.5">
             <label htmlFor="responsavel-nova" className="text-sm font-medium">
               Responsável
@@ -277,6 +311,7 @@ function NovaTarefa({
               valor={responsavel}
               aoMudar={setResponsavel}
               pessoas={pessoas.filter((p) => p.id !== euId)}
+              agentes={agentes}
               extras={[
                 { valor: "", nome: "Eu" },
                 { valor: "nenhum", nome: "Sem responsável" },
@@ -312,6 +347,7 @@ export function PaginaDaTarefa({
   const [mensagem, setMensagem] = useState<Mensagem>(null);
   const [concluindo, setConcluindo] = useState(false);
   const pessoas = usePessoas();
+  const agentes = useAgentesAtivos();
 
   const carregar = useCallback(async () => {
     const r = await abrirTarefa(id);
@@ -341,8 +377,8 @@ export function PaginaDaTarefa({
     void carregar();
   }
 
-  async function aoTrocar(pessoaId: string) {
-    const r = await trocarResponsavel(tarefa.id, pessoaId ? { tipo: "pessoa", pessoaId } : null);
+  async function aoTrocar(valor: string) {
+    const r = await trocarResponsavel(tarefa.id, responsavelDoValor(valor));
     setMensagem(
       r.ok ? { tipo: "ok", texto: "Responsável trocado." } : { tipo: "erro", texto: r.mensagem ?? "" },
     );
@@ -373,7 +409,10 @@ export function PaginaDaTarefa({
     else setMensagem({ tipo: "erro", texto: r.mensagem ?? "" });
   }
 
-  const responsavelAtual = tarefa.responsavel?.tipo === "pessoa" ? tarefa.responsavel.pessoaId : "";
+  const responsavelAtual = valorDoResponsavel(tarefa.responsavel);
+  const conhecido =
+    pessoas.some((p) => p.id === responsavelAtual) ||
+    agentes.some((a) => `agente:${a.id}` === responsavelAtual);
   const encerrada = tarefa.status === "concluida" || tarefa.status === "cancelada";
 
   return (
@@ -400,16 +439,17 @@ export function PaginaDaTarefa({
           <label htmlFor="responsavel" className="text-sm font-medium">
             Responsável
           </label>
-          {podeEditar && tarefa.responsavel?.tipo !== "agente" ? (
+          {podeEditar ? (
             <SeletorDeResponsavel
               id="responsavel"
               valor={responsavelAtual}
               aoMudar={(v) => void aoTrocar(v)}
               pessoas={pessoas}
+              agentes={agentes}
               extras={[
                 { valor: "", nome: "Sem responsável" },
                 // Quem é responsável hoje aparece mesmo que a lista de pessoas não o mostre a quem vê.
-                ...(responsavelAtual && !pessoas.some((p) => p.id === responsavelAtual)
+                ...(responsavelAtual && !conhecido
                   ? [{ valor: responsavelAtual, nome: nomeDe(tarefa.responsavel, nomesTodos) }]
                   : []),
               ]}

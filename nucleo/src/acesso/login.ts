@@ -56,6 +56,18 @@ export interface Carteiro {
     quemConvidou: string;
     link: string;
   }): Promise<void>;
+  /** Aviso à pessoa responsável por um agente (M2-03: desligado; M2-04: sem sinal ou passou do limite). */
+  enviarAvisoDeAgente?(dados: DadosDoAvisoDeAgente): Promise<void>;
+}
+
+export interface DadosDoAvisoDeAgente {
+  para: string;
+  nome: string;
+  agente: string;
+  /** O que aconteceu, numa frase (ex.: "foi desligado"). */
+  oQueAconteceu: string;
+  tarefas: string[];
+  link: string;
 }
 
 export interface OpcoesDoLogin {

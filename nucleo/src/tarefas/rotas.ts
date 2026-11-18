@@ -18,6 +18,7 @@ import {
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import type pg from "pg";
 import { origemDoPedido } from "../acesso/rotas.ts";
+import { agenteRecebeTarefas } from "../agentes/servico.ts";
 import { auditar } from "../auditoria/registrar.ts";
 import { comPessoa } from "../empresa.ts";
 import { acessoDo, type Verificador } from "../permissoes/verificar.ts";
@@ -27,12 +28,12 @@ import {
   comentar,
   criarTarefa,
   excluirTarefa,
+  idsCitados,
   listarComentarios,
   listarTarefas,
   mudarStatus,
-  nomesDasPessoas,
+  nomesCitados,
   pessoaAtivaNaEmpresa,
-  pessoasCitadas,
   type Quem,
   trocarResponsavel,
 } from "./servico.ts";
@@ -81,7 +82,11 @@ export function registrarRotasDasTarefas(
   /** Confere se o responsável escolhido pode receber tarefas na empresa. Devolve o motivo da recusa. */
   async function responsavelRecusado(c: pg.PoolClient, r: Responsavel | null): Promise<string | null> {
     if (r === null) return null;
-    if (r.tipo === "agente") return "Agentes como responsáveis chegam com a Central de agentes.";
+    if (r.tipo === "agente") {
+      return (await agenteRecebeTarefas(c, r.agenteId))
+        ? null
+        : "Esse agente não está ativo nesta empresa (pausado ou desligado não recebe tarefa nova).";
+    }
     return (await pessoaAtivaNaEmpresa(c, r.pessoaId)) ? null : "Essa pessoa não está ativa nesta empresa.";
   }
 
@@ -100,7 +105,7 @@ export function registrarRotasDasTarefas(
     const quem = quemDoPedido(pedido);
     return naEmpresa(pedido, async (c) => {
       const tarefas = await listarTarefas(c, quem, r.valor);
-      return { tarefas, nomes: await nomesDasPessoas(c, pessoasCitadas(tarefas)) };
+      return { tarefas, nomes: await nomesCitados(c, idsCitados(tarefas)) };
     });
   });
 
@@ -138,7 +143,7 @@ export function registrarRotasDasTarefas(
       const tarefa = await buscarTarefa(c, quem, id);
       if (!tarefa) return null;
       const comentarios = await listarComentarios(c, tarefa.id);
-      return { tarefa, comentarios, nomes: await nomesDasPessoas(c, pessoasCitadas([tarefa], comentarios)) };
+      return { tarefa, comentarios, nomes: await nomesCitados(c, idsCitados([tarefa], comentarios)) };
     });
     return achou ?? naoEncontrada(resposta);
   });

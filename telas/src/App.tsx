@@ -1,4 +1,4 @@
-import { Building2, ScrollText, Shield, Users } from "lucide-react";
+import { Bot, Building2, ScrollText, Shield, Users } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import {
   type AvisoDeAcesso,
@@ -22,6 +22,7 @@ import { Button } from "./componentes/ui/button";
 import { Card } from "./componentes/ui/card";
 import { Entrar, RecuperarSenha, RedefinirSenha } from "./telas/Acesso";
 import { Auditoria, Pessoas, Seguranca } from "./telas/Administrador";
+import { Agentes, PaginaDoAgente } from "./telas/Agentes";
 import { AvisosDeAcesso, MeusAparelhos } from "./telas/Aparelhos";
 import { AceitarConvite } from "./telas/Convite";
 import { AtivarDoisFatores, ConfirmarSegundoFator } from "./telas/DoisFatores";
@@ -198,6 +199,7 @@ export function App() {
     ...(pode("pessoas", "ver") && permissoes?.perfil !== "funcionario"
       ? [{ caminho: "/pessoas", nome: "Pessoas", icone: Users }]
       : []),
+    ...(pode("agentes", "ver") ? [{ caminho: "/agentes", nome: "Agentes", icone: Bot }] : []),
     ...(pode("seguranca", "ver") || dono
       ? [{ caminho: "/seguranca", nome: "Segurança", icone: Shield }]
       : []),
@@ -207,7 +209,19 @@ export function App() {
 
   let conteudo: React.ReactNode;
   const tarefaAberta = /^\/tarefas\/([0-9a-f-]{36})$/i.exec(caminho)?.[1];
+  const agenteAberto = /^\/agentes\/([0-9a-f-]{36})$/i.exec(caminho)?.[1];
   if (caminho === "/perfil") conteudo = <MeuPerfil />;
+  else if (caminho === "/agentes" && pode("agentes", "ver"))
+    conteudo = <Agentes podeCadastrar={pode("agentes", "criar")} euId={sessao.pessoa.id} />;
+  else if (agenteAberto && pode("agentes", "ver"))
+    conteudo = (
+      <PaginaDoAgente
+        id={agenteAberto}
+        podeEditar={pode("agentes", "editar")}
+        podeDesligar={pode("agentes", "excluir")}
+        euId={sessao.pessoa.id}
+      />
+    );
   else if (caminho === "/tarefas" && temEmpresaAtiva)
     conteudo = <Tarefas podeCriar={pode("tarefas", "criar")} euId={sessao.pessoa.id} />;
   else if (tarefaAberta && temEmpresaAtiva)

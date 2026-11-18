@@ -254,7 +254,7 @@ describe.skipIf(!bancoDisponivel)("tarefas", () => {
     });
   });
 
-  it("não dá para pôr como responsável alguém de outra empresa, nem agente antes da Central de agentes", async () => {
+  it("não dá para pôr como responsável alguém de outra empresa, nem um agente que não existe", async () => {
     const ana = await como("ana@teste.invalid");
     const otto = await pedir("POST", `/tarefas/${doFabio}/responsavel`, ana, {
       responsavel: { tipo: "pessoa", pessoaId: await idDe("otto@teste.invalid") },
