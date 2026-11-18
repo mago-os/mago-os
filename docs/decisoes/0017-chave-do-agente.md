@@ -1,7 +1,7 @@
 # 0017 Chave do agente e agente vivo
 
 - **Data:** 18/11/2026
-- **Situação:** proposta (aguarda a aprovação do Sandro: é segurança)
+- **Situação:** aceita (aprovada pelo Sandro no chat em 18/11/2026)
 - **Tarefa:** M2-04
 
 ## Contexto
