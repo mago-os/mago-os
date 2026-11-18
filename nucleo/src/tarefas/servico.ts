@@ -29,13 +29,15 @@ export function condicaoDeAlcance(quem: Quem, jaUsados: number): { sql: string; 
       valores: [quem.agenteId],
     };
   }
-  const meus = `(t.responsavel_pessoa_id = ${p(0)} or t.criada_por_pessoa_id = ${p(0)})`;
+  // "Meus": sou o responsável, criei ou estou com a tarefa pegada.
+  const meus = `(t.responsavel_pessoa_id = ${p(0)} or t.criada_por_pessoa_id = ${p(0)}
+                 or t.travada_por_pessoa_id = ${p(0)})`;
   const { filtro } = quem;
   if (filtro.tipo === "tudo") return { sql: "true", valores: [] };
   if (filtro.tipo === "meus") return { sql: meus, valores: [filtro.pessoaId] };
   return {
     sql: `(${meus} or exists (select 1 from vinculos v where v.empresa_id = t.empresa_id and v.area = ${p(1)}
-             and v.pessoa_id in (t.responsavel_pessoa_id, t.criada_por_pessoa_id)))`,
+             and v.pessoa_id in (t.responsavel_pessoa_id, t.criada_por_pessoa_id, t.travada_por_pessoa_id)))`,
     valores: [filtro.pessoaId, filtro.area],
   };
 }
@@ -120,7 +122,9 @@ export async function listarTarefas(c: pg.PoolClient, quem: Quem, filtro: Filtro
   if (filtro.minhas && quem.tipo === "pessoa") {
     valores.push(quem.pessoaId);
     const eu = `$${valores.length}`;
-    partes.push(`(t.responsavel_pessoa_id = ${eu} or t.criada_por_pessoa_id = ${eu})`);
+    partes.push(
+      `(t.responsavel_pessoa_id = ${eu} or t.criada_por_pessoa_id = ${eu} or t.travada_por_pessoa_id = ${eu})`,
+    );
   }
   if (filtro.status && filtro.status.length > 0) {
     valores.push(filtro.status);
@@ -213,6 +217,7 @@ export async function mudarStatus(
   status: StatusTarefa,
   resultado: string | null,
 ): Promise<Tarefa> {
+  exigirQuemPegou(tarefa, quem);
   const encerra = status === "concluida" || status === "cancelada";
   const soltaTrava = encerra || status === "a_fazer";
   const [porPessoa, porAgente] = status === "concluida" && resultado ? colunas(autorDe(quem)) : [null, null];
@@ -238,14 +243,21 @@ export async function mudarStatus(
   return linhaParaTarefa(r.rows[0] as LinhaDaTarefa);
 }
 
+/**
+ * Troca o responsável. Se quem pegou passa a tarefa para outro, a trava sai junto (a tarefa fica livre para o
+ * novo responsável pegar), senão ninguém mais conseguiria mexer nela.
+ */
 export async function trocarResponsavel(
   c: pg.PoolClient,
+  quem: Quem,
   tarefa: Tarefa,
   responsavel: Responsavel | null,
 ): Promise<Tarefa> {
+  exigirQuemPegou(tarefa, quem);
   const [pessoa, agente] = colunas(responsavel);
   const r = await c.query<LinhaDaTarefa>(
-    `update tarefas t set responsavel_pessoa_id = $2, responsavel_agente_id = $3, atualizada_em = now()
+    `update tarefas t set responsavel_pessoa_id = $2, responsavel_agente_id = $3, atualizada_em = now(),
+            travada_por_pessoa_id = null, travada_por_agente_id = null, travada_em = null
       where t.id = $1 and t.empresa_id = empresa_ativa() returning ${COLUNAS}`,
     [tarefa.id, pessoa, agente],
   );
@@ -311,4 +323,55 @@ export function idsCitados(tarefas: Tarefa[], comentarios: ComentarioDeTarefa[] 
   }
   for (const c of comentarios) somar(c.autor);
   return ids;
+}
+
+/** Tentativa de mexer numa tarefa travada por outro (segunda barreira, além da conferência das rotas). */
+export class ErroDeTrava extends Error {
+  override name = "ErroDeTrava";
+}
+
+/** Só quem pegou mexe na tarefa travada. Sem trava, qualquer um que a alcança. */
+export function exigirQuemPegou(tarefa: Tarefa, quem: Quem): void {
+  if (tarefa.trava && !travadaPorQuem(tarefa, quem)) {
+    throw new ErroDeTrava("Tarefa travada por outro responsável");
+  }
+}
+
+/** Quem pede é quem travou a tarefa (pessoa ou agente). */
+export function travadaPorQuem(tarefa: Tarefa, quem: Quem): boolean {
+  const por = tarefa.trava?.por;
+  if (!por) return false;
+  return quem.tipo === "pessoa"
+    ? por.tipo === "pessoa" && por.pessoaId === quem.pessoaId
+    : por.tipo === "agente" && por.agenteId === quem.agenteId;
+}
+
+/**
+ * Pegar a tarefa (M2-02): muda para Em andamento, trava para quem pegou e o torna responsável.
+ * A condição "ainda sem trava e aberta" está no próprio UPDATE: com dois pedidos ao mesmo tempo, o banco faz o
+ * segundo esperar o primeiro e, ao conferir de novo, não acha mais a tarefa livre. Só um consegue.
+ */
+export async function pegarTarefa(c: pg.PoolClient, quem: Quem, tarefaId: string): Promise<Tarefa | null> {
+  const [pessoa, agente] = colunas(autorDe(quem));
+  const r = await c.query<LinhaDaTarefa>(
+    `update tarefas t set status = 'em_andamento', travada_por_pessoa_id = $2, travada_por_agente_id = $3,
+            travada_em = now(), responsavel_pessoa_id = $2, responsavel_agente_id = $3, atualizada_em = now()
+      where t.id = $1 and t.empresa_id = empresa_ativa() and t.travada_em is null
+        and t.status not in ('concluida', 'cancelada')
+      returning ${COLUNAS}`,
+    [tarefaId, pessoa, agente],
+  );
+  const linha = r.rows[0];
+  return linha ? linhaParaTarefa(linha) : null;
+}
+
+/** Soltar (quem pegou) ou destravar (administrador): volta para A fazer, sem trava e sem resultado. */
+export async function tirarTrava(c: pg.PoolClient, tarefaId: string): Promise<Tarefa> {
+  const r = await c.query<LinhaDaTarefa>(
+    `update tarefas t set status = 'a_fazer', travada_por_pessoa_id = null, travada_por_agente_id = null,
+            travada_em = null, atualizada_em = now()
+      where t.id = $1 and t.empresa_id = empresa_ativa() returning ${COLUNAS}`,
+    [tarefaId],
+  );
+  return linhaParaTarefa(r.rows[0] as LinhaDaTarefa);
 }

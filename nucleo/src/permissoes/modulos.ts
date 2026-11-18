@@ -26,7 +26,8 @@ export const MODULOS_DO_NUCLEO: readonly DeclaracaoDeModulo[] = [
   {
     id: "tarefas",
     nome: "Tarefas",
-    acoes: ["ver", "criar", "editar", "excluir"],
+    // aprovar: destravar a tarefa pegada por outro (M2-02). Padrão: só o administrador.
+    acoes: ["ver", "criar", "editar", "aprovar", "excluir"],
     temDadosSensiveis: false,
     area: null,
   },

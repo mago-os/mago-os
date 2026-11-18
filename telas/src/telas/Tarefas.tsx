@@ -21,6 +21,7 @@ import { Card, CardTitulo } from "@/componentes/ui/card";
 import { cn } from "@/lib/utils";
 import {
   abrirTarefa,
+  acaoNaTrava,
   comentarTarefa,
   criarTarefa,
   excluirTarefa,
@@ -336,11 +337,16 @@ function NovaTarefa({
 /** Página de uma tarefa. */
 export function PaginaDaTarefa({
   id,
+  euId,
   podeEditar,
+  podeDestravar,
   podeExcluir,
 }: {
   id: string;
+  euId: string;
   podeEditar: boolean;
+  /** Destravar a tarefa pegada por outro (ação "aprovar" das tarefas; padrão: o administrador). */
+  podeDestravar: boolean;
   podeExcluir: boolean;
 }) {
   const [aberta, setAberta] = useState<Omit<TarefaAberta, "tarefas"> | null | undefined>(undefined);
@@ -402,6 +408,28 @@ export function PaginaDaTarefa({
     await aoMudarStatus("concluida", resultado ? { resultado } : {});
   }
 
+  async function aoTrava(qual: "pegar" | "soltar" | "destravar") {
+    let motivo: string | undefined;
+    if (qual === "destravar") {
+      motivo = window.prompt("Por que destravar? (vai para os comentários e para a auditoria)")?.trim();
+      if (!motivo) return;
+    }
+    const r = await acaoNaTrava(tarefa.id, qual, motivo);
+    setMensagem(
+      r.ok
+        ? {
+            tipo: "ok",
+            texto: {
+              pegar: "A tarefa é sua agora.",
+              soltar: "Tarefa solta.",
+              destravar: "Tarefa destravada.",
+            }[qual],
+          }
+        : { tipo: "erro", texto: r.mensagem ?? "" },
+    );
+    void carregar();
+  }
+
   async function aoExcluir() {
     if (!window.confirm("Excluir esta tarefa e os comentários dela? Isso não tem volta.")) return;
     const r = await excluirTarefa(tarefa.id);
@@ -414,6 +442,20 @@ export function PaginaDaTarefa({
     pessoas.some((p) => p.id === responsavelAtual) ||
     agentes.some((a) => `agente:${a.id}` === responsavelAtual);
   const encerrada = tarefa.status === "concluida" || tarefa.status === "cancelada";
+  const travadaPorMim = tarefa.trava?.por.tipo === "pessoa" && tarefa.trava.por.pessoaId === euId;
+  const travadaPorOutro = tarefa.trava !== null && !travadaPorMim;
+  // Travada por outro: só quem pegou muda status e responsável (a API confere de novo).
+  const podeMexer = podeEditar && !travadaPorOutro;
+  const statusDosBotoes: StatusTarefa[] = encerrada
+    ? ["a_fazer"]
+    : STATUS_TAREFA.filter(
+        (s) =>
+          s !== tarefa.status &&
+          s !== "concluida" &&
+          // Sem trava, "Em andamento" é pegar a tarefa; com a trava, voltar para A fazer é soltar.
+          !(tarefa.trava === null && s === "em_andamento") &&
+          !(tarefa.trava !== null && s === "a_fazer"),
+      );
 
   return (
     <main className="mx-auto grid max-w-3xl gap-4 px-4 py-5 md:py-8">
@@ -439,7 +481,7 @@ export function PaginaDaTarefa({
           <label htmlFor="responsavel" className="text-sm font-medium">
             Responsável
           </label>
-          {podeEditar ? (
+          {podeMexer ? (
             <SeletorDeResponsavel
               id="responsavel"
               valor={responsavelAtual}
@@ -460,15 +502,22 @@ export function PaginaDaTarefa({
             </p>
           )}
         </div>
-        {podeEditar && (
+        {podeMexer && (
           <div className="grid gap-1.5">
             <span className="text-sm font-medium">Status</span>
             <div className="flex flex-wrap gap-2">
+              {!encerrada && tarefa.trava === null && (
+                <Button size="pequeno" onClick={() => void aoTrava("pegar")}>
+                  Pegar a tarefa
+                </Button>
+              )}
+              {travadaPorMim && (
+                <Button variant="contorno" size="pequeno" onClick={() => void aoTrava("soltar")}>
+                  Soltar
+                </Button>
+              )}
               {/* Encerrada só sai reabrindo (volta para A fazer). */}
-              {(encerrada
-                ? (["a_fazer"] as StatusTarefa[])
-                : STATUS_TAREFA.filter((s) => s !== tarefa.status && s !== "concluida")
-              ).map((s) => (
+              {statusDosBotoes.map((s) => (
                 <Button key={s} variant="contorno" size="pequeno" onClick={() => void aoMudarStatus(s)}>
                   {encerrada ? "Reabrir" : s === "cancelada" ? "Cancelar" : NOMES_STATUS_TAREFA[s]}
                 </Button>
@@ -479,6 +528,24 @@ export function PaginaDaTarefa({
                 </Button>
               )}
             </div>
+          </div>
+        )}
+        {travadaPorOutro && tarefa.trava && (
+          <div className="grid gap-2">
+            <p className="text-sm text-texto-2">
+              Só {nomeDe(tarefa.trava.por, nomesTodos)} muda o status e entrega o resultado enquanto estiver
+              com a tarefa. Você ainda pode comentar.
+            </p>
+            {podeDestravar && (
+              <Button
+                variant="contorno"
+                size="pequeno"
+                className="justify-self-start"
+                onClick={() => void aoTrava("destravar")}
+              >
+                Destravar
+              </Button>
+            )}
           </div>
         )}
         {concluindo && (

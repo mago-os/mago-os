@@ -220,6 +220,7 @@ describe.skipIf(!bancoDisponivel)("tarefas", () => {
     );
     expect(r.rows.map((l) => l.acao)).toEqual([
       "tarefa.criou",
+      "tarefa.pegou",
       "tarefa.mudou_status",
       "tarefa.comentou",
       "tarefa.mudou_status",

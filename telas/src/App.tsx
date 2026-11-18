@@ -193,7 +193,7 @@ export function App() {
   }
 
   // Telas do administrador: aparecem só para quem tem a permissão (a API confere de novo).
-  const pode = (modulo: string, acao: "ver" | "criar" | "editar" | "excluir") =>
+  const pode = (modulo: string, acao: "ver" | "criar" | "editar" | "aprovar" | "excluir") =>
     (permissoes?.modulos[modulo]?.acoes[acao] ?? "nada") !== "nada";
   const menuExtra: ItemDoMenu[] = [
     ...(pode("pessoas", "ver") && permissoes?.perfil !== "funcionario"
@@ -228,7 +228,9 @@ export function App() {
     conteudo = (
       <PaginaDaTarefa
         id={tarefaAberta}
+        euId={sessao.pessoa.id}
         podeEditar={pode("tarefas", "editar")}
+        podeDestravar={pode("tarefas", "aprovar")}
         podeExcluir={pode("tarefas", "excluir")}
       />
     );
