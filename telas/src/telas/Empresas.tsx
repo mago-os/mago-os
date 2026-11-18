@@ -16,6 +16,7 @@ import { Button } from "@/componentes/ui/button";
 import { Campo } from "@/componentes/ui/campo";
 import { Card, CardDescricao, CardTitulo } from "@/componentes/ui/card";
 import { Aviso } from "./Acesso";
+import { useAoVoltar } from "./Administrador";
 
 type Mensagem = { texto: string; tipo: "erro" | "ok" } | null;
 
@@ -31,6 +32,7 @@ export function Empresas() {
   useEffect(() => {
     void carregar();
   }, [carregar]);
+  useAoVoltar(carregar);
 
   async function aoConvidar(evento: React.FormEvent<HTMLFormElement>) {
     evento.preventDefault();

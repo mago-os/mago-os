@@ -50,6 +50,24 @@ const NOME_DO_ALCANCE: Record<Alcance, string> = {
 
 type Mensagem = { texto: string; tipo: "erro" | "ok" } | null;
 
+/**
+ * Carrega de novo quando a pessoa volta para o app (outra aba, outro app no celular): assim a lista mostra, por
+ * exemplo, quem acabou de aceitar um convite sem precisar recarregar a página.
+ */
+export function useAoVoltar(carregar: () => unknown) {
+  useEffect(() => {
+    const aoMudar = () => {
+      if (document.visibilityState === "visible") void carregar();
+    };
+    document.addEventListener("visibilitychange", aoMudar);
+    window.addEventListener("focus", aoMudar);
+    return () => {
+      document.removeEventListener("visibilitychange", aoMudar);
+      window.removeEventListener("focus", aoMudar);
+    };
+  }, [carregar]);
+}
+
 function Pagina({
   titulo,
   descricao,
@@ -86,6 +104,7 @@ export function Pessoas(poderes: PoderesEmPessoas) {
   useEffect(() => {
     void carregar();
   }, [carregar]);
+  useAoVoltar(carregar);
 
   if (aberta)
     return (
