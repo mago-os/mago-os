@@ -1,6 +1,6 @@
 # Spec da Fase 1: M2 Prova de ponta a ponta
 
-Parte da [spec da Fase 1](README.md). Estado em 18/11/2026: **proposta, aguardando a aprovação do Sandro**. Nenhum código do M2 começa antes disso.
+Parte da [spec da Fase 1](README.md). Estado em 18/11/2026: **aprovado pelo Sandro** (com as cinco decisões abaixo), a construção começa pela M2-01.
 
 **Pronto quando:** o Sandro cria em teste.osmago.com uma tarefa para o Claude no Mac. O Claude pega a tarefa pelo MCP, faz o trabalho e entrega o resultado, que aparece na tela do Sandro sem recarregar. O caminho do Hermes fica pronto e documentado, e o teste com ele vem quando o Hermes estiver em produção (ajuste do Sandro em 18/11/2026). O Sandro desliga um agente e a chave dele para de funcionar na hora. Cada passo aparece na auditoria, e os testes provam que um agente de uma empresa não vê nada da outra.
 
@@ -126,7 +126,7 @@ Pronto quando: o Sandro pede no Claude Code do Mac "pega minhas tarefas no Mago 
 
 ## Decisões para o Sandro
 
-Estas escolhas estão na proposta acima como recomendação. Mudam o que o sistema faz, então só entram com o "aprovado":
+Aprovadas pelo Sandro em 18/11/2026:
 
 1. **Como um agente externo descobre que tem tarefa:** ele pergunta a cada minuto (recomendado: simples, sem porta aberta e sem nada novo no Mago OS). A alternativa é o Mago OS avisar o agente, que precisa de webhooks (Fase 2).
 2. **Status fixos no M2:** A fazer, Em andamento, Precisa de ajuda, Concluída e Cancelada.
