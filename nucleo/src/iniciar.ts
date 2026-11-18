@@ -5,6 +5,7 @@
 import { carteiroDoLog, carteiroResend } from "./acesso/carteiro.ts";
 import { criarLogin, criarPoolDoLogin } from "./acesso/login.ts";
 import { registrarRotasDoLogin } from "./acesso/rotas.ts";
+import { registrarRotasDosAgentes } from "./agentes/rotas.ts";
 import { criarBanco } from "./banco.ts";
 import { ErroDeConfig, lerConfig } from "./config.ts";
 import { registrarRotasDaConta } from "./conta/rotas.ts";
@@ -36,6 +37,12 @@ async function iniciar(): Promise<void> {
     const verificador = criarVerificador(login, poolDoLogin, banco.pool, catalogoDeModulos());
     registrarRotasDePermissoes(app, verificador, banco.pool);
     registrarRotasDasTarefas(app, verificador, banco.pool);
+    registrarRotasDosAgentes(app, {
+      verificador,
+      poolApp: banco.pool,
+      carteiro,
+      urlPublica: config.acesso.urlPublica,
+    });
     registrarRotaDaAuditoria(app, verificador, banco.pool);
     registrarRotasDoAdministrador(app, verificador, banco.pool);
     registrarRotasDaConta(app, login, poolDoLogin, banco.pool);

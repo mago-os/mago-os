@@ -35,14 +35,14 @@ Pronto quando: o Sandro cria uma tarefa pelo celular, troca o status, comenta e 
 
 ### M2-03 Central de agentes básica
 
-- [ ] Tabela `agentes`: nome, descrição, tipo (no M2 só "externo"), onde roda (texto livre, ex.: "VPS01", "Mac do Sandro"), responsável humano obrigatório e situação (ativo, pausado, desligado)
-- [ ] O agente aparece como ator na auditoria (o formato já existe desde a M1-09)
-- [ ] O agente tem permissão própria e mínima no M2: só ver e mexer nas tarefas atribuídas a ele e comentar nelas (agir com a permissão de quem pediu vem na M4-04)
-- [ ] Botão Desligar: o agente para na hora, as chaves dele deixam de valer e as tarefas que ele tinha pegado voltam para A fazer, com o responsável humano avisado
-- [ ] Botão Pausar e Retomar (para de receber tarefas, sem perder as chaves)
-- [ ] Tela Agentes: lista com situação, responsável, último sinal de vida e tarefas abertas, e a página do agente; só o administrador cadastra e desliga
-- [ ] Na tela da tarefa, dá para escolher um agente como responsável
-- [ ] Eventos de auditoria: `agente.cadastrou`, `agente.editou`, `agente.pausou`, `agente.retomou`, `agente.desligou`
+- [x] Tabela `agentes`: nome, descrição, tipo (no M2 só "externo"), onde roda (texto livre, ex.: "VPS01", "Mac do Sandro"), responsável humano obrigatório e situação (ativo, pausado, desligado)
+- [x] O agente aparece como ator na auditoria (o formato já existe desde a M1-09)
+- [x] O agente tem permissão própria e mínima no M2: só ver e mexer nas tarefas atribuídas a ele e comentar nelas (agir com a permissão de quem pediu vem na M4-04)
+- [x] Botão Desligar: o agente para na hora, as chaves dele deixam de valer e as tarefas que ele tinha pegado voltam para A fazer, com o responsável humano avisado
+- [x] Botão Pausar e Retomar (para de receber tarefas, sem perder as chaves)
+- [x] Tela Agentes: lista com situação, responsável, último sinal de vida e tarefas abertas, e a página do agente; só o administrador cadastra e desliga
+- [x] Na tela da tarefa, dá para escolher um agente como responsável
+- [x] Eventos de auditoria: `agente.cadastrou`, `agente.editou`, `agente.pausou`, `agente.retomou`, `agente.desligou`
 
 Pronto quando: o Sandro cadastra o Claude no Mac, com ele mesmo de responsável, atribui uma tarefa a ele e desliga o agente pela tela.
 

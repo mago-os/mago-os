@@ -30,6 +30,14 @@ export const MODULOS_DO_NUCLEO: readonly DeclaracaoDeModulo[] = [
     temDadosSensiveis: false,
     area: null,
   },
+  // Agentes (M2-03): todos veem (para escolher um como responsável); só o administrador cadastra e desliga.
+  {
+    id: "agentes",
+    nome: "Agentes",
+    acoes: ["ver", "criar", "editar", "excluir"],
+    temDadosSensiveis: false,
+    area: null,
+  },
 ];
 
 /** Catálogo de módulos. Recusa na subida uma declaração fora do contrato ou um id repetido. */

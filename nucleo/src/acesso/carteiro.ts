@@ -7,7 +7,7 @@
  * Os textos não usam o travessão, como os outros textos que a pessoa lê.
  */
 import type { FastifyBaseLogger } from "fastify";
-import type { Carteiro } from "./login.ts";
+import type { Carteiro, DadosDoAvisoDeAgente } from "./login.ts";
 
 export const REMETENTE = "Mago OS <nao-responda@osmago.com>";
 
@@ -99,6 +99,26 @@ export function emailDeConviteDeEmpresa(d: DadosDoConviteDeEmpresa) {
   };
 }
 
+export function emailDeAvisoDeAgente(d: DadosDoAvisoDeAgente) {
+  const tarefas =
+    d.tarefas.length === 0
+      ? []
+      : [
+          `Tarefas que voltaram para A fazer ou passaram para você: ${d.tarefas.slice(0, 10).join("; ")}${
+            d.tarefas.length > 10 ? ` e mais ${d.tarefas.length - 10}` : ""
+          }.`,
+        ];
+  return {
+    assunto: `O agente ${d.agente} ${d.oQueAconteceu}`,
+    ...montar(
+      `O agente ${d.agente} ${d.oQueAconteceu}`,
+      [`Olá, ${d.nome.split(" ")[0]}. Você é a pessoa responsável por este agente no Mago OS.`, ...tarefas],
+      "Ver o agente",
+      d.link,
+    ),
+  };
+}
+
 /** Envia pelo Resend. Erro no envio vira exceção: quem chamou decide o que mostrar. */
 export function carteiroResend(chave: string, envio: typeof fetch = fetch): Carteiro {
   async function mandar(para: string, e: { assunto: string; html: string; text: string }) {
@@ -113,6 +133,7 @@ export function carteiroResend(chave: string, envio: typeof fetch = fetch): Cart
     enviarLinkDeSenha: ({ para, nome, link }) => mandar(para, emailDeSenha(nome, link)),
     enviarConvite: (d) => mandar(d.para, emailDeConvite(d)),
     enviarConviteDeEmpresa: (d) => mandar(d.para, emailDeConviteDeEmpresa(d)),
+    enviarAvisoDeAgente: (d) => mandar(d.para, emailDeAvisoDeAgente(d)),
   };
 }
 
@@ -138,6 +159,12 @@ export function carteiroDoLog(log: FastifyBaseLogger, ambiente: "local" | "teste
       log.warn(
         { evento: "empresa.convidou", para, link },
         "Link de convite de conta nova (sem e-mail: ver o log)",
+      );
+    },
+    async enviarAvisoDeAgente({ para, agente, oQueAconteceu }) {
+      log.warn(
+        { evento: "agente.aviso", para, agente, oQueAconteceu },
+        "Aviso de agente (sem e-mail: ver o log)",
       );
     },
   };
