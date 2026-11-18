@@ -6,18 +6,7 @@ As tarefas abaixo vêm da seção "Escopo da Fase 1 e ordem de construção" do 
 
 ## M2 Prova de ponta a ponta
 
-Pronto quando: o Sandro cria uma tarefa e o Hermes devolve o resultado na tela.
-
-| Número | Tarefa |
-| --- | --- |
-| M2-01 | Tarefas simples: criar, status, responsável pessoa ou agente, comentário |
-| M2-02 | Tarefa travada para quem a pegou |
-| M2-03 | Central de agentes básica: cadastro, responsável humano, botão de desligar |
-| M2-04 | Chave do agente revogável e verificação de agente vivo |
-| M2-05 | Mago OS como servidor MCP, com as ferramentas de tarefas e a documentação da API e do MCP gerada sozinha |
-| M2-06 | Tempo real (WebSocket): o resultado aparece na tela sem recarregar |
-| M2-07 | Ligar o Hermes na VPS |
-| M2-08 | Ligar o Claude no Mac pelo MCP |
+Detalhado em [M2-prova.md](M2-prova.md) (18/11/2026).
 
 ## M3 Projetos e tarefas completos
 
