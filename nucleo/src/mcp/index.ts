@@ -219,7 +219,7 @@ async function executar(
       // A lista das próprias tarefas conta 1 leitura por chamada: o agente pergunta a cada minuto, e isso não pode
       // consumir o limite de leitura (pensado para conteúdo: tarefa aberta com comentários).
       await ler(1);
-      return { tarefas };
+      return { tarefas, mencionado: [] };
     }
     case "ver_tarefa": {
       const e = entrada as EntradaDa<"ver_tarefa">;

@@ -322,8 +322,13 @@ export async function listarComentarios(c: pg.PoolClient, tarefaId: string): Pro
     empresaId: l.empresa_id,
     tarefaId: l.tarefa_id,
     autor: autorDaLinha(l.autor_pessoa_id, l.autor_agente_id),
+    // M3-05: tipo, menções, edição e exclusão entram com o banco, depois do contrato aprovado.
+    tipo: "comentario",
     texto: l.texto,
+    mencoes: [],
     criadoEm: l.criado_em.toISOString(),
+    editadoEm: null,
+    apagadoEm: null,
   }));
 }
 
@@ -456,8 +461,12 @@ export async function comentar(
     empresaId: l.empresa_id,
     tarefaId,
     autor,
+    tipo: "comentario",
     texto: texto.trim(),
+    mencoes: [],
     criadoEm: l.criado_em.toISOString(),
+    editadoEm: null,
+    apagadoEm: null,
   };
 }
 

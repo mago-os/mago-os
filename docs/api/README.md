@@ -8,7 +8,7 @@ Endereço: `https://teste.osmago.com/mcp` (transporte HTTP do MCP, sem sessão).
 
 ### `minhas_tarefas`
 
-Lista as tarefas atribuídas a você ou que você pegou, das mais urgentes (prioridade e prazo) para as menos. Sem filtro, traz só as abertas (A fazer, Em andamento e Precisa de ajuda). Chame a cada minuto para saber se há trabalho novo.
+Lista as tarefas atribuídas a você ou que você pegou, das mais urgentes (prioridade e prazo) para as menos, e as tarefas em que alguém mencionou você com @ e você ainda não respondeu (em "mencionado": veja e responda com comentar). Sem filtro, traz só as abertas (A fazer, Em andamento e Precisa de ajuda). Chame a cada minuto para saber se há trabalho novo.
 
 Recebe:
 
@@ -17,6 +17,7 @@ Recebe:
 Devolve:
 
 - `tarefas` (lista de objeto, obrigatório)
+- `mencionado` (lista de id, obrigatório)
 
 ### `ver_tarefa`
 
@@ -106,7 +107,7 @@ Devolve:
 
 ### `comentar`
 
-Escreve um comentário numa tarefa sua, em texto simples. Use para contar o andamento ou fazer uma pergunta à pessoa responsável.
+Escreve um comentário numa tarefa sua ou em que você foi mencionado, em texto simples. Use para contar o andamento, responder a uma menção ou fazer uma pergunta à pessoa responsável.
 
 Recebe:
 
@@ -119,8 +120,12 @@ Devolve:
 - `empresaId` (id, obrigatório): Identificador (UUID).
 - `tarefaId` (id, obrigatório): Identificador (UUID).
 - `autor` (objeto ou objeto ou objeto, obrigatório): Pessoa, agente ou o próprio sistema.
-- `texto` (string, obrigatório): O comentário, em texto simples.
+- `tipo` ("comentario" | "nota_interna", obrigatório): comentario ou nota_interna.
+- `texto` (string ou null, obrigatório)
+- `mencoes` (lista de objeto ou objeto, obrigatório)
 - `criadoEm` (data e hora, obrigatório): Data e hora ISO 8601 com fuso.
+- `editadoEm` (data e hora ou null, obrigatório)
+- `apagadoEm` (data e hora ou null, obrigatório)
 
 ### `mudar_status`
 
@@ -375,7 +380,9 @@ Recebe:
 
 Recebe:
 
-- `texto` (string, obrigatório): O comentário, em texto simples.
+- `texto` (string, obrigatório): O comentário, em Markdown simples.
+- `interna` (boolean)
+- `mencoes` (lista de objeto ou objeto)
 
 ### POST `/tarefas/:id/destravar`
 
