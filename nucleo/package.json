@@ -18,7 +18,8 @@
     "./convites": "./src/convites/index.ts",
     "./contas": "./src/contas/index.ts",
     "./tarefas": "./src/tarefas/index.ts",
-    "./agentes": "./src/agentes/index.ts"
+    "./agentes": "./src/agentes/index.ts",
+    "./tempo-real": "./src/tempo-real/index.ts"
   },
   "scripts": {
     "tipos": "tsc -p tsconfig.json",
@@ -33,6 +34,7 @@
   "dependencies": {
     "@better-auth/passkey": "catalog:",
     "@fastify/otel": "catalog:",
+    "@fastify/websocket": "catalog:",
     "@mago-os/contratos": "workspace:*",
     "@opentelemetry/api": "catalog:",
     "@opentelemetry/instrumentation-http": "catalog:",

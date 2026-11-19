@@ -147,3 +147,8 @@ O login (`mago_acesso`) não lê papéis nem as regras da plataforma direto. As 
 - `agentes` segue o contrato de `contratos/src/agentes/agente.ts`, com `empresa_id`, RLS forçado e a política de `empresa_ativa()`. A pessoa responsável precisa ter vínculo na mesma empresa (chave composta com `vinculos`).
 - Agente não se apaga (a API não tem DELETE): desliga-se, com data. Dois agentes vivos da mesma empresa não podem ter o mesmo nome.
 - As colunas de agente de `tarefas` e `comentarios_de_tarefa` passam a apontar para `agentes` da mesma empresa (chave composta), então uma tarefa nunca fica com um agente de outra empresa.
+
+## 19. Tempo real pelo próprio banco (18/11/2026, M2-06)
+
+- A função `avisar_mudanca()` e os gatilhos em `tarefas`, `comentarios_de_tarefa` e `agentes` mandam um aviso no canal `mago_mudancas` (LISTEN/NOTIFY) a cada mudança. O aviso leva só a empresa, o tipo (tarefa ou agente), o id e a operação: nada de título, texto ou nome.
+- Cada cópia da API escuta o canal com uma conexão própria e repassa o aviso só às telas da mesma empresa. A tela busca de novo pela rota normal, então a permissão continua valendo. Funciona com mais de uma cópia e na troca azul e verde.

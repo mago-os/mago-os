@@ -18,6 +18,7 @@ import { Button } from "@/componentes/ui/button";
 import { Campo } from "@/componentes/ui/campo";
 import { Card, CardDescricao, CardTitulo } from "@/componentes/ui/card";
 import { cn } from "@/lib/utils";
+import { useTempoReal } from "@/tempo-real";
 import { Aviso } from "./Acesso";
 import { useAoVoltar } from "./Administrador";
 
@@ -70,6 +71,8 @@ export function Agentes({ podeCadastrar, euId }: { podeCadastrar: boolean; euId:
     void carregar();
   }, [carregar]);
   useAoVoltar(carregar);
+  // A lista mostra situação e tarefas abertas: qualquer mudança de agente ou tarefa pode alterá-la.
+  useTempoReal(() => void carregar());
 
   return (
     <main className="mx-auto grid max-w-3xl gap-4 px-4 py-5 md:py-8">
@@ -248,6 +251,9 @@ export function PaginaDoAgente({
     void carregar();
   }, [carregar]);
   useAoVoltar(carregar);
+  useTempoReal((aviso) => {
+    if (aviso.tipo === "reconectou" || aviso.id === id || aviso.tipo === "tarefa") void carregar();
+  });
 
   if (agente === undefined) return <main className="min-h-dvh" aria-busy="true" />;
   if (agente === null) {
