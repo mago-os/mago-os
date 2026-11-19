@@ -26,7 +26,6 @@ import {
   comentarTarefa,
   criarTarefa,
   excluirTarefa,
-  listarTarefas,
   mudarLista,
   mudarProjeto,
   mudarStatus,
@@ -37,7 +36,8 @@ import { useTempoReal } from "@/tempo-real";
 import { Aviso } from "./Acesso";
 import { useAoVoltar } from "./Administrador";
 import { Checklist, Subtarefas } from "./PartesDaTarefa";
-import { MarcaDePrazo, MarcaDePrioridade, PlanejamentoDaTarefa } from "./Planejamento";
+import { PlanejamentoDaTarefa } from "./Planejamento";
+import { VisoesDeTarefas } from "./Visoes";
 
 type Mensagem = { texto: string; tipo: "erro" | "ok" } | null;
 
@@ -49,7 +49,7 @@ const COR_DO_STATUS: Record<StatusTarefa, string> = {
   cancelada: "bg-suave text-texto-2 line-through",
 };
 
-const ABERTOS: StatusTarefa[] = ["a_fazer", "em_andamento", "precisa_de_ajuda"];
+const _ABERTOS: StatusTarefa[] = ["a_fazer", "em_andamento", "precisa_de_ajuda"];
 
 export const quando = (iso: string) =>
   new Date(iso).toLocaleString("pt-BR", {
@@ -114,38 +114,9 @@ export function useDestaques(): [Set<string>, (id: string) => void] {
 
 /** Lista das tarefas. */
 export function Tarefas({ podeCriar, euId }: { podeCriar: boolean; euId: string }) {
-  const [minhas, setMinhas] = useState(true);
-  const [abertas, setAbertas] = useState(true);
-  const [lista, setLista] = useState<{ tarefas: Tarefa[]; nomes: Record<string, string> } | null>(null);
-  const [erro, setErro] = useState<string | null>(null);
   const [criando, setCriando] = useState(false);
-
-  const ultimoPedido = useRef(0);
-  const carregar = useCallback(async () => {
-    // Vários avisos seguidos: só a resposta do pedido mais recente vale (uma antiga não sobrescreve a nova).
-    const numero = ++ultimoPedido.current;
-    const r = await listarTarefas({ minhas, status: abertas ? ABERTOS : [] });
-    if (numero !== ultimoPedido.current) return;
-    if (r.ok && r.dados) {
-      setLista(r.dados);
-      setErro(null);
-    } else setErro(r.mensagem ?? null);
-  }, [minhas, abertas]);
-  useEffect(() => {
-    void carregar();
-  }, [carregar]);
-  useAoVoltar(carregar);
-  const [destaques, destacar] = useDestaques();
-  useTempoReal((aviso) => {
-    if (aviso.tipo === "reconectou") void carregar();
-    if (aviso.tipo === "tarefa") {
-      void carregar();
-      destacar(aviso.id);
-    }
-  });
-
   return (
-    <main className="mx-auto grid max-w-3xl gap-4 px-4 py-5 md:py-8">
+    <main className="mx-auto grid max-w-5xl gap-4 px-4 py-5 md:py-8">
       <div className="flex items-center justify-between gap-3">
         <h1 className="text-2xl font-bold tracking-tight">Tarefas</h1>
         {podeCriar && !criando && (
@@ -163,49 +134,8 @@ export function Tarefas({ podeCriar, euId }: { podeCriar: boolean; euId: string 
           }}
         />
       )}
-      <fieldset className="flex flex-wrap gap-2" aria-label="Filtros">
-        <Filtro ativo={minhas} aoClicar={() => setMinhas(true)}>
-          Minhas
-        </Filtro>
-        <Filtro ativo={!minhas} aoClicar={() => setMinhas(false)}>
-          Todas que vejo
-        </Filtro>
-        <span className="w-px bg-linha" />
-        <Filtro ativo={abertas} aoClicar={() => setAbertas(true)}>
-          Abertas
-        </Filtro>
-        <Filtro ativo={!abertas} aoClicar={() => setAbertas(false)}>
-          Todas
-        </Filtro>
-      </fieldset>
-      {erro && <Aviso tipo="erro" texto={erro} />}
-      {lista && lista.tarefas.length === 0 && (
-        <p className="text-sm text-texto-2">Nenhuma tarefa por aqui.</p>
-      )}
-      <ul className="grid gap-2">
-        {lista?.tarefas.map((t) => (
-          <li key={t.id}>
-            <a
-              href={`/tarefas/${t.id}`}
-              data-destaque={destaques.has(t.id) || undefined}
-              className={cn(
-                "grid gap-1.5 rounded-lg border border-linha bg-cartao p-3 transition-colors duration-700 hover:bg-suave",
-                destaques.has(t.id) && "border-tinta/40 bg-suave",
-              )}
-            >
-              <span className="font-medium text-pretty">{t.titulo}</span>
-              <span className="flex flex-wrap items-center gap-2 text-xs text-texto-2">
-                <Etiqueta status={t.status} />
-                <MarcaDePrioridade prioridade={t.prioridade} />
-                <span>{nomeDe(t.responsavel, lista.nomes)}</span>
-                <MarcaDeAgente quem={t.responsavel} />
-                <MarcaDePrazo tarefa={t} />
-                <span className="ml-auto">{quando(t.atualizadaEm)}</span>
-              </span>
-            </a>
-          </li>
-        ))}
-      </ul>
+      {/* Lista, Kanban e calendário, com filtros e visões salvas (M3-04). */}
+      <VisoesDeTarefas podeEditar={podeCriar} />
     </main>
   );
 }

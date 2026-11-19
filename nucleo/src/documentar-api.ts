@@ -31,6 +31,7 @@ import {
   PedidoDeStatusDoProjeto,
   PedidoDeTarefa,
   PedidoDeTrocarResponsavel,
+  PedidoDeVisaoSalva,
 } from "@mago-os/contratos";
 import type { TSchema } from "typebox";
 
@@ -50,7 +51,8 @@ export const ROTAS: Rota[] = [
     metodo: "GET",
     caminho: "/tarefas",
     permissao: "tarefas.ver",
-    oQueFaz: "Lista as tarefas que a pessoa alcança (query: minhas=1, status=a,b, projeto=<id> ou sem).",
+    oQueFaz:
+      "Lista as tarefas que a pessoa alcança (query: minhas=1, status=a,b, projeto=<id>|sem, espaco, responsaveis=p:<id>,a:<id>, agente=1, prioridades, etiquetas, prazo=atrasadas|hoje|semana|sem_prazo, de, ate, subtarefas=0).",
     recebe: FiltroDeTarefas,
   },
   {
@@ -123,6 +125,25 @@ export const ROTAS: Rota[] = [
     oQueFaz:
       "Muda prioridade, prazo (dia, hora e fuso), início, etiquetas e recorrência; só o que veio muda, nulo apaga.",
     recebe: PedidoDePlanejamento,
+  },
+  {
+    metodo: "GET",
+    caminho: "/visoes",
+    permissao: "tarefas.ver",
+    oQueFaz: "Lista as visões salvas da pessoa (só as dela).",
+  },
+  {
+    metodo: "POST",
+    caminho: "/visoes",
+    permissao: "tarefas.ver",
+    oQueFaz: "Salva uma visão (nome, tipo, filtros e agrupamento).",
+    recebe: PedidoDeVisaoSalva,
+  },
+  {
+    metodo: "DELETE",
+    caminho: "/visoes/:id",
+    permissao: "tarefas.ver",
+    oQueFaz: "Apaga uma visão da pessoa.",
   },
   {
     metodo: "GET",

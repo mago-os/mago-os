@@ -3,3 +3,4 @@ export * from "./planejamento.ts";
 export * from "./recorrencia.ts";
 export * from "./rotas.ts";
 export * from "./servico.ts";
+export * from "./visoes.ts";

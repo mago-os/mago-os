@@ -227,6 +227,16 @@ erDiagram
     timestamp_with_time_zone entrou_em
     timestamp_with_time_zone desligado_em
   }
+  visoes_salvas {
+    uuid id PK
+    uuid empresa_id FK
+    uuid pessoa_id
+    text nome
+    text tipo
+    jsonb filtro
+    text agrupar_por
+    timestamp_with_time_zone criada_em
+  }
   auditoria_correntes {
     uuid corrente PK
     bigint ultima_sequencia
@@ -387,6 +397,7 @@ erDiagram
   empresas ||--o{ tarefas : "empresa_id"
   empresas ||--o{ vinculos : "empresa_id"
   pessoas ||--o{ vinculos : "pessoa_id"
+  empresas ||--o{ visoes_salvas : "empresa_id"
   empresas ||--o{ auditoria_eventos : "empresa_id"
   pessoas ||--o{ acesso_aparelhos : "pessoa_id"
   pessoas ||--o{ acesso_avisos : "pessoa_id"
@@ -768,6 +779,23 @@ Isolamento por empresa (Row Level Security): ligado e forçado.
 | convidado_em | timestamp with time zone | sim | `now()` | sistema | Quando a pessoa foi convidada. |
 | entrou_em | timestamp with time zone | não |  | sistema | Quando a pessoa aceitou o convite. |
 | desligado_em | timestamp with time zone | não |  | sistema | Quando a pessoa foi desligada (ou o convite foi cancelado). |
+
+### visoes_salvas
+
+Visões das tarefas salvas por cada pessoa (filtros, tipo e agrupamento). Só a dona vê.
+
+Isolamento por empresa (Row Level Security): ligado e forçado.
+
+| Coluna | Tipo | Obrigatória | Padrão | Marca | Descrição |
+| --- | --- | --- | --- | --- | --- |
+| id | uuid | sim | `uuidv7()` | sistema | Identificador da visão (UUID v7). Chave primária. |
+| empresa_id | uuid | sim |  | sistema | Empresa da visão. Aponta para empresas.id. |
+| pessoa_id | uuid | sim |  | sistema | Pessoa dona da visão. |
+| nome | text | sim |  | pessoal | Nome que a pessoa deu à visão. |
+| tipo | text | sim |  | pessoal | lista, kanban ou calendario. |
+| filtro | jsonb | sim | `'{}'::jsonb` | pessoal | Filtros das tarefas (contrato FiltroDeTarefas). |
+| agrupar_por | text | não |  | pessoal | Como a lista agrupa as tarefas. |
+| criada_em | timestamp with time zone | sim | `now()` | sistema | Quando a visão foi salva. |
 
 ### auditoria.correntes
 

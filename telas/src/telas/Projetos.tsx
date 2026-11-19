@@ -26,14 +26,11 @@ import { useTempoReal } from "@/tempo-real";
 import { Aviso } from "./Acesso";
 import { useAoVoltar } from "./Administrador";
 import { ListasDoProjeto, StatusDoProjetoEditor } from "./ConfigDoProjeto";
-import { MarcaDePrazo, MarcaDePrioridade } from "./Planejamento";
 import {
-  Etiqueta,
   Filtro,
   MarcaDeAgente,
   NovaTarefa,
   nomeDe,
-  quando,
   responsavelDoValor,
   SeletorDeResponsavel,
   useAgentesAtivos,
@@ -41,6 +38,7 @@ import {
   usePessoas,
   valorDoResponsavel,
 } from "./Tarefas";
+import { VisoesDeTarefas } from "./Visoes";
 
 type Mensagem = { texto: string; tipo: "erro" | "ok" } | null;
 
@@ -485,7 +483,7 @@ export function PaginaDoProjeto({
     nomes: Record<string, string>;
     subtarefas?: Record<string, { total: number; prontas: number }>;
   } | null>(null);
-  const [abertas, setAbertas] = useState(true);
+  const [abertas, _setAbertas] = useState(true);
   const [espacos, setEspacos] = useState<Espaco[]>([]);
   const [editando, setEditando] = useState(false);
   const [criando, setCriando] = useState(false);
@@ -513,7 +511,7 @@ export function PaginaDoProjeto({
     void listarEspacos().then((r) => setEspacos(r.dados?.espacos ?? []));
   }, []);
   useAoVoltar(carregar);
-  const [destaques, destacar] = useDestaques();
+  const [_destaques, destacar] = useDestaques();
   useTempoReal((aviso) => {
     if (aviso.tipo === "reconectou") void carregar();
     // O projeto, o espaço dele, ou uma tarefa nova ou desta lista mudou.
@@ -540,7 +538,7 @@ export function PaginaDoProjeto({
   const { projeto, espaco, nomes, listas, status } = aberto;
   // As subtarefas aparecem dentro da tarefa-mãe (com o progresso), não soltas na lista.
   const ids = new Set((tarefas?.tarefas ?? []).map((t) => t.id));
-  const principais = (tarefas?.tarefas ?? []).filter(
+  const _principais = (tarefas?.tarefas ?? []).filter(
     (t) => t.tarefaMaeId === null || !ids.has(t.tarefaMaeId),
   );
   // Edita o diretor e quem vê todos os projetos com a permissão de editar (a API confere de novo).
@@ -677,70 +675,15 @@ export function PaginaDoProjeto({
             aoCriar={(t) => window.location.assign(`/tarefas/${t.id}`)}
           />
         )}
-        <fieldset className="flex flex-wrap gap-2" aria-label="Filtros das tarefas">
-          <Filtro ativo={abertas} aoClicar={() => setAbertas(true)}>
-            Abertas
-          </Filtro>
-          <Filtro ativo={!abertas} aoClicar={() => setAbertas(false)}>
-            Todas
-          </Filtro>
-        </fieldset>
-        {tarefas && principais.length === 0 && (
-          <p className="text-sm text-texto-2">Nenhuma tarefa que você vê neste projeto.</p>
-        )}
-        {listas.map((l) => {
-          const daLista = principais.filter((t) => t.listaId === l.id);
-          if (daLista.length === 0 && listas.length > 1) return null;
-          return (
-            <div key={l.id} className="grid gap-2">
-              {listas.length > 1 && <h3 className="text-sm font-semibold text-texto-2">{l.nome}</h3>}
-              <ul className="grid gap-2">
-                {daLista.map((t) => {
-                  const s2 = status.find((x) => x.id === t.statusDoProjetoId);
-                  const sub = tarefas?.subtarefas?.[t.id];
-                  return (
-                    <li key={t.id}>
-                      <a
-                        href={`/tarefas/${t.id}`}
-                        data-destaque={destaques.has(t.id) || undefined}
-                        className={cn(
-                          "grid gap-1.5 rounded-lg border border-linha bg-cartao p-3 transition-colors duration-700 hover:bg-suave",
-                          destaques.has(t.id) && "border-tinta/40 bg-suave",
-                        )}
-                      >
-                        <span className="font-medium text-pretty">{t.titulo}</span>
-                        <span className="flex flex-wrap items-center gap-2 text-xs text-texto-2">
-                          {s2 ? (
-                            <span className="flex items-center gap-1.5 rounded-full bg-suave px-2.5 py-0.5 font-medium">
-                              <span
-                                aria-hidden
-                                className="size-2 rounded-full"
-                                style={{ backgroundColor: s2.cor }}
-                              />
-                              {s2.nome}
-                            </span>
-                          ) : (
-                            <Etiqueta status={t.status} />
-                          )}
-                          <MarcaDePrioridade prioridade={t.prioridade} />
-                          <span>{nomeDe(t.responsavel, tarefas?.nomes ?? {})}</span>
-                          <MarcaDePrazo tarefa={t} />
-                          <MarcaDeAgente quem={t.responsavel} />
-                          {sub && (
-                            <span>
-                              {sub.prontas}/{sub.total} subtarefas
-                            </span>
-                          )}
-                          <span className="ml-auto">{quando(t.atualizadaEm)}</span>
-                        </span>
-                      </a>
-                    </li>
-                  );
-                })}
-              </ul>
-            </div>
-          );
-        })}
+        {/* Lista (agrupada por lista do projeto), Kanban pelos status do projeto e calendário (M3-04). */}
+        <VisoesDeTarefas
+          escopo={{ projetoId: projeto.id }}
+          statusDoProjeto={status}
+          listas={listas}
+          podeEditar={podeCriarTarefa}
+          agrupamentoInicial={listas.length > 1 ? "lista" : null}
+          vazio="Nenhuma tarefa que você vê neste projeto."
+        />
       </section>
     </main>
   );

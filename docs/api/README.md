@@ -274,7 +274,7 @@ Todas com o prefixo `/api` no site, menos `/mcp`, que fica em `https://teste.osm
 
 | Método | Caminho | Permissão | O que faz |
 | --- | --- | --- | --- |
-| GET | `/tarefas` | tarefas.ver | Lista as tarefas que a pessoa alcança (query: minhas=1, status=a,b, projeto=<id> ou sem). |
+| GET | `/tarefas` | tarefas.ver | Lista as tarefas que a pessoa alcança (query: minhas=1, status=a,b, projeto=<id>|sem, espaco, responsaveis=p:<id>,a:<id>, agente=1, prioridades, etiquetas, prazo=atrasadas|hoje|semana|sem_prazo, de, ate, subtarefas=0). |
 | POST | `/tarefas` | tarefas.criar | Cria uma tarefa, com ou sem projeto. Sem responsável, fica com quem criou; responsável nulo num projeto vai para o gerente, se o diretor quis. |
 | GET | `/tarefas/:id` | tarefas.ver | Mostra a tarefa com os comentários, as subtarefas, o checklist, os status do projeto e os nomes citados. |
 | POST | `/tarefas/:id/status` | tarefas.editar | Muda o status (concluir pode trazer o resultado; em andamento é pegar). Concluir uma recorrente cria a próxima. |
@@ -285,6 +285,9 @@ Todas com o prefixo `/api` no site, menos `/mcp`, que fica em `https://teste.osm
 | POST | `/tarefas/:id/destravar` | tarefas.aprovar | Tira a trava de outro, com motivo. |
 | POST | `/tarefas/:id/projeto` | tarefas.editar | Muda a tarefa de projeto (um projeto ativo que a pessoa alcança) ou tira do projeto (nulo). |
 | POST | `/tarefas/:id/planejamento` | tarefas.editar | Muda prioridade, prazo (dia, hora e fuso), início, etiquetas e recorrência; só o que veio muda, nulo apaga. |
+| GET | `/visoes` | tarefas.ver | Lista as visões salvas da pessoa (só as dela). |
+| POST | `/visoes` | tarefas.ver | Salva uma visão (nome, tipo, filtros e agrupamento). |
+| DELETE | `/visoes/:id` | tarefas.ver | Apaga uma visão da pessoa. |
 | GET | `/etiquetas` | tarefas.ver | Lista as etiquetas da empresa. |
 | POST | `/etiquetas` | tarefas.editar | Cria uma etiqueta (nome único na empresa). |
 | DELETE | `/etiquetas/:id` | tarefas.excluir (todas) | Apaga a etiqueta e tira de todas as tarefas. |
@@ -395,6 +398,15 @@ Recebe:
 - `inicio` (string ou null)
 - `etiquetas` (lista de id)
 - `recorrencia` (objeto ou null)
+
+### POST `/visoes`
+
+Recebe:
+
+- `nome` (string, obrigatório): Nome da visão (ex.: Atrasadas do Mago OS).
+- `tipo` ("lista" | "kanban" | "calendario", obrigatório): lista, kanban ou calendario.
+- `filtro` (objeto, obrigatório)
+- `agruparPor` ("status" | "lista" | "responsavel" | "prioridade" | "prazo" ou null)
 
 ### POST `/etiquetas`
 

@@ -4,12 +4,15 @@
 import type {
   ComentarioDeTarefa,
   Etiqueta,
+  FiltroDeTarefas,
   ItemDeChecklist,
   PedidoDePlanejamento,
+  PedidoDeVisaoSalva,
   Responsavel,
   StatusDoProjeto,
   StatusTarefa,
   Tarefa,
+  VisaoSalva,
 } from "@mago-os/contratos";
 
 export interface Resposta<T> {
@@ -65,12 +68,40 @@ export interface TarefaAberta {
 }
 
 export function listarTarefas(filtro: { minhas: boolean; status: StatusTarefa[]; projetoId?: string }) {
+  return buscarTarefas({
+    ...(filtro.minhas ? { minhas: true } : {}),
+    ...(filtro.status.length > 0 ? { status: filtro.status } : {}),
+    ...(filtro.projetoId ? { projetoId: filtro.projetoId } : {}),
+  });
+}
+
+/** Lista as tarefas com qualquer filtro do contrato (M3-04), montando a query da rota. */
+export function buscarTarefas(filtro: FiltroDeTarefas) {
   const q = new URLSearchParams();
   if (filtro.minhas) q.set("minhas", "1");
-  if (filtro.status.length > 0) q.set("status", filtro.status.join(","));
+  if (filtro.status?.length) q.set("status", filtro.status.join(","));
   if (filtro.projetoId) q.set("projeto", filtro.projetoId);
+  if (filtro.espacoId) q.set("espaco", filtro.espacoId);
+  if (filtro.responsaveis?.length) {
+    q.set(
+      "responsaveis",
+      filtro.responsaveis.map((r) => (r.tipo === "pessoa" ? `p:${r.pessoaId}` : `a:${r.agenteId}`)).join(","),
+    );
+  }
+  if (filtro.deAgente) q.set("agente", "1");
+  if (filtro.prioridades?.length) q.set("prioridades", filtro.prioridades.join(","));
+  if (filtro.etiquetas?.length) q.set("etiquetas", filtro.etiquetas.join(","));
+  if (filtro.prazo) q.set("prazo", filtro.prazo);
+  if (filtro.de) q.set("de", filtro.de);
+  if (filtro.ate) q.set("ate", filtro.ate);
+  if (filtro.subtarefas === false) q.set("subtarefas", "0");
   return pedir<ListaDeTarefas>("GET", `/tarefas?${q}`);
 }
+
+export const listarVisoes = () => pedir<{ visoes: VisaoSalva[] }>("GET", "/visoes");
+export const salvarVisao = (dados: PedidoDeVisaoSalva) => pedir<VisaoSalva>("POST", "/visoes", dados);
+export const excluirVisao = (id: string) =>
+  pedir<{ ok: true }>("DELETE", `/visoes/${encodeURIComponent(id)}`);
 
 export const abrirTarefa = (id: string) =>
   pedir<Omit<TarefaAberta, "tarefas">>("GET", `/tarefas/${encodeURIComponent(id)}`);

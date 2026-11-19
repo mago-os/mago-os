@@ -20,6 +20,7 @@ import {
   PedidoDePlanejamento,
   PedidoDeTarefa,
   PedidoDeTrocarResponsavel,
+  PedidoDeVisaoSalva,
   type PedidoDePlanejamento as Planejamento,
   type Responsavel,
   STATUS_ENCERRADOS,
@@ -68,6 +69,7 @@ import {
   travadaPorQuem,
   trocarResponsavel,
 } from "./servico.ts";
+import { excluirVisao, listarVisoes, salvarVisao } from "./visoes.ts";
 
 type AcaoDeTarefa =
   | (typeof ACOES_TAREFAS)[number]
@@ -117,6 +119,50 @@ function projetosQueAlcanca(pedido: FastifyRequest): AlcanceDeProjeto | null {
   return ver === "tudo" ? "todos" : "membro";
 }
 
+/** Lista de valores da query: "a,b" ou várias vezes o mesmo nome. */
+function varios(valor: string | string[] | undefined): string[] {
+  return [valor ?? []]
+    .flat()
+    .flatMap((s) => s.split(","))
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
+
+/**
+ * Os filtros da lista a partir da query (M3-04): minhas=1, status=a,b, projeto=<id>|sem, espaco=<id>,
+ * responsaveis=p:<id>,a:<id>, agente=1, prioridades=alta,sem, etiquetas=<id>,<id>, prazo=atrasadas|hoje|semana|sem_prazo,
+ * de=AAAA-MM-DD, ate=AAAA-MM-DD, subtarefas=0. O resultado é conferido pelo contrato.
+ */
+export function filtroDaQuery(q: Record<string, string | string[] | undefined>): Record<string, unknown> {
+  const um = (n: string) => {
+    const x = q[n];
+    return typeof x === "string" && x ? x : undefined;
+  };
+  const sim = (n: string) => varios(q[n]).some((x) => x === "1" || x === "true");
+  const status = varios(q.status);
+  const prioridades = varios(q.prioridades);
+  const etiquetas = varios(q.etiquetas);
+  const responsaveis = varios(q.responsaveis).map((r) =>
+    r.startsWith("a:")
+      ? { tipo: "agente", agenteId: r.slice(2) }
+      : { tipo: "pessoa", pessoaId: r.replace(/^p:/, "") },
+  );
+  return {
+    ...(sim("minhas") ? { minhas: true } : {}),
+    ...(status.length > 0 ? { status } : {}),
+    ...(um("projeto") ? { projetoId: um("projeto") } : {}),
+    ...(um("espaco") ? { espacoId: um("espaco") } : {}),
+    ...(responsaveis.length > 0 ? { responsaveis } : {}),
+    ...(sim("agente") ? { deAgente: true } : {}),
+    ...(prioridades.length > 0 ? { prioridades } : {}),
+    ...(etiquetas.length > 0 ? { etiquetas } : {}),
+    ...(um("prazo") ? { prazo: um("prazo") } : {}),
+    ...(um("de") ? { de: um("de") } : {}),
+    ...(um("ate") ? { ate: um("ate") } : {}),
+    ...(varios(q.subtarefas).some((x) => x === "0" || x === "false") ? { subtarefas: false } : {}),
+  };
+}
+
 export function registrarRotasDasTarefas(
   app: FastifyInstance,
   verificador: Verificador,
@@ -157,16 +203,8 @@ export function registrarRotasDasTarefas(
   }
 
   app.get("/tarefas", { preHandler: verificador.exigir("tarefas", "ver") }, async (pedido, resposta) => {
-    const q = pedido.query as { minhas?: string | string[]; status?: string | string[]; projeto?: string };
-    const status = [q.status ?? []]
-      .flat()
-      .flatMap((s) => s.split(","))
-      .filter(Boolean);
-    const filtro = {
-      ...([q.minhas].flat().some((m) => m === "1" || m === "true") ? { minhas: true } : {}),
-      ...(status.length > 0 ? { status } : {}),
-      ...(typeof q.projeto === "string" && q.projeto ? { projetoId: q.projeto } : {}),
-    };
+    const q = pedido.query as Record<string, string | string[] | undefined>;
+    const filtro = filtroDaQuery(q);
     const r = conferir(FiltroDeTarefas, filtro);
     if (!r.ok) return invalido(resposta, r.problemas);
     const quem = quemDoPedido(pedido);
@@ -548,6 +586,30 @@ export function registrarRotasDasTarefas(
         });
       }
       return t;
+    },
+  );
+
+  // Visões salvas (M3-04): pessoais; o banco só mostra a cada pessoa as dela.
+  app.get("/visoes", { preHandler: verificador.exigir("tarefas", "ver") }, async (pedido) =>
+    naEmpresa(pedido, async (c) => ({ visoes: await listarVisoes(c) })),
+  );
+
+  app.post("/visoes", { preHandler: verificador.exigir("tarefas", "ver") }, async (pedido, resposta) => {
+    const r = conferir(PedidoDeVisaoSalva, pedido.body);
+    if (!r.ok) return invalido(resposta, r.problemas);
+    const visao = await naEmpresa(pedido, (c) => salvarVisao(c, r.valor));
+    return resposta.code(201).send(visao);
+  });
+
+  app.delete(
+    "/visoes/:id",
+    { preHandler: verificador.exigir("tarefas", "ver") },
+    async (pedido, resposta) => {
+      const { id } = pedido.params as { id: string };
+      const ok = await naEmpresa(pedido, (c) => excluirVisao(c, id));
+      if (!ok)
+        return resposta.code(404).send({ code: "VISAO_NAO_ENCONTRADA", message: "Visão não encontrada." });
+      return { ok: true };
     },
   );
 
