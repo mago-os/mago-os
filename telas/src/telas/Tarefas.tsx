@@ -37,6 +37,7 @@ import { useTempoReal } from "@/tempo-real";
 import { Aviso } from "./Acesso";
 import { useAoVoltar } from "./Administrador";
 import { Checklist, Subtarefas } from "./PartesDaTarefa";
+import { MarcaDePrazo, MarcaDePrioridade, PlanejamentoDaTarefa } from "./Planejamento";
 
 type Mensagem = { texto: string; tipo: "erro" | "ok" } | null;
 
@@ -195,8 +196,10 @@ export function Tarefas({ podeCriar, euId }: { podeCriar: boolean; euId: string 
               <span className="font-medium text-pretty">{t.titulo}</span>
               <span className="flex flex-wrap items-center gap-2 text-xs text-texto-2">
                 <Etiqueta status={t.status} />
+                <MarcaDePrioridade prioridade={t.prioridade} />
                 <span>{nomeDe(t.responsavel, lista.nomes)}</span>
                 <MarcaDeAgente quem={t.responsavel} />
+                <MarcaDePrazo tarefa={t} />
                 <span className="ml-auto">{quando(t.atualizadaEm)}</span>
               </span>
             </a>
@@ -796,6 +799,7 @@ export function PaginaDaTarefa({
         )}
       </Card>
 
+      <PlanejamentoDaTarefa tarefa={tarefa} podeEditar={podeEditar} aoMudar={() => void carregar()} />
       <Subtarefas
         tarefa={tarefa}
         subtarefas={aberta.subtarefas}

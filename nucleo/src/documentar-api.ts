@@ -20,11 +20,13 @@ import {
   PedidoDeEditarLista,
   PedidoDeEditarProjeto,
   PedidoDeEspaco,
+  PedidoDeEtiqueta,
   PedidoDeItemDeChecklist,
   PedidoDeLista,
   PedidoDeMudarLista,
   PedidoDeMudarProjeto,
   PedidoDeMudarStatus,
+  PedidoDePlanejamento,
   PedidoDeProjeto,
   PedidoDeStatusDoProjeto,
   PedidoDeTarefa,
@@ -70,7 +72,8 @@ export const ROTAS: Rota[] = [
     metodo: "POST",
     caminho: "/tarefas/:id/status",
     permissao: "tarefas.editar",
-    oQueFaz: "Muda o status (concluir pode trazer o resultado; em andamento é pegar).",
+    oQueFaz:
+      "Muda o status (concluir pode trazer o resultado; em andamento é pegar). Concluir uma recorrente cria a próxima.",
     recebe: PedidoDeMudarStatus,
   },
   {
@@ -112,6 +115,33 @@ export const ROTAS: Rota[] = [
     permissao: "tarefas.editar",
     oQueFaz: "Muda a tarefa de projeto (um projeto ativo que a pessoa alcança) ou tira do projeto (nulo).",
     recebe: PedidoDeMudarProjeto,
+  },
+  {
+    metodo: "POST",
+    caminho: "/tarefas/:id/planejamento",
+    permissao: "tarefas.editar",
+    oQueFaz:
+      "Muda prioridade, prazo (dia, hora e fuso), início, etiquetas e recorrência; só o que veio muda, nulo apaga.",
+    recebe: PedidoDePlanejamento,
+  },
+  {
+    metodo: "GET",
+    caminho: "/etiquetas",
+    permissao: "tarefas.ver",
+    oQueFaz: "Lista as etiquetas da empresa.",
+  },
+  {
+    metodo: "POST",
+    caminho: "/etiquetas",
+    permissao: "tarefas.editar",
+    oQueFaz: "Cria uma etiqueta (nome único na empresa).",
+    recebe: PedidoDeEtiqueta,
+  },
+  {
+    metodo: "DELETE",
+    caminho: "/etiquetas/:id",
+    permissao: "tarefas.excluir (todas)",
+    oQueFaz: "Apaga a etiqueta e tira de todas as tarefas.",
   },
   {
     metodo: "POST",

@@ -87,6 +87,15 @@ test.describe("tela de projetos", () => {
     await page.getByRole("checkbox", { name: "Ler a spec" }).click();
     await expect(page.getByRole("checkbox", { name: "Ler a spec" })).toBeChecked();
     await expect(page.getByText("1 de 1")).toBeVisible();
+    // M3-03: prioridade, prazo e recorrência pelo planejamento.
+    await page.getByRole("button", { name: "Editar", exact: true }).click();
+    await page.getByLabel("Prioridade").selectOption({ label: "Alta" });
+    await page.getByLabel("Prazo", { exact: true }).fill("2030-11-25");
+    await page.getByLabel("Hora do prazo (opcional)").fill("09:00");
+    await page.getByLabel("Repetição").selectOption({ label: "Toda semana" });
+    await page.getByRole("button", { name: "Salvar", exact: true }).click();
+    await expect(page.getByText("Repete: toda semana (vez 1)")).toBeVisible();
+    await expect(page.getByText(/^Prazo: 25\/11\/2030/)).toBeVisible();
     await page.getByLabel("Status do projeto").selectOption({ label: "Precisa de ajuda" });
     await expect(page.getByText(/^Em andamento com Paula Projetos/)).toBeVisible();
 

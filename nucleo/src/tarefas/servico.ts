@@ -5,7 +5,15 @@
  * banco já isola a empresa. Aqui fica o "quem vê o quê": o alcance da verificação central vira a condição SQL.
  * As regras de formato do contrato também estão no banco (migração 0013), como segunda barreira.
  */
-import type { Autor, ComentarioDeTarefa, Responsavel, StatusTarefa, Tarefa } from "@mago-os/contratos";
+import type {
+  Autor,
+  ComentarioDeTarefa,
+  Prioridade,
+  RegraDeRecorrencia,
+  Responsavel,
+  StatusTarefa,
+  Tarefa,
+} from "@mago-os/contratos";
 import type pg from "pg";
 import type { Filtro } from "../permissoes/calcular.ts";
 
@@ -76,7 +84,12 @@ function alcanceSobre(a: string, quem: Quem, jaUsados: number): { sql: string; v
 }
 
 const COLUNAS = `t.id, t.empresa_id, t.titulo, t.descricao, t.projeto_id, t.lista_id, t.status_do_projeto_id,
-  t.tarefa_mae_id, t.status,
+  t.tarefa_mae_id, t.prioridade, to_char(t.prazo_dia, 'YYYY-MM-DD') as prazo_dia,
+  to_char(t.prazo_hora, 'HH24:MI') as prazo_hora, t.prazo_fuso, t.prazo_em, to_char(t.inicio, 'YYYY-MM-DD') as inicio,
+  t.recorrencia, t.ocorrencia, t.recorrente_de_id,
+  coalesce((select array_agg(e.etiqueta_id order by e.etiqueta_id) from etiquetas_de_tarefa e
+             where e.tarefa_id = t.id and e.empresa_id = t.empresa_id), '{}') as etiquetas,
+  t.status,
   t.responsavel_pessoa_id, t.responsavel_agente_id, t.criada_por_pessoa_id, t.criada_por_agente_id,
   t.travada_por_pessoa_id, t.travada_por_agente_id, t.travada_em,
   t.resultado, t.resultado_por_pessoa_id, t.resultado_por_agente_id, t.criada_em, t.atualizada_em, t.encerrada_em`;
@@ -90,6 +103,16 @@ interface LinhaDaTarefa {
   lista_id: string | null;
   status_do_projeto_id: string | null;
   tarefa_mae_id: string | null;
+  prioridade: Prioridade | null;
+  prazo_dia: string | null;
+  prazo_hora: string | null;
+  prazo_fuso: string | null;
+  prazo_em: Date | null;
+  inicio: string | null;
+  recorrencia: RegraDeRecorrencia | null;
+  ocorrencia: number;
+  recorrente_de_id: string | null;
+  etiquetas: string[];
   status: StatusTarefa;
   responsavel_pessoa_id: string | null;
   responsavel_agente_id: string | null;
@@ -129,14 +152,16 @@ export function linhaParaTarefa(l: LinhaDaTarefa): Tarefa {
     listaId: l.lista_id,
     statusDoProjetoId: l.status_do_projeto_id,
     tarefaMaeId: l.tarefa_mae_id,
-    // M3-03: entram com o banco, depois do contrato aprovado.
-    prioridade: null,
-    prazo: null,
-    inicio: null,
-    etiquetas: [],
-    recorrencia: null,
-    ocorrencia: 1,
-    recorrenteDeId: null,
+    prioridade: l.prioridade,
+    prazo:
+      l.prazo_dia && l.prazo_fuso && l.prazo_em
+        ? { dia: l.prazo_dia, hora: l.prazo_hora, fuso: l.prazo_fuso, em: l.prazo_em.toISOString() }
+        : null,
+    inicio: l.inicio,
+    etiquetas: l.etiquetas,
+    recorrencia: l.recorrencia,
+    ocorrencia: l.ocorrencia,
+    recorrenteDeId: l.recorrente_de_id,
     status: l.status,
     responsavel: responsavelDe(l.responsavel_pessoa_id, l.responsavel_agente_id),
     criadaPor: autorDaLinha(l.criada_por_pessoa_id, l.criada_por_agente_id),
@@ -193,9 +218,16 @@ export async function listarTarefas(c: pg.PoolClient, quem: Quem, filtro: Filtro
     valores.push(filtro.projetoId);
     partes.push(`t.projeto_id = $${valores.length}`);
   }
+  // O agente recebe das mais urgentes para as menos (M3-03): prioridade, depois o prazo mais perto. As telas, as
+  // mais recentes primeiro (as visões da M3-04 ordenam como a pessoa escolher).
+  const ordem =
+    quem.tipo === "agente"
+      ? `case t.prioridade when 'urgente' then 0 when 'alta' then 1 when 'normal' then 2 when 'baixa' then 3 else 4 end,
+         t.prazo_em nulls last, t.atualizada_em desc`
+      : "t.atualizada_em desc";
   const r = await c.query<LinhaDaTarefa>(
     `select ${COLUNAS} from tarefas t where t.empresa_id = empresa_ativa() and ${partes.join(" and ")}
-      order by t.atualizada_em desc limit 200`,
+      order by ${ordem} limit 200`,
     valores,
   );
   return r.rows.map(linhaParaTarefa);

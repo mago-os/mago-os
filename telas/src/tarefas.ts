@@ -3,7 +3,9 @@
  */
 import type {
   ComentarioDeTarefa,
+  Etiqueta,
   ItemDeChecklist,
+  PedidoDePlanejamento,
   Responsavel,
   StatusDoProjeto,
   StatusTarefa,
@@ -81,6 +83,15 @@ export const criarTarefa = (dados: {
   listaId?: string;
   tarefaMaeId?: string;
 }) => pedir<Tarefa>("POST", "/tarefas", dados);
+
+/** Prioridade, prazo, início, etiquetas e recorrência (M3-03). */
+export const planejarTarefa = (id: string, plano: PedidoDePlanejamento) =>
+  pedir<Tarefa>("POST", `/tarefas/${encodeURIComponent(id)}/planejamento`, plano);
+
+export const listarEtiquetas = () => pedir<{ etiquetas: Etiqueta[] }>("GET", "/etiquetas");
+
+export const criarEtiqueta = (nome: string, cor: string) =>
+  pedir<Etiqueta>("POST", "/etiquetas", { nome, cor });
 
 /** Muda a tarefa de lista, no mesmo projeto (M3-02). */
 export const mudarLista = (id: string, listaId: string) =>

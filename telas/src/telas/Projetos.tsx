@@ -26,6 +26,7 @@ import { useTempoReal } from "@/tempo-real";
 import { Aviso } from "./Acesso";
 import { useAoVoltar } from "./Administrador";
 import { ListasDoProjeto, StatusDoProjetoEditor } from "./ConfigDoProjeto";
+import { MarcaDePrazo, MarcaDePrioridade } from "./Planejamento";
 import {
   Etiqueta,
   Filtro,
@@ -721,7 +722,9 @@ export function PaginaDoProjeto({
                           ) : (
                             <Etiqueta status={t.status} />
                           )}
+                          <MarcaDePrioridade prioridade={t.prioridade} />
                           <span>{nomeDe(t.responsavel, tarefas?.nomes ?? {})}</span>
+                          <MarcaDePrazo tarefa={t} />
                           <MarcaDeAgente quem={t.responsavel} />
                           {sub && (
                             <span>

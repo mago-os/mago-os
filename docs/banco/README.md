@@ -98,6 +98,18 @@ erDiagram
     timestamp_with_time_zone criado_em
     timestamp_with_time_zone atualizado_em
   }
+  etiquetas {
+    uuid id PK
+    uuid empresa_id FK
+    text nome
+    text cor
+    timestamp_with_time_zone criada_em
+  }
+  etiquetas_de_tarefa {
+    uuid empresa_id FK
+    uuid tarefa_id PK
+    uuid etiqueta_id PK
+  }
   itens_de_checklist {
     uuid id PK
     uuid empresa_id FK
@@ -194,6 +206,15 @@ erDiagram
     uuid lista_id
     uuid status_do_projeto_id
     uuid tarefa_mae_id
+    text prioridade
+    date prazo_dia
+    time_without_time_zone prazo_hora
+    text prazo_fuso
+    timestamp_with_time_zone prazo_em
+    date inicio
+    jsonb recorrencia
+    integer ocorrencia
+    uuid recorrente_de_id
   }
   vinculos {
     uuid id PK
@@ -355,6 +376,8 @@ erDiagram
   empresas ||--o{ comentarios_de_tarefa : "empresa_id"
   empresas ||--o{ contadores_de_agente : "empresa_id"
   empresas ||--o{ espacos : "empresa_id"
+  empresas ||--o{ etiquetas : "empresa_id"
+  empresas ||--o{ etiquetas_de_tarefa : "empresa_id"
   empresas ||--o{ itens_de_checklist : "empresa_id"
   empresas ||--o{ listas : "empresa_id"
   empresas ||--o{ membros_de_projeto : "empresa_id"
@@ -540,6 +563,32 @@ Isolamento por empresa (Row Level Security): ligado e forçado.
 | criado_em | timestamp with time zone | sim | `now()` | sistema | Quando o espaço foi criado. |
 | atualizado_em | timestamp with time zone | sim | `now()` | sistema | Última mudança no espaço. |
 
+### etiquetas
+
+Etiquetas da empresa, para marcar tarefas.
+
+Isolamento por empresa (Row Level Security): ligado e forçado.
+
+| Coluna | Tipo | Obrigatória | Padrão | Marca | Descrição |
+| --- | --- | --- | --- | --- | --- |
+| id | uuid | sim | `uuidv7()` | sistema | Identificador da etiqueta (UUID v7). Chave primária. |
+| empresa_id | uuid | sim |  | sistema | Empresa da etiqueta. Aponta para empresas.id. |
+| nome | text | sim |  | empresa | Nome da etiqueta (único na empresa). |
+| cor | text | sim |  | empresa | Cor da etiqueta nas telas (#rrggbb). |
+| criada_em | timestamp with time zone | sim | `now()` | sistema | Quando a etiqueta foi criada. |
+
+### etiquetas_de_tarefa
+
+Quais etiquetas cada tarefa tem.
+
+Isolamento por empresa (Row Level Security): ligado e forçado.
+
+| Coluna | Tipo | Obrigatória | Padrão | Marca | Descrição |
+| --- | --- | --- | --- | --- | --- |
+| empresa_id | uuid | sim |  | sistema | Empresa (a mesma da tarefa e da etiqueta). Aponta para empresas.id. |
+| tarefa_id | uuid | sim |  | sistema | Tarefa. Chave primária. |
+| etiqueta_id | uuid | sim |  | sistema | Etiqueta. Chave primária. |
+
 ### itens_de_checklist
 
 Itens do checklist de cada tarefa, com quem marcou e quando.
@@ -692,6 +741,15 @@ Isolamento por empresa (Row Level Security): ligado e forçado.
 | lista_id | uuid | não |  | sistema | Lista do projeto. Tarefa de projeto sempre tem; sem projeto, vazio. |
 | status_do_projeto_id | uuid | não |  | sistema | Status do projeto, sempre do mesmo tipo de status. Sem projeto, vazio. |
 | tarefa_mae_id | uuid | não |  | sistema | Tarefa-mãe, quando é uma subtarefa (um nível só). |
+| prioridade | text | não |  | empresa | urgente, alta, normal ou baixa. Vazio: sem prioridade. |
+| prazo_dia | date | não |  | empresa | Dia do prazo. |
+| prazo_hora | time(0) without time zone | não |  | empresa | Hora do prazo. Vazio: vale o dia inteiro. |
+| prazo_fuso | text | não |  | empresa | Fuso em que o prazo foi marcado (IANA). |
+| prazo_em | timestamp with time zone | não |  | sistema | Momento do prazo, calculado pelo banco no fuso do prazo (sem hora: 23:59). |
+| inicio | date | não |  | empresa | Dia de início, para o calendário. |
+| recorrencia | jsonb | não |  | empresa | Regra da recorrência (contrato RegraDeRecorrencia). Vazio: não se repete. |
+| ocorrencia | integer | sim | `1` | sistema | Quantas vezes a tarefa já aconteceu, contando esta. |
+| recorrente_de_id | uuid | não |  | sistema | A tarefa anterior da recorrência, que ao ser concluída criou esta. |
 
 ### vinculos
 
