@@ -10,19 +10,7 @@ Detalhado em [M2-prova.md](M2-prova.md) (18/11/2026).
 
 ## M3 Projetos e tarefas completos
 
-Pronto quando: a Nolask organiza um projeto real no Mago OS, com Kanban, lista e calendário.
-
-| Número | Tarefa |
-| --- | --- |
-| M3-01 | Espaços e projetos, com diretor e gerente |
-| M3-02 | Listas, subtarefas, checklist, prioridade, prazo, etiquetas e recorrência |
-| M3-03 | Visões em lista, Kanban e calendário, com filtros salvos |
-| M3-04 | Linha do tempo: comentários, notas internas e menções a pessoas e agentes |
-| M3-05 | Anexos guardados no R2, com antivírus ClamAV |
-| M3-06 | Notificações: sino na tela e push |
-| M3-07 | Central de prioridades básica: aprovações, menções e prazos |
-| M3-08 | Busca Ctrl+K |
-| M3-09 | Painéis encaixáveis com layout salvo por usuário |
+Detalhado em [M3-projetos.md](M3-projetos.md) (proposta de 19/11/2026, esperando aprovação). A M3-02 original virou duas, e entrou a proposta da M3-11 (tela "Dados da empresa").
 
 ## M4 Agentes internos e regras
 
