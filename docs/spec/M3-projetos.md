@@ -1,6 +1,6 @@
 # Spec da Fase 1: M3 Projetos e tarefas completos
 
-Parte da [spec da Fase 1](README.md). Estado em 19/11/2026: **aprovado** pelo Sandro, com todas as recomendações (inclusive a M3-11 e os eventos da agenda simples no M5). Em construção: M3-01 pronta em 19/11/2026.
+Parte da [spec da Fase 1](README.md). Estado em 19/11/2026: **aprovado** pelo Sandro, com todas as recomendações (inclusive a M3-11 e os eventos da agenda simples no M5). Em construção: M3-01 e M3-02 prontas em 19/11/2026.
 
 **Pronto quando:** a Nolask organiza um projeto real no Mago OS (sugestão: a própria construção do Mago OS, com as tarefas do M4), com espaço, projeto, diretor e gerente, listas, subtarefas, prazos e etiquetas, e acompanha pelo Kanban, pela lista e pelo calendário. Uma menção a uma pessoa chega no sino e no celular, um anexo passa pelo antivírus antes de abrir, a central de prioridades mostra o que vence hoje e o Ctrl+K acha a tarefa pelo nome. Os testes provam que uma empresa não vê projetos, anexos, notificações nem resultados de busca da outra.
 
@@ -46,15 +46,15 @@ Pronto quando: o Sandro cria o espaço "Operações" e o projeto "Construção d
 
 Precisa da aprovação do Sandro (contrato da tarefa e ferramentas novas do MCP).
 
-- [ ] Listas dentro do projeto (Planejamento, Execução, Entrega...), com ordem; todo projeto nasce com uma lista "Geral", e a tarefa de projeto fica sempre numa lista
-- [ ] Status por projeto (decisão 3): cada projeto define os próprios status, com nome, cor e ordem, e cada um pertence a um dos cinco tipos fixos do M2 (A fazer, Em andamento, Precisa de ajuda, Concluída, Cancelada). A trava, o agente vivo e o MCP continuam olhando o tipo, então nada do M2 muda. Projeto novo nasce com os cinco status padrão
-- [ ] Subtarefas com um nível só (decisão 4): a subtarefa é uma tarefa completa (responsável pessoa ou agente, status, prazo, trava), ligada à tarefa-mãe, e a mãe mostra quantas estão prontas
-- [ ] Concluir a tarefa-mãe com subtarefas abertas pede confirmação na tela (não é proibido)
-- [ ] Checklist dentro da tarefa: itens de texto com marcar e desmarcar, ordem e quem marcou
-- [ ] MCP (decisão 5): ferramentas novas `criar_subtarefa` e `marcar_checklist`, para o agente transformar o plano dele em passos e marcar cada um, e `minhas_tarefas` e `ver_tarefa` passam a trazer projeto, lista, subtarefas e checklist. Descrições congeladas pelo teste, como as oito do M2
-- [ ] Eventos de auditoria: `lista.criou`, `lista.editou`, `lista.excluiu`, `status.editou`, `tarefa.criou_subtarefa`, `tarefa.mudou_lista`, `checklist.marcou`
-- [ ] Na tela da tarefa: lista, status do projeto, subtarefas e checklist, com tudo atualizando em tempo real (M2-06)
-- [ ] Testes de vazamento: subtarefa e checklist seguem a empresa e a permissão da tarefa-mãe
+- [x] Listas dentro do projeto (Planejamento, Execução, Entrega...), com ordem; todo projeto nasce com uma lista "Geral", e a tarefa de projeto fica sempre numa lista. Excluir uma lista passa as tarefas dela para a primeira outra; a última não se exclui
+- [x] Status por projeto (decisão 3): cada projeto define os próprios status, com nome, cor e ordem, e cada um pertence a um dos cinco tipos fixos do M2 (A fazer, Em andamento, Precisa de ajuda, Concluída, Cancelada). A trava, o agente vivo e o MCP continuam olhando o tipo, então nada do M2 muda. Projeto novo nasce com os cinco status padrão. O tipo de um status não muda depois de criado; apagar um status passa as tarefas para o primeiro do mesmo tipo
+- [x] Subtarefas com um nível só (decisão 4): a subtarefa é uma tarefa completa (responsável pessoa ou agente, status, prazo, trava), ligada à tarefa-mãe, e a mãe mostra quantas estão prontas
+- [x] Concluir a tarefa-mãe com subtarefas abertas pede confirmação na tela (não é proibido)
+- [x] Checklist dentro da tarefa: itens de texto com marcar e desmarcar, ordem e quem marcou. Como o status, com a tarefa travada só quem pegou mexe no checklist (decidido na codificação)
+- [x] MCP (decisão 5): ferramentas novas `criar_subtarefa` e `marcar_checklist`, para o agente transformar o plano dele em passos e marcar cada um, e `minhas_tarefas` e `ver_tarefa` passam a trazer projeto, lista, subtarefas e checklist. Descrições congeladas pelo teste, como as oito do M2
+- [x] Eventos de auditoria: `lista.criou`, `lista.editou`, `lista.excluiu`, `status.editou`, `tarefa.criou_subtarefa`, `tarefa.mudou_lista`, `checklist.marcou`
+- [x] Na tela da tarefa: lista, status do projeto, subtarefas e checklist, com tudo atualizando em tempo real (M2-06)
+- [x] Testes de vazamento: subtarefa e checklist seguem a empresa e a permissão da tarefa-mãe
 
 Pronto quando: o Claude no Mac recebe uma tarefa, cria três subtarefas pelo MCP e marca o checklist de uma delas, e o Sandro vê os passos aparecerem na tela sem recarregar.
 

@@ -110,7 +110,7 @@ CREATE FUNCTION public.acertar_tarefa() RETURNS trigger
       IF mae.tarefa_mae_id IS NOT NULL THEN
         RAISE EXCEPTION 'subtarefa não tem subtarefas (um nível só)' USING ERRCODE = 'check_violation';
       END IF;
-      IF EXISTS (SELECT 1 FROM public.tarefas f WHERE f.tarefa_mae_id = NEW.id) THEN
+      IF EXISTS (SELECT 1 FROM public.tarefas f WHERE f.empresa_id = NEW.empresa_id AND f.tarefa_mae_id = NEW.id) THEN
         RAISE EXCEPTION 'tarefa com subtarefas não vira subtarefa (um nível só)' USING ERRCODE = 'check_violation';
       END IF;
       NEW.projeto_id := mae.projeto_id;

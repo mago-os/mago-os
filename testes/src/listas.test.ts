@@ -306,6 +306,29 @@ describe.skipIf(!bancoDisponivel)("listas, status, subtarefas e checklist", () =
     expect(ev.rows.map((e) => e.acao)).toEqual(["checklist.editou", "checklist.marcou", "checklist.marcou"]);
   });
 
+  it("a subtarefa não muda de projeto sozinha, e a mãe não se exclui com subtarefa pegada por outro", async () => {
+    const ana = await como("ana@teste.invalid");
+    const m = (await pedir("POST", "/tarefas", ana, { titulo: "Mãe", projetoId: projeto })).json().id;
+    const sub = (
+      await pedir("POST", "/tarefas", ana, {
+        titulo: "Filha",
+        tarefaMaeId: m,
+        responsavel: { tipo: "pessoa", pessoaId: ids.flora },
+      })
+    ).json().id;
+    expect((await pedir("POST", `/tarefas/${sub}/projeto`, ana, { projetoId: null })).statusCode).toBe(400);
+    expect(
+      (await pedir("POST", "/tarefas", ana, { titulo: "Com projeto", tarefaMaeId: m, projetoId: projeto }))
+        .statusCode,
+    ).toBe(400);
+    await pedir("POST", `/tarefas/${sub}/pegar`, await como("flora@teste.invalid"));
+    expect((await pedir("DELETE", `/tarefas/${m}`, ana)).statusCode).toBe(409);
+    await pedir("POST", `/tarefas/${m}/status`, ana, { status: "cancelada" });
+    expect(
+      (await pedir("POST", "/tarefas", ana, { titulo: "Depois de cancelar", tarefaMaeId: m })).statusCode,
+    ).toBe(400);
+  });
+
   it("uma empresa não vê listas, status nem checklist da outra", async () => {
     const otto = await como("otto@teste.invalid");
     expect((await pedir("POST", `/projetos/${projeto}/listas`, otto, { nome: "Intrusa" })).statusCode).toBe(

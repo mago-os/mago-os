@@ -397,6 +397,22 @@ export async function mudarListaDaTarefa(
   return linhaParaTarefa(r.rows[0] as LinhaDaTarefa);
 }
 
+/** Alguma subtarefa da tarefa está pegada por outro (então a mãe não se exclui). */
+export async function subtarefaTravadaPorOutro(
+  c: pg.PoolClient,
+  tarefaId: string,
+  quem: Quem,
+): Promise<boolean> {
+  const [pessoa, agente] = colunas(autorDe(quem));
+  const r = await c.query(
+    `select 1 from tarefas where tarefa_mae_id = $1 and empresa_id = empresa_ativa() and travada_em is not null
+        and not (coalesce(travada_por_pessoa_id = $2::uuid, false) or coalesce(travada_por_agente_id = $3::uuid, false))
+      limit 1`,
+    [tarefaId, pessoa, agente],
+  );
+  return (r.rowCount ?? 0) > 0;
+}
+
 /** As subtarefas de uma tarefa, na ordem em que foram criadas. */
 export async function listarSubtarefas(c: pg.PoolClient, tarefaMaeId: string): Promise<Tarefa[]> {
   const r = await c.query<LinhaDaTarefa>(
@@ -407,18 +423,20 @@ export async function listarSubtarefas(c: pg.PoolClient, tarefaMaeId: string): P
   return r.rows.map(linhaParaTarefa);
 }
 
-/** Quantas subtarefas cada tarefa tem e quantas estão prontas (concluídas ou canceladas). */
+/** Quantas subtarefas (que quem pede alcança) cada tarefa tem e quantas estão prontas. */
 export async function resumoDasSubtarefas(
   c: pg.PoolClient,
+  quem: Quem,
   ids: string[],
 ): Promise<Record<string, { total: number; prontas: number }>> {
   if (ids.length === 0) return {};
+  const alcance = condicaoDeAlcance(quem, 1);
   const r = await c.query<{ tarefa_mae_id: string; total: number; prontas: number }>(
-    `select tarefa_mae_id, count(*)::int as total,
-            count(*) filter (where status in ('concluida', 'cancelada'))::int as prontas
-       from tarefas where empresa_id = empresa_ativa() and tarefa_mae_id = any($1::uuid[])
-      group by tarefa_mae_id`,
-    [ids],
+    `select t.tarefa_mae_id, count(*)::int as total,
+            count(*) filter (where t.status in ('concluida', 'cancelada'))::int as prontas
+       from tarefas t where t.empresa_id = empresa_ativa() and t.tarefa_mae_id = any($1::uuid[]) and ${alcance.sql}
+      group by t.tarefa_mae_id`,
+    [ids, ...alcance.valores],
   );
   return Object.fromEntries(r.rows.map((l) => [l.tarefa_mae_id, { total: l.total, prontas: l.prontas }]));
 }

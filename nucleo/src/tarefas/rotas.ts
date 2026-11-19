@@ -4,6 +4,7 @@
  * o gestor, também as da equipe; o administrador, todas. Cada mudança vira evento de auditoria (tarefa.*).
  */
 import {
+  type ACOES_CHECKLIST,
   type ACOES_TAREFAS,
   conferir,
   conferirPedidoDeMudarStatus,
@@ -27,7 +28,7 @@ import { agenteRecebeTarefas } from "../agentes/servico.ts";
 import { auditar } from "../auditoria/registrar.ts";
 import { comPessoa } from "../empresa.ts";
 import { acessoDo, type Verificador } from "../permissoes/verificar.ts";
-import { buscarLista, listarStatus } from "../projetos/listas.ts";
+import { buscarLista, listarListas, listarStatus } from "../projetos/listas.ts";
 import { type AlcanceDeProjeto, buscarProjeto } from "../projetos/servico.ts";
 import { buscarItem, criarItem, editarItem, excluirItem, listarChecklist } from "./checklist.ts";
 import {
@@ -48,6 +49,7 @@ import {
   pessoaAtivaNaEmpresa,
   type Quem,
   resumoDasSubtarefas,
+  subtarefaTravadaPorOutro,
   tirarTrava,
   travadaPorQuem,
   trocarResponsavel,
@@ -56,10 +58,7 @@ import {
 type AcaoDeTarefa =
   | (typeof ACOES_TAREFAS)[number]
   | "tarefa.mudou_projeto"
-  | "tarefa.criou_subtarefa"
-  | "tarefa.mudou_lista"
-  | "checklist.marcou"
-  | "checklist.editou";
+  | (typeof ACOES_CHECKLIST)[number];
 
 const naoEncontrada = (resposta: FastifyReply) =>
   resposta.code(404).send({ code: "TAREFA_NAO_ENCONTRADA", message: "Tarefa não encontrada." });
@@ -163,6 +162,7 @@ export function registrarRotasDasTarefas(
         nomes: await nomesCitados(c, idsCitados(tarefas)),
         subtarefas: await resumoDasSubtarefas(
           c,
+          quem,
           tarefas.map((t) => t.id),
         ),
       };
@@ -184,10 +184,21 @@ export function registrarRotasDasTarefas(
     const feito = await naEmpresa(pedido, async (c) => {
       // Subtarefa (M3-02): precisa alcançar a mãe, que não pode ser subtarefa nem estar com outra pessoa.
       if (r.valor.tarefaMaeId !== undefined) {
+        if (r.valor.projetoId !== undefined || r.valor.listaId !== undefined) {
+          return {
+            semMae: "A subtarefa fica no projeto e na lista da tarefa-mãe: não mande projeto nem lista.",
+          };
+        }
         const quemVe: Quem = { ...quem, projetos: alcanceDosProjetos ? "membro" : "nenhum" };
         const mae = await buscarTarefa(c, quemVe, r.valor.tarefaMaeId, true);
         if (!mae) return { semMae: "Tarefa-mãe não encontrada." };
         if (mae.tarefaMaeId !== null) return { semMae: "Subtarefa não tem subtarefas (um nível só)." };
+        if (STATUS_ENCERRADOS.includes(mae.status))
+          return { semMae: "Reabra a tarefa-mãe antes de criar subtarefas." };
+        if (mae.projetoId !== null) {
+          const projeto = await buscarProjeto(c, sessao.pessoa.id, "todos", mae.projetoId);
+          if (projeto?.situacao !== "ativo") return { semProjeto: true as const };
+        }
         if (mae.trava && !travadaPorQuem(mae, quem))
           return { semMae: "Essa tarefa está com outro responsável: só quem pegou cria subtarefas." };
         const recusa = await responsavelRecusado(c, responsavel);
@@ -251,6 +262,7 @@ export function registrarRotasDasTarefas(
       const subtarefas = await listarSubtarefas(c, tarefa.id);
       const checklist = await listarChecklist(c, tarefa.id);
       const status = tarefa.projetoId ? await listarStatus(c, tarefa.projetoId) : [];
+      const listas = tarefa.projetoId ? await listarListas(c, tarefa.projetoId) : [];
       const marcaram = checklist.flatMap((i) => (i.marcadoPor ? [i.marcadoPor] : []));
       return {
         tarefa,
@@ -258,6 +270,7 @@ export function registrarRotasDasTarefas(
         subtarefas,
         checklist,
         status,
+        listas,
         nomes: await nomesCitados(c, [
           ...idsCitados([tarefa, ...subtarefas], comentarios),
           ...marcaram.flatMap((a) =>
@@ -359,6 +372,8 @@ export function registrarRotasDasTarefas(
         const tarefa = await buscarTarefa(c, quem, id, true);
         if (!tarefa) return null;
         if (tarefa.tarefaMaeId !== null) return { recusa: "A subtarefa fica sempre na lista da tarefa-mãe." };
+        if (tarefa.trava && !travadaPorQuem(tarefa, quem))
+          return { recusa: "Essa tarefa está com outro responsável: só quem pegou muda a lista." };
         const lista = await buscarLista(c, r.valor.listaId);
         if (!lista || lista.projetoId !== tarefa.projetoId)
           return { recusa: "Escolha uma lista do projeto da tarefa." };
@@ -491,6 +506,7 @@ export function registrarRotasDasTarefas(
       const feito = await naEmpresa(pedido, async (c) => {
         const tarefa = await buscarTarefa(c, quem, id, true);
         if (!tarefa) return null;
+        if (tarefa.tarefaMaeId !== null) return { ehSubtarefa: true as const };
         if (r.valor.projetoId !== null) {
           const projeto = alcanceDosProjetos
             ? await buscarProjeto(c, sessao.pessoa.id, alcanceDosProjetos, r.valor.projetoId)
@@ -505,6 +521,11 @@ export function registrarRotasDasTarefas(
         };
       });
       if (!feito) return naoEncontrada(resposta);
+      if ("ehSubtarefa" in feito) {
+        return resposta
+          .code(400)
+          .send({ code: "SUBTAREFA_INVALIDA", message: "A subtarefa fica sempre no projeto da tarefa-mãe." });
+      }
       if ("semProjeto" in feito) return projetoInvalido(resposta);
       if (feito.mudou) {
         await registrar(pedido, "tarefa.mudou_projeto", id, { de: feito.de, para: feito.tarefa.projetoId });
@@ -627,6 +648,8 @@ export function registrarRotasDasTarefas(
         if (!tarefa) return "nao" as const;
         // Ninguém apaga a tarefa debaixo de quem está trabalhando nela: destrave antes (fica o motivo).
         if (tarefa.trava && !travadaPorQuem(tarefa, quem)) return "travada" as const;
+        // As subtarefas saem junto: nenhuma pode estar com outra pessoa ou agente trabalhando.
+        if (await subtarefaTravadaPorOutro(c, tarefa.id, quem)) return "travada" as const;
         await excluirTarefa(c, tarefa.id);
         return "ok" as const;
       });

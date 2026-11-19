@@ -4,8 +4,7 @@
  */
 import type { Autor, ItemDeChecklist } from "@mago-os/contratos";
 import type pg from "pg";
-
-const FORMATO_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+import { FORMATO_UUID } from "../comum.ts";
 
 interface LinhaDoItem {
   id: string;

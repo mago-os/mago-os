@@ -118,7 +118,9 @@ export function StatusDoProjetoEditor({
 }) {
   const [editados, setEditados] = useState<StatusEditado[]>([]);
   const [mensagem, setMensagem] = useState<Mensagem>(null);
-  useEffect(() => setEditados(status.map(({ id, nome, cor, tipo }) => ({ id, nome, cor, tipo }))), [status]);
+  // Só recomeça a edição quando os status gravados mudam de verdade (não a cada recarga da página).
+  const gravados = JSON.stringify(status.map(({ id, nome, cor, tipo }) => ({ id, nome, cor, tipo })));
+  useEffect(() => setEditados(JSON.parse(gravados) as StatusEditado[]), [gravados]);
 
   const mudar = (i: number, m: Partial<StatusEditado>) =>
     setEditados((l) => l.map((s, j) => (j === i ? { ...s, ...m } : s)));

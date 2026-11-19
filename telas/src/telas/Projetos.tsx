@@ -538,7 +538,10 @@ export function PaginaDoProjeto({
   }
   const { projeto, espaco, nomes, listas, status } = aberto;
   // As subtarefas aparecem dentro da tarefa-mãe (com o progresso), não soltas na lista.
-  const principais = (tarefas?.tarefas ?? []).filter((t) => t.tarefaMaeId === null);
+  const ids = new Set((tarefas?.tarefas ?? []).map((t) => t.id));
+  const principais = (tarefas?.tarefas ?? []).filter(
+    (t) => t.tarefaMaeId === null || !ids.has(t.tarefaMaeId),
+  );
   // Edita o diretor e quem vê todos os projetos com a permissão de editar (a API confere de novo).
   const podeEditar = administra || projeto.diretorId === euId;
 

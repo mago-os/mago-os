@@ -9,6 +9,7 @@
  * - Cada mudança vira evento de auditoria com o agente como ator e o canal "mcp". Leituras contam para o limite.
  */
 import {
+  type ACOES_CHECKLIST,
   type ACOES_TAREFAS,
   conferir,
   type EntradaDa,
@@ -64,7 +65,7 @@ class RecusaDaFerramenta extends Error {
   override name = "RecusaDaFerramenta";
 }
 
-type AcaoDeTarefa = (typeof ACOES_TAREFAS)[number] | "tarefa.criou_subtarefa" | "checklist.marcou";
+type AcaoDeTarefa = (typeof ACOES_TAREFAS)[number] | (typeof ACOES_CHECKLIST)[number];
 
 export function registrarServidorMcp(app: FastifyInstance, o: OpcoesDoMcp): void {
   app.post("/mcp", async (pedido, resposta) => {

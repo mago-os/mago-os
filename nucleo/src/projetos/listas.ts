@@ -14,8 +14,7 @@ import {
   type StatusTarefa,
 } from "@mago-os/contratos";
 import type pg from "pg";
-
-const FORMATO_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+import { FORMATO_UUID } from "../comum.ts";
 
 /** Todo projeto nasce com a lista "Geral" e os cinco status padrão. */
 export async function criarListaEStatusPadrao(c: pg.PoolClient, projetoId: string): Promise<void> {

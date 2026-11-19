@@ -58,6 +58,8 @@ export interface TarefaAberta {
   checklist: ItemDeChecklist[];
   /** Status do projeto da tarefa (vazio sem projeto). */
   status: StatusDoProjeto[];
+  /** Listas do projeto da tarefa (vazio sem projeto). */
+  listas: { id: string; nome: string }[];
 }
 
 export function listarTarefas(filtro: { minhas: boolean; status: StatusTarefa[]; projetoId?: string }) {

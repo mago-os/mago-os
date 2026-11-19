@@ -19,7 +19,7 @@ import { Button } from "@/componentes/ui/button";
 import { Campo } from "@/componentes/ui/campo";
 import { Card, CardTitulo } from "@/componentes/ui/card";
 import { cn } from "@/lib/utils";
-import { abrirProjeto, listarProjetos } from "@/projetos";
+import { listarProjetos } from "@/projetos";
 import {
   abrirTarefa,
   acaoNaTrava,
@@ -257,16 +257,6 @@ export function useProjetosAtivos() {
   return projetos;
 }
 
-/** Listas de um projeto (para mudar a tarefa de lista). */
-function useListasDoProjeto(projetoId: string | null) {
-  const [listas, setListas] = useState<{ id: string; nome: string }[]>([]);
-  useEffect(() => {
-    if (!projetoId) return setListas([]);
-    void abrirProjeto(projetoId).then((r) => setListas(r.dados?.listas ?? []));
-  }, [projetoId]);
-  return listas;
-}
-
 /** No seletor, agente vale "agente:<id>" e pessoa vale o id dela. */
 export function valorDoResponsavel(r: Responsavel | null): string {
   if (r?.tipo === "agente") return `agente:${r.agenteId}`;
@@ -438,7 +428,6 @@ export function PaginaDaTarefa({
   const pessoas = usePessoas();
   const agentes = useAgentesAtivos();
   const projetos = useProjetosAtivos();
-  const listas = useListasDoProjeto(aberta?.tarefa.projetoId ?? null);
 
   const ultimoPedido = useRef(0);
   const carregar = useCallback(async () => {
@@ -529,6 +518,16 @@ export function PaginaDaTarefa({
   async function aoConcluir(evento: React.FormEvent<HTMLFormElement>) {
     evento.preventDefault();
     const resultado = String(new FormData(evento.currentTarget).get("resultado")).trim();
+    // Subtarefas abertas não impedem, mas a pessoa confirma (M3-02).
+    const abertas =
+      aberta?.subtarefas.filter((s) => s.status !== "concluida" && s.status !== "cancelada") ?? [];
+    if (
+      abertas.length > 0 &&
+      !window.confirm(
+        `Esta tarefa tem ${abertas.length} ${abertas.length === 1 ? "subtarefa aberta" : "subtarefas abertas"}. Concluir mesmo assim?`,
+      )
+    )
+      return;
     await aoMudarStatus("concluida", {
       ...(resultado ? { resultado } : {}),
       ...(concluirEm ? { statusId: concluirEm } : {}),
@@ -569,6 +568,7 @@ export function PaginaDaTarefa({
     pessoas.some((p) => p.id === responsavelAtual) ||
     agentes.some((a) => `agente:${a.id}` === responsavelAtual);
   const encerrada = tarefa.status === "concluida" || tarefa.status === "cancelada";
+  const listas = aberta.listas;
   const statusDoProjeto = aberta.status.find((s) => s.id === tarefa.statusDoProjetoId) ?? null;
   const travadaPorMim = tarefa.trava?.por.tipo === "pessoa" && tarefa.trava.por.pessoaId === euId;
   const travadaPorOutro = tarefa.trava !== null && !travadaPorMim;
