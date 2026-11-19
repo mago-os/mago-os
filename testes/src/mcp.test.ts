@@ -1,6 +1,6 @@
 /**
  * Mago OS como servidor MCP (M2-05), de ponta a ponta com um cliente MCP de verdade (o SDK oficial) falando HTTP com
- * o núcleo: lista as oito ferramentas, faz o ciclo da tarefa (listar, pegar, comentar, entregar), respeita a trava e
+ * o núcleo: lista as ferramentas, faz o ciclo da tarefa (listar, pegar, comentar, entregar), respeita a trava e
  * a revogação da chave, e a chave de uma empresa não vê nada da outra.
  */
 import { gerarChave } from "@mago-os/nucleo/agentes";
@@ -97,7 +97,7 @@ describe.skipIf(!bancoDisponivel)("servidor MCP", () => {
     await banco?.apagar();
   });
 
-  it("lista as oito ferramentas, com descrição e esquema de entrada", async () => {
+  it("lista as dez ferramentas, com descrição e esquema de entrada", async () => {
     const cliente = await conectar(chaves.Um?.chave ?? "");
     const { tools } = await cliente.listTools();
     expect(tools.map((t) => t.name)).toEqual([
@@ -108,6 +108,8 @@ describe.skipIf(!bancoDisponivel)("servidor MCP", () => {
       "comentar",
       "mudar_status",
       "entregar_resultado",
+      "criar_subtarefa",
+      "marcar_checklist",
       "estou_vivo",
     ]);
     expect(tools.every((t) => (t.description ?? "").length > 20 && t.inputSchema.type === "object")).toBe(

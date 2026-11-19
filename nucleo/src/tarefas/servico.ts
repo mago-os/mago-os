@@ -106,6 +106,10 @@ export function linhaParaTarefa(l: LinhaDaTarefa): Tarefa {
     titulo: l.titulo,
     descricao: l.descricao,
     projetoId: l.projeto_id,
+    // M3-02: lista, status do projeto e tarefa-mãe entram com o banco, depois do contrato aprovado.
+    listaId: null,
+    statusDoProjetoId: null,
+    tarefaMaeId: null,
     status: l.status,
     responsavel: responsavelDe(l.responsavel_pessoa_id, l.responsavel_agente_id),
     criadaPor: autorDaLinha(l.criada_por_pessoa_id, l.criada_por_agente_id),

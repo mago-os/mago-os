@@ -78,6 +78,12 @@ export const Tarefa = Type.Object(
     descricao: OuNulo(Descricao),
     /** Projeto da tarefa (M3-01). Nulo: "Sem projeto" (decisão do Sandro em 19/11/2026). */
     projetoId: OuNulo(Id),
+    /** Lista do projeto (M3-02). Tarefa de projeto sempre tem lista; sem projeto, nulo. */
+    listaId: OuNulo(Id),
+    /** Status do projeto (M3-02), sempre do mesmo tipo de "status". Sem projeto, nulo. */
+    statusDoProjetoId: OuNulo(Id),
+    /** Tarefa-mãe, quando esta é uma subtarefa (M3-02, um nível só). */
+    tarefaMaeId: OuNulo(Id),
     status: StatusTarefa,
     responsavel: OuNulo(Responsavel),
     criadaPor: Autor,
@@ -126,6 +132,20 @@ export const regrasDaTarefa: Regra<Tarefa>[] = [
     t.resultadoPor?.tipo === "sistema"
       ? [{ caminho: "/resultadoPor", mensagem: "o sistema não entrega resultado" }]
       : [],
+  (t) => {
+    const semProjeto = t.projetoId === null;
+    if (semProjeto !== (t.listaId === null) || semProjeto !== (t.statusDoProjetoId === null)) {
+      return [
+        {
+          caminho: "/listaId",
+          mensagem: "tarefa de projeto tem lista e status do projeto; sem projeto, não",
+        },
+      ];
+    }
+    return t.tarefaMaeId === t.id
+      ? [{ caminho: "/tarefaMaeId", mensagem: "a tarefa não é mãe dela mesma" }]
+      : [];
+  },
 ];
 
 export function conferirTarefa(valor: unknown) {
@@ -156,6 +176,10 @@ export const PedidoDeTarefa = Type.Object(
     descricao: Type.Optional(OuNulo(Descricao)),
     responsavel: Type.Optional(OuNulo(Responsavel)),
     projetoId: Type.Optional(OuNulo(Id)),
+    /** Lista do projeto (M3-02). Sem lista, vai para a primeira. */
+    listaId: Type.Optional(Id),
+    /** Cria como subtarefa desta tarefa (M3-02): fica no projeto e na lista dela. */
+    tarefaMaeId: Type.Optional(Id),
   },
   { additionalProperties: false },
 );
@@ -165,6 +189,8 @@ export type PedidoDeTarefa = Static<typeof PedidoDeTarefa>;
 export const PedidoDeMudarStatus = Type.Object(
   {
     status: StatusTarefa,
+    /** Status do projeto (M3-02), do mesmo tipo de "status". Sem ele, vai para o primeiro status do tipo. */
+    statusId: Type.Optional(Id),
     resultado: Type.Optional(TextoDoResultado),
     motivo: Type.Optional(Texto(1000, "Por que mudou (vira comentário).")),
   },
