@@ -1,7 +1,7 @@
 # 0019 Mago OS como servidor MCP
 
 - **Data:** 19/11/2026
-- **Situação:** proposta (aguarda a aprovação do Sandro: contrato das ferramentas e porta de entrada dos agentes)
+- **Situação:** aceita (aprovada pelo Sandro no chat em 19/11/2026)
 - **Tarefa:** M2-05
 
 ## Contexto
