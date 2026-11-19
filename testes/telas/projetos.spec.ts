@@ -74,9 +74,24 @@ test.describe("tela de projetos", () => {
     await page.getByRole("button", { name: "Criar tarefa" }).click();
     await expect(page.getByRole("heading", { name: "Detalhar o M4" })).toBeVisible();
     await expect(page.getByLabel("Projeto", { exact: true })).toHaveValue(/[0-9a-f-]{36}/);
+    await expect(page.getByLabel("Lista", { exact: true })).toHaveValue(/[0-9a-f-]{36}/);
+
+    // M3-02: subtarefa, checklist e status do projeto na página da tarefa.
+    await page.getByPlaceholder("Nova subtarefa").fill("Listar as tarefas do M4");
+    await page.getByRole("button", { name: "Criar", exact: true }).click();
+    await expect(page.getByRole("link", { name: /Listar as tarefas do M4/ })).toBeVisible();
+    await expect(page.getByText("0 de 1 prontas")).toBeVisible();
+    await page.getByPlaceholder("Novo item do checklist").fill("Ler a spec");
+    await page.getByRole("button", { name: "Acrescentar" }).click();
+    // O item só aparece marcado depois que a API confirma.
+    await page.getByRole("checkbox", { name: "Ler a spec" }).click();
+    await expect(page.getByRole("checkbox", { name: "Ler a spec" })).toBeChecked();
+    await expect(page.getByText("1 de 1")).toBeVisible();
+    await page.getByLabel("Status do projeto").selectOption({ label: "Precisa de ajuda" });
+    await expect(page.getByText(/^Em andamento com Paula Projetos/)).toBeVisible();
 
     await page.getByRole("link", { name: "Projetos", exact: true }).filter({ visible: true }).first().click();
-    await expect(page.getByRole("link", { name: /Construção do Mago OS/ })).toContainText("1 aberta");
+    await expect(page.getByRole("link", { name: /Construção do Mago OS/ })).toContainText("2 abertas");
 
     // O funcionário fora do projeto não vê o projeto nem a tarefa dele.
     const outra = await browser.newContext();

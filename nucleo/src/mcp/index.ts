@@ -29,13 +29,17 @@ import {
   contarLeituras,
   type OpcoesDaChave,
 } from "../agentes/chaves.ts";
+import { agenteRecebeTarefas } from "../agentes/servico.ts";
 import { auditar } from "../auditoria/registrar.ts";
 import { comEmpresa } from "../empresa.ts";
+import { buscarItem, editarItem, listarChecklist } from "../tarefas/checklist.ts";
 import {
   autorDe,
   buscarTarefa,
   comentar,
+  criarTarefa,
   listarComentarios,
+  listarSubtarefas,
   listarTarefas,
   mudarStatus,
   pegarTarefa,
@@ -60,7 +64,7 @@ class RecusaDaFerramenta extends Error {
   override name = "RecusaDaFerramenta";
 }
 
-type AcaoDeTarefa = (typeof ACOES_TAREFAS)[number];
+type AcaoDeTarefa = (typeof ACOES_TAREFAS)[number] | "tarefa.criou_subtarefa" | "checklist.marcou";
 
 export function registrarServidorMcp(app: FastifyInstance, o: OpcoesDoMcp): void {
   app.post("/mcp", async (pedido, resposta) => {
@@ -220,13 +224,16 @@ async function executar(
       const achou = await naEmpresa(async (c) => {
         // Só para ver: o gerente agente alcança as tarefas do projeto dele (M3-01), mas não mexe nas dos outros.
         const tarefa = await buscarTarefa(c, { ...quem, comoGerente: true }, e.tarefaId);
-        // M3-02: subtarefas e checklist entram com o banco, depois do contrato aprovado.
-        return tarefa
-          ? { tarefa, comentarios: await listarComentarios(c, tarefa.id), subtarefas: [], checklist: [] }
-          : null;
+        if (!tarefa) return null;
+        return {
+          tarefa,
+          comentarios: await listarComentarios(c, tarefa.id),
+          subtarefas: await listarSubtarefas(c, tarefa.id),
+          checklist: await listarChecklist(c, tarefa.id),
+        };
       });
       if (!achou) throw naoAchou();
-      await ler(1 + achou.comentarios.length);
+      await ler(1 + achou.comentarios.length + achou.subtarefas.length);
       return achou;
     }
     case "pegar_tarefa": {
@@ -317,10 +324,61 @@ async function executar(
       }
       return feito.tarefa;
     }
-    case "criar_subtarefa":
-    case "marcar_checklist":
-      // M3-02: entram com o banco, depois do contrato aprovado.
-      throw new RecusaDaFerramenta("Ainda não disponível.");
+    case "criar_subtarefa": {
+      // M3-02: o agente divide o trabalho da tarefa que pegou em passos. Sem responsável, a subtarefa é dele.
+      const e = entrada as EntradaDa<"criar_subtarefa">;
+      const responsavel = e.responsavel ?? { tipo: "agente" as const, agenteId: agente.agenteId };
+      const feito = await naEmpresa(async (c) => {
+        const mae = await buscarTarefa(c, quem, e.tarefaId, true);
+        if (!mae) return null;
+        if (!travadaPorQuem(mae, quem))
+          return { recusa: "Pegue a tarefa (pegar_tarefa) antes de criar subtarefas." };
+        if (mae.tarefaMaeId !== null)
+          return { recusa: "Esta já é uma subtarefa: subtarefa não tem subtarefas." };
+        const valido =
+          responsavel.tipo === "agente"
+            ? await agenteRecebeTarefas(c, responsavel.agenteId)
+            : await pessoaAtivaNaEmpresa(c, responsavel.pessoaId);
+        if (!valido) return { recusa: "Esse responsável não está ativo nesta empresa." };
+        return {
+          tarefa: await criarTarefa(c, quem, {
+            titulo: e.titulo,
+            descricao: e.descricao ?? null,
+            responsavel,
+            tarefaMaeId: mae.id,
+          }),
+        };
+      });
+      if (!feito) throw naoAchou();
+      if ("recusa" in feito) throw new RecusaDaFerramenta(feito.recusa);
+      await registrar("tarefa.criou", feito.tarefa.id, {
+        responsavel: responsavel.tipo,
+        tarefaMaeId: e.tarefaId,
+      });
+      await registrar("tarefa.criou_subtarefa", e.tarefaId, { subtarefaId: feito.tarefa.id });
+      return feito.tarefa;
+    }
+    case "marcar_checklist": {
+      const e = entrada as EntradaDa<"marcar_checklist">;
+      const feito = await naEmpresa(async (c) => {
+        const tarefa = await buscarTarefa(c, quem, e.tarefaId, true);
+        if (!tarefa) return null;
+        if (!travadaPorQuem(tarefa, quem))
+          return { recusa: "Pegue a tarefa (pegar_tarefa) antes de marcar o checklist." };
+        const item = await buscarItem(c, tarefa.id, e.itemId);
+        if (!item) return { recusa: "Esse item não é do checklist desta tarefa." };
+        return {
+          antes: item.marcado,
+          item: await editarItem(c, item, { marcado: e.marcado }, autorDe(quem)),
+        };
+      });
+      if (!feito) throw naoAchou();
+      if ("recusa" in feito) throw new RecusaDaFerramenta(feito.recusa);
+      if (feito.antes !== feito.item.marcado) {
+        await registrar("checklist.marcou", e.tarefaId, { itemId: e.itemId, marcado: feito.item.marcado });
+      }
+      return feito.item;
+    }
     case "estou_vivo":
       // A conferência da chave já registrou o sinal de vida.
       return { ok: true, agora: new Date().toISOString() };

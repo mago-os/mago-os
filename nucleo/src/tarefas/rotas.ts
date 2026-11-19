@@ -10,6 +10,9 @@ import {
   FiltroDeTarefas,
   PedidoDeComentario,
   PedidoDeDestravar,
+  PedidoDeEditarItemDeChecklist,
+  PedidoDeItemDeChecklist,
+  PedidoDeMudarLista,
   PedidoDeMudarProjeto,
   PedidoDeTarefa,
   PedidoDeTrocarResponsavel,
@@ -24,7 +27,9 @@ import { agenteRecebeTarefas } from "../agentes/servico.ts";
 import { auditar } from "../auditoria/registrar.ts";
 import { comPessoa } from "../empresa.ts";
 import { acessoDo, type Verificador } from "../permissoes/verificar.ts";
+import { buscarLista, listarStatus } from "../projetos/listas.ts";
 import { type AlcanceDeProjeto, buscarProjeto } from "../projetos/servico.ts";
+import { buscarItem, criarItem, editarItem, excluirItem, listarChecklist } from "./checklist.ts";
 import {
   autorDe,
   buscarTarefa,
@@ -33,19 +38,28 @@ import {
   excluirTarefa,
   idsCitados,
   listarComentarios,
+  listarSubtarefas,
   listarTarefas,
+  mudarListaDaTarefa,
   mudarProjetoDaTarefa,
   mudarStatus,
   nomesCitados,
   pegarTarefa,
   pessoaAtivaNaEmpresa,
   type Quem,
+  resumoDasSubtarefas,
   tirarTrava,
   travadaPorQuem,
   trocarResponsavel,
 } from "./servico.ts";
 
-type AcaoDeTarefa = (typeof ACOES_TAREFAS)[number] | "tarefa.mudou_projeto";
+type AcaoDeTarefa =
+  | (typeof ACOES_TAREFAS)[number]
+  | "tarefa.mudou_projeto"
+  | "tarefa.criou_subtarefa"
+  | "tarefa.mudou_lista"
+  | "checklist.marcou"
+  | "checklist.editou";
 
 const naoEncontrada = (resposta: FastifyReply) =>
   resposta.code(404).send({ code: "TAREFA_NAO_ENCONTRADA", message: "Tarefa não encontrada." });
@@ -69,7 +83,7 @@ const invalido = (resposta: FastifyReply, problemas: unknown) =>
  * quem vê todos os projetos (administrador, gestor) também vê as tarefas de todos, mas só mexe nas que o alcance
  * da ação ou ser membro do projeto permitem.
  */
-function quemDoPedido(pedido: FastifyRequest): Quem {
+function quemDoPedido(pedido: FastifyRequest): Extract<Quem, { tipo: "pessoa" }> {
   const { sessao, filtro, acao, permissoes } = acessoDo(pedido);
   const verProjetos = permissoes.modulos.get("projetos")?.acoes.ver ?? "nada";
   // Ser membro do projeto vale para ver e mexer nas tarefas dele, não para excluir nem destravar.
@@ -144,7 +158,14 @@ export function registrarRotasDasTarefas(
     const quem = quemDoPedido(pedido);
     return naEmpresa(pedido, async (c) => {
       const tarefas = await listarTarefas(c, quem, r.valor);
-      return { tarefas, nomes: await nomesCitados(c, idsCitados(tarefas)) };
+      return {
+        tarefas,
+        nomes: await nomesCitados(c, idsCitados(tarefas)),
+        subtarefas: await resumoDasSubtarefas(
+          c,
+          tarefas.map((t) => t.id),
+        ),
+      };
     });
   });
 
@@ -161,6 +182,24 @@ export function registrarRotasDasTarefas(
         ? { tipo: "pessoa", pessoaId: sessao.pessoa.id }
         : r.valor.responsavel;
     const feito = await naEmpresa(pedido, async (c) => {
+      // Subtarefa (M3-02): precisa alcançar a mãe, que não pode ser subtarefa nem estar com outra pessoa.
+      if (r.valor.tarefaMaeId !== undefined) {
+        const quemVe: Quem = { ...quem, projetos: alcanceDosProjetos ? "membro" : "nenhum" };
+        const mae = await buscarTarefa(c, quemVe, r.valor.tarefaMaeId, true);
+        if (!mae) return { semMae: "Tarefa-mãe não encontrada." };
+        if (mae.tarefaMaeId !== null) return { semMae: "Subtarefa não tem subtarefas (um nível só)." };
+        if (mae.trava && !travadaPorQuem(mae, quem))
+          return { semMae: "Essa tarefa está com outro responsável: só quem pegou cria subtarefas." };
+        const recusa = await responsavelRecusado(c, responsavel);
+        if (recusa) return { recusa };
+        const tarefa = await criarTarefa(c, quem, {
+          titulo: r.valor.titulo,
+          descricao: r.valor.descricao ?? null,
+          responsavel,
+          tarefaMaeId: mae.id,
+        });
+        return { tarefa, mae: mae.id };
+      }
       if (projetoId !== null) {
         const projeto = alcanceDosProjetos
           ? await buscarProjeto(c, sessao.pessoa.id, alcanceDosProjetos, projetoId)
@@ -170,7 +209,11 @@ export function registrarRotasDasTarefas(
         if (responsavel === null && projeto.gerenteRecebeSemResponsavel && projeto.gerente) {
           if ((await responsavelRecusado(c, projeto.gerente)) === null) responsavel = projeto.gerente;
         }
-      }
+        if (r.valor.listaId !== undefined) {
+          const lista = await buscarLista(c, r.valor.listaId);
+          if (lista?.projetoId !== projetoId) return { semProjeto: true as const };
+        }
+      } else if (r.valor.listaId !== undefined) return { semProjeto: true as const };
       const recusa = await responsavelRecusado(c, responsavel);
       if (recusa) return { recusa };
       return {
@@ -179,16 +222,22 @@ export function registrarRotasDasTarefas(
           descricao: r.valor.descricao ?? null,
           responsavel,
           projetoId,
+          listaId: r.valor.listaId ?? null,
         }),
+        mae: null,
       };
     });
+    if ("semMae" in feito)
+      return resposta.code(400).send({ code: "SUBTAREFA_INVALIDA", message: feito.semMae });
     if ("semProjeto" in feito) return projetoInvalido(resposta);
     if ("recusa" in feito)
       return resposta.code(400).send({ code: "RESPONSAVEL_INVALIDO", message: feito.recusa });
     await registrar(pedido, "tarefa.criou", feito.tarefa.id, {
       responsavel: responsavel?.tipo ?? null,
-      projetoId,
+      projetoId: feito.tarefa.projetoId,
     });
+    if (feito.mae)
+      await registrar(pedido, "tarefa.criou_subtarefa", feito.mae, { subtarefaId: feito.tarefa.id });
     return resposta.code(201).send(feito.tarefa);
   });
 
@@ -199,7 +248,23 @@ export function registrarRotasDasTarefas(
       const tarefa = await buscarTarefa(c, quem, id);
       if (!tarefa) return null;
       const comentarios = await listarComentarios(c, tarefa.id);
-      return { tarefa, comentarios, nomes: await nomesCitados(c, idsCitados([tarefa], comentarios)) };
+      const subtarefas = await listarSubtarefas(c, tarefa.id);
+      const checklist = await listarChecklist(c, tarefa.id);
+      const status = tarefa.projetoId ? await listarStatus(c, tarefa.projetoId) : [];
+      const marcaram = checklist.flatMap((i) => (i.marcadoPor ? [i.marcadoPor] : []));
+      return {
+        tarefa,
+        comentarios,
+        subtarefas,
+        checklist,
+        status,
+        nomes: await nomesCitados(c, [
+          ...idsCitados([tarefa, ...subtarefas], comentarios),
+          ...marcaram.flatMap((a) =>
+            a.tipo === "pessoa" ? [a.pessoaId] : a.tipo === "agente" ? [a.agenteId] : [],
+          ),
+        ]),
+      };
     });
     return achou ?? naoEncontrada(resposta);
   });
@@ -222,8 +287,19 @@ export function registrarRotasDasTarefas(
         if (STATUS_ENCERRADOS.includes(de) && r.valor.status !== de && r.valor.status !== "a_fazer") {
           return { recusa: "Para mexer numa tarefa encerrada, reabra antes." };
         }
+        // Status do projeto (M3-02): precisa ser deste projeto e do mesmo tipo.
+        const statusId = r.valor.statusId ?? null;
+        if (statusId !== null) {
+          const doProjeto = tarefa.projetoId ? await listarStatus(c, tarefa.projetoId) : [];
+          if (!doProjeto.some((s) => s.id === statusId && s.tipo === r.valor.status)) {
+            return { statusInvalido: true as const };
+          }
+        }
         // Mesmo status sem resultado novo: nada muda (e o resultado entregue não se perde).
-        const mudou = r.valor.status !== de || r.valor.resultado !== undefined;
+        const mudou =
+          r.valor.status !== de ||
+          r.valor.resultado !== undefined ||
+          (statusId !== null && statusId !== tarefa.statusDoProjetoId);
         // Pôr em andamento uma tarefa livre é pegá-la: não existe "em andamento" sem alguém com ela.
         const pegou = mudou && !tarefa.trava && ["em_andamento", "precisa_de_ajuda"].includes(r.valor.status);
         // Quem pegou e volta para A fazer está soltando a tarefa.
@@ -235,7 +311,9 @@ export function registrarRotasDasTarefas(
           nova = pegada;
         }
         if (mudou && (!pegou || nova.status !== r.valor.status)) {
-          nova = await mudarStatus(c, quem, nova, r.valor.status, r.valor.resultado ?? null);
+          nova = await mudarStatus(c, quem, nova, r.valor.status, r.valor.resultado ?? null, statusId);
+        } else if (pegou && statusId !== null && nova.statusDoProjetoId !== statusId) {
+          nova = await mudarStatus(c, quem, nova, nova.status, null, statusId);
         }
         const comentario = r.valor.motivo
           ? await comentar(c, autorDe(quem), tarefa.id, r.valor.motivo)
@@ -244,6 +322,11 @@ export function registrarRotasDasTarefas(
       });
       if (!feito) return naoEncontrada(resposta);
       if ("travada" in feito) return travada(resposta);
+      if ("statusInvalido" in feito) {
+        return resposta
+          .code(400)
+          .send({ code: "STATUS_INVALIDO", message: "Escolha um status deste projeto, do mesmo tipo." });
+      }
       if ("recusa" in feito)
         return resposta.code(409).send({ code: "TAREFA_ENCERRADA", message: feito.recusa });
       if (feito.comentario) {
@@ -255,10 +338,111 @@ export function registrarRotasDasTarefas(
         await registrar(pedido, "tarefa.mudou_status", id, {
           de: feito.de,
           para: feito.tarefa.status,
+          statusDoProjetoId: feito.tarefa.statusDoProjetoId,
           comResultado: feito.tarefa.resultado !== null,
         });
       }
       return feito.tarefa;
+    },
+  );
+
+  // Mudar de lista (M3-02), no mesmo projeto. A subtarefa segue a mãe e não muda sozinha.
+  app.post(
+    "/tarefas/:id/lista",
+    { preHandler: verificador.exigir("tarefas", "editar") },
+    async (pedido, resposta) => {
+      const { id } = pedido.params as { id: string };
+      const r = conferir(PedidoDeMudarLista, pedido.body);
+      if (!r.ok) return invalido(resposta, r.problemas);
+      const quem = quemDoPedido(pedido);
+      const feito = await naEmpresa(pedido, async (c) => {
+        const tarefa = await buscarTarefa(c, quem, id, true);
+        if (!tarefa) return null;
+        if (tarefa.tarefaMaeId !== null) return { recusa: "A subtarefa fica sempre na lista da tarefa-mãe." };
+        const lista = await buscarLista(c, r.valor.listaId);
+        if (!lista || lista.projetoId !== tarefa.projetoId)
+          return { recusa: "Escolha uma lista do projeto da tarefa." };
+        if (tarefa.listaId === lista.id) return { tarefa, de: tarefa.listaId, mudou: false };
+        return { tarefa: await mudarListaDaTarefa(c, tarefa.id, lista.id), de: tarefa.listaId, mudou: true };
+      });
+      if (!feito) return naoEncontrada(resposta);
+      if ("recusa" in feito)
+        return resposta.code(400).send({ code: "LISTA_INVALIDA", message: feito.recusa });
+      if (feito.mudou)
+        await registrar(pedido, "tarefa.mudou_lista", id, { de: feito.de, para: feito.tarefa.listaId });
+      return feito.tarefa;
+    },
+  );
+
+  // Checklist (M3-02): quem mexe na tarefa mexe no checklist; travada, só quem pegou.
+  app.post(
+    "/tarefas/:id/checklist",
+    { preHandler: verificador.exigir("tarefas", "editar") },
+    async (pedido, resposta) => {
+      const { id } = pedido.params as { id: string };
+      const r = conferir(PedidoDeItemDeChecklist, pedido.body);
+      if (!r.ok) return invalido(resposta, r.problemas);
+      const quem = quemDoPedido(pedido);
+      const feito = await naEmpresa(pedido, async (c) => {
+        const tarefa = await buscarTarefa(c, quem, id, true);
+        if (!tarefa) return null;
+        if (tarefa.trava && !travadaPorQuem(tarefa, quem)) return { travada: true as const };
+        return { item: await criarItem(c, tarefa.id, r.valor.texto) };
+      });
+      if (!feito) return naoEncontrada(resposta);
+      if ("travada" in feito) return travada(resposta);
+      await registrar(pedido, "checklist.editou", id, { itemId: feito.item.id, mudanca: "criou" });
+      return resposta.code(201).send(feito.item);
+    },
+  );
+
+  app.post(
+    "/tarefas/:id/checklist/:itemId",
+    { preHandler: verificador.exigir("tarefas", "editar") },
+    async (pedido, resposta) => {
+      const { id, itemId } = pedido.params as { id: string; itemId: string };
+      const r = conferir(PedidoDeEditarItemDeChecklist, pedido.body);
+      if (!r.ok) return invalido(resposta, r.problemas);
+      const quem = quemDoPedido(pedido);
+      const feito = await naEmpresa(pedido, async (c) => {
+        const tarefa = await buscarTarefa(c, quem, id, true);
+        if (!tarefa) return null;
+        if (tarefa.trava && !travadaPorQuem(tarefa, quem)) return { travada: true as const };
+        const item = await buscarItem(c, tarefa.id, itemId);
+        if (!item) return null;
+        return { antes: item, item: await editarItem(c, item, r.valor, autorDe(quem)) };
+      });
+      if (!feito) return naoEncontrada(resposta);
+      if ("travada" in feito) return travada(resposta);
+      if (feito.antes.marcado !== feito.item.marcado) {
+        await registrar(pedido, "checklist.marcou", id, { itemId, marcado: feito.item.marcado });
+      }
+      if (feito.antes.texto !== feito.item.texto || feito.antes.ordem !== feito.item.ordem) {
+        await registrar(pedido, "checklist.editou", id, { itemId, mudanca: "editou" });
+      }
+      return feito.item;
+    },
+  );
+
+  app.delete(
+    "/tarefas/:id/checklist/:itemId",
+    { preHandler: verificador.exigir("tarefas", "editar") },
+    async (pedido, resposta) => {
+      const { id, itemId } = pedido.params as { id: string; itemId: string };
+      const quem = quemDoPedido(pedido);
+      const feito = await naEmpresa(pedido, async (c) => {
+        const tarefa = await buscarTarefa(c, quem, id, true);
+        if (!tarefa) return null;
+        if (tarefa.trava && !travadaPorQuem(tarefa, quem)) return { travada: true as const };
+        const item = await buscarItem(c, tarefa.id, itemId);
+        if (!item) return null;
+        await excluirItem(c, item);
+        return { ok: true as const };
+      });
+      if (!feito) return naoEncontrada(resposta);
+      if ("travada" in feito) return travada(resposta);
+      await registrar(pedido, "checklist.editou", id, { itemId, mudanca: "excluiu" });
+      return { ok: true };
     },
   );
 

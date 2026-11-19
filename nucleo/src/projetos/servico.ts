@@ -10,6 +10,7 @@ import type {
   SituacaoDeOrganizacao,
 } from "@mago-os/contratos";
 import type pg from "pg";
+import { criarListaEStatusPadrao } from "./listas.ts";
 
 const FORMATO_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 export const COR_PADRAO = "#1aa39a";
@@ -270,6 +271,7 @@ export async function criarProjeto(c: pg.PoolClient, d: DadosDoProjeto): Promise
     ],
   );
   const id = (r.rows[0] as { id: string }).id;
+  await criarListaEStatusPadrao(c, id);
   await gravarMembros(c, id, membrosComuns(d));
   return (await buscarProjeto(c, d.diretorId, "todos", id)) as Projeto;
 }

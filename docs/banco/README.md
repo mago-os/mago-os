@@ -98,6 +98,27 @@ erDiagram
     timestamp_with_time_zone criado_em
     timestamp_with_time_zone atualizado_em
   }
+  itens_de_checklist {
+    uuid id PK
+    uuid empresa_id FK
+    uuid tarefa_id
+    text texto
+    integer ordem
+    boolean marcado
+    uuid marcado_por_pessoa_id
+    uuid marcado_por_agente_id
+    timestamp_with_time_zone marcado_em
+    timestamp_with_time_zone criado_em
+  }
+  listas {
+    uuid id PK
+    uuid empresa_id FK
+    uuid projeto_id
+    text nome
+    integer ordem
+    timestamp_with_time_zone criada_em
+    timestamp_with_time_zone atualizada_em
+  }
   membros_de_projeto {
     uuid id PK
     uuid empresa_id FK
@@ -141,6 +162,15 @@ erDiagram
     timestamp_with_time_zone criado_em
     timestamp_with_time_zone atualizado_em
   }
+  status_de_projeto {
+    uuid id PK
+    uuid empresa_id FK
+    uuid projeto_id
+    text nome
+    text cor
+    text tipo
+    integer ordem
+  }
   tarefas {
     uuid id PK
     uuid empresa_id FK
@@ -161,6 +191,9 @@ erDiagram
     timestamp_with_time_zone atualizada_em
     timestamp_with_time_zone encerrada_em
     uuid projeto_id
+    uuid lista_id
+    uuid status_do_projeto_id
+    uuid tarefa_mae_id
   }
   vinculos {
     uuid id PK
@@ -322,9 +355,12 @@ erDiagram
   empresas ||--o{ comentarios_de_tarefa : "empresa_id"
   empresas ||--o{ contadores_de_agente : "empresa_id"
   empresas ||--o{ espacos : "empresa_id"
+  empresas ||--o{ itens_de_checklist : "empresa_id"
+  empresas ||--o{ listas : "empresa_id"
   empresas ||--o{ membros_de_projeto : "empresa_id"
   pessoas ||--o{ papeis_plataforma : "pessoa_id"
   empresas ||--o{ projetos : "empresa_id"
+  empresas ||--o{ status_de_projeto : "empresa_id"
   empresas ||--o{ tarefas : "empresa_id"
   empresas ||--o{ vinculos : "empresa_id"
   pessoas ||--o{ vinculos : "pessoa_id"
@@ -504,6 +540,41 @@ Isolamento por empresa (Row Level Security): ligado e forçado.
 | criado_em | timestamp with time zone | sim | `now()` | sistema | Quando o espaço foi criado. |
 | atualizado_em | timestamp with time zone | sim | `now()` | sistema | Última mudança no espaço. |
 
+### itens_de_checklist
+
+Itens do checklist de cada tarefa, com quem marcou e quando.
+
+Isolamento por empresa (Row Level Security): ligado e forçado.
+
+| Coluna | Tipo | Obrigatória | Padrão | Marca | Descrição |
+| --- | --- | --- | --- | --- | --- |
+| id | uuid | sim | `uuidv7()` | sistema | Identificador do item (UUID v7). Chave primária. |
+| empresa_id | uuid | sim |  | sistema | Empresa (a mesma da tarefa). Aponta para empresas.id. |
+| tarefa_id | uuid | sim |  | sistema | Tarefa do checklist. |
+| texto | text | sim |  | empresa | O passo, numa linha. |
+| ordem | integer | sim | `0` | empresa | Posição no checklist, do menor para o maior. |
+| marcado | boolean | sim | `false` | empresa | O passo foi feito. |
+| marcado_por_pessoa_id | uuid | não |  | sistema | Pessoa que marcou. |
+| marcado_por_agente_id | uuid | não |  | sistema | Agente que marcou. |
+| marcado_em | timestamp with time zone | não |  | sistema | Quando foi marcado. |
+| criado_em | timestamp with time zone | sim | `now()` | sistema | Quando o item foi criado. |
+
+### listas
+
+Listas (etapas ou frentes) de cada projeto. Todo projeto tem pelo menos uma.
+
+Isolamento por empresa (Row Level Security): ligado e forçado.
+
+| Coluna | Tipo | Obrigatória | Padrão | Marca | Descrição |
+| --- | --- | --- | --- | --- | --- |
+| id | uuid | sim | `uuidv7()` | sistema | Identificador da lista (UUID v7). Chave primária. |
+| empresa_id | uuid | sim |  | sistema | Empresa (a mesma do projeto). Aponta para empresas.id. |
+| projeto_id | uuid | sim |  | sistema | Projeto da lista. |
+| nome | text | sim |  | empresa | Nome da lista (ex.: Planejamento). |
+| ordem | integer | sim | `0` | empresa | Posição na tela, do menor para o maior. |
+| criada_em | timestamp with time zone | sim | `now()` | sistema | Quando a lista foi criada. |
+| atualizada_em | timestamp with time zone | sim | `now()` | sistema | Última mudança na lista. |
+
 ### membros_de_projeto
 
 Membros comuns de cada projeto (pessoas ou agentes). O diretor e o gerente ficam no próprio projeto.
@@ -575,6 +646,22 @@ Isolamento por empresa (Row Level Security): ligado e forçado.
 | criado_em | timestamp with time zone | sim | `now()` | sistema | Quando o projeto foi criado. |
 | atualizado_em | timestamp with time zone | sim | `now()` | sistema | Última mudança no projeto (inclui membros). |
 
+### status_de_projeto
+
+Status de cada projeto, cada um ligado a um dos cinco tipos fixos. Todo projeto tem pelo menos um de cada tipo.
+
+Isolamento por empresa (Row Level Security): ligado e forçado.
+
+| Coluna | Tipo | Obrigatória | Padrão | Marca | Descrição |
+| --- | --- | --- | --- | --- | --- |
+| id | uuid | sim | `uuidv7()` | sistema | Identificador do status (UUID v7). Chave primária. |
+| empresa_id | uuid | sim |  | sistema | Empresa (a mesma do projeto). Aponta para empresas.id. |
+| projeto_id | uuid | sim |  | sistema | Projeto do status. |
+| nome | text | sim |  | empresa | Nome do status (ex.: Em revisão). |
+| cor | text | sim |  | empresa | Cor do status nas telas (#rrggbb). |
+| tipo | text | sim |  | sistema | Tipo fixo: a_fazer, em_andamento, precisa_de_ajuda, concluida ou cancelada. Não muda depois de criado. |
+| ordem | integer | sim | `0` | empresa | Posição na tela (e no Kanban), do menor para o maior. |
+
 ### tarefas
 
 Tarefas da empresa, feitas por pessoas ou agentes, com ou sem projeto (M3-01). Status fixos no M2.
@@ -602,6 +689,9 @@ Isolamento por empresa (Row Level Security): ligado e forçado.
 | atualizada_em | timestamp with time zone | sim | `now()` | sistema | Última mudança na tarefa (inclui comentários). |
 | encerrada_em | timestamp with time zone | não |  | sistema | Quando foi concluída ou cancelada. |
 | projeto_id | uuid | não |  | sistema | Projeto da tarefa. Vazio: "Sem projeto". |
+| lista_id | uuid | não |  | sistema | Lista do projeto. Tarefa de projeto sempre tem; sem projeto, vazio. |
+| status_do_projeto_id | uuid | não |  | sistema | Status do projeto, sempre do mesmo tipo de status. Sem projeto, vazio. |
+| tarefa_mae_id | uuid | não |  | sistema | Tarefa-mãe, quando é uma subtarefa (um nível só). |
 
 ### vinculos
 

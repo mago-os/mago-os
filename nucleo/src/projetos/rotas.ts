@@ -4,12 +4,16 @@
  * os que é membro. Editar um projeto com alcance "meus" é ser o diretor dele. Cada mudança vira evento de auditoria.
  */
 import {
+  type ACOES_LISTAS,
   type ACOES_PROJETOS,
   conferir,
+  conferirPedidoDeStatusDoProjeto,
   type Espaco,
   PedidoDeEditarEspaco,
+  PedidoDeEditarLista,
   PedidoDeEditarProjeto,
   PedidoDeEspaco,
+  PedidoDeLista,
   PedidoDeProjeto,
   type Projeto,
   type Responsavel,
@@ -22,6 +26,15 @@ import { auditar } from "../auditoria/registrar.ts";
 import { comPessoa } from "../empresa.ts";
 import { acessoDo, type Verificador } from "../permissoes/verificar.ts";
 import { nomesCitados, pessoaAtivaNaEmpresa } from "../tarefas/servico.ts";
+import {
+  buscarLista,
+  criarLista,
+  editarLista,
+  excluirLista,
+  listarListas,
+  listarStatus,
+  salvarStatus,
+} from "./listas.ts";
 import {
   type AlcanceDeProjeto,
   buscarEspaco,
@@ -39,7 +52,7 @@ import {
   tarefasAbertasPorProjeto,
 } from "./servico.ts";
 
-type AcaoDeProjeto = (typeof ACOES_PROJETOS)[number];
+type AcaoDeProjeto = (typeof ACOES_PROJETOS)[number] | (typeof ACOES_LISTAS)[number];
 
 const invalido = (resposta: FastifyReply, problemas: unknown) =>
   resposta.code(400).send({ code: "PEDIDO_INVALIDO", problemas });
@@ -108,7 +121,7 @@ export function registrarRotasDosProjetos(
   function registrar(
     pedido: FastifyRequest,
     acao: AcaoDeProjeto,
-    alvo: { tipo: "espaco" | "projeto"; id: string },
+    alvo: { tipo: "espaco" | "projeto" | "lista"; id: string },
     detalhes = {},
   ) {
     const { sessao } = acessoDo(pedido);
@@ -213,7 +226,13 @@ export function registrarRotasDosProjetos(
         const projeto = await buscarProjeto(c, eu(pedido), alcance, id);
         if (!projeto) return null;
         const espaco = await buscarEspaco(c, projeto.espacoId);
-        return { projeto, espaco, nomes: await nomesCitados(c, idsDosProjetos([projeto])) };
+        return {
+          projeto,
+          espaco,
+          listas: await listarListas(c, projeto.id),
+          status: await listarStatus(c, projeto.id),
+          nomes: await nomesCitados(c, idsDosProjetos([projeto])),
+        };
       });
       return achou ?? projetoNaoEncontrado(resposta);
     },
@@ -342,6 +361,111 @@ export function registrarRotasDosProjetos(
       ).filter((k) => antes[k] !== p[k]);
       if (campos.length > 0) await registrar(pedido, "projeto.editou", alvo, { campos });
       return p;
+    },
+  );
+
+  // Listas e status do projeto (M3-02): quem edita o projeto (o diretor, ou quem edita todos).
+
+  app.post(
+    "/projetos/:id/listas",
+    { preHandler: verificador.exigir("projetos", "editar") },
+    async (pedido, resposta) => {
+      const { id } = pedido.params as { id: string };
+      const r = conferir(PedidoDeLista, pedido.body);
+      if (!r.ok) return invalido(resposta, r.problemas);
+      const alcance = alcanceDeProjetoDo(pedido);
+      const lista = await naEmpresa(pedido, async (c) => {
+        const projeto = await buscarProjeto(c, eu(pedido), alcance, id, true);
+        return projeto ? criarLista(c, projeto.id, r.valor.nome) : null;
+      });
+      if (!lista) return projetoNaoEncontrado(resposta);
+      await registrar(pedido, "lista.criou", { tipo: "lista", id: lista.id }, { projetoId: id });
+      return resposta.code(201).send(lista);
+    },
+  );
+
+  /** A lista, se quem pede edita o projeto dela. */
+  async function listaQueEdita(c: pg.PoolClient, pedido: FastifyRequest, listaId: string) {
+    const lista = await buscarLista(c, listaId, true);
+    if (!lista) return null;
+    const projeto = await buscarProjeto(c, eu(pedido), alcanceDeProjetoDo(pedido), lista.projetoId, true);
+    return projeto ? lista : null;
+  }
+  const listaNaoEncontrada = (resposta: FastifyReply) =>
+    resposta.code(404).send({ code: "LISTA_NAO_ENCONTRADA", message: "Lista não encontrada." });
+
+  app.post(
+    "/listas/:id",
+    { preHandler: verificador.exigir("projetos", "editar") },
+    async (pedido, resposta) => {
+      const { id } = pedido.params as { id: string };
+      const r = conferir(PedidoDeEditarLista, pedido.body);
+      if (!r.ok) return invalido(resposta, r.problemas);
+      const feito = await naEmpresa(pedido, async (c) => {
+        const lista = await listaQueEdita(c, pedido, id);
+        if (!lista) return null;
+        return editarLista(c, {
+          ...lista,
+          nome: r.valor.nome ?? lista.nome,
+          ordem: r.valor.ordem ?? lista.ordem,
+        });
+      });
+      if (!feito) return listaNaoEncontrada(resposta);
+      await registrar(pedido, "lista.editou", { tipo: "lista", id }, { projetoId: feito.projetoId });
+      return feito;
+    },
+  );
+
+  app.delete(
+    "/listas/:id",
+    { preHandler: verificador.exigir("projetos", "editar") },
+    async (pedido, resposta) => {
+      const { id } = pedido.params as { id: string };
+      const feito = await naEmpresa(pedido, async (c) => {
+        const lista = await listaQueEdita(c, pedido, id);
+        if (!lista) return null;
+        const movidas = await excluirLista(c, lista);
+        return movidas ? { lista, ...movidas } : { ultima: true as const };
+      });
+      if (!feito) return listaNaoEncontrada(resposta);
+      if ("ultima" in feito) {
+        return resposta
+          .code(409)
+          .send({ code: "ULTIMA_LISTA", message: "O projeto precisa de pelo menos uma lista." });
+      }
+      await registrar(
+        pedido,
+        "lista.excluiu",
+        { tipo: "lista", id },
+        {
+          projetoId: feito.lista.projetoId,
+          tarefasPara: feito.para,
+          tarefas: feito.tarefas,
+        },
+      );
+      return { ok: true, tarefasPara: feito.para };
+    },
+  );
+
+  app.post(
+    "/projetos/:id/status",
+    { preHandler: verificador.exigir("projetos", "editar") },
+    async (pedido, resposta) => {
+      const { id } = pedido.params as { id: string };
+      const r = conferirPedidoDeStatusDoProjeto(pedido.body);
+      if (!r.ok) return invalido(resposta, r.problemas);
+      const alcance = alcanceDeProjetoDo(pedido);
+      const feito = await naEmpresa(pedido, async (c) => {
+        const projeto = await buscarProjeto(c, eu(pedido), alcance, id, true);
+        if (!projeto) return null;
+        const recusa = await salvarStatus(c, projeto.id, r.valor);
+        return recusa ? { recusa } : { status: await listarStatus(c, projeto.id) };
+      });
+      if (!feito) return projetoNaoEncontrado(resposta);
+      if ("recusa" in feito)
+        return resposta.code(400).send({ code: "STATUS_INVALIDO", message: feito.recusa });
+      await registrar(pedido, "status.editou", { tipo: "projeto", id }, { status: feito.status.length });
+      return { status: feito.status };
     },
   );
 
