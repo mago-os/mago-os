@@ -256,6 +256,25 @@ export const FiltroDeTarefas = Type.Object(
     status: Type.Optional(Type.Array(StatusTarefa, { minItems: 1, uniqueItems: true })),
     /** Um projeto, ou "sem" para as tarefas sem projeto (M3-01). */
     projetoId: Type.Optional(Type.Union([Id, Type.Literal("sem")])),
+    /** Todos os projetos de um espaço (M3-04). */
+    espacoId: Type.Optional(Id),
+    /** Responsáveis (pessoas ou agentes) (M3-04). */
+    responsaveis: Type.Optional(Type.Array(Responsavel, { minItems: 1, maxItems: 50 })),
+    /** Só as que estão com algum agente, responsável ou com a trava: "o que roda num agente" (M3-04). */
+    deAgente: Type.Optional(Type.Boolean()),
+    /** Prioridades; "sem" para as sem prioridade (M3-04). */
+    prioridades: Type.Optional(
+      Type.Array(Type.Union([Prioridade, Type.Literal("sem")]), { minItems: 1, uniqueItems: true }),
+    ),
+    /** Tem pelo menos uma destas etiquetas (M3-04). */
+    etiquetas: Type.Optional(Type.Array(Id, { minItems: 1, maxItems: 20, uniqueItems: true })),
+    /** Atalhos de prazo, no fuso de quem pede: atrasadas, vencendo hoje, nos próximos 7 dias ou sem prazo (M3-04). */
+    prazo: Type.Optional(Type.Enum(["atrasadas", "hoje", "semana", "sem_prazo"] as const)),
+    /** O dia do prazo (no fuso de quem pede) dentro destes dias, para o calendário (M3-04). */
+    de: Type.Optional(Dia),
+    ate: Type.Optional(Dia),
+    /** Inclui as subtarefas na lista (padrão: sim). */
+    subtarefas: Type.Optional(Type.Boolean()),
   },
   { additionalProperties: false },
 );

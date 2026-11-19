@@ -1,6 +1,6 @@
 # Spec da Fase 1: M3 Projetos e tarefas completos
 
-Parte da [spec da Fase 1](README.md). Estado em 19/11/2026: **aprovado** pelo Sandro, com todas as recomendações (inclusive a M3-11 e os eventos da agenda simples no M5). Em construção: M3-01, M3-02 e M3-03 prontas em 19/11/2026.
+Parte da [spec da Fase 1](README.md). Estado em 19/11/2026: **aprovado** pelo Sandro, com todas as recomendações (inclusive a M3-11 e os eventos da agenda simples no M5). Em construção: M3-01 a M3-04 prontas em 19/11/2026.
 
 **Pronto quando:** a Nolask organiza um projeto real no Mago OS (sugestão: a própria construção do Mago OS, com as tarefas do M4), com espaço, projeto, diretor e gerente, listas, subtarefas, prazos e etiquetas, e acompanha pelo Kanban, pela lista e pelo calendário. Uma menção a uma pessoa chega no sino e no celular, um anexo passa pelo antivírus antes de abrir, a central de prioridades mostra o que vence hoje e o Ctrl+K acha a tarefa pelo nome. Os testes provam que uma empresa não vê projetos, anexos, notificações nem resultados de busca da outra.
 
@@ -73,15 +73,15 @@ Pronto quando: o Sandro cria a tarefa "Conferir o backup" toda segunda às 9h, c
 
 ### M3-04 Visões em lista, Kanban e calendário, com filtros salvos
 
-- [ ] Lista: agrupar por status, lista, responsável, prioridade ou prazo; ordenar; marcar várias e mudar de uma vez (status, responsável, prazo, etiqueta)
-- [ ] Kanban: uma coluna por status do projeto, arrastar muda o status (passando pela trava do M2: pôr em andamento é pegar a tarefa); no celular, colunas lado a lado com rolagem e um toque para mudar
-- [ ] Calendário: mês e semana, com as tarefas no dia do prazo; arrastar muda o prazo; tarefas sem prazo numa faixa ao lado. Mostra só prazos de tarefas (decisão 8)
-- [ ] As três visões valem para um projeto, um espaço ou "todas as minhas tarefas", sempre com a mesma consulta e a mesma permissão por trás
-- [ ] Filtros: responsável (pessoa ou agente), status, prioridade, etiqueta, prazo (atrasadas, hoje, esta semana, sem prazo), projeto e "o que roda num agente"
-- [ ] Filtros salvos (decisão 9): cada pessoa salva a visão com os filtros e dá nome ("Minhas tarefas desta semana"), aparecem no menu e só ela vê
-- [ ] Tabela `visoes_salvas` (pessoal), com `empresa_id`, RLS e marcas de coluna
-- [ ] Tudo atualiza em tempo real, com o mesmo destaque curto do M2-06
-- [ ] Teste de tela (Playwright) do arrastar no Kanban e no calendário, no computador e no celular
+- [x] Lista: agrupar por status, lista, responsável, prioridade ou prazo; ordenar; marcar várias e mudar de uma vez (status, responsável e prazo; a tela chama as rotas de sempre, uma por tarefa, e mostra quantas foram recusadas). Etiqueta em massa ficou de fora (decidido na codificação: as etiquetas se marcam na tarefa)
+- [x] Kanban: uma coluna por status do projeto, arrastar muda o status (passando pela trava do M2: pôr em andamento é pegar a tarefa); no celular, colunas lado a lado com rolagem e um toque para mudar
+- [x] Calendário: mês e semana, com as tarefas no dia do prazo; arrastar muda o prazo; tarefas sem prazo numa faixa ao lado. Mostra só prazos de tarefas (decisão 8)
+- [x] As três visões valem para um projeto, um espaço ou "todas as minhas tarefas", sempre com a mesma consulta e a mesma permissão por trás
+- [x] Filtros: responsável (pessoa ou agente), status, prioridade, etiqueta, prazo (atrasadas, hoje, esta semana, sem prazo), projeto e "o que roda num agente"
+- [x] Filtros salvos (decisão 9): cada pessoa salva a visão com os filtros e dá nome ("Minhas tarefas desta semana"), aparecem no menu e só ela vê
+- [x] Tabela `visoes_salvas` (pessoal), com `empresa_id`, RLS e marcas de coluna
+- [x] Tudo atualiza em tempo real, com o mesmo destaque curto do M2-06
+- [x] Teste de tela (Playwright) do arrastar no Kanban e no calendário, no computador e no celular
 
 Pronto quando: o Sandro abre o projeto "Construção do Mago OS" no Kanban, arrasta uma tarefa para Em andamento, troca para o calendário, muda um prazo arrastando e salva a visão "Atrasadas do Mago OS".
 

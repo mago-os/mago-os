@@ -8,6 +8,7 @@
 import type {
   Autor,
   ComentarioDeTarefa,
+  FiltroDeTarefas,
   Prioridade,
   RegraDeRecorrencia,
   Responsavel,
@@ -182,12 +183,62 @@ function colunas(r: Responsavel | Autor | null): [string | null, string | null] 
   return [null, null];
 }
 
-export interface FiltroDaLista {
-  /** Só as tarefas em que quem pede é o responsável ou que ele criou. */
-  minhas?: boolean;
-  status?: StatusTarefa[];
-  /** Um projeto, ou "sem" para as tarefas sem projeto. */
-  projetoId?: string;
+/** Os filtros da lista (contrato FiltroDeTarefas). */
+export type FiltroDaLista = FiltroDeTarefas;
+
+/** Fuso de quem pede (o da pessoa; para agentes e o sistema, o da empresa), para "hoje" e o calendário. */
+const FUSO_DE_QUEM_PEDE = `coalesce((select p.fuso_horario from pessoas p where p.id = pessoa_ativa()),
+  (select e.fuso_horario from empresas e where e.id = empresa_ativa()), 'UTC')`;
+
+/**
+ * Os filtros da M3-04 (espaço, responsáveis, agente, prioridade, etiquetas, prazo, intervalo do calendário e
+ * subtarefas), como condições SQL sobre "t". Acrescenta os valores em "valores".
+ */
+function filtrosDaM304(filtro: FiltroDaLista, valores: unknown[]): string[] {
+  const partes: string[] = [];
+  const v = (x: unknown) => {
+    valores.push(x);
+    return `$${valores.length}`;
+  };
+  if (filtro.espacoId) {
+    partes.push(`t.projeto_id in (select pr.id from projetos pr where pr.espaco_id = ${v(filtro.espacoId)}
+                  and pr.empresa_id = empresa_ativa())`);
+  }
+  if (filtro.responsaveis && filtro.responsaveis.length > 0) {
+    const pessoas = filtro.responsaveis.flatMap((r) => (r.tipo === "pessoa" ? [r.pessoaId] : []));
+    const agentes = filtro.responsaveis.flatMap((r) => (r.tipo === "agente" ? [r.agenteId] : []));
+    partes.push(`(t.responsavel_pessoa_id = any(${v(pessoas)}::uuid[])
+                  or t.responsavel_agente_id = any(${v(agentes)}::uuid[]))`);
+  }
+  if (filtro.deAgente)
+    partes.push("(t.responsavel_agente_id is not null or t.travada_por_agente_id is not null)");
+  if (filtro.prioridades && filtro.prioridades.length > 0) {
+    const reais = filtro.prioridades.filter((p) => p !== "sem");
+    const semPrioridade = filtro.prioridades.includes("sem");
+    partes.push(
+      `(t.prioridade = any(${v(reais)}::text[])${semPrioridade ? " or t.prioridade is null" : ""})`,
+    );
+  }
+  if (filtro.etiquetas && filtro.etiquetas.length > 0) {
+    partes.push(`exists (select 1 from etiquetas_de_tarefa et where et.tarefa_id = t.id
+                  and et.empresa_id = t.empresa_id and et.etiqueta_id = any(${v(filtro.etiquetas)}::uuid[]))`);
+  }
+  // O dia do prazo como quem pede vê (no fuso dele) e o "hoje" dele.
+  const diaDoPrazo = `(t.prazo_em at time zone ${FUSO_DE_QUEM_PEDE})::date`;
+  const hoje = `(now() at time zone ${FUSO_DE_QUEM_PEDE})::date`;
+  if (filtro.prazo === "atrasadas") {
+    partes.push("(t.prazo_em < now() and t.status not in ('concluida', 'cancelada'))");
+  } else if (filtro.prazo === "hoje") partes.push(`${diaDoPrazo} = ${hoje}`);
+  else if (filtro.prazo === "semana") partes.push(`${diaDoPrazo} between ${hoje} and ${hoje} + 6`);
+  else if (filtro.prazo === "sem_prazo") partes.push("t.prazo_em is null");
+  // Calendário: o dia do prazo (no fuso de quem pede) cai dentro dos dias pedidos.
+  if (filtro.de || filtro.ate) {
+    const de = filtro.de ? `${v(filtro.de)}::date` : "'-infinity'::date";
+    const ate = filtro.ate ? `${v(filtro.ate)}::date` : "'infinity'::date";
+    partes.push(`(t.prazo_em is not null and ${diaDoPrazo} between ${de} and ${ate})`);
+  }
+  if (filtro.subtarefas === false) partes.push("t.tarefa_mae_id is null");
+  return partes;
 }
 
 /** Lista as tarefas que quem pede alcança, as mais recentes primeiro (até 200 no M2). */
@@ -218,6 +269,7 @@ export async function listarTarefas(c: pg.PoolClient, quem: Quem, filtro: Filtro
     valores.push(filtro.projetoId);
     partes.push(`t.projeto_id = $${valores.length}`);
   }
+  partes.push(...filtrosDaM304(filtro, valores));
   // O agente recebe das mais urgentes para as menos (M3-03): prioridade, depois o prazo mais perto. As telas, as
   // mais recentes primeiro (as visões da M3-04 ordenam como a pessoa escolher).
   const ordem =

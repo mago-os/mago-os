@@ -184,3 +184,8 @@ O login (`mago_acesso`) não lê papéis nem as regras da plataforma direto. As 
 - `etiquetas` (nome único na empresa, sem diferença de maiúsculas) e `etiquetas_de_tarefa` têm `empresa_id`, RLS forçado e a política de `empresa_ativa()`, com chaves compostas: a tarefa só recebe etiqueta da própria empresa.
 - A regra da recorrência fica na tarefa (`recorrencia`, jsonb conferido pelo contrato na API). Ao concluir, a próxima nasce com `recorrente_de_id` apontando para a anterior; o índice único em `recorrente_de_id` garante uma próxima só, mesmo com conclusão repetida ou dois pedidos ao mesmo tempo. Apagar a anterior só limpa a referência (`ON DELETE SET NULL` só nessa coluna).
 - O banco confere: prazo completo (dia, fuso e momento juntos; hora só com dia), recorrência só com prazo e início antes do prazo.
+
+## 24. Visões salvas (19/11/2026, M3-04)
+
+- `visoes_salvas` é pessoal (decisão 9 do Sandro): além do isolamento por empresa, a política usa `pessoa_ativa()`, então o próprio banco só mostra e só deixa mexer nas visões de quem está pedindo. A pessoa precisa ter vínculo com a empresa (chave composta com `vinculos`), e a visão some se o vínculo for apagado.
+- Os filtros ficam em jsonb, conferidos pelo contrato `FiltroDeTarefas` na API. O "hoje" e o calendário usam o fuso da pessoa.

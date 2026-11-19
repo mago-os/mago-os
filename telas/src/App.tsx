@@ -226,7 +226,13 @@ export function App() {
       />
     );
   else if (caminho === "/tarefas" && temEmpresaAtiva)
-    conteudo = <Tarefas podeCriar={pode("tarefas", "criar")} euId={sessao.pessoa.id} />;
+    conteudo = (
+      <Tarefas
+        podeCriar={pode("tarefas", "criar")}
+        podeEditar={pode("tarefas", "editar")}
+        euId={sessao.pessoa.id}
+      />
+    );
   else if (tarefaAberta && temEmpresaAtiva)
     conteudo = (
       <PaginaDaTarefa
@@ -253,6 +259,7 @@ export function App() {
         euId={sessao.pessoa.id}
         administra={permissoes?.modulos.projetos?.acoes.editar === "tudo"}
         podeCriarTarefa={pode("tarefas", "criar")}
+        podeEditarTarefa={pode("tarefas", "editar")}
         podeExcluir={pode("projetos", "excluir")}
       />
     );
