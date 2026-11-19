@@ -27,6 +27,7 @@ import {
   criarTarefa,
   excluirTarefa,
   listarTarefas,
+  mudarLista,
   mudarProjeto,
   mudarStatus,
   type TarefaAberta,
@@ -35,6 +36,7 @@ import {
 import { useTempoReal } from "@/tempo-real";
 import { Aviso } from "./Acesso";
 import { useAoVoltar } from "./Administrador";
+import { Checklist, Subtarefas } from "./PartesDaTarefa";
 
 type Mensagem = { texto: string; tipo: "erro" | "ok" } | null;
 
@@ -421,6 +423,8 @@ export function PaginaDaTarefa({
   const [aberta, setAberta] = useState<Omit<TarefaAberta, "tarefas"> | null | undefined>(undefined);
   const [mensagem, setMensagem] = useState<Mensagem>(null);
   const [concluindo, setConcluindo] = useState(false);
+  /** Status do projeto escolhido para concluir (M3-02); sem ele, o primeiro do tipo Concluída. */
+  const [concluirEm, setConcluirEm] = useState<string | null>(null);
   const pessoas = usePessoas();
   const agentes = useAgentesAtivos();
   const projetos = useProjetosAtivos();
@@ -461,7 +465,7 @@ export function PaginaDaTarefa({
   const { tarefa, comentarios, nomes } = aberta;
   const nomesTodos = { ...nomes, ...Object.fromEntries(pessoas.map((p) => [p.id, p.nome])) };
 
-  async function aoMudarStatus(status: StatusTarefa, extra: { resultado?: string } = {}) {
+  async function aoMudarStatus(status: StatusTarefa, extra: { resultado?: string; statusId?: string } = {}) {
     const r = await mudarStatus(tarefa.id, status, extra);
     setMensagem(r.ok ? null : { tipo: "erro", texto: r.mensagem ?? "" });
     if (r.ok) setConcluindo(false);
@@ -482,6 +486,24 @@ export function PaginaDaTarefa({
     void carregar();
   }
 
+  async function aoMudarLista(listaId: string) {
+    const r = await mudarLista(tarefa.id, listaId);
+    setMensagem(r.ok ? { tipo: "ok", texto: "Lista trocada." } : { tipo: "erro", texto: r.mensagem ?? "" });
+    void carregar();
+  }
+
+  /** Status do projeto escolhido: concluir pede o resultado; os outros mudam na hora. */
+  function aoEscolherStatusDoProjeto(id: string) {
+    const s = aberta?.status.find((x) => x.id === id);
+    if (!s || s.id === tarefa.statusDoProjetoId) return;
+    if (s.tipo === "concluida") {
+      setConcluirEm(s.id);
+      setConcluindo(true);
+      return;
+    }
+    void aoMudarStatus(s.tipo, { statusId: s.id });
+  }
+
   async function aoComentar(evento: React.FormEvent<HTMLFormElement>) {
     evento.preventDefault();
     const form = evento.currentTarget;
@@ -496,7 +518,20 @@ export function PaginaDaTarefa({
   async function aoConcluir(evento: React.FormEvent<HTMLFormElement>) {
     evento.preventDefault();
     const resultado = String(new FormData(evento.currentTarget).get("resultado")).trim();
-    await aoMudarStatus("concluida", resultado ? { resultado } : {});
+    // Subtarefas abertas não impedem, mas a pessoa confirma (M3-02).
+    const abertas =
+      aberta?.subtarefas.filter((s) => s.status !== "concluida" && s.status !== "cancelada") ?? [];
+    if (
+      abertas.length > 0 &&
+      !window.confirm(
+        `Esta tarefa tem ${abertas.length} ${abertas.length === 1 ? "subtarefa aberta" : "subtarefas abertas"}. Concluir mesmo assim?`,
+      )
+    )
+      return;
+    await aoMudarStatus("concluida", {
+      ...(resultado ? { resultado } : {}),
+      ...(concluirEm ? { statusId: concluirEm } : {}),
+    });
   }
 
   async function aoTrava(qual: "pegar" | "soltar" | "destravar") {
@@ -533,6 +568,8 @@ export function PaginaDaTarefa({
     pessoas.some((p) => p.id === responsavelAtual) ||
     agentes.some((a) => `agente:${a.id}` === responsavelAtual);
   const encerrada = tarefa.status === "concluida" || tarefa.status === "cancelada";
+  const listas = aberta.listas;
+  const statusDoProjeto = aberta.status.find((s) => s.id === tarefa.statusDoProjetoId) ?? null;
   const travadaPorMim = tarefa.trava?.por.tipo === "pessoa" && tarefa.trava.por.pessoaId === euId;
   const travadaPorOutro = tarefa.trava !== null && !travadaPorMim;
   // Travada por outro: só quem pegou muda status e responsável (a API confere de novo).
@@ -553,8 +590,26 @@ export function PaginaDaTarefa({
       <Voltar />
       <div className="grid gap-2">
         <h1 className="text-2xl font-bold tracking-tight text-pretty">{tarefa.titulo}</h1>
+        {tarefa.tarefaMaeId && (
+          <a
+            href={`/tarefas/${tarefa.tarefaMaeId}`}
+            className="text-sm text-texto-2 underline underline-offset-2"
+          >
+            Subtarefa de outra tarefa: abrir a tarefa-mãe
+          </a>
+        )}
         <div className="flex flex-wrap items-center gap-2 text-sm text-texto-2">
           <Etiqueta status={tarefa.status} />
+          {statusDoProjeto && (
+            <span className="flex items-center gap-1.5">
+              <span
+                aria-hidden
+                className="size-2 rounded-full"
+                style={{ backgroundColor: statusDoProjeto.cor }}
+              />
+              {statusDoProjeto.nome}
+            </span>
+          )}
           <span>Criada por {nomeDe(tarefa.criadaPor, nomesTodos)}</span>
           <span>em {quando(tarefa.criadaEm)}</span>
         </div>
@@ -598,6 +653,29 @@ export function PaginaDaTarefa({
             <p id="projeto">Sem projeto</p>
           )}
         </div>
+        {tarefa.projetoId && listas.length > 0 && (
+          <div className="grid gap-1.5">
+            <label htmlFor="lista" className="text-sm font-medium">
+              Lista
+            </label>
+            {podeEditar && tarefa.tarefaMaeId === null ? (
+              <select
+                id="lista"
+                className="h-11 rounded-md border border-linha bg-cartao px-3 text-base"
+                value={tarefa.listaId ?? ""}
+                onChange={(e) => void aoMudarLista(e.target.value)}
+              >
+                {listas.map((l) => (
+                  <option key={l.id} value={l.id}>
+                    {l.nome}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <p id="lista">{listas.find((l) => l.id === tarefa.listaId)?.nome ?? "Lista do projeto"}</p>
+            )}
+          </div>
+        )}
         <div className="grid gap-1.5">
           <label htmlFor="responsavel" className="text-sm font-medium">
             Responsável
@@ -644,11 +722,36 @@ export function PaginaDaTarefa({
                 </Button>
               ))}
               {!encerrada && !concluindo && (
-                <Button size="pequeno" onClick={() => setConcluindo(true)}>
+                <Button
+                  size="pequeno"
+                  onClick={() => {
+                    setConcluirEm(null);
+                    setConcluindo(true);
+                  }}
+                >
                   Concluir
                 </Button>
               )}
             </div>
+            {/* Status do projeto (M3-02): os nomes que o projeto escolheu, cada um de um tipo fixo. */}
+            {aberta.status.length > 0 && !encerrada && (
+              <select
+                aria-label="Status do projeto"
+                className="h-11 rounded-md border border-linha bg-cartao px-3 text-base"
+                value={tarefa.statusDoProjetoId ?? ""}
+                onChange={(e) => aoEscolherStatusDoProjeto(e.target.value)}
+              >
+                {aberta.status
+                  .filter(
+                    (s) => s.tipo !== "a_fazer" || tarefa.trava === null || s.id === tarefa.statusDoProjetoId,
+                  )
+                  .map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.nome}
+                    </option>
+                  ))}
+              </select>
+            )}
           </div>
         )}
         {travadaPorOutro && tarefa.trava && (
@@ -692,6 +795,21 @@ export function PaginaDaTarefa({
           </form>
         )}
       </Card>
+
+      <Subtarefas
+        tarefa={tarefa}
+        subtarefas={aberta.subtarefas}
+        nomes={nomesTodos}
+        podeCriar={podeMexer && !encerrada}
+        aoMudar={() => void carregar()}
+      />
+      <Checklist
+        tarefaId={tarefa.id}
+        itens={aberta.checklist}
+        nomes={nomesTodos}
+        podeMexer={podeMexer}
+        aoMudar={() => void carregar()}
+      />
 
       {tarefa.resultado && (
         <Card className="gap-2">

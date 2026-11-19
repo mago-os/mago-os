@@ -16,11 +16,17 @@ import {
   PedidoDeDestravar,
   PedidoDeEditarAgente,
   PedidoDeEditarEspaco,
+  PedidoDeEditarItemDeChecklist,
+  PedidoDeEditarLista,
   PedidoDeEditarProjeto,
   PedidoDeEspaco,
+  PedidoDeItemDeChecklist,
+  PedidoDeLista,
+  PedidoDeMudarLista,
   PedidoDeMudarProjeto,
   PedidoDeMudarStatus,
   PedidoDeProjeto,
+  PedidoDeStatusDoProjeto,
   PedidoDeTarefa,
   PedidoDeTrocarResponsavel,
 } from "@mago-os/contratos";
@@ -57,7 +63,8 @@ export const ROTAS: Rota[] = [
     metodo: "GET",
     caminho: "/tarefas/:id",
     permissao: "tarefas.ver",
-    oQueFaz: "Mostra a tarefa com os comentários e os nomes citados.",
+    oQueFaz:
+      "Mostra a tarefa com os comentários, as subtarefas, o checklist, os status do projeto e os nomes citados.",
   },
   {
     metodo: "POST",
@@ -107,6 +114,33 @@ export const ROTAS: Rota[] = [
     recebe: PedidoDeMudarProjeto,
   },
   {
+    metodo: "POST",
+    caminho: "/tarefas/:id/lista",
+    permissao: "tarefas.editar",
+    oQueFaz: "Muda a tarefa de lista, no mesmo projeto (a subtarefa segue a mãe).",
+    recebe: PedidoDeMudarLista,
+  },
+  {
+    metodo: "POST",
+    caminho: "/tarefas/:id/checklist",
+    permissao: "tarefas.editar",
+    oQueFaz: "Acrescenta um item no fim do checklist (travada, só quem pegou).",
+    recebe: PedidoDeItemDeChecklist,
+  },
+  {
+    metodo: "POST",
+    caminho: "/tarefas/:id/checklist/:itemId",
+    permissao: "tarefas.editar",
+    oQueFaz: "Muda o texto, a posição, ou marca e desmarca um item do checklist.",
+    recebe: PedidoDeEditarItemDeChecklist,
+  },
+  {
+    metodo: "DELETE",
+    caminho: "/tarefas/:id/checklist/:itemId",
+    permissao: "tarefas.editar",
+    oQueFaz: "Tira um item do checklist.",
+  },
+  {
     metodo: "DELETE",
     caminho: "/tarefas/:id",
     permissao: "tarefas.excluir",
@@ -143,7 +177,8 @@ export const ROTAS: Rota[] = [
     metodo: "GET",
     caminho: "/projetos/:id",
     permissao: "projetos.ver",
-    oQueFaz: "Mostra o projeto, o espaço e os nomes do diretor, do gerente e dos membros.",
+    oQueFaz:
+      "Mostra o projeto, o espaço, as listas, os status e os nomes do diretor, do gerente e dos membros.",
   },
   {
     metodo: "POST",
@@ -159,6 +194,34 @@ export const ROTAS: Rota[] = [
     oQueFaz:
       "Edita, arquiva ou muda os membros (o diretor ou o administrador; trocar o diretor, só quem vê todos).",
     recebe: PedidoDeEditarProjeto,
+  },
+  {
+    metodo: "POST",
+    caminho: "/projetos/:id/listas",
+    permissao: "projetos.editar",
+    oQueFaz: "Cria uma lista no fim do projeto.",
+    recebe: PedidoDeLista,
+  },
+  {
+    metodo: "POST",
+    caminho: "/listas/:id",
+    permissao: "projetos.editar",
+    oQueFaz: "Renomeia a lista ou muda a posição dela.",
+    recebe: PedidoDeEditarLista,
+  },
+  {
+    metodo: "DELETE",
+    caminho: "/listas/:id",
+    permissao: "projetos.editar",
+    oQueFaz: "Exclui a lista e passa as tarefas dela para a primeira outra lista (a última não se exclui).",
+  },
+  {
+    metodo: "POST",
+    caminho: "/projetos/:id/status",
+    permissao: "projetos.editar",
+    oQueFaz:
+      "Grava os status do projeto, todos de uma vez; os que saem passam as tarefas para o primeiro do mesmo tipo.",
+    recebe: PedidoDeStatusDoProjeto,
   },
   {
     metodo: "DELETE",

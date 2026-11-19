@@ -20,7 +20,7 @@ Devolve:
 
 ### `ver_tarefa`
 
-Mostra uma tarefa sua com todos os comentários, do mais antigo para o mais novo.
+Mostra uma tarefa sua com todos os comentários (do mais antigo para o mais novo), as subtarefas e o checklist.
 
 Recebe:
 
@@ -30,6 +30,8 @@ Devolve:
 
 - `tarefa` (objeto, obrigatório): Tarefa de uma empresa.
 - `comentarios` (lista de objeto, obrigatório)
+- `subtarefas` (lista de objeto, obrigatório)
+- `checklist` (lista de objeto, obrigatório)
 
 ### `pegar_tarefa`
 
@@ -46,6 +48,9 @@ Devolve:
 - `titulo` (string, obrigatório): O que precisa ser feito, numa linha.
 - `descricao` (string ou null, obrigatório)
 - `projetoId` (id ou null, obrigatório)
+- `listaId` (id ou null, obrigatório)
+- `statusDoProjetoId` (id ou null, obrigatório)
+- `tarefaMaeId` (id ou null, obrigatório)
 - `status` ("a_fazer" | "em_andamento" | "precisa_de_ajuda" | "concluida" | "cancelada", obrigatório): a_fazer, em_andamento, precisa_de_ajuda, concluida ou cancelada. Concluída e cancelada encerram a tarefa.
 - `responsavel` (objeto ou objeto ou null, obrigatório)
 - `criadaPor` (objeto ou objeto ou objeto, obrigatório): Pessoa, agente ou o próprio sistema.
@@ -72,6 +77,9 @@ Devolve:
 - `titulo` (string, obrigatório): O que precisa ser feito, numa linha.
 - `descricao` (string ou null, obrigatório)
 - `projetoId` (id ou null, obrigatório)
+- `listaId` (id ou null, obrigatório)
+- `statusDoProjetoId` (id ou null, obrigatório)
+- `tarefaMaeId` (id ou null, obrigatório)
 - `status` ("a_fazer" | "em_andamento" | "precisa_de_ajuda" | "concluida" | "cancelada", obrigatório): a_fazer, em_andamento, precisa_de_ajuda, concluida ou cancelada. Concluída e cancelada encerram a tarefa.
 - `responsavel` (objeto ou objeto ou null, obrigatório)
 - `criadaPor` (objeto ou objeto ou objeto, obrigatório): Pessoa, agente ou o próprio sistema.
@@ -117,6 +125,9 @@ Devolve:
 - `titulo` (string, obrigatório): O que precisa ser feito, numa linha.
 - `descricao` (string ou null, obrigatório)
 - `projetoId` (id ou null, obrigatório)
+- `listaId` (id ou null, obrigatório)
+- `statusDoProjetoId` (id ou null, obrigatório)
+- `tarefaMaeId` (id ou null, obrigatório)
 - `status` ("a_fazer" | "em_andamento" | "precisa_de_ajuda" | "concluida" | "cancelada", obrigatório): a_fazer, em_andamento, precisa_de_ajuda, concluida ou cancelada. Concluída e cancelada encerram a tarefa.
 - `responsavel` (objeto ou objeto ou null, obrigatório)
 - `criadaPor` (objeto ou objeto ou objeto, obrigatório): Pessoa, agente ou o próprio sistema.
@@ -143,6 +154,9 @@ Devolve:
 - `titulo` (string, obrigatório): O que precisa ser feito, numa linha.
 - `descricao` (string ou null, obrigatório)
 - `projetoId` (id ou null, obrigatório)
+- `listaId` (id ou null, obrigatório)
+- `statusDoProjetoId` (id ou null, obrigatório)
+- `tarefaMaeId` (id ou null, obrigatório)
 - `status` ("a_fazer" | "em_andamento" | "precisa_de_ajuda" | "concluida" | "cancelada", obrigatório): a_fazer, em_andamento, precisa_de_ajuda, concluida ou cancelada. Concluída e cancelada encerram a tarefa.
 - `responsavel` (objeto ou objeto ou null, obrigatório)
 - `criadaPor` (objeto ou objeto ou objeto, obrigatório): Pessoa, agente ou o próprio sistema.
@@ -152,6 +166,59 @@ Devolve:
 - `criadaEm` (data e hora, obrigatório): Data e hora ISO 8601 com fuso.
 - `atualizadaEm` (data e hora, obrigatório): Data e hora ISO 8601 com fuso.
 - `encerradaEm` (data e hora ou null, obrigatório)
+
+### `criar_subtarefa`
+
+Cria uma subtarefa numa tarefa que você pegou, para dividir o trabalho em passos. Sem responsável, a subtarefa fica com você. Ela fica no mesmo projeto e na mesma lista da tarefa-mãe.
+
+Recebe:
+
+- `tarefaId` (id, obrigatório): Identificador (UUID).
+- `titulo` (string, obrigatório): O passo, numa linha.
+- `descricao` (string): Detalhes do passo.
+- `responsavel` (objeto ou objeto): Pessoa ou agente da mesma empresa.
+
+Devolve:
+
+- `id` (id, obrigatório): Identificador (UUID).
+- `empresaId` (id, obrigatório): Identificador (UUID).
+- `titulo` (string, obrigatório): O que precisa ser feito, numa linha.
+- `descricao` (string ou null, obrigatório)
+- `projetoId` (id ou null, obrigatório)
+- `listaId` (id ou null, obrigatório)
+- `statusDoProjetoId` (id ou null, obrigatório)
+- `tarefaMaeId` (id ou null, obrigatório)
+- `status` ("a_fazer" | "em_andamento" | "precisa_de_ajuda" | "concluida" | "cancelada", obrigatório): a_fazer, em_andamento, precisa_de_ajuda, concluida ou cancelada. Concluída e cancelada encerram a tarefa.
+- `responsavel` (objeto ou objeto ou null, obrigatório)
+- `criadaPor` (objeto ou objeto ou objeto, obrigatório): Pessoa, agente ou o próprio sistema.
+- `trava` (objeto ou null, obrigatório)
+- `resultado` (string ou null, obrigatório)
+- `resultadoPor` (objeto ou objeto ou objeto ou null, obrigatório)
+- `criadaEm` (data e hora, obrigatório): Data e hora ISO 8601 com fuso.
+- `atualizadaEm` (data e hora, obrigatório): Data e hora ISO 8601 com fuso.
+- `encerradaEm` (data e hora ou null, obrigatório)
+
+### `marcar_checklist`
+
+Marca ou desmarca um item do checklist de uma tarefa que você pegou. Marque cada passo assim que terminar, para a pessoa responsável acompanhar.
+
+Recebe:
+
+- `tarefaId` (id, obrigatório): Identificador (UUID).
+- `itemId` (id, obrigatório): Identificador (UUID).
+- `marcado` (boolean, obrigatório): true marca; false desmarca.
+
+Devolve:
+
+- `id` (id, obrigatório): Identificador (UUID).
+- `empresaId` (id, obrigatório): Identificador (UUID).
+- `tarefaId` (id, obrigatório): Identificador (UUID).
+- `texto` (string, obrigatório): O passo, numa linha.
+- `ordem` (integer, obrigatório): Posição, do menor para o maior.
+- `marcado` (boolean, obrigatório)
+- `marcadoPor` (objeto ou objeto ou objeto ou null, obrigatório)
+- `marcadoEm` (data e hora ou null, obrigatório)
+- `criadoEm` (data e hora, obrigatório): Data e hora ISO 8601 com fuso.
 
 ### `estou_vivo`
 
@@ -174,7 +241,7 @@ Todas com o prefixo `/api` no site, menos `/mcp`, que fica em `https://teste.osm
 | --- | --- | --- | --- |
 | GET | `/tarefas` | tarefas.ver | Lista as tarefas que a pessoa alcança (query: minhas=1, status=a,b, projeto=<id> ou sem). |
 | POST | `/tarefas` | tarefas.criar | Cria uma tarefa, com ou sem projeto. Sem responsável, fica com quem criou; responsável nulo num projeto vai para o gerente, se o diretor quis. |
-| GET | `/tarefas/:id` | tarefas.ver | Mostra a tarefa com os comentários e os nomes citados. |
+| GET | `/tarefas/:id` | tarefas.ver | Mostra a tarefa com os comentários, as subtarefas, o checklist, os status do projeto e os nomes citados. |
 | POST | `/tarefas/:id/status` | tarefas.editar | Muda o status (concluir pode trazer o resultado; em andamento é pegar). |
 | POST | `/tarefas/:id/responsavel` | tarefas.editar | Troca o responsável (pessoa ou agente ativo). |
 | POST | `/tarefas/:id/comentarios` | tarefas.ver | Comenta (mesmo travada por outro). |
@@ -182,14 +249,22 @@ Todas com o prefixo `/api` no site, menos `/mcp`, que fica em `https://teste.osm
 | POST | `/tarefas/:id/soltar` | tarefas.editar | Solta a tarefa que pegou: volta para A fazer. |
 | POST | `/tarefas/:id/destravar` | tarefas.aprovar | Tira a trava de outro, com motivo. |
 | POST | `/tarefas/:id/projeto` | tarefas.editar | Muda a tarefa de projeto (um projeto ativo que a pessoa alcança) ou tira do projeto (nulo). |
+| POST | `/tarefas/:id/lista` | tarefas.editar | Muda a tarefa de lista, no mesmo projeto (a subtarefa segue a mãe). |
+| POST | `/tarefas/:id/checklist` | tarefas.editar | Acrescenta um item no fim do checklist (travada, só quem pegou). |
+| POST | `/tarefas/:id/checklist/:itemId` | tarefas.editar | Muda o texto, a posição, ou marca e desmarca um item do checklist. |
+| DELETE | `/tarefas/:id/checklist/:itemId` | tarefas.editar | Tira um item do checklist. |
 | DELETE | `/tarefas/:id` | tarefas.excluir | Exclui a tarefa e os comentários (não se estiver com outro). |
 | GET | `/espacos` | espacos.ver | Lista os espaços da empresa (query: arquivados=1 inclui os arquivados). |
 | POST | `/espacos` | espacos.criar | Cria um espaço. |
 | POST | `/espacos/:id` | espacos.editar | Edita, arquiva ou desarquiva um espaço. |
 | GET | `/projetos` | projetos.ver | Lista os projetos que a pessoa alcança (todos, ou os que é membro), com as tarefas abertas (query: espaco=<id>, arquivados=1). |
-| GET | `/projetos/:id` | projetos.ver | Mostra o projeto, o espaço e os nomes do diretor, do gerente e dos membros. |
+| GET | `/projetos/:id` | projetos.ver | Mostra o projeto, o espaço, as listas, os status e os nomes do diretor, do gerente e dos membros. |
 | POST | `/projetos` | projetos.criar | Cria um projeto. Sem diretor, quem cria é o diretor. |
 | POST | `/projetos/:id` | projetos.editar | Edita, arquiva ou muda os membros (o diretor ou o administrador; trocar o diretor, só quem vê todos). |
+| POST | `/projetos/:id/listas` | projetos.editar | Cria uma lista no fim do projeto. |
+| POST | `/listas/:id` | projetos.editar | Renomeia a lista ou muda a posição dela. |
+| DELETE | `/listas/:id` | projetos.editar | Exclui a lista e passa as tarefas dela para a primeira outra lista (a última não se exclui). |
+| POST | `/projetos/:id/status` | projetos.editar | Grava os status do projeto, todos de uma vez; os que saem passam as tarefas para o primeiro do mesmo tipo. |
 | DELETE | `/projetos/:id` | projetos.excluir | Exclui de vez um projeto sem tarefas. |
 | GET | `/agentes` | agentes.ver | Lista os agentes, com responsável, tarefas abertas e último sinal. |
 | GET | `/agentes/:id` | agentes.ver | Mostra um agente. |
@@ -222,12 +297,15 @@ Recebe:
 - `descricao` (string ou null)
 - `responsavel` (objeto ou objeto ou null)
 - `projetoId` (id ou null)
+- `listaId` (id): Identificador (UUID).
+- `tarefaMaeId` (id): Identificador (UUID).
 
 ### POST `/tarefas/:id/status`
 
 Recebe:
 
 - `status` ("a_fazer" | "em_andamento" | "precisa_de_ajuda" | "concluida" | "cancelada", obrigatório): a_fazer, em_andamento, precisa_de_ajuda, concluida ou cancelada. Concluída e cancelada encerram a tarefa.
+- `statusId` (id): Identificador (UUID).
 - `resultado` (string): O que o responsável entrega ao concluir.
 - `motivo` (string): Por que mudou (vira comentário).
 
@@ -254,6 +332,26 @@ Recebe:
 Recebe:
 
 - `projetoId` (id ou null, obrigatório)
+
+### POST `/tarefas/:id/lista`
+
+Recebe:
+
+- `listaId` (id, obrigatório): Identificador (UUID).
+
+### POST `/tarefas/:id/checklist`
+
+Recebe:
+
+- `texto` (string, obrigatório): O passo, numa linha.
+
+### POST `/tarefas/:id/checklist/:itemId`
+
+Recebe:
+
+- `texto` (string): O passo, numa linha.
+- `ordem` (integer): Posição, do menor para o maior.
+- `marcado` (boolean)
 
 ### POST `/espacos`
 
@@ -302,6 +400,25 @@ Recebe:
 - `gerenteRecebeSemResponsavel` (boolean)
 - `inicio` (string ou null)
 - `fim` (string ou null)
+
+### POST `/projetos/:id/listas`
+
+Recebe:
+
+- `nome` (string, obrigatório): Nome da lista (ex.: Planejamento).
+
+### POST `/listas/:id`
+
+Recebe:
+
+- `nome` (string): Nome da lista (ex.: Planejamento).
+- `ordem` (integer): Posição, do menor para o maior.
+
+### POST `/projetos/:id/status`
+
+Recebe:
+
+- `status` (lista de objeto, obrigatório)
 
 ### POST `/agentes`
 

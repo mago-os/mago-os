@@ -25,41 +25,58 @@ export function autorDe(quem: Quem): Autor {
     : { tipo: "agente", agenteId: quem.agenteId };
 }
 
-/** Condição SQL (sobre a tabela "t") das tarefas que quem pede alcança. "jaUsados": quantos valores a consulta já tem. */
+/**
+ * Condição SQL (sobre a tabela "t") das tarefas que quem pede alcança. "jaUsados": quantos valores a consulta já
+ * tem. A subtarefa segue a mãe (M3-02): quem alcança a tarefa-mãe alcança as subtarefas dela.
+ */
 export function condicaoDeAlcance(quem: Quem, jaUsados: number): { sql: string; valores: string[] } {
+  const { sql, valores } = alcanceSobre("t", quem, jaUsados);
+  // Para o agente, a mãe só abre as subtarefas para ver (como o gerente): mexer, só nas dele.
+  if (sql === "true" || (quem.tipo === "agente" && !quem.comoGerente)) return { sql, valores };
+  const daMae = alcanceSobre("m", quem, jaUsados).sql;
+  return {
+    sql: `(${sql} or (t.tarefa_mae_id is not null and exists (select 1 from tarefas m
+             where m.id = t.tarefa_mae_id and m.empresa_id = t.empresa_id and ${daMae})))`,
+    valores,
+  };
+}
+
+/** A condição de alcance sobre uma tabela de tarefas com o apelido dado ("t" ou "m"). */
+function alcanceSobre(a: string, quem: Quem, jaUsados: number): { sql: string; valores: string[] } {
   const p = (n: number) => `$${jaUsados + n + 1}`;
   if (quem.tipo === "agente") {
-    const dele = `(t.responsavel_agente_id = ${p(0)} or t.travada_por_agente_id = ${p(0)})`;
+    const dele = `(${a}.responsavel_agente_id = ${p(0)} or ${a}.travada_por_agente_id = ${p(0)})`;
     if (!quem.comoGerente) return { sql: dele, valores: [quem.agenteId] };
     // Só para ver: o gerente agente enxerga as tarefas do projeto dele (M3-01), sem poder mexer nas dos outros.
     return {
-      sql: `(${dele} or exists (select 1 from projetos pr where pr.id = t.projeto_id
-             and pr.empresa_id = t.empresa_id and pr.gerente_agente_id = ${p(0)}))`,
+      sql: `(${dele} or exists (select 1 from projetos pr where pr.id = ${a}.projeto_id
+             and pr.empresa_id = ${a}.empresa_id and pr.gerente_agente_id = ${p(0)}))`,
       valores: [quem.agenteId],
     };
   }
   // "Meus": sou o responsável, criei ou estou com a tarefa pegada.
-  const meus = `(t.responsavel_pessoa_id = ${p(0)} or t.criada_por_pessoa_id = ${p(0)}
-                 or t.travada_por_pessoa_id = ${p(0)})`;
+  const meus = `(${a}.responsavel_pessoa_id = ${p(0)} or ${a}.criada_por_pessoa_id = ${p(0)}
+                 or ${a}.travada_por_pessoa_id = ${p(0)})`;
   // E as tarefas dos projetos que alcanço (M3-01): todos, ou os que sou membro.
   const doProjeto =
     quem.projetos === "todos"
-      ? "t.projeto_id is not null"
+      ? `${a}.projeto_id is not null`
       : quem.projetos === "membro"
-        ? `(t.projeto_id is not null and membro_do_projeto(t.projeto_id, ${p(0)}))`
+        ? `(${a}.projeto_id is not null and membro_do_projeto(${a}.projeto_id, ${p(0)}))`
         : "false";
   const { filtro } = quem;
   if (filtro.tipo === "tudo") return { sql: "true", valores: [] };
   if (filtro.tipo === "meus") return { sql: `(${meus} or ${doProjeto})`, valores: [filtro.pessoaId] };
   return {
-    sql: `(${meus} or ${doProjeto} or exists (select 1 from vinculos v where v.empresa_id = t.empresa_id
+    sql: `(${meus} or ${doProjeto} or exists (select 1 from vinculos v where v.empresa_id = ${a}.empresa_id
              and v.area = ${p(1)}
-             and v.pessoa_id in (t.responsavel_pessoa_id, t.criada_por_pessoa_id, t.travada_por_pessoa_id)))`,
+             and v.pessoa_id in (${a}.responsavel_pessoa_id, ${a}.criada_por_pessoa_id, ${a}.travada_por_pessoa_id)))`,
     valores: [filtro.pessoaId, filtro.area],
   };
 }
 
-const COLUNAS = `t.id, t.empresa_id, t.titulo, t.descricao, t.projeto_id, t.status,
+const COLUNAS = `t.id, t.empresa_id, t.titulo, t.descricao, t.projeto_id, t.lista_id, t.status_do_projeto_id,
+  t.tarefa_mae_id, t.status,
   t.responsavel_pessoa_id, t.responsavel_agente_id, t.criada_por_pessoa_id, t.criada_por_agente_id,
   t.travada_por_pessoa_id, t.travada_por_agente_id, t.travada_em,
   t.resultado, t.resultado_por_pessoa_id, t.resultado_por_agente_id, t.criada_em, t.atualizada_em, t.encerrada_em`;
@@ -70,6 +87,9 @@ interface LinhaDaTarefa {
   titulo: string;
   descricao: string | null;
   projeto_id: string | null;
+  lista_id: string | null;
+  status_do_projeto_id: string | null;
+  tarefa_mae_id: string | null;
   status: StatusTarefa;
   responsavel_pessoa_id: string | null;
   responsavel_agente_id: string | null;
@@ -106,6 +126,9 @@ export function linhaParaTarefa(l: LinhaDaTarefa): Tarefa {
     titulo: l.titulo,
     descricao: l.descricao,
     projetoId: l.projeto_id,
+    listaId: l.lista_id,
+    statusDoProjetoId: l.status_do_projeto_id,
+    tarefaMaeId: l.tarefa_mae_id,
     status: l.status,
     responsavel: responsavelDe(l.responsavel_pessoa_id, l.responsavel_agente_id),
     criadaPor: autorDaLinha(l.criada_por_pessoa_id, l.criada_por_agente_id),
@@ -230,14 +253,18 @@ export async function criarTarefa(
     descricao: string | null;
     responsavel: Responsavel | null;
     projetoId?: string | null;
+    /** Lista do projeto; sem ela, o banco põe na primeira. */
+    listaId?: string | null;
+    /** Subtarefa desta tarefa: o banco põe no projeto e na lista dela. */
+    tarefaMaeId?: string | null;
   },
 ): Promise<Tarefa> {
   const [respPessoa, respAgente] = colunas(dados.responsavel);
   const [porPessoa, porAgente] = colunas(autorDe(quem));
   const r = await c.query<LinhaDaTarefa>(
     `insert into tarefas as t (empresa_id, titulo, descricao, responsavel_pessoa_id, responsavel_agente_id,
-                            criada_por_pessoa_id, criada_por_agente_id, projeto_id)
-     values (empresa_ativa(), $1, $2, $3, $4, $5, $6, $7) returning ${COLUNAS}`,
+                            criada_por_pessoa_id, criada_por_agente_id, projeto_id, lista_id, tarefa_mae_id)
+     values (empresa_ativa(), $1, $2, $3, $4, $5, $6, $7, $8, $9) returning ${COLUNAS}`,
     [
       dados.titulo.trim(),
       dados.descricao?.trim() || null,
@@ -246,6 +273,8 @@ export async function criarTarefa(
       porPessoa,
       porAgente,
       dados.projetoId ?? null,
+      dados.listaId ?? null,
+      dados.tarefaMaeId ?? null,
     ],
   );
   return linhaParaTarefa(r.rows[0] as LinhaDaTarefa);
@@ -261,6 +290,8 @@ export async function mudarStatus(
   tarefa: Tarefa,
   status: StatusTarefa,
   resultado: string | null,
+  /** Status do projeto (M3-02), do mesmo tipo. Sem ele, o banco escolhe o primeiro do tipo. */
+  statusDoProjetoId: string | null = null,
 ): Promise<Tarefa> {
   exigirQuemPegou(tarefa, quem);
   const encerra = status === "concluida" || status === "cancelada";
@@ -273,6 +304,7 @@ export async function mudarStatus(
         travada_por_agente_id = case when $4 then null else t.travada_por_agente_id end,
         travada_em = case when $4 then null else t.travada_em end,
         resultado = $5, resultado_por_pessoa_id = $6, resultado_por_agente_id = $7,
+        status_do_projeto_id = coalesce($8, case when t.status = $2 then t.status_do_projeto_id end),
         atualizada_em = now()
       where t.id = $1 and t.empresa_id = empresa_ativa() returning ${COLUNAS}`,
     [
@@ -283,6 +315,7 @@ export async function mudarStatus(
       status === "concluida" ? resultado?.trim() || null : null,
       porPessoa,
       porAgente,
+      statusDoProjetoId,
     ],
   );
   return linhaParaTarefa(r.rows[0] as LinhaDaTarefa);
@@ -348,6 +381,64 @@ export async function mudarProjetoDaTarefa(
     [tarefaId, projetoId],
   );
   return linhaParaTarefa(r.rows[0] as LinhaDaTarefa);
+}
+
+/** Muda a tarefa de lista, no mesmo projeto. As subtarefas vão junto (gatilho do banco). */
+export async function mudarListaDaTarefa(
+  c: pg.PoolClient,
+  tarefaId: string,
+  listaId: string,
+): Promise<Tarefa> {
+  const r = await c.query<LinhaDaTarefa>(
+    `update tarefas t set lista_id = $2, atualizada_em = now()
+      where t.id = $1 and t.empresa_id = empresa_ativa() returning ${COLUNAS}`,
+    [tarefaId, listaId],
+  );
+  return linhaParaTarefa(r.rows[0] as LinhaDaTarefa);
+}
+
+/** Alguma subtarefa da tarefa está pegada por outro (então a mãe não se exclui). */
+export async function subtarefaTravadaPorOutro(
+  c: pg.PoolClient,
+  tarefaId: string,
+  quem: Quem,
+): Promise<boolean> {
+  const [pessoa, agente] = colunas(autorDe(quem));
+  const r = await c.query(
+    `select 1 from tarefas where tarefa_mae_id = $1 and empresa_id = empresa_ativa() and travada_em is not null
+        and not (coalesce(travada_por_pessoa_id = $2::uuid, false) or coalesce(travada_por_agente_id = $3::uuid, false))
+      limit 1`,
+    [tarefaId, pessoa, agente],
+  );
+  return (r.rowCount ?? 0) > 0;
+}
+
+/** As subtarefas de uma tarefa, na ordem em que foram criadas. */
+export async function listarSubtarefas(c: pg.PoolClient, tarefaMaeId: string): Promise<Tarefa[]> {
+  const r = await c.query<LinhaDaTarefa>(
+    `select ${COLUNAS} from tarefas t where t.tarefa_mae_id = $1 and t.empresa_id = empresa_ativa()
+      order by t.criada_em, t.id`,
+    [tarefaMaeId],
+  );
+  return r.rows.map(linhaParaTarefa);
+}
+
+/** Quantas subtarefas (que quem pede alcança) cada tarefa tem e quantas estão prontas. */
+export async function resumoDasSubtarefas(
+  c: pg.PoolClient,
+  quem: Quem,
+  ids: string[],
+): Promise<Record<string, { total: number; prontas: number }>> {
+  if (ids.length === 0) return {};
+  const alcance = condicaoDeAlcance(quem, 1);
+  const r = await c.query<{ tarefa_mae_id: string; total: number; prontas: number }>(
+    `select t.tarefa_mae_id, count(*)::int as total,
+            count(*) filter (where t.status in ('concluida', 'cancelada'))::int as prontas
+       from tarefas t where t.empresa_id = empresa_ativa() and t.tarefa_mae_id = any($1::uuid[]) and ${alcance.sql}
+      group by t.tarefa_mae_id`,
+    [ids, ...alcance.valores],
+  );
+  return Object.fromEntries(r.rows.map((l) => [l.tarefa_mae_id, { total: l.total, prontas: l.prontas }]));
 }
 
 export async function excluirTarefa(c: pg.PoolClient, tarefaId: string): Promise<void> {

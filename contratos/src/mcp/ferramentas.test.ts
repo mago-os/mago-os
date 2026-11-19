@@ -8,13 +8,15 @@ import { describe, expect, it } from "vitest";
 import { FERRAMENTAS_MCP } from "./ferramentas.ts";
 
 const ASSINATURAS: Record<string, string> = {
-  minhas_tarefas: "5e5a31bc6b2948b2",
-  ver_tarefa: "bd490f336a31f79b",
-  pegar_tarefa: "fd843de2f57f7971",
-  soltar_tarefa: "3d09aec94d496be7",
+  minhas_tarefas: "c9dafce94765c5f0",
+  ver_tarefa: "f827af0033c730a0",
+  pegar_tarefa: "8ee59089d33aac33",
+  soltar_tarefa: "a0bd420257bad3f8",
   comentar: "663b025cd6519fe2",
-  mudar_status: "689b1eb322039855",
-  entregar_resultado: "45d164761d61be4e",
+  mudar_status: "3601ae303b14e24b",
+  entregar_resultado: "7bac4a34ff72f065",
+  criar_subtarefa: "fc2815ce6e6f73a0",
+  marcar_checklist: "34c74f6ba4126e63",
   estou_vivo: "e1ad16ca48cd4c7a",
 };
 
@@ -24,7 +26,7 @@ function assinatura(f: (typeof FERRAMENTAS_MCP)[number]): string {
 }
 
 describe("ferramentas do MCP", () => {
-  it("são as oito da spec, com nomes únicos e descrição", () => {
+  it("são as dez da spec (oito do M2 e duas da M3-02), com nomes únicos e descrição", () => {
     expect(FERRAMENTAS_MCP.map((f) => f.nome)).toEqual([
       "minhas_tarefas",
       "ver_tarefa",
@@ -33,6 +35,8 @@ describe("ferramentas do MCP", () => {
       "comentar",
       "mudar_status",
       "entregar_resultado",
+      "criar_subtarefa",
+      "marcar_checklist",
       "estou_vivo",
     ]);
     for (const f of FERRAMENTAS_MCP) expect(f.descricao.length).toBeGreaterThan(20);

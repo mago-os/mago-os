@@ -1,7 +1,14 @@
 /**
  * Conversa da tela com as rotas de tarefas (M2-01). Os formatos vêm dos contratos.
  */
-import type { ComentarioDeTarefa, Responsavel, StatusTarefa, Tarefa } from "@mago-os/contratos";
+import type {
+  ComentarioDeTarefa,
+  ItemDeChecklist,
+  Responsavel,
+  StatusDoProjeto,
+  StatusTarefa,
+  Tarefa,
+} from "@mago-os/contratos";
 
 export interface Resposta<T> {
   ok: boolean;
@@ -38,11 +45,21 @@ export async function pedir<T>(
 export interface ListaDeTarefas {
   tarefas: Tarefa[];
   nomes: Record<string, string>;
+  /** Quantas subtarefas cada tarefa tem e quantas estão prontas (M3-02). */
+  subtarefas?: Record<string, { total: number; prontas: number }>;
 }
 
-export interface TarefaAberta extends ListaDeTarefas {
+export interface TarefaAberta {
+  tarefas: Tarefa[];
+  nomes: Record<string, string>;
   tarefa: Tarefa;
   comentarios: ComentarioDeTarefa[];
+  subtarefas: Tarefa[];
+  checklist: ItemDeChecklist[];
+  /** Status do projeto da tarefa (vazio sem projeto). */
+  status: StatusDoProjeto[];
+  /** Listas do projeto da tarefa (vazio sem projeto). */
+  listas: { id: string; nome: string }[];
 }
 
 export function listarTarefas(filtro: { minhas: boolean; status: StatusTarefa[]; projetoId?: string }) {
@@ -61,7 +78,30 @@ export const criarTarefa = (dados: {
   descricao: string | null;
   responsavel?: Responsavel | null;
   projetoId?: string | null;
+  listaId?: string;
+  tarefaMaeId?: string;
 }) => pedir<Tarefa>("POST", "/tarefas", dados);
+
+/** Muda a tarefa de lista, no mesmo projeto (M3-02). */
+export const mudarLista = (id: string, listaId: string) =>
+  pedir<Tarefa>("POST", `/tarefas/${encodeURIComponent(id)}/lista`, { listaId });
+
+export const criarItemDoChecklist = (id: string, texto: string) =>
+  pedir<ItemDeChecklist>("POST", `/tarefas/${encodeURIComponent(id)}/checklist`, { texto });
+
+export const editarItemDoChecklist = (
+  id: string,
+  itemId: string,
+  mudanca: { texto?: string; ordem?: number; marcado?: boolean },
+) =>
+  pedir<ItemDeChecklist>(
+    "POST",
+    `/tarefas/${encodeURIComponent(id)}/checklist/${encodeURIComponent(itemId)}`,
+    mudanca,
+  );
+
+export const excluirItemDoChecklist = (id: string, itemId: string) =>
+  pedir<{ ok: true }>("DELETE", `/tarefas/${encodeURIComponent(id)}/checklist/${encodeURIComponent(itemId)}`);
 
 /** Muda a tarefa de projeto, ou tira do projeto (nulo) (M3-01). */
 export const mudarProjeto = (id: string, projetoId: string | null) =>
@@ -70,7 +110,7 @@ export const mudarProjeto = (id: string, projetoId: string | null) =>
 export const mudarStatus = (
   id: string,
   status: StatusTarefa,
-  extra: { resultado?: string; motivo?: string } = {},
+  extra: { resultado?: string; motivo?: string; statusId?: string } = {},
 ) => pedir<Tarefa>("POST", `/tarefas/${encodeURIComponent(id)}/status`, { status, ...extra });
 
 export const trocarResponsavel = (id: string, responsavel: Responsavel | null) =>

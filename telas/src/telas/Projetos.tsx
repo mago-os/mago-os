@@ -25,6 +25,7 @@ import { listarTarefas } from "@/tarefas";
 import { useTempoReal } from "@/tempo-real";
 import { Aviso } from "./Acesso";
 import { useAoVoltar } from "./Administrador";
+import { ListasDoProjeto, StatusDoProjetoEditor } from "./ConfigDoProjeto";
 import {
   Etiqueta,
   Filtro,
@@ -478,7 +479,11 @@ export function PaginaDoProjeto({
   podeExcluir: boolean;
 }) {
   const [aberto, setAberto] = useState<ProjetoAberto | null | undefined>(undefined);
-  const [tarefas, setTarefas] = useState<{ tarefas: Tarefa[]; nomes: Record<string, string> } | null>(null);
+  const [tarefas, setTarefas] = useState<{
+    tarefas: Tarefa[];
+    nomes: Record<string, string>;
+    subtarefas?: Record<string, { total: number; prontas: number }>;
+  } | null>(null);
   const [abertas, setAbertas] = useState(true);
   const [espacos, setEspacos] = useState<Espaco[]>([]);
   const [editando, setEditando] = useState(false);
@@ -531,7 +536,12 @@ export function PaginaDoProjeto({
       </main>
     );
   }
-  const { projeto, espaco, nomes } = aberto;
+  const { projeto, espaco, nomes, listas, status } = aberto;
+  // As subtarefas aparecem dentro da tarefa-mãe (com o progresso), não soltas na lista.
+  const ids = new Set((tarefas?.tarefas ?? []).map((t) => t.id));
+  const principais = (tarefas?.tarefas ?? []).filter(
+    (t) => t.tarefaMaeId === null || !ids.has(t.tarefaMaeId),
+  );
   // Edita o diretor e quem vê todos os projetos com a permissão de editar (a API confere de novo).
   const podeEditar = administra || projeto.diretorId === euId;
 
@@ -637,6 +647,18 @@ export function PaginaDoProjeto({
         </Card>
       )}
 
+      {podeEditar && !editando && (
+        <details className="grid gap-3">
+          <summary className="cursor-pointer text-sm font-medium text-texto-2">
+            Listas e status do projeto
+          </summary>
+          <div className="mt-3 grid gap-3">
+            <ListasDoProjeto projetoId={projeto.id} listas={listas} aoMudar={() => void carregar()} />
+            <StatusDoProjetoEditor projetoId={projeto.id} status={status} aoMudar={() => void carregar()} />
+          </div>
+        </details>
+      )}
+
       <section className="grid gap-3" aria-label="Tarefas do projeto">
         <div className="flex items-center justify-between gap-3">
           <h2 className="text-lg font-semibold">Tarefas</h2>
@@ -662,31 +684,60 @@ export function PaginaDoProjeto({
             Todas
           </Filtro>
         </fieldset>
-        {tarefas && tarefas.tarefas.length === 0 && (
+        {tarefas && principais.length === 0 && (
           <p className="text-sm text-texto-2">Nenhuma tarefa que você vê neste projeto.</p>
         )}
-        <ul className="grid gap-2">
-          {tarefas?.tarefas.map((t) => (
-            <li key={t.id}>
-              <a
-                href={`/tarefas/${t.id}`}
-                data-destaque={destaques.has(t.id) || undefined}
-                className={cn(
-                  "grid gap-1.5 rounded-lg border border-linha bg-cartao p-3 transition-colors duration-700 hover:bg-suave",
-                  destaques.has(t.id) && "border-tinta/40 bg-suave",
-                )}
-              >
-                <span className="font-medium text-pretty">{t.titulo}</span>
-                <span className="flex flex-wrap items-center gap-2 text-xs text-texto-2">
-                  <Etiqueta status={t.status} />
-                  <span>{nomeDe(t.responsavel, tarefas.nomes)}</span>
-                  <MarcaDeAgente quem={t.responsavel} />
-                  <span className="ml-auto">{quando(t.atualizadaEm)}</span>
-                </span>
-              </a>
-            </li>
-          ))}
-        </ul>
+        {listas.map((l) => {
+          const daLista = principais.filter((t) => t.listaId === l.id);
+          if (daLista.length === 0 && listas.length > 1) return null;
+          return (
+            <div key={l.id} className="grid gap-2">
+              {listas.length > 1 && <h3 className="text-sm font-semibold text-texto-2">{l.nome}</h3>}
+              <ul className="grid gap-2">
+                {daLista.map((t) => {
+                  const s2 = status.find((x) => x.id === t.statusDoProjetoId);
+                  const sub = tarefas?.subtarefas?.[t.id];
+                  return (
+                    <li key={t.id}>
+                      <a
+                        href={`/tarefas/${t.id}`}
+                        data-destaque={destaques.has(t.id) || undefined}
+                        className={cn(
+                          "grid gap-1.5 rounded-lg border border-linha bg-cartao p-3 transition-colors duration-700 hover:bg-suave",
+                          destaques.has(t.id) && "border-tinta/40 bg-suave",
+                        )}
+                      >
+                        <span className="font-medium text-pretty">{t.titulo}</span>
+                        <span className="flex flex-wrap items-center gap-2 text-xs text-texto-2">
+                          {s2 ? (
+                            <span className="flex items-center gap-1.5 rounded-full bg-suave px-2.5 py-0.5 font-medium">
+                              <span
+                                aria-hidden
+                                className="size-2 rounded-full"
+                                style={{ backgroundColor: s2.cor }}
+                              />
+                              {s2.nome}
+                            </span>
+                          ) : (
+                            <Etiqueta status={t.status} />
+                          )}
+                          <span>{nomeDe(t.responsavel, tarefas?.nomes ?? {})}</span>
+                          <MarcaDeAgente quem={t.responsavel} />
+                          {sub && (
+                            <span>
+                              {sub.prontas}/{sub.total} subtarefas
+                            </span>
+                          )}
+                          <span className="ml-auto">{quando(t.atualizadaEm)}</span>
+                        </span>
+                      </a>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          );
+        })}
       </section>
     </main>
   );

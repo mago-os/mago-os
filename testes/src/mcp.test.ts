@@ -1,6 +1,6 @@
 /**
  * Mago OS como servidor MCP (M2-05), de ponta a ponta com um cliente MCP de verdade (o SDK oficial) falando HTTP com
- * o núcleo: lista as oito ferramentas, faz o ciclo da tarefa (listar, pegar, comentar, entregar), respeita a trava e
+ * o núcleo: lista as ferramentas, faz o ciclo da tarefa (listar, pegar, comentar, entregar), respeita a trava e
  * a revogação da chave, e a chave de uma empresa não vê nada da outra.
  */
 import { gerarChave } from "@mago-os/nucleo/agentes";
@@ -97,7 +97,7 @@ describe.skipIf(!bancoDisponivel)("servidor MCP", () => {
     await banco?.apagar();
   });
 
-  it("lista as oito ferramentas, com descrição e esquema de entrada", async () => {
+  it("lista as dez ferramentas, com descrição e esquema de entrada", async () => {
     const cliente = await conectar(chaves.Um?.chave ?? "");
     const { tools } = await cliente.listTools();
     expect(tools.map((t) => t.name)).toEqual([
@@ -108,6 +108,8 @@ describe.skipIf(!bancoDisponivel)("servidor MCP", () => {
       "comentar",
       "mudar_status",
       "entregar_resultado",
+      "criar_subtarefa",
+      "marcar_checklist",
       "estou_vivo",
     ]);
     expect(tools.every((t) => (t.description ?? "").length > 20 && t.inputSchema.type === "object")).toBe(
@@ -163,6 +165,60 @@ describe.skipIf(!bancoDisponivel)("servidor MCP", () => {
     );
     expect(ev.rows.map((l) => l.acao)).toEqual(["tarefa.pegou", "tarefa.comentou", "tarefa.mudou_status"]);
     expect(ev.rows.every((l) => l.ator.tipo === "agente" && l.origem.canal === "mcp")).toBe(true);
+    await cliente.close();
+  });
+
+  it("divide a tarefa em subtarefas e marca o checklist (M3-02), só depois de pegar", async () => {
+    const t = await dono.query<{ id: string }>(
+      "insert into tarefas (empresa_id, titulo, responsavel_agente_id) values ($1, 'Organizar o backup', $2) returning id",
+      [empresas.Um, agentes.Um],
+    );
+    const tarefaId = t.rows[0]?.id as string;
+    const i = await dono.query<{ id: string }>(
+      "insert into itens_de_checklist (empresa_id, tarefa_id, texto) values ($1, $2, 'Conferir o disco') returning id",
+      [empresas.Um, tarefaId],
+    );
+    const itemId = i.rows[0]?.id as string;
+    const cliente = await conectar(chaves.Um?.chave ?? "");
+    const cedo = await chamar(cliente, "criar_subtarefa", { tarefaId, titulo: "Passo 1" });
+    expect(cedo.isError).toBe(true);
+    expect(cedo.content[0]?.text).toContain("Pegue a tarefa");
+
+    await chamar(cliente, "pegar_tarefa", { tarefaId });
+    for (const titulo of ["Listar as pastas", "Copiar", "Conferir"]) {
+      const r = await chamar(cliente, "criar_subtarefa", { tarefaId, titulo });
+      expect(r.structuredContent).toMatchObject({
+        tarefaMaeId: tarefaId,
+        responsavel: { tipo: "agente", agenteId: agentes.Um },
+        criadaPor: { tipo: "agente", agenteId: agentes.Um },
+      });
+    }
+    const marcou = await chamar(cliente, "marcar_checklist", { tarefaId, itemId, marcado: true });
+    expect(marcou.structuredContent).toMatchObject({
+      marcado: true,
+      marcadoPor: { tipo: "agente", agenteId: agentes.Um },
+    });
+    const vista = await chamar(cliente, "ver_tarefa", { tarefaId });
+    const subtarefas = (vista.structuredContent?.subtarefas ?? []) as { id: string }[];
+    expect(subtarefas.length).toBe(3);
+    expect(vista.structuredContent?.checklist).toMatchObject([{ id: itemId, marcado: true }]);
+
+    // Subtarefa não tem subtarefas.
+    const sub = subtarefas[0]?.id as string;
+    await chamar(cliente, "pegar_tarefa", { tarefaId: sub });
+    expect((await chamar(cliente, "criar_subtarefa", { tarefaId: sub, titulo: "Neta" })).isError).toBe(true);
+
+    const ev = await dono.query<{ acao: string }>(
+      "select acao from auditoria.eventos where alvo->>'id' = $1 order by sequencia",
+      [tarefaId],
+    );
+    expect(ev.rows.map((l) => l.acao)).toEqual([
+      "tarefa.pegou",
+      "tarefa.criou_subtarefa",
+      "tarefa.criou_subtarefa",
+      "tarefa.criou_subtarefa",
+      "checklist.marcou",
+    ]);
     await cliente.close();
   });
 

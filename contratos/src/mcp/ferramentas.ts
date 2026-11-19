@@ -12,7 +12,8 @@
  */
 import { type Static, type TSchema, Type } from "typebox";
 import { DataHora, Id, Texto } from "../comum.ts";
-import { ComentarioDeTarefa, StatusTarefa, Tarefa } from "../tarefas/tarefa.ts";
+import { ItemDeChecklist } from "../tarefas/checklist.ts";
+import { ComentarioDeTarefa, Responsavel, StatusTarefa, Tarefa } from "../tarefas/tarefa.ts";
 
 export interface FerramentaMcp<E extends TSchema = TSchema, S extends TSchema = TSchema> {
   /** Nome da ferramenta, em minúsculas com _ (é o que o agente chama). */
@@ -24,8 +25,14 @@ export interface FerramentaMcp<E extends TSchema = TSchema, S extends TSchema = 
 }
 
 const SoTarefa = Type.Object({ tarefaId: Id }, { additionalProperties: false });
+/** A tarefa com comentários, subtarefas e checklist (M3-02). */
 const TarefaComComentarios = Type.Object(
-  { tarefa: Tarefa, comentarios: Type.Array(ComentarioDeTarefa) },
+  {
+    tarefa: Tarefa,
+    comentarios: Type.Array(ComentarioDeTarefa),
+    subtarefas: Type.Array(Tarefa),
+    checklist: Type.Array(ItemDeChecklist),
+  },
   { additionalProperties: false },
 );
 
@@ -50,7 +57,8 @@ export const FERRAMENTAS_MCP = [
   },
   {
     nome: "ver_tarefa",
-    descricao: "Mostra uma tarefa sua com todos os comentários, do mais antigo para o mais novo.",
+    descricao:
+      "Mostra uma tarefa sua com todos os comentários (do mais antigo para o mais novo), as subtarefas e o checklist.",
     entrada: SoTarefa,
     saida: TarefaComComentarios,
   },
@@ -104,6 +112,31 @@ export const FERRAMENTAS_MCP = [
       { additionalProperties: false },
     ),
     saida: Tarefa,
+  },
+  {
+    nome: "criar_subtarefa",
+    descricao:
+      "Cria uma subtarefa numa tarefa que você pegou, para dividir o trabalho em passos. Sem responsável, a subtarefa fica com você. Ela fica no mesmo projeto e na mesma lista da tarefa-mãe.",
+    entrada: Type.Object(
+      {
+        tarefaId: Id,
+        titulo: Texto(200, "O passo, numa linha."),
+        descricao: Type.Optional(Texto(20000, "Detalhes do passo.")),
+        responsavel: Type.Optional(Responsavel),
+      },
+      { additionalProperties: false },
+    ),
+    saida: Tarefa,
+  },
+  {
+    nome: "marcar_checklist",
+    descricao:
+      "Marca ou desmarca um item do checklist de uma tarefa que você pegou. Marque cada passo assim que terminar, para a pessoa responsável acompanhar.",
+    entrada: Type.Object(
+      { tarefaId: Id, itemId: Id, marcado: Type.Boolean({ description: "true marca; false desmarca." }) },
+      { additionalProperties: false },
+    ),
+    saida: ItemDeChecklist,
   },
   {
     nome: "estou_vivo",

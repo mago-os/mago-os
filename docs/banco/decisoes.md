@@ -168,3 +168,12 @@ O login (`mago_acesso`) não lê papéis nem as regras da plataforma direto. As 
 - `membros_de_projeto` guarda só os membros comuns (pessoa ou agente, sem repetir). A função `membro_do_projeto(projeto, pessoa)` diz se a pessoa é diretora, gerente ou membro, e roda com a permissão de quem chama, então o RLS continua valendo.
 - A tarefa ganha `projeto_id`, opcional ("Sem projeto"), sempre de um projeto da mesma empresa. Projeto com tarefas não se exclui: arquiva-se.
 - Os gatilhos do tempo real (seção 19) passam a avisar também espaços, projetos e membros, com o tipo "projeto".
+
+## 22. Listas, status do projeto, subtarefas e checklist (19/11/2026, M3-02)
+
+- `listas`, `status_de_projeto` e `itens_de_checklist` seguem os contratos de `contratos/src/projetos/lista.ts` e `contratos/src/tarefas/checklist.ts`, com `empresa_id`, RLS forçado e a política de `empresa_ativa()`.
+- Cada status do projeto pertence a um dos cinco tipos fixos, que continua em `tarefas.status`. O tipo não muda depois de criado (a API só atualiza nome, cor e ordem), e a chave composta `(empresa_id, projeto_id, status_do_projeto_id, status)` garante que a tarefa está sempre num status do mesmo tipo.
+- O gatilho `acertar_tarefa`, antes de gravar a tarefa, escolhe a primeira lista do projeto e o primeiro status do tipo quando faltam ou não servem. Assim nenhum caminho (tela, MCP, agente sem sinal, desligamento) precisa lembrar disso. Tarefa de projeto sempre tem lista e status; sem projeto, nenhum dos dois (regra conferida pelo banco).
+- Subtarefa: um nível só e sempre no projeto e na lista da mãe (gatilho `acertar_tarefa`). Quando a mãe muda de projeto ou de lista, o gatilho `levar_subtarefas` leva as subtarefas junto. Excluir a mãe exclui as subtarefas.
+- Projetos que já existiam ganharam a lista "Geral" e os cinco status padrão na própria migração.
+- Os gatilhos do tempo real avisam listas e status como "projeto" e o checklist como "tarefa".
