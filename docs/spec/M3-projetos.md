@@ -106,13 +106,13 @@ Precisa da aprovação do Sandro (o e-mail de aparelho novo é segurança).
 
 - [x] Os avisos do M2-04 viram as notificações do sistema: uma tabela só, com tipo, texto, link, lida ou não, para uma pessoa da empresa
 - [x] O que gera notificação: tarefa atribuída a mim, menção, comentário em tarefa que eu sigo, resultado entregue numa tarefa que eu criei, tarefa que entrou em "Precisa de ajuda", prazo vencendo hoje e prazo vencido (verificação pela fila pg-boss a cada minuto, no fuso de quem recebe; com um agente responsável, recebe a pessoa responsável por ele), e os avisos de agentes do M2-04
-- [x] Seguidores: quem cria, o responsável e quem é mencionado passam a seguir a tarefa; botão Seguir e Deixar de seguir
+- [x] Seguidores: quem cria, o responsável e quem é mencionado passam a seguir a tarefa (só quem vê a tarefa; seguir não dá acesso); botão Seguir e Deixar de seguir
 - [x] Sino no topo com contador e lista, marcar como lida e marcar todas; aviso rápido no canto quando chega algo com o sistema aberto (pelo tempo real do M2-06)
 - [x] Push (decisão 12): Web Push pelo service worker que o app instalável já tem, com as chaves VAPID no Infisical; a pessoa liga por aparelho, e o aparelho desconectado deixa de receber. No iPhone, só com o app instalado na tela de início (limite da Apple), e a tela explica isso
 - [x] Preferências em "Meu perfil": o que chega no sino e o que chega no celular, por tipo, e horário de silêncio (o push espera, o sino recebe na hora)
 - [x] E-mail de aparelho novo (pendência do M1): quando alguém entra num aparelho novo, além do aviso "Foi você?" nos outros aparelhos, vai um e-mail com aparelho, IP e horário (a cidade aproximada ficou de fora: não há serviço de localização por IP no Mago OS), e um link "Não fui eu" que leva à tela Aparelhos. Sem link que faça login
 - [x] Notificação nunca leva dado sensível no texto do push (só "Nova menção em uma tarefa"); o detalhe aparece ao abrir, depois da checagem de permissão
-- [x] Testes de vazamento: uma pessoa só recebe notificações da empresa ativa, e perder acesso à tarefa apaga as notificações dela daquela tarefa
+- [x] Testes de vazamento: uma pessoa só recebe notificações da empresa ativa, e perder acesso à tarefa tira do sino as notificações dela daquela tarefa (ajuste na codificação: elas deixam de aparecer na hora, pela mesma checagem de permissão das telas, sem precisar apagar)
 
 Pronto quando: o Sandro é mencionado numa tarefa pelo computador e o celular dele toca com o app fechado; e entrar com a conta de teste num navegador novo manda o e-mail de aparelho novo.
 
