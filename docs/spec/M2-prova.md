@@ -1,6 +1,6 @@
 # Spec da Fase 1: M2 Prova de ponta a ponta
 
-Parte da [spec da Fase 1](README.md). Estado em 18/11/2026: **aprovado pelo Sandro** (com as cinco decisões abaixo), a construção começa pela M2-01.
+Parte da [spec da Fase 1](README.md). Estado em 19/11/2026: **concluído**. Todas as tarefas no ar em teste.osmago.com; teste do marco feito pelo Sandro em 19/11/2026: o Claude no Mac pegou pelo MCP a tarefa "Listar os arquivos da pasta Gestao/Docs & Guias/Docs do MagoOS", fez e entregou o resultado, que apareceu na tela. Os passos do Hermes marcados "quando estiver em produção" ficam para depois.
 
 **Pronto quando:** o Sandro cria em teste.osmago.com uma tarefa para o Claude no Mac. O Claude pega a tarefa pelo MCP, faz o trabalho e entrega o resultado, que aparece na tela do Sandro sem recarregar. O caminho do Hermes fica pronto e documentado, e o teste com ele vem quando o Hermes estiver em produção (ajuste do Sandro em 18/11/2026). O Sandro desliga um agente e a chave dele para de funcionar na hora. Cada passo aparece na auditoria, e os testes provam que um agente de uma empresa não vê nada da outra.
 
@@ -94,7 +94,7 @@ Pronto quando: um cliente MCP de teste lista as tarefas dele, pega uma, comenta 
 - [x] O aviso leva só o que mudou ("a tarefa X mudou") e a tela busca de novo pela rota normal, então a permissão continua valendo
 - [x] A pessoa só recebe avisos da empresa ativa dela; teste de vazamento entre empresas também aqui
 - [x] Reconexão sozinha quando a internet cai ou o celular volta do segundo plano, buscando o que mudou no meio tempo
-- [ ] Conferir que o Caddy e a Cloudflare deixam o WebSocket passar no teste.osmago.com (depois do merge)
+- [x] Conferir que o Caddy e a Cloudflare deixam o WebSocket passar no teste.osmago.com (conferido em 19/11/2026)
 - [x] Na tela: lista e página da tarefa se atualizam sozinhas, com um destaque curto no que mudou
 
 Pronto quando: com o Mago OS aberto no celular e no computador, um comentário feito num aparece no outro em menos de 2 segundos, sem recarregar.
@@ -116,11 +116,11 @@ Pronto quando: o agente de teste genérico faz o ciclo completo em teste.osmago.
 
 ### M2-08 Ligar o Claude no Mac pelo MCP
 
-- [ ] Cadastrar o "Claude no Mac" na Central de agentes, com o Sandro como responsável, e criar a chave
-- [ ] Guardar a chave no Keychain do Mac e entregar ao Claude Code por um pequeno script que lê do Keychain na hora (a chave não fica no arquivo de configuração do Claude)
-- [ ] Configurar o servidor MCP do Mago OS no Claude Code e testar as ferramentas
-- [ ] Guia no mesmo `docs/operacao/agentes.md`
-- [ ] O Mac dormindo: a tarefa pegada volta para a fila pela verificação de agente vivo (M2-04)
+- [x] Cadastrar o "Claude no Mac" na Central de agentes, com o Sandro como responsável, e criar a chave
+- [x] Guardar a chave no Keychain do Mac e entregar ao Claude Code por um pequeno script que lê do Keychain na hora (a chave não fica no arquivo de configuração do Claude)
+- [x] Configurar o servidor MCP do Mago OS no Claude Code e testar as ferramentas
+- [x] Guia no mesmo `docs/operacao/agentes.md`
+- [x] O Mac dormindo: a tarefa pegada volta para a fila pela verificação de agente vivo (M2-04)
 
 Pronto quando: o Sandro pede no Claude Code do Mac "pega minhas tarefas no Mago OS", o Claude faz uma tarefa que precisa de um arquivo do Mac e o resultado aparece na tela.
 
