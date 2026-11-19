@@ -1,6 +1,6 @@
 # Spec da Fase 1: M3 Projetos e tarefas completos
 
-Parte da [spec da Fase 1](README.md). Estado em 19/11/2026: **aprovado** pelo Sandro, com todas as recomendações (inclusive a M3-11 e os eventos da agenda simples no M5). Em construção: M3-01 a M3-06 prontas em 19/11/2026.
+Parte da [spec da Fase 1](README.md). Estado em 19/11/2026: **aprovado** pelo Sandro, com todas as recomendações (inclusive a M3-11 e os eventos da agenda simples no M5). Em construção: M3-01 a M3-07 prontas em 19/11/2026.
 
 **Pronto quando:** a Nolask organiza um projeto real no Mago OS (sugestão: a própria construção do Mago OS, com as tarefas do M4), com espaço, projeto, diretor e gerente, listas, subtarefas, prazos e etiquetas, e acompanha pelo Kanban, pela lista e pelo calendário. Uma menção a uma pessoa chega no sino e no celular, um anexo passa pelo antivírus antes de abrir, a central de prioridades mostra o que vence hoje e o Ctrl+K acha a tarefa pelo nome. Os testes provam que uma empresa não vê projetos, anexos, notificações nem resultados de busca da outra.
 
@@ -118,12 +118,12 @@ Pronto quando: o Sandro é mencionado numa tarefa pelo computador e o celular de
 
 ### M3-07 Central de prioridades básica
 
-- [ ] Uma lista por pessoa, calculada na hora a partir do que já existe (sem tabela própria, além do estado "adiado" e "resolvido"), com: tarefas minhas atrasadas e vencendo hoje, menções sem resposta, tarefas minhas em "Precisa de ajuda", avisos de agentes e, desde já, o lugar das aprovações que vêm na M4-03
-- [ ] Ordem por regras fixas, sem IA (decisão 13), e cada item diz em uma linha por que está ali ("vence hoje às 14h", "mencionado por Ana há 2 dias")
-- [ ] Ações sem sair da lista: abrir, responder (comentar), mudar status, passar para outra pessoa ou agente, adiar (até amanhã, até segunda, escolher a data) e marcar como resolvido
-- [ ] É a primeira tela do celular e entra como cartão no Início
-- [ ] Tempo real: item novo entra na lista sem recarregar
-- [ ] Teste: cada tipo de item aparece só para quem deve, e um item adiado volta na data
+- [x] Uma lista por pessoa, calculada na hora a partir do que já existe (sem tabela própria, além do estado "adiado" e "resolvido"), com: tarefas minhas atrasadas e vencendo hoje, menções sem resposta, tarefas minhas em "Precisa de ajuda", avisos de agentes e, desde já, o lugar das aprovações que vêm na M4-03
+- [x] Ordem por regras fixas, sem IA (decisão 13), e cada item diz em uma linha por que está ali ("vence hoje às 14h", "mencionado por Ana há 2 dias")
+- [x] Ações sem sair da lista: abrir, responder (comentar), mudar status, passar para outra pessoa ou agente, adiar (até amanhã, até segunda, escolher a data) e marcar como resolvido
+- [x] É a primeira tela do celular e entra como cartão no Início. Ajuste na codificação: no celular, a central é a primeira coisa do Início (com os 5 primeiros itens e "Ver todas"); no computador, é um cartão no Início e tem a tela própria Prioridades no menu
+- [x] Tempo real: item novo entra na lista sem recarregar (aviso lido no sino também some da central, e vice-versa). Decidido com o Sandro: "minha tarefa" é a que tenho como responsável ou cujo responsável é um agente meu, desde que eu a veja; mudar o prazo traz a tarefa de volta; a menção sai quando comento depois dela; resolver um aviso de agente o marca como lido; adiar e resolver são só da pessoa, sem auditoria
+- [x] Teste: cada tipo de item aparece só para quem deve, e um item adiado volta na data
 
 Pronto quando: o Sandro abre o Mago OS de manhã no celular e vê, em ordem, a tarefa atrasada, a que vence hoje e a menção de ontem, adia uma e resolve outra sem sair da lista.
 

@@ -7,6 +7,7 @@ import type {
   Etiqueta,
   FiltroDeTarefas,
   ItemDeChecklist,
+  ItemDePrioridade,
   PedidoDePlanejamento,
   PedidoDeVisaoSalva,
   Responsavel,
@@ -198,3 +199,10 @@ export const acaoNaTrava = (id: string, acao: "pegar" | "soltar" | "destravar", 
     `/tarefas/${encodeURIComponent(id)}/${acao}`,
     acao === "destravar" ? { motivo } : undefined,
   );
+
+/** Central de prioridades (M3-07). */
+export const listarPrioridades = () =>
+  pedir<{ itens: ItemDePrioridade[]; hoje: string }>("GET", "/prioridades");
+export const adiarPrioridade = (chave: string, ate: string) =>
+  pedir<null>("POST", "/prioridades/adiar", { chave, ate });
+export const resolverPrioridade = (chave: string) => pedir<null>("POST", "/prioridades/resolver", { chave });

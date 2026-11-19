@@ -31,6 +31,7 @@ import { AtivarDoisFatores, ConfirmarSegundoFator } from "./telas/DoisFatores";
 import { Empresas } from "./telas/Empresas";
 import { NovaConta } from "./telas/NovaConta";
 import { MeuPerfil } from "./telas/Perfil";
+import { CentralDePrioridades, Prioridades } from "./telas/Prioridades";
 import { PaginaDoProjeto, Projetos } from "./telas/Projetos";
 import { PaginaDaTarefa, Tarefas } from "./telas/Tarefas";
 import { aplicarTema, lerTema, type Tema } from "./tema";
@@ -280,7 +281,15 @@ export function App() {
     conteudo = <Auditoria nomes={nomes} />;
   else if (caminho === "/empresas" && dono) conteudo = <Empresas />;
   else if (caminho === "/aparelhos") conteudo = <MeusAparelhos />;
-  else conteudo = <Inicio sessao={sessao} empresa={empresas.find((e) => e.ativa)?.nome ?? null} />;
+  else if (caminho === "/prioridades" && temEmpresaAtiva) conteudo = <Prioridades />;
+  else
+    conteudo = (
+      <Inicio
+        sessao={sessao}
+        empresa={empresas.find((e) => e.ativa)?.nome ?? null}
+        central={temEmpresaAtiva && pode("tarefas", "ver")}
+      />
+    );
 
   return (
     <Casca
@@ -302,9 +311,15 @@ export function App() {
   );
 }
 
-function Inicio({ sessao, empresa }: { sessao: Sessao; empresa: string | null }) {
+function Inicio({ sessao, empresa, central }: { sessao: Sessao; empresa: string | null; central: boolean }) {
   return (
     <main className="mx-auto grid max-w-5xl gap-4 px-4 py-5 md:grid-cols-[1.4fr_1fr] md:gap-5 md:py-8">
+      {/* No celular, a central de prioridades é a primeira coisa da tela. */}
+      {central && (
+        <div className="md:order-last md:col-span-2">
+          <CentralDePrioridades compacta />
+        </div>
+      )}
       <Card className="items-center gap-2 overflow-hidden text-center md:flex-row md:items-center md:text-left">
         <div className="grid gap-2 md:flex-1">
           <p className="text-xs font-semibold tracking-[0.08em] text-texto-2 uppercase">

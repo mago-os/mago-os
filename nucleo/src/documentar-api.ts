@@ -188,6 +188,24 @@ export const ROTAS: Rota[] = [
   },
   {
     metodo: "GET",
+    caminho: "/prioridades",
+    permissao: "tarefas.ver",
+    oQueFaz: "Central de prioridades de quem pede, na ordem fixa (atrasadas, hoje, ajuda, menções, avisos).",
+  },
+  {
+    metodo: "POST",
+    caminho: "/prioridades/adiar",
+    permissao: "tarefas.ver",
+    oQueFaz: "Adia um item da central até um dia (só para quem pede).",
+  },
+  {
+    metodo: "POST",
+    caminho: "/prioridades/resolver",
+    permissao: "tarefas.ver",
+    oQueFaz: "Marca um item da central como resolvido (aviso de agente fica lido).",
+  },
+  {
+    metodo: "GET",
     caminho: "/visoes",
     permissao: "tarefas.ver",
     oQueFaz: "Lista as visões salvas da pessoa (só as dela).",

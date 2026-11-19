@@ -96,7 +96,8 @@ test.describe("central de agentes", () => {
 
     // A responsável recebe o aviso no alto da tela.
     await page.goto("/");
-    await expect(page.getByText("O agente Claude no Mac foi desligado.")).toBeVisible();
+    // Aparece no alto da tela e na central de prioridades do Início (M3-07); lido num lugar, some dos dois.
+    await expect(page.getByText("O agente Claude no Mac foi desligado.").first()).toBeVisible();
     await page.getByRole("button", { name: "Marcar como lido" }).click();
     await expect(page.getByText("O agente Claude no Mac foi desligado.")).toHaveCount(0);
 

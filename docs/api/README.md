@@ -299,6 +299,9 @@ Todas com o prefixo `/api` no site, menos `/mcp`, que fica em `https://teste.osm
 | POST | `/notificacoes/push` | tarefas.ver | Liga o push neste aparelho (assinatura Web Push do navegador). |
 | DELETE | `/notificacoes/push` | tarefas.ver | Desliga o push neste aparelho. |
 | POST | `/notificacoes/preferencias` | tarefas.ver | Grava o que chega por onde (sino, push) e o horário de silêncio. |
+| GET | `/prioridades` | tarefas.ver | Central de prioridades de quem pede, na ordem fixa (atrasadas, hoje, ajuda, menções, avisos). |
+| POST | `/prioridades/adiar` | tarefas.ver | Adia um item da central até um dia (só para quem pede). |
+| POST | `/prioridades/resolver` | tarefas.ver | Marca um item da central como resolvido (aviso de agente fica lido). |
 | GET | `/visoes` | tarefas.ver | Lista as visões salvas da pessoa (só as dela). |
 | POST | `/visoes` | tarefas.ver | Salva uma visão (nome, tipo, filtros e agrupamento). |
 | DELETE | `/visoes/:id` | tarefas.ver | Apaga uma visão da pessoa. |

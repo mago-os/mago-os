@@ -18,6 +18,7 @@
     "./convites": "./src/convites/index.ts",
     "./contas": "./src/contas/index.ts",
     "./tarefas": "./src/tarefas/index.ts",
+    "./tarefas/prioridades": "./src/tarefas/prioridades.ts",
     "./projetos": "./src/projetos/index.ts",
     "./agentes": "./src/agentes/index.ts",
     "./tempo-real": "./src/tempo-real/index.ts",

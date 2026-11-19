@@ -337,9 +337,19 @@ function NovoComentario({
     if (!texto.trim()) return;
     // Só vale a menção que continua no texto.
     const valendo = mencoes.filter((m) => texto.includes(`@${m.nome}`)).map((m) => m.quem);
+    const enviado = texto;
     const r = await comentarTarefa(tarefaId, texto.trim(), { interna, mencoes: valendo });
     if (!r.ok) return setMensagem({ tipo: "erro", texto: r.mensagem ?? "" });
     setMensagem(null);
+    // O tempo real pode mostrar o comentário antes da resposta chegar: o que a pessoa já começou a escrever depois
+    // não se perde.
+    const agora = caixa.current?.value ?? enviado;
+    if (agora !== enviado) {
+      // Só fica o que foi escrito depois do envio (ou o texto novo inteiro, se a caixa foi trocada).
+      setTexto(agora.startsWith(enviado) ? agora.slice(enviado.length).trimStart() : agora);
+      setMencoes([]);
+      return aoComentar();
+    }
     setTexto("");
     setMencoes([]);
     setInterna(false);
