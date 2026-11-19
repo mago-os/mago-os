@@ -45,10 +45,11 @@ export interface TarefaAberta extends ListaDeTarefas {
   comentarios: ComentarioDeTarefa[];
 }
 
-export function listarTarefas(filtro: { minhas: boolean; status: StatusTarefa[] }) {
+export function listarTarefas(filtro: { minhas: boolean; status: StatusTarefa[]; projetoId?: string }) {
   const q = new URLSearchParams();
   if (filtro.minhas) q.set("minhas", "1");
   if (filtro.status.length > 0) q.set("status", filtro.status.join(","));
+  if (filtro.projetoId) q.set("projeto", filtro.projetoId);
   return pedir<ListaDeTarefas>("GET", `/tarefas?${q}`);
 }
 
@@ -59,7 +60,12 @@ export const criarTarefa = (dados: {
   titulo: string;
   descricao: string | null;
   responsavel?: Responsavel | null;
+  projetoId?: string | null;
 }) => pedir<Tarefa>("POST", "/tarefas", dados);
+
+/** Muda a tarefa de projeto, ou tira do projeto (nulo) (M3-01). */
+export const mudarProjeto = (id: string, projetoId: string | null) =>
+  pedir<Tarefa>("POST", `/tarefas/${encodeURIComponent(id)}/projeto`, { projetoId });
 
 export const mudarStatus = (
   id: string,

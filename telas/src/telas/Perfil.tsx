@@ -104,7 +104,13 @@ export function MeuPerfil() {
 
   return (
     <main className="mx-auto grid max-w-2xl gap-4 px-4 py-5 md:py-8">
-      <h1 className="text-2xl font-bold tracking-tight">Meu perfil</h1>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h1 className="text-2xl font-bold tracking-tight">Meu perfil</h1>
+        {/* No celular, Meus aparelhos saiu do menu de baixo para dar lugar a Projetos (M3-01). */}
+        <a href="/aparelhos" className="text-sm text-texto-2 underline underline-offset-2 hover:text-tinta">
+          Meus aparelhos
+        </a>
+      </div>
       <Dados perfil={perfil} aoSalvar={carregar} />
       {perfil.temSenha && <Senha comConfirmacao={comConfirmacao} />}
       <Seguranca

@@ -4,6 +4,7 @@
  */
 import {
   Download,
+  FolderKanban,
   House,
   ListChecks,
   LogOut,
@@ -29,6 +30,7 @@ export interface ItemDoMenu {
 export const MENU_DA_PESSOA: ItemDoMenu[] = [
   { caminho: "/", nome: "Início", icone: House },
   { caminho: "/tarefas", nome: "Tarefas", icone: ListChecks },
+  { caminho: "/projetos", nome: "Projetos", icone: FolderKanban },
   { caminho: "/perfil", nome: "Meu perfil", icone: UserRound },
   { caminho: "/aparelhos", nome: "Meus aparelhos", icone: MonitorSmartphone },
 ];
@@ -202,8 +204,11 @@ export function Casca(props: PropsDaCasca) {
             <Mago tamanho={44} cor="sobre-tinta" />
           </span>
         </a>
-        <ItemDeBaixo item={MENU_DA_PESSOA[3] as ItemDoMenu} aqui={caminho === "/aparelhos"} />
-        <ItemDeBaixo item={MENU_DA_PESSOA[2] as ItemDoMenu} aqui={caminho === "/perfil"} />
+        <ItemDeBaixo item={MENU_DA_PESSOA[2] as ItemDoMenu} aqui={caminho.startsWith("/projetos")} />
+        <ItemDeBaixo
+          item={MENU_DA_PESSOA[3] as ItemDoMenu}
+          aqui={caminho === "/perfil" || caminho === "/aparelhos"}
+        />
       </nav>
     </div>
   );

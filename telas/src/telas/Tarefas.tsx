@@ -19,6 +19,7 @@ import { Button } from "@/componentes/ui/button";
 import { Campo } from "@/componentes/ui/campo";
 import { Card, CardTitulo } from "@/componentes/ui/card";
 import { cn } from "@/lib/utils";
+import { listarProjetos } from "@/projetos";
 import {
   abrirTarefa,
   acaoNaTrava,
@@ -26,6 +27,7 @@ import {
   criarTarefa,
   excluirTarefa,
   listarTarefas,
+  mudarProjeto,
   mudarStatus,
   type TarefaAberta,
   trocarResponsavel,
@@ -46,7 +48,7 @@ const COR_DO_STATUS: Record<StatusTarefa, string> = {
 
 const ABERTOS: StatusTarefa[] = ["a_fazer", "em_andamento", "precisa_de_ajuda"];
 
-const quando = (iso: string) =>
+export const quando = (iso: string) =>
   new Date(iso).toLocaleString("pt-BR", {
     day: "2-digit",
     month: "2-digit",
@@ -62,14 +64,14 @@ export function Etiqueta({ status }: { status: StatusTarefa }) {
   );
 }
 
-function nomeDe(quem: Autor | Responsavel | null, nomes: Record<string, string>): string {
+export function nomeDe(quem: Autor | Responsavel | null, nomes: Record<string, string>): string {
   if (!quem) return "Sem responsável";
   if (quem.tipo === "pessoa") return nomes[quem.pessoaId] ?? "Pessoa";
   if (quem.tipo === "agente") return nomes[quem.agenteId] ?? "Agente";
   return "Mago OS";
 }
 
-function MarcaDeAgente({ quem }: { quem: Autor | Responsavel | null }) {
+export function MarcaDeAgente({ quem }: { quem: Autor | Responsavel | null }) {
   if (quem?.tipo !== "agente") return null;
   return (
     <span className="inline-flex items-center gap-1 rounded-full bg-suave px-2 py-0.5 text-[11px] text-texto-2">
@@ -203,7 +205,15 @@ export function Tarefas({ podeCriar, euId }: { podeCriar: boolean; euId: string 
   );
 }
 
-function Filtro({ ativo, aoClicar, children }: { ativo: boolean; aoClicar: () => void; children: string }) {
+export function Filtro({
+  ativo,
+  aoClicar,
+  children,
+}: {
+  ativo: boolean;
+  aoClicar: () => void;
+  children: string;
+}) {
   return (
     <button
       type="button"
@@ -219,7 +229,7 @@ function Filtro({ ativo, aoClicar, children }: { ativo: boolean; aoClicar: () =>
   );
 }
 
-function usePessoas() {
+export function usePessoas() {
   const [pessoas, setPessoas] = useState<PessoaDaEmpresa[]>([]);
   useEffect(() => {
     void listarPessoas().then((l) => setPessoas((l ?? []).filter((p) => p.situacao === "ativo")));
@@ -228,7 +238,7 @@ function usePessoas() {
 }
 
 /** Agentes ativos (só eles recebem tarefa nova). */
-function useAgentesAtivos() {
+export function useAgentesAtivos() {
   const [agentes, setAgentes] = useState<AgenteNaLista[]>([]);
   useEffect(() => {
     void listarAgentes().then((r) => setAgentes((r.dados ?? []).filter((a) => a.situacao === "ativo")));
@@ -236,19 +246,28 @@ function useAgentesAtivos() {
   return agentes;
 }
 
+/** Projetos ativos que a pessoa vê (para pôr uma tarefa num projeto). */
+export function useProjetosAtivos() {
+  const [projetos, setProjetos] = useState<{ id: string; nome: string }[]>([]);
+  useEffect(() => {
+    void listarProjetos().then((r) => setProjetos(r.dados?.projetos ?? []));
+  }, []);
+  return projetos;
+}
+
 /** No seletor, agente vale "agente:<id>" e pessoa vale o id dela. */
-function valorDoResponsavel(r: Responsavel | null): string {
+export function valorDoResponsavel(r: Responsavel | null): string {
   if (r?.tipo === "agente") return `agente:${r.agenteId}`;
   return r?.tipo === "pessoa" ? r.pessoaId : "";
 }
 
-function responsavelDoValor(v: string): Responsavel | null {
+export function responsavelDoValor(v: string): Responsavel | null {
   if (!v || v === "nenhum") return null;
   if (v.startsWith("agente:")) return { tipo: "agente", agenteId: v.slice("agente:".length) };
   return { tipo: "pessoa", pessoaId: v };
 }
 
-function SeletorDeResponsavel({
+export function SeletorDeResponsavel({
   id,
   valor,
   aoMudar,
@@ -297,12 +316,15 @@ function SeletorDeResponsavel({
   );
 }
 
-function NovaTarefa({
+export function NovaTarefa({
   euId,
+  projetoId,
   aoCancelar,
   aoCriar,
 }: {
   euId: string;
+  /** Cria a tarefa já neste projeto (M3-01). */
+  projetoId?: string;
   aoCancelar: () => void;
   aoCriar: (t: Tarefa) => void;
 }) {
@@ -320,6 +342,7 @@ function NovaTarefa({
     const r = await criarTarefa({
       titulo: String(f.get("titulo")).trim(),
       descricao: String(f.get("descricao")).trim() || null,
+      ...(projetoId ? { projetoId } : {}),
       ...(responsavel === ""
         ? {}
         : {
@@ -400,6 +423,7 @@ export function PaginaDaTarefa({
   const [concluindo, setConcluindo] = useState(false);
   const pessoas = usePessoas();
   const agentes = useAgentesAtivos();
+  const projetos = useProjetosAtivos();
 
   const ultimoPedido = useRef(0);
   const carregar = useCallback(async () => {
@@ -449,6 +473,12 @@ export function PaginaDaTarefa({
     setMensagem(
       r.ok ? { tipo: "ok", texto: "Responsável trocado." } : { tipo: "erro", texto: r.mensagem ?? "" },
     );
+    void carregar();
+  }
+
+  async function aoMudarProjeto(valor: string) {
+    const r = await mudarProjeto(tarefa.id, valor || null);
+    setMensagem(r.ok ? { tipo: "ok", texto: "Projeto trocado." } : { tipo: "erro", texto: r.mensagem ?? "" });
     void carregar();
   }
 
@@ -538,6 +568,36 @@ export function PaginaDaTarefa({
       {mensagem && <Aviso {...mensagem} />}
 
       <Card className="gap-3">
+        <div className="grid gap-1.5">
+          <label htmlFor="projeto" className="text-sm font-medium">
+            Projeto
+          </label>
+          {podeEditar ? (
+            <select
+              id="projeto"
+              className="h-11 rounded-md border border-linha bg-cartao px-3 text-base"
+              value={tarefa.projetoId ?? ""}
+              onChange={(e) => void aoMudarProjeto(e.target.value)}
+            >
+              <option value="">Sem projeto</option>
+              {/* O projeto de hoje aparece mesmo arquivado ou fora da lista de quem vê. */}
+              {tarefa.projetoId && !projetos.some((p) => p.id === tarefa.projetoId) && (
+                <option value={tarefa.projetoId}>Projeto atual</option>
+              )}
+              {projetos.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.nome}
+                </option>
+              ))}
+            </select>
+          ) : tarefa.projetoId ? (
+            <a id="projeto" href={`/projetos/${tarefa.projetoId}`} className="underline underline-offset-2">
+              {projetos.find((p) => p.id === tarefa.projetoId)?.nome ?? "Abrir o projeto"}
+            </a>
+          ) : (
+            <p id="projeto">Sem projeto</p>
+          )}
+        </div>
         <div className="grid gap-1.5">
           <label htmlFor="responsavel" className="text-sm font-medium">
             Responsável
