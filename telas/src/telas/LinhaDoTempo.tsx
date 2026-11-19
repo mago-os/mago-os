@@ -91,7 +91,7 @@ export function TextoComFormatacao({ texto }: { texto: string }) {
 
 // Acontecimentos -------------------------------------------------------------------------------------------------
 
-function textoDoAcontecimento(a: AcontecimentoDaTarefa): string {
+function textoDoAcontecimento(a: AcontecimentoDaTarefa, nomes: Record<string, string>): string {
   const d = a.detalhes as Record<string, unknown>;
   switch (a.tipo) {
     case "criou":
@@ -101,7 +101,7 @@ function textoDoAcontecimento(a: AcontecimentoDaTarefa): string {
     case "entregou_resultado":
       return "entregou o resultado e concluiu";
     case "trocou_responsavel":
-      return d.para === null ? "tirou o responsável" : "trocou o responsável";
+      return d.para ? `passou a tarefa para ${nomeDe(d.para as Responsavel, nomes)}` : "tirou o responsável";
     case "mudou_prazo":
       return d.dia ? `mudou o prazo para ${String(d.dia).split("-").reverse().join("/")}` : "tirou o prazo";
     case "mudou_prioridade":
@@ -177,7 +177,7 @@ export function LinhaDoTempo({
   return (
     <section className="grid gap-3" aria-label="Comentários">
       <h2 className="text-lg font-semibold">Comentários</h2>
-      {comentarios.length === 0 && <p className="text-sm text-texto-2">Nenhum comentário ainda.</p>}
+      {itens.length === 0 && <p className="text-sm text-texto-2">Nenhum comentário ainda.</p>}
       <ul className="grid gap-2">
         {itens.map((item) => {
           if (item.tipo === "acontecimento") {
@@ -186,7 +186,7 @@ export function LinhaDoTempo({
               <li key={a.id} className="flex flex-wrap items-center gap-1.5 px-1 text-xs text-texto-2">
                 <span className="font-medium">{nomeDe(a.autor, nomes)}</span>
                 <MarcaDeAgente quem={a.autor} />
-                <span>{textoDoAcontecimento(a)}</span>
+                <span>{textoDoAcontecimento(a, nomes)}</span>
                 <span>· {quando(a.criadoEm)}</span>
               </li>
             );
@@ -284,6 +284,8 @@ function EdicaoDoComentario({
   );
 }
 
+const chaveDe = (r: Responsavel) => (r.tipo === "pessoa" ? `p:${r.pessoaId}` : `a:${r.agenteId}`);
+
 interface Mencionavel {
   quem: Responsavel;
   nome: string;
@@ -325,7 +327,7 @@ function NovoComentario({
     const cursor = caixa.current?.selectionStart ?? texto.length;
     const antes = texto.slice(0, cursor).replace(/@([\p{L}\p{N} ]{0,30})$/u, `@${m.nome} `);
     setTexto(antes + texto.slice(cursor));
-    setMencoes((l) => (l.some((x) => x.nome === m.nome) ? l : [...l, m]));
+    setMencoes((l) => (l.some((x) => chaveDe(x.quem) === chaveDe(m.quem)) ? l : [...l, m]));
     setBusca(null);
     caixa.current?.focus();
   }
@@ -369,7 +371,7 @@ function NovoComentario({
           className="absolute top-full z-10 mt-1 grid w-64 gap-0.5 rounded-md border border-linha bg-cartao p-1 shadow-lg"
         >
           {sugestoes.map((m) => (
-            <li key={m.nome}>
+            <li key={chaveDe(m.quem)}>
               <button
                 type="button"
                 role="option"

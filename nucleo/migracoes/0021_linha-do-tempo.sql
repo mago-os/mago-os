@@ -42,7 +42,8 @@ CREATE TABLE public.mencoes_de_comentario (
     REFERENCES public.agentes (empresa_id, id),
   CONSTRAINT mencoes_um_so CHECK (num_nonnulls(pessoa_id, agente_id) = 1)
 );
-CREATE INDEX mencoes_por_comentario ON public.mencoes_de_comentario (comentario_id);
+CREATE UNIQUE INDEX mencoes_pessoa_uma_vez ON public.mencoes_de_comentario (comentario_id, pessoa_id) WHERE pessoa_id IS NOT NULL;
+CREATE UNIQUE INDEX mencoes_agente_uma_vez ON public.mencoes_de_comentario (comentario_id, agente_id) WHERE agente_id IS NOT NULL;
 CREATE INDEX mencoes_por_agente ON public.mencoes_de_comentario (empresa_id, agente_id) WHERE agente_id IS NOT NULL;
 CREATE INDEX mencoes_por_pessoa ON public.mencoes_de_comentario (empresa_id, pessoa_id) WHERE pessoa_id IS NOT NULL;
 COMMENT ON TABLE public.mencoes_de_comentario IS 'Quem foi mencionado com @ em cada comentário (pessoa ou agente da empresa).';
@@ -91,13 +92,45 @@ CREATE POLICY acontecimentos_da_empresa_ativa ON public.acontecimentos_de_tarefa
   FOR ALL TO mago_app USING (empresa_id = public.empresa_ativa()) WITH CHECK (empresa_id = public.empresa_ativa());
 REVOKE UPDATE, DELETE ON public.acontecimentos_de_tarefa FROM mago_app;
 
--- Tempo real: comentário editado ou apagado também avisa a tarefa.
+-- Tempo real: comentário editado ou apagado e acontecimento novo também avisam a tarefa.
 DROP TRIGGER comentarios_avisam ON public.comentarios_de_tarefa;
 CREATE TRIGGER comentarios_avisam AFTER INSERT OR UPDATE ON public.comentarios_de_tarefa
+  FOR EACH ROW EXECUTE FUNCTION public.avisar_mudanca();
+CREATE OR REPLACE FUNCTION public.avisar_mudanca() RETURNS trigger
+  LANGUAGE plpgsql
+  AS $$
+  DECLARE
+    linha record := CASE WHEN TG_OP = 'DELETE' THEN OLD ELSE NEW END;
+    tipo text;
+    id uuid;
+  BEGIN
+    IF TG_TABLE_NAME IN ('comentarios_de_tarefa', 'itens_de_checklist', 'etiquetas_de_tarefa', 'acontecimentos_de_tarefa') THEN
+      tipo := 'tarefa';
+      id := linha.tarefa_id;
+    ELSIF TG_TABLE_NAME = 'tarefas' THEN
+      tipo := 'tarefa';
+      id := linha.id;
+    ELSIF TG_TABLE_NAME IN ('membros_de_projeto', 'listas', 'status_de_projeto') THEN
+      tipo := 'projeto';
+      id := linha.projeto_id;
+    ELSIF TG_TABLE_NAME IN ('projetos', 'espacos') THEN
+      tipo := 'projeto';
+      id := linha.id;
+    ELSE
+      tipo := 'agente';
+      id := linha.id;
+    END IF;
+    PERFORM pg_notify('mago_mudancas',
+      json_build_object('empresaId', linha.empresa_id, 'tipo', tipo, 'id', id, 'operacao', lower(TG_OP))::text);
+    RETURN NULL;
+  END
+  $$;
+CREATE TRIGGER acontecimentos_avisam AFTER INSERT ON public.acontecimentos_de_tarefa
   FOR EACH ROW EXECUTE FUNCTION public.avisar_mudanca();
 
 -- Down Migration
 
+DROP TRIGGER acontecimentos_avisam ON public.acontecimentos_de_tarefa;
 DROP TRIGGER comentarios_avisam ON public.comentarios_de_tarefa;
 CREATE TRIGGER comentarios_avisam AFTER INSERT ON public.comentarios_de_tarefa
   FOR EACH ROW EXECUTE FUNCTION public.avisar_mudanca();

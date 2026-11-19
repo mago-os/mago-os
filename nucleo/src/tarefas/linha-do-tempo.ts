@@ -18,7 +18,7 @@ export function acontecimentoDaAcao(
         ? { tipo: "entregou_resultado", detalhes: { de: detalhes.de ?? null } }
         : { tipo: "mudou_status", detalhes: { de: detalhes.de ?? null, para: detalhes.para ?? null } };
     case "tarefa.trocou_responsavel":
-      return { tipo: "trocou_responsavel", detalhes: { para: detalhes.responsavel ?? null } };
+      return { tipo: "trocou_responsavel", detalhes: { para: detalhes.para ?? null } };
     case "tarefa.mudou_prazo":
       return { tipo: "mudou_prazo", detalhes: { dia: detalhes.dia ?? null, hora: detalhes.hora ?? null } };
     case "tarefa.mudou_prioridade":
@@ -96,7 +96,9 @@ export async function mencoesPendentes(c: pg.PoolClient, agenteId: string): Prom
   const r = await c.query<{ tarefa_id: string }>(
     `select distinct mc.tarefa_id from mencoes_de_comentario mc
        join comentarios_de_tarefa cm on cm.id = mc.comentario_id
+       join tarefas t on t.id = mc.tarefa_id and t.empresa_id = mc.empresa_id
       where mc.empresa_id = empresa_ativa() and mc.agente_id = $1 and cm.tipo = 'comentario' and cm.apagado_em is null
+        and t.status not in ('concluida', 'cancelada')
         and not exists (select 1 from comentarios_de_tarefa r where r.tarefa_id = mc.tarefa_id
                           and r.empresa_id = mc.empresa_id and r.autor_agente_id = $1 and r.criado_em > cm.criado_em)`,
     [agenteId],

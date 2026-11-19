@@ -235,6 +235,26 @@ describe.skipIf(!bancoDisponivel)("linha do tempo", () => {
     ]);
   });
 
+  it("tirar o @ do texto ao editar tira a menção; menção repetida conta uma vez", async () => {
+    const ana = await como("ana@teste.invalid");
+    const t = (await pedir("POST", "/tarefas", ana, { titulo: "Menção errada" })).json().id;
+    const c = await pedir("POST", `/tarefas/${t}/comentarios`, ana, {
+      texto: "@Claude no Mac veja",
+      mencoes: [
+        { tipo: "agente", agenteId: agente },
+        { tipo: "agente", agenteId: agente },
+      ],
+    });
+    expect(c.json().mencoes).toHaveLength(1);
+    expect(await comEmpresa(poolApp, empresaId, (x) => mencoesPendentes(x, agente))).toContain(t);
+    await pedir("POST", `/tarefas/${t}/comentarios/${c.json().id}`, ana, {
+      texto: "Esqueça, não era para você",
+    });
+    expect(await comEmpresa(poolApp, empresaId, (x) => mencoesPendentes(x, agente))).not.toContain(t);
+    const quem = { tipo: "agente" as const, agenteId: agente, comoGerente: true };
+    expect(await comEmpresa(poolApp, empresaId, (x) => buscarTarefa(x, quem, t))).toBeNull();
+  });
+
   it("menção a quem não vê a tarefa não abre a tarefa, e outra empresa não vê nada", async () => {
     const ana = await como("ana@teste.invalid");
     const t = (await pedir("POST", "/tarefas", ana, { titulo: "Só da Ana" })).json().id;

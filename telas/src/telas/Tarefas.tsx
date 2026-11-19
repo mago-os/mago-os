@@ -351,6 +351,7 @@ export function PaginaDaTarefa({
   podeEditar,
   podeDestravar,
   podeExcluir,
+  podeApagarComentarios = false,
 }: {
   id: string;
   euId: string;
@@ -358,6 +359,8 @@ export function PaginaDaTarefa({
   /** Destravar a tarefa pegada por outro (ação "aprovar" das tarefas; padrão: o administrador). */
   podeDestravar: boolean;
   podeExcluir: boolean;
+  /** Apaga comentários dos outros: quem exclui qualquer tarefa (alcance "tudo"; padrão: o administrador). */
+  podeApagarComentarios?: boolean;
 }) {
   const [aberta, setAberta] = useState<Omit<TarefaAberta, "tarefas"> | null | undefined>(undefined);
   const [mensagem, setMensagem] = useState<Mensagem>(null);
@@ -759,7 +762,7 @@ export function PaginaDaTarefa({
         pessoas={pessoas}
         agentes={agentes}
         euId={euId}
-        podeApagarTodos={podeExcluir}
+        podeApagarTodos={podeApagarComentarios}
         destaques={destaques}
         aoMudar={() => void carregar()}
       />

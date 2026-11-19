@@ -383,12 +383,21 @@ export async function buscarComentario(
   return r.rows[0] ? paraComentario(r.rows[0]) : null;
 }
 
-/** Edita o texto (quem escreveu, dentro do prazo, conferido na rota). As menções ficam como estavam. */
+/**
+ * Edita o texto (quem escreveu, dentro do prazo, conferido na rota). A menção que saiu do texto (o "@Nome" não está
+ * mais lá) deixa de valer: o agente não vê mais a tarefa por ela.
+ */
 export async function editarComentario(
   c: pg.PoolClient,
   id: string,
   texto: string,
 ): Promise<ComentarioDeTarefa> {
+  await c.query(
+    `delete from mencoes_de_comentario m where m.comentario_id = $1 and m.empresa_id = empresa_ativa()
+        and strpos($2, '@' || coalesce((select p.nome from pessoas p where p.id = m.pessoa_id),
+                                       (select a.nome from agentes a where a.id = m.agente_id))) = 0`,
+    [id, texto.trim()],
+  );
   const r = await c.query<LinhaDoComentario>(
     `update comentarios_de_tarefa cm set texto = $2, editado_em = now()
       where cm.id = $1 and cm.empresa_id = empresa_ativa() returning ${COLUNAS_DO_COMENTARIO}`,
@@ -532,7 +541,14 @@ export async function comentar(
     [tarefaId, pessoa, agente, texto.trim(), opcoes.tipo ?? "comentario"],
   );
   const id = (r.rows[0] as { id: string }).id;
-  const mencoes = opcoes.mencoes ?? [];
+  // Cada pessoa ou agente uma vez só por comentário.
+  const vistas = new Set<string>();
+  const mencoes = (opcoes.mencoes ?? []).filter((m) => {
+    const k = m.tipo === "pessoa" ? `p:${m.pessoaId}` : `a:${m.agenteId}`;
+    if (vistas.has(k)) return false;
+    vistas.add(k);
+    return true;
+  });
   if (mencoes.length > 0) {
     await c.query(
       `insert into mencoes_de_comentario (empresa_id, comentario_id, tarefa_id, pessoa_id, agente_id)

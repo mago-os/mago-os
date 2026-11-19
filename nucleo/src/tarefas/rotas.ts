@@ -749,6 +749,7 @@ export function registrarRotasDasTarefas(
         return resposta.code(400).send({ code: "RESPONSAVEL_INVALIDO", message: feito.recusa });
       await registrar(pedido, "tarefa.trocou_responsavel", id, {
         responsavel: r.valor.responsavel?.tipo ?? null,
+        para: r.valor.responsavel,
       });
       if (feito.soltou) await registrar(pedido, "tarefa.soltou", id);
       return feito.tarefa;
@@ -889,12 +890,12 @@ export function registrarRotasDasTarefas(
         const doAutor = cm.autor.tipo === "pessoa" && cm.autor.pessoaId === quem.pessoaId;
         if (!doAutor && !excluiTodas)
           return { recusa: "Só quem escreveu (ou o administrador) apaga o comentário." };
-        if (cm.apagadoEm) return { comentario: cm };
-        return { comentario: await apagarComentario(c, cm.id) };
+        if (cm.apagadoEm) return { comentario: cm, jaEstava: true };
+        return { comentario: await apagarComentario(c, cm.id), jaEstava: false };
       });
       if (!feito) return naoEncontrada(resposta);
       if ("recusa" in feito) return resposta.code(403).send({ code: "SEM_PERMISSAO", message: feito.recusa });
-      await registrar(pedido, "tarefa.apagou_comentario", id, { comentarioId });
+      if (!feito.jaEstava) await registrar(pedido, "tarefa.apagou_comentario", id, { comentarioId });
       return feito.comentario;
     },
   );
