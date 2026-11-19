@@ -18,13 +18,14 @@ export const TIPOS_DE_PRIORIDADE = [
 ] as const;
 export const TipoDePrioridade = Type.Enum(TIPOS_DE_PRIORIDADE, {
   description:
-    "atrasada e vence_hoje: tarefa minha (sou o responsável, ou o dono do agente responsável); precisa_de_ajuda: tarefa minha nesse status; mencao: menção a mim sem resposta minha depois dela; aviso_de_agente: aviso de agente não lido; aprovacao: pedido de aprovação (M4-03).",
+    "atrasada e vence_hoje: tarefa minha que eu vejo (sou o responsável, ou o dono do agente responsável); precisa_de_ajuda: tarefa minha nesse status; mencao: menção a mim sem resposta minha depois dela; aviso_de_agente: aviso de agente não lido; aprovacao: pedido de aprovação (M4-03).",
 });
 export type TipoDePrioridade = Static<typeof TipoDePrioridade>;
 
 /**
- * Chave do item, estável enquanto a situação não muda: "tarefa:<id>:<prazo>" (mudar o prazo cria um item novo),
- * "ajuda:<id>", "mencao:<comentário>", "aviso:<id>". É por ela que se adia e se resolve.
+ * Chave do item, estável enquanto a situação não muda: "atrasada:<id>:<prazo>" e "hoje:<id>:<prazo>" (mudar o prazo
+ * cria um item novo), "ajuda:<id>:<quando entrou em Precisa de ajuda>", "mencao:<comentário>", "aviso:<id>". É por
+ * ela que se adia e se resolve.
  */
 export const ChaveDePrioridade = Texto(160, "Chave do item na central.");
 

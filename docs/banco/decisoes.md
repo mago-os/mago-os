@@ -205,3 +205,9 @@ O login (`mago_acesso`) não lê papéis nem as regras da plataforma direto. As 
 - Verificação a cada minuto (pg-boss): `empresas_com_prazo_para_avisar` e `empresas_com_push_pendente` (dono, só ids) acham o trabalho; cada empresa roda com a empresa dela. `tarefas.avisou_prazo_hoje_em` e `avisou_prazo_vencido_em` garantem um aviso por prazo; mudar o prazo apaga as marcas.
 - O aviso de tarefa só vai, e só aparece no sino, para quem vê a tarefa, pela permissão real da pessoa (perfil, ajustes e alcance, a mesma consulta das rotas). Seguir não dá acesso, e quem não vê não vira seguidor. O texto do push é genérico, sem dado da tarefa.
 - O envio do push marca os avisos numa transação curta (por pessoa, fora do silêncio dela) e chama o serviço de push fora da transação: o banco não fica preso esperando a internet, e um erro no meio não manda o mesmo push duas vezes.
+
+## 27. Central de prioridades (19/11/2026, M3-07)
+
+- A central é calculada na hora a partir das tarefas, menções e avisos, sem tabela própria. `estados_de_prioridade` guarda só o que a pessoa fez com cada item (adiou até um momento, ou resolveu), e é pessoal: a política usa `empresa_ativa()` e `pessoa_ativa()`, como as visões salvas.
+- A chave do item muda quando a situação muda: a tarefa atrasada e a que vence hoje levam o prazo na chave (com prefixos diferentes, para o "vence hoje" resolvido não esconder a tarefa quando ela atrasar), e o "precisa de ajuda" leva o momento em que a tarefa entrou nesse status. Mudar o prazo ou pedir ajuda de novo traz o item de volta.
+- Aviso lido (no sino ou na central) também avisa as telas da pessoa pelo tempo real (gatilho `avisos_lidos_avisam`), para o sino e a central ficarem iguais.

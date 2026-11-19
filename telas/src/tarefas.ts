@@ -201,7 +201,8 @@ export const acaoNaTrava = (id: string, acao: "pegar" | "soltar" | "destravar", 
   );
 
 /** Central de prioridades (M3-07). */
-export const listarPrioridades = () => pedir<{ itens: ItemDePrioridade[] }>("GET", "/prioridades");
+export const listarPrioridades = () =>
+  pedir<{ itens: ItemDePrioridade[]; hoje: string }>("GET", "/prioridades");
 export const adiarPrioridade = (chave: string, ate: string) =>
   pedir<null>("POST", "/prioridades/adiar", { chave, ate });
 export const resolverPrioridade = (chave: string) => pedir<null>("POST", "/prioridades/resolver", { chave });

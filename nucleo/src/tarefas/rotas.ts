@@ -58,7 +58,13 @@ import {
   recorrerSePreciso,
   recusaDoPlanejamento,
 } from "./planejamento.ts";
-import { adiarPrioridade, CHAVE_VALIDA, listarPrioridades, resolverPrioridade } from "./prioridades.ts";
+import {
+  adiarPrioridade,
+  CHAVE_VALIDA,
+  hojeDe,
+  listarPrioridades,
+  resolverPrioridade,
+} from "./prioridades.ts";
 import {
   apagarComentario,
   autorDe,
@@ -672,7 +678,11 @@ export function registrarRotasDasTarefas(
   // Central de prioridades (M3-07): calculada na hora; adiar e resolver são só da pessoa (sem auditoria).
   app.get("/prioridades", { preHandler: verificador.exigir("tarefas", "ver") }, async (pedido) => {
     const quem = quemDoPedido(pedido);
-    return naEmpresa(pedido, async (c) => ({ itens: await listarPrioridades(c, quem) }));
+    // "hoje" no fuso da pessoa: a tela calcula amanhã e segunda a partir dele, como o servidor confere.
+    return naEmpresa(pedido, async (c) => ({
+      itens: await listarPrioridades(c, quem),
+      hoje: await hojeDe(c, quem.pessoaId),
+    }));
   });
 
   const chaveInvalida = (resposta: FastifyReply) =>

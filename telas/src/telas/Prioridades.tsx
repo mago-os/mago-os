@@ -9,7 +9,7 @@ import {
   type StatusTarefa,
   type TipoDePrioridade,
 } from "@mago-os/contratos";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/componentes/ui/button";
 import { Card, CardTitulo } from "@/componentes/ui/card";
 import { cn } from "@/lib/utils";
@@ -43,37 +43,50 @@ const COR: Record<TipoDePrioridade, string> = {
   aprovacao: "bg-suave text-tinta",
 };
 
-/** AAAA-MM-DD do dia daqui a "n" dias (no relógio do aparelho). */
-function diaDaqui(n: number): string {
-  const d = new Date();
-  d.setDate(d.getDate() + n);
-  return d.toLocaleDateString("en-CA");
+/** AAAA-MM-DD "n" dias depois de "hoje" (o hoje vem do servidor, no fuso do perfil). */
+function diaDepois(hoje: string, n: number): string {
+  const d = new Date(`${hoje}T12:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + n);
+  return d.toISOString().slice(0, 10);
 }
 
 /** A próxima segunda-feira (nunca hoje). */
-function proximaSegunda(): string {
-  const hoje = new Date().getDay();
-  return diaDaqui((8 - hoje) % 7 || 7);
+function proximaSegunda(hoje: string): string {
+  const semana = new Date(`${hoje}T12:00:00Z`).getUTCDay();
+  return diaDepois(hoje, (8 - semana) % 7 || 7);
 }
 
 type Aberto = { chave: string; acao: "responder" | "status" | "passar" | "adiar" } | null;
 
 export function CentralDePrioridades({ compacta = false }: { compacta?: boolean }) {
   const [itens, setItens] = useState<ItemDePrioridade[] | null>(null);
+  const [hoje, setHoje] = useState(() => new Date().toLocaleDateString("en-CA"));
   const [aberto, setAberto] = useState<Aberto>(null);
   const [mensagem, setMensagem] = useState<{ texto: string; tipo: "erro" | "ok" } | null>(null);
 
   const carregar = useCallback(async () => {
     const r = await listarPrioridades();
-    if (r.ok && r.dados) setItens(r.dados.itens);
-    else setMensagem({ tipo: "erro", texto: r.mensagem ?? "" });
+    if (r.ok && r.dados) {
+      setItens(r.dados.itens);
+      setHoje(r.dados.hoje);
+    } else setMensagem({ tipo: "erro", texto: r.mensagem ?? "" });
   }, []);
   useEffect(() => {
     void carregar();
   }, [carregar]);
-  // Item novo entra sem recarregar: tarefas, comentários e avisos mudam a lista.
+  // Item novo entra sem recarregar: tarefas, comentários e avisos mudam a lista. Várias mudanças seguidas (de toda a
+  // empresa) viram uma busca só, depois de um segundo.
+  const espera = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(
+    () => () => {
+      if (espera.current) clearTimeout(espera.current);
+    },
+    [],
+  );
   useTempoReal((aviso) => {
-    if (aviso.tipo === "tarefa" || aviso.tipo === "aviso" || aviso.tipo === "reconectou") void carregar();
+    if (aviso.tipo !== "tarefa" && aviso.tipo !== "aviso" && aviso.tipo !== "reconectou") return;
+    if (espera.current) clearTimeout(espera.current);
+    espera.current = setTimeout(() => void carregar(), 1000);
   });
 
   async function depois(r: { ok: boolean; mensagem?: string }, ok?: string) {
@@ -113,6 +126,7 @@ export function CentralDePrioridades({ compacta = false }: { compacta?: boolean 
             </div>
             <Acoes
               item={item}
+              hoje={hoje}
               aberto={aberto?.chave === item.chave ? aberto.acao : null}
               aoAbrir={(acao) => setAberto(acao ? { chave: item.chave, acao } : null)}
               aoTerminar={depois}
@@ -126,17 +140,20 @@ export function CentralDePrioridades({ compacta = false }: { compacta?: boolean 
 
 function Acoes({
   item,
+  hoje,
   aberto,
   aoAbrir,
   aoTerminar,
 }: {
   item: ItemDePrioridade;
+  hoje: string;
   aberto: "responder" | "status" | "passar" | "adiar" | null;
   aoAbrir: (a: "responder" | "status" | "passar" | "adiar" | null) => void;
   aoTerminar: (r: { ok: boolean; mensagem?: string }, ok?: string) => Promise<void>;
 }) {
   const [texto, setTexto] = useState("");
-  const [data, setData] = useState(diaDaqui(1));
+  const [data, setData] = useState(diaDepois(hoje, 1));
+  const [status, setStatus] = useState("");
   const tarefa = item.tarefaId;
   const alternar = (a: "responder" | "status" | "passar" | "adiar") => aoAbrir(aberto === a ? null : a);
   const adiar = (ate: string) => void adiarPrioridade(item.chave, ate).then((r) => aoTerminar(r, "Adiado."));
@@ -195,13 +212,17 @@ function Acoes({
         <select
           aria-label="Novo status"
           className="h-11 rounded-md border border-linha bg-cartao px-3 text-base"
-          defaultValue=""
-          onChange={(e) =>
-            e.target.value &&
-            void mudarStatus(tarefa, e.target.value as StatusTarefa).then((r) =>
-              aoTerminar(r, "Status mudado."),
-            )
-          }
+          value={status}
+          onChange={(e) => {
+            const novo = e.target.value as StatusTarefa;
+            if (!novo) return;
+            setStatus(novo);
+            // Volta ao "Escolha" depois, deu certo ou não: dá para tentar de novo.
+            void mudarStatus(tarefa, novo).then((r) => {
+              setStatus("");
+              return aoTerminar(r, "Status mudado.");
+            });
+          }}
         >
           <option value="" disabled>
             Escolha o status
@@ -216,16 +237,16 @@ function Acoes({
       {aberto === "passar" && tarefa && <Passar tarefa={tarefa} aoTerminar={aoTerminar} />}
       {aberto === "adiar" && (
         <div className="flex flex-wrap items-center gap-1.5">
-          <Button variant="contorno" size="pequeno" onClick={() => adiar(diaDaqui(1))}>
+          <Button variant="contorno" size="pequeno" onClick={() => adiar(diaDepois(hoje, 1))}>
             Até amanhã
           </Button>
-          <Button variant="contorno" size="pequeno" onClick={() => adiar(proximaSegunda())}>
+          <Button variant="contorno" size="pequeno" onClick={() => adiar(proximaSegunda(hoje))}>
             Até segunda
           </Button>
           <input
             type="date"
             aria-label="Adiar até"
-            min={diaDaqui(1)}
+            min={diaDepois(hoje, 1)}
             className="h-8 rounded-md border border-linha bg-cartao px-2 text-sm"
             value={data}
             onChange={(e) => setData(e.target.value)}

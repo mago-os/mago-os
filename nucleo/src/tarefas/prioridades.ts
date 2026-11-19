@@ -25,7 +25,7 @@ export function haQuanto(desde: Date, agora: Date): string {
 
 /** Formato da chave: o que vem do contrato é conferido antes de virar estado. */
 export const CHAVE_VALIDA =
-  /^(tarefa:[0-9a-f-]{36}:\d{4}-\d{2}-\d{2}T[\d:.]+Z|ajuda:[0-9a-f-]{36}:\d{4}-\d{2}-\d{2}T[\d:.]+Z|mencao:[0-9a-f-]{36}|aviso:[0-9a-f-]{36})$/;
+  /^((atrasada|hoje|ajuda):[0-9a-f-]{36}:\d{4}-\d{2}-\d{2}T[\d:.]+Z|(mencao|aviso):[0-9a-f-]{36})$/;
 
 const ordemDo = (tipo: TipoDePrioridade) => TIPOS_DE_PRIORIDADE.indexOf(tipo);
 
@@ -37,6 +37,15 @@ export async function fusoDe(c: pg.PoolClient, pessoaId: string): Promise<string
     [pessoaId],
   );
   return r.rows[0]?.fuso ?? "America/Sao_Paulo";
+}
+
+/** O dia de hoje (AAAA-MM-DD) no fuso da pessoa. */
+export async function hojeDe(c: pg.PoolClient, pessoaId: string, agora = new Date()): Promise<string> {
+  const r = await c.query<{ hoje: string }>(
+    "select to_char(($1::timestamptz at time zone $2)::date, 'YYYY-MM-DD') as hoje",
+    [agora.toISOString(), await fusoDe(c, pessoaId)],
+  );
+  return r.rows[0]?.hoje ?? agora.toISOString().slice(0, 10);
 }
 
 /** A central de quem pede, na ordem. Só entra o que a pessoa já vê (o alcance de ver tarefas). */
@@ -65,7 +74,7 @@ export async function listarPrioridades(
             case when t.status = 'precisa_de_ajuda' then
               coalesce((select max(a.criado_em) from acontecimentos_de_tarefa a
                          where a.tarefa_id = t.id and a.empresa_id = t.empresa_id and a.tipo = 'mudou_status'
-                           and a.detalhes->>'para' = 'precisa_de_ajuda'), t.atualizada_em)
+                           and a.detalhes->>'para' = 'precisa_de_ajuda'), t.criada_em)
             end as ajuda_desde
        from tarefas t
       where t.empresa_id = empresa_ativa() and t.status not in ('concluida', 'cancelada')
@@ -75,7 +84,7 @@ export async function listarPrioridades(
         and (t.status = 'precisa_de_ajuda'
              or (t.prazo_em is not null and (t.prazo_em at time zone $3)::date <= ($2::timestamptz at time zone $3)::date))
         and ${alcance.sql}
-      order by t.prazo_em nulls last
+      order by t.status = 'precisa_de_ajuda' desc, t.prazo_em nulls last
       limit 300`,
     [eu, agora.toISOString(), fuso, ...alcance.valores],
   );
@@ -83,7 +92,7 @@ export async function listarPrioridades(
     const link = `/tarefas/${t.id}`;
     if (t.prazo_em && t.prazo_em < agora) {
       itens.push({
-        chave: `tarefa:${t.id}:${t.prazo_em.toISOString()}`,
+        chave: `atrasada:${t.id}:${t.prazo_em.toISOString()}`,
         tipo: "atrasada",
         titulo: t.titulo,
         motivo: `venceu ${haQuanto(t.prazo_em, agora)}`,
@@ -94,7 +103,8 @@ export async function listarPrioridades(
     } else if (t.prazo_em && t.vence_hoje) {
       const hora = t.prazo_hora ? ` às ${t.prazo_hora.replace(/:00$/, "h").replace(":", "h")}` : "";
       itens.push({
-        chave: `tarefa:${t.id}:${t.prazo_em.toISOString()}`,
+        // Chave própria: adiar ou resolver o "vence hoje" não esconde a tarefa quando ela atrasar.
+        chave: `hoje:${t.id}:${t.prazo_em.toISOString()}`,
         tipo: "vence_hoje",
         titulo: t.titulo,
         motivo: `vence hoje${hora}`,

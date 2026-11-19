@@ -343,7 +343,13 @@ function NovoComentario({
     setMensagem(null);
     // O tempo real pode mostrar o comentário antes da resposta chegar: o que a pessoa já começou a escrever depois
     // não se perde.
-    if (caixa.current && caixa.current.value !== enviado) return aoComentar();
+    const agora = caixa.current?.value ?? enviado;
+    if (agora !== enviado) {
+      // Só fica o que foi escrito depois do envio (ou o texto novo inteiro, se a caixa foi trocada).
+      setTexto(agora.startsWith(enviado) ? agora.slice(enviado.length).trimStart() : agora);
+      setMencoes([]);
+      return aoComentar();
+    }
     setTexto("");
     setMencoes([]);
     setInterna(false);
