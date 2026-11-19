@@ -20,7 +20,7 @@ export const CANAL = "mago_mudancas";
 
 /** O que a tela recebe. "reconectou": avisos podem ter se perdido, busque tudo de novo. */
 export type AvisoDeMudanca =
-  | { tipo: "tarefa" | "agente"; id: string; operacao: "insert" | "update" | "delete" }
+  | { tipo: "tarefa" | "agente" | "projeto"; id: string; operacao: "insert" | "update" | "delete" }
   | { tipo: "reconectou" };
 
 interface Conexao {
@@ -115,7 +115,12 @@ export async function registrarTempoReal(app: FastifyInstance, o: OpcoesDoTempoR
       } catch {
         return;
       }
-      if (!aviso.empresaId || (aviso.tipo !== "tarefa" && aviso.tipo !== "agente") || !aviso.id) return;
+      if (
+        !aviso.empresaId ||
+        (aviso.tipo !== "tarefa" && aviso.tipo !== "agente" && aviso.tipo !== "projeto") ||
+        !aviso.id
+      )
+        return;
       const operacao = aviso.operacao === "insert" || aviso.operacao === "delete" ? aviso.operacao : "update";
       for (const c of porEmpresa.get(aviso.empresaId) ?? [])
         c.enviar({ tipo: aviso.tipo, id: aviso.id, operacao });

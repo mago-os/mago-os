@@ -10,6 +10,7 @@ import {
   FiltroDeTarefas,
   PedidoDeComentario,
   PedidoDeDestravar,
+  PedidoDeMudarProjeto,
   PedidoDeTarefa,
   PedidoDeTrocarResponsavel,
   type Responsavel,
@@ -23,6 +24,7 @@ import { agenteRecebeTarefas } from "../agentes/servico.ts";
 import { auditar } from "../auditoria/registrar.ts";
 import { comPessoa } from "../empresa.ts";
 import { acessoDo, type Verificador } from "../permissoes/verificar.ts";
+import { type AlcanceDeProjeto, buscarProjeto } from "../projetos/servico.ts";
 import {
   autorDe,
   buscarTarefa,
@@ -32,6 +34,7 @@ import {
   idsCitados,
   listarComentarios,
   listarTarefas,
+  mudarProjetoDaTarefa,
   mudarStatus,
   nomesCitados,
   pegarTarefa,
@@ -42,7 +45,7 @@ import {
   trocarResponsavel,
 } from "./servico.ts";
 
-type AcaoDeTarefa = (typeof ACOES_TAREFAS)[number];
+type AcaoDeTarefa = (typeof ACOES_TAREFAS)[number] | "tarefa.mudou_projeto";
 
 const naoEncontrada = (resposta: FastifyReply) =>
   resposta.code(404).send({ code: "TAREFA_NAO_ENCONTRADA", message: "Tarefa não encontrada." });
@@ -53,12 +56,35 @@ const travada = (resposta: FastifyReply) =>
     message: "Essa tarefa está em andamento com outro responsável. Você ainda pode comentar.",
   });
 
+const projetoInvalido = (resposta: FastifyReply) =>
+  resposta
+    .code(400)
+    .send({ code: "PROJETO_INVALIDO", message: "Escolha um projeto ativo que você pode ver." });
+
 const invalido = (resposta: FastifyReply, problemas: unknown) =>
   resposta.code(400).send({ code: "PEDIDO_INVALIDO", problemas });
 
+/**
+ * Quem pede e o alcance da ação. Além do alcance, a pessoa alcança as tarefas dos projetos em que é membro (M3-01);
+ * quem vê todos os projetos (administrador, gestor) também vê as tarefas de todos, mas só mexe nas que o alcance
+ * da ação ou ser membro do projeto permitem.
+ */
 function quemDoPedido(pedido: FastifyRequest): Quem {
-  const { sessao, filtro } = acessoDo(pedido);
-  return { tipo: "pessoa", pessoaId: sessao.pessoa.id, filtro };
+  const { sessao, filtro, acao, permissoes } = acessoDo(pedido);
+  const veTodosProjetos = permissoes.modulos.get("projetos")?.acoes.ver === "tudo";
+  return {
+    tipo: "pessoa",
+    pessoaId: sessao.pessoa.id,
+    filtro,
+    projetos: acao === "ver" && veTodosProjetos ? "todos" : "membro",
+  };
+}
+
+/** Até onde a pessoa alcança os projetos para pôr uma tarefa neles: o "ver" do módulo projetos. */
+function projetosQueAlcanca(pedido: FastifyRequest): AlcanceDeProjeto | null {
+  const ver = acessoDo(pedido).permissoes.modulos.get("projetos")?.acoes.ver ?? "nada";
+  if (ver === "nada") return null;
+  return ver === "tudo" ? "todos" : "membro";
 }
 
 export function registrarRotasDasTarefas(
@@ -101,7 +127,7 @@ export function registrarRotasDasTarefas(
   }
 
   app.get("/tarefas", { preHandler: verificador.exigir("tarefas", "ver") }, async (pedido, resposta) => {
-    const q = pedido.query as { minhas?: string | string[]; status?: string | string[] };
+    const q = pedido.query as { minhas?: string | string[]; status?: string | string[]; projeto?: string };
     const status = [q.status ?? []]
       .flat()
       .flatMap((s) => s.split(","))
@@ -109,6 +135,7 @@ export function registrarRotasDasTarefas(
     const filtro = {
       ...([q.minhas].flat().some((m) => m === "1" || m === "true") ? { minhas: true } : {}),
       ...(status.length > 0 ? { status } : {}),
+      ...(typeof q.projeto === "string" && q.projeto ? { projetoId: q.projeto } : {}),
     };
     const r = conferir(FiltroDeTarefas, filtro);
     if (!r.ok) return invalido(resposta, r.problemas);
@@ -124,12 +151,24 @@ export function registrarRotasDasTarefas(
     if (!r.ok) return invalido(resposta, r.problemas);
     const quem = quemDoPedido(pedido);
     const { sessao } = acessoDo(pedido);
+    const projetoId = r.valor.projetoId ?? null;
+    const alcanceDosProjetos = projetosQueAlcanca(pedido);
     // Sem responsável informado, a tarefa fica com quem criou. "null" de propósito: fica sem responsável.
-    const responsavel: Responsavel | null =
+    let responsavel: Responsavel | null =
       r.valor.responsavel === undefined
         ? { tipo: "pessoa", pessoaId: sessao.pessoa.id }
         : r.valor.responsavel;
     const feito = await naEmpresa(pedido, async (c) => {
+      if (projetoId !== null) {
+        const projeto = alcanceDosProjetos
+          ? await buscarProjeto(c, sessao.pessoa.id, alcanceDosProjetos, projetoId)
+          : null;
+        if (projeto?.situacao !== "ativo") return { semProjeto: true as const };
+        // Sem responsável, o gerente do projeto recebe a tarefa, se o diretor quis assim e ele está ativo.
+        if (responsavel === null && projeto.gerenteRecebeSemResponsavel && projeto.gerente) {
+          if ((await responsavelRecusado(c, projeto.gerente)) === null) responsavel = projeto.gerente;
+        }
+      }
       const recusa = await responsavelRecusado(c, responsavel);
       if (recusa) return { recusa };
       return {
@@ -137,12 +176,17 @@ export function registrarRotasDasTarefas(
           titulo: r.valor.titulo,
           descricao: r.valor.descricao ?? null,
           responsavel,
+          projetoId,
         }),
       };
     });
+    if ("semProjeto" in feito) return projetoInvalido(resposta);
     if ("recusa" in feito)
       return resposta.code(400).send({ code: "RESPONSAVEL_INVALIDO", message: feito.recusa });
-    await registrar(pedido, "tarefa.criou", feito.tarefa.id, { responsavel: responsavel?.tipo ?? null });
+    await registrar(pedido, "tarefa.criou", feito.tarefa.id, {
+      responsavel: responsavel?.tipo ?? null,
+      projetoId,
+    });
     return resposta.code(201).send(feito.tarefa);
   });
 
@@ -243,6 +287,42 @@ export function registrarRotasDasTarefas(
         responsavel: r.valor.responsavel?.tipo ?? null,
       });
       if (feito.soltou) await registrar(pedido, "tarefa.soltou", id);
+      return feito.tarefa;
+    },
+  );
+
+  // Mudar de projeto (M3-01): pede "editar" na tarefa e alcançar o projeto novo. Não mexe na trava.
+  app.post(
+    "/tarefas/:id/projeto",
+    { preHandler: verificador.exigir("tarefas", "editar") },
+    async (pedido, resposta) => {
+      const { id } = pedido.params as { id: string };
+      const r = conferir(PedidoDeMudarProjeto, pedido.body);
+      if (!r.ok) return invalido(resposta, r.problemas);
+      const quem = quemDoPedido(pedido);
+      const { sessao } = acessoDo(pedido);
+      const alcanceDosProjetos = projetosQueAlcanca(pedido);
+      const feito = await naEmpresa(pedido, async (c) => {
+        const tarefa = await buscarTarefa(c, quem, id, true);
+        if (!tarefa) return null;
+        if (r.valor.projetoId !== null) {
+          const projeto = alcanceDosProjetos
+            ? await buscarProjeto(c, sessao.pessoa.id, alcanceDosProjetos, r.valor.projetoId)
+            : null;
+          if (projeto?.situacao !== "ativo") return { semProjeto: true as const };
+        }
+        if (tarefa.projetoId === r.valor.projetoId) return { tarefa, de: tarefa.projetoId, mudou: false };
+        return {
+          tarefa: await mudarProjetoDaTarefa(c, tarefa.id, r.valor.projetoId),
+          de: tarefa.projetoId,
+          mudou: true,
+        };
+      });
+      if (!feito) return naoEncontrada(resposta);
+      if ("semProjeto" in feito) return projetoInvalido(resposta);
+      if (feito.mudou) {
+        await registrar(pedido, "tarefa.mudou_projeto", id, { de: feito.de, para: feito.tarefa.projetoId });
+      }
       return feito.tarefa;
     },
   );

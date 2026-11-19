@@ -172,8 +172,8 @@ Todas com o prefixo `/api` no site, menos `/mcp`, que fica em `https://teste.osm
 
 | Método | Caminho | Permissão | O que faz |
 | --- | --- | --- | --- |
-| GET | `/tarefas` | tarefas.ver | Lista as tarefas que a pessoa alcança (query: minhas=1, status=a,b). |
-| POST | `/tarefas` | tarefas.criar | Cria uma tarefa. Sem responsável, fica com quem criou. |
+| GET | `/tarefas` | tarefas.ver | Lista as tarefas que a pessoa alcança (query: minhas=1, status=a,b, projeto=<id> ou sem). |
+| POST | `/tarefas` | tarefas.criar | Cria uma tarefa, com ou sem projeto. Sem responsável, fica com quem criou; responsável nulo num projeto vai para o gerente, se o diretor quis. |
 | GET | `/tarefas/:id` | tarefas.ver | Mostra a tarefa com os comentários e os nomes citados. |
 | POST | `/tarefas/:id/status` | tarefas.editar | Muda o status (concluir pode trazer o resultado; em andamento é pegar). |
 | POST | `/tarefas/:id/responsavel` | tarefas.editar | Troca o responsável (pessoa ou agente ativo). |
@@ -181,7 +181,16 @@ Todas com o prefixo `/api` no site, menos `/mcp`, que fica em `https://teste.osm
 | POST | `/tarefas/:id/pegar` | tarefas.editar | Pega a tarefa: em andamento e travada para quem pegou. |
 | POST | `/tarefas/:id/soltar` | tarefas.editar | Solta a tarefa que pegou: volta para A fazer. |
 | POST | `/tarefas/:id/destravar` | tarefas.aprovar | Tira a trava de outro, com motivo. |
+| POST | `/tarefas/:id/projeto` | tarefas.editar | Muda a tarefa de projeto (um projeto ativo que a pessoa alcança) ou tira do projeto (nulo). |
 | DELETE | `/tarefas/:id` | tarefas.excluir | Exclui a tarefa e os comentários (não se estiver com outro). |
+| GET | `/espacos` | espacos.ver | Lista os espaços da empresa (query: arquivados=1 inclui os arquivados). |
+| POST | `/espacos` | espacos.criar | Cria um espaço. |
+| POST | `/espacos/:id` | espacos.editar | Edita, arquiva ou desarquiva um espaço. |
+| GET | `/projetos` | projetos.ver | Lista os projetos que a pessoa alcança (todos, ou os que é membro), com as tarefas abertas (query: espaco=<id>, arquivados=1). |
+| GET | `/projetos/:id` | projetos.ver | Mostra o projeto, o espaço e os nomes do diretor, do gerente e dos membros. |
+| POST | `/projetos` | projetos.criar | Cria um projeto. Sem diretor, quem cria é o diretor. |
+| POST | `/projetos/:id` | projetos.editar | Edita, arquiva ou muda os membros (o diretor ou o administrador; trocar o diretor, só quem vê todos). |
+| DELETE | `/projetos/:id` | projetos.excluir | Exclui de vez um projeto sem tarefas. |
 | GET | `/agentes` | agentes.ver | Lista os agentes, com responsável, tarefas abertas e último sinal. |
 | GET | `/agentes/:id` | agentes.ver | Mostra um agente. |
 | POST | `/agentes` | agentes.criar | Cadastra um agente externo. |
@@ -239,6 +248,60 @@ Recebe:
 Recebe:
 
 - `motivo` (string, obrigatório): Por que destravou.
+
+### POST `/tarefas/:id/projeto`
+
+Recebe:
+
+- `projetoId` (id ou null, obrigatório)
+
+### POST `/espacos`
+
+Recebe:
+
+- `nome` (string, obrigatório): Nome do espaço (ex.: Operações, Comercial).
+- `descricao` (string ou null)
+- `cor` (string): Cor no formato #rrggbb, em minúsculas.
+
+### POST `/espacos/:id`
+
+Recebe:
+
+- `nome` (string): Nome do espaço (ex.: Operações, Comercial).
+- `descricao` (string ou null)
+- `cor` (string): Cor no formato #rrggbb, em minúsculas.
+- `situacao` ("ativo" | "arquivado"): ativo ou arquivado (escondido das listas, sem apagar nada).
+
+### POST `/projetos`
+
+Recebe:
+
+- `espacoId` (id, obrigatório): Identificador (UUID).
+- `nome` (string, obrigatório): Nome do projeto (ex.: Construção do Mago OS).
+- `descricao` (string ou null)
+- `cor` (string): Cor no formato #rrggbb, em minúsculas.
+- `diretorId` (id): Identificador (UUID).
+- `gerente` (objeto ou objeto ou null)
+- `membros` (lista de objeto ou objeto)
+- `gerenteRecebeSemResponsavel` (boolean)
+- `inicio` (string ou null)
+- `fim` (string ou null)
+
+### POST `/projetos/:id`
+
+Recebe:
+
+- `espacoId` (id): Identificador (UUID).
+- `nome` (string): Nome do projeto (ex.: Construção do Mago OS).
+- `descricao` (string ou null)
+- `cor` (string): Cor no formato #rrggbb, em minúsculas.
+- `situacao` ("ativo" | "arquivado"): ativo ou arquivado (escondido das listas, sem apagar nada).
+- `diretorId` (id): Identificador (UUID).
+- `gerente` (objeto ou objeto ou null)
+- `membros` (lista de objeto ou objeto)
+- `gerenteRecebeSemResponsavel` (boolean)
+- `inicio` (string ou null)
+- `fim` (string ou null)
 
 ### POST `/agentes`
 
