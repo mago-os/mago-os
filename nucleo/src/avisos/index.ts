@@ -22,6 +22,7 @@ interface LinhaDoAviso {
   link: string;
   criado_em: Date;
   lido_em: Date | null;
+  tarefa_id?: string | null;
 }
 
 const paraAviso = (l: LinhaDoAviso): Aviso => ({
@@ -110,21 +111,20 @@ export function registrarRotasDosAvisos(
   /** Chave pública do push (M3-06); nulo: push desligado neste ambiente. */
   chavePublicaDoPush: string | null = null,
 ): void {
-  app.get("/avisos", { preHandler: verificador.exigir("agentes", "ver") }, async (pedido) => {
+  app.get("/avisos", { preHandler: verificador.exigir("tarefas", "ver") }, async (pedido) => {
     const { sessao } = acessoDo(pedido);
     return comPessoa(poolApp, sessao.pessoa.id, sessao.empresaId, async (c) => {
       const r = await c.query<LinhaDoAviso>(
         // Aviso de tarefa só aparece enquanto a pessoa ainda vê a tarefa (perdeu o acesso, o aviso some).
-        `select a.id, a.empresa_id, a.pessoa_id, a.tipo, a.texto, a.link, a.criado_em, a.lido_em from avisos a
+        `select a.id, a.empresa_id, a.pessoa_id, a.tipo, a.texto, a.link, a.criado_em, a.lido_em, a.tarefa_id from avisos a
           where a.empresa_id = empresa_ativa() and a.pessoa_id = $1 and a.lido_em is null
           order by a.criado_em desc limit 80`,
         [sessao.pessoa.id],
       );
-      const tarefaDe = (link: string) => /^\/tarefas\/([0-9a-f-]{36})$/.exec(link)?.[1];
       const visiveis: LinhaDoAviso[] = [];
       for (const l of r.rows) {
-        const tarefa = tarefaDe(l.link);
-        if (!tarefa || (await pessoaVeTarefa(c, sessao.pessoa.id, tarefa))) visiveis.push(l);
+        if (!l.tarefa_id || (await pessoaVeTarefa(c, sessao.pessoa.id, l.tarefa_id))) visiveis.push(l);
+        if (visiveis.length >= 50) break;
       }
       return visiveis.slice(0, 50).map(paraAviso);
     });
@@ -132,7 +132,7 @@ export function registrarRotasDosAvisos(
 
   app.post(
     "/avisos/:id/lido",
-    { preHandler: verificador.exigir("agentes", "ver") },
+    { preHandler: verificador.exigir("tarefas", "ver") },
     async (pedido, resposta) => {
       const { id } = pedido.params as { id: string };
       const { sessao } = acessoDo(pedido);
@@ -149,7 +149,7 @@ export function registrarRotasDosAvisos(
     },
   );
 
-  app.post("/avisos/lidos", { preHandler: verificador.exigir("agentes", "ver") }, async (pedido) => {
+  app.post("/avisos/lidos", { preHandler: verificador.exigir("tarefas", "ver") }, async (pedido) => {
     const { sessao } = acessoDo(pedido);
     await comPessoa(poolApp, sessao.pessoa.id, sessao.empresaId, (c) =>
       c.query(
@@ -161,7 +161,7 @@ export function registrarRotasDosAvisos(
   });
 
   // Notificações (M3-06): a chave pública do push, se o push está ligado neste aparelho, e as preferências.
-  app.get("/notificacoes", { preHandler: verificador.exigir("agentes", "ver") }, async (pedido) => {
+  app.get("/notificacoes", { preHandler: verificador.exigir("tarefas", "ver") }, async (pedido) => {
     const { sessao } = acessoDo(pedido);
     return comPessoa(poolApp, sessao.pessoa.id, sessao.empresaId, async (c) => {
       const ligado = sessao.aparelhoId
@@ -200,7 +200,7 @@ export function registrarRotasDosAvisos(
 
   app.post(
     "/notificacoes/push",
-    { preHandler: verificador.exigir("agentes", "ver") },
+    { preHandler: verificador.exigir("tarefas", "ver") },
     async (pedido, resposta) => {
       const r = conferir(PedidoDeAssinaturaDePush, pedido.body);
       if (!r.ok) return resposta.code(400).send({ code: "PEDIDO_INVALIDO", problemas: r.problemas });
@@ -229,7 +229,7 @@ export function registrarRotasDosAvisos(
     },
   );
 
-  app.delete("/notificacoes/push", { preHandler: verificador.exigir("agentes", "ver") }, async (pedido) => {
+  app.delete("/notificacoes/push", { preHandler: verificador.exigir("tarefas", "ver") }, async (pedido) => {
     const { sessao } = acessoDo(pedido);
     await comPessoa(poolApp, sessao.pessoa.id, sessao.empresaId, (c) =>
       c.query(
@@ -243,7 +243,7 @@ export function registrarRotasDosAvisos(
 
   app.post(
     "/notificacoes/preferencias",
-    { preHandler: verificador.exigir("agentes", "ver") },
+    { preHandler: verificador.exigir("tarefas", "ver") },
     async (pedido, resposta) => {
       const r = conferir(PreferenciasDeNotificacao, pedido.body);
       if (!r.ok) return resposta.code(400).send({ code: "PEDIDO_INVALIDO", problemas: r.problemas });

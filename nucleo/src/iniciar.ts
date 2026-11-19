@@ -76,7 +76,11 @@ async function iniciar(): Promise<void> {
       const vapid = config.acesso?.vapid ?? null;
       const enviar = vapid ? enviadorWebPush(vapid) : null;
       await fila.work(FILA_NOTIFICACOES, async () => {
-        const prazos = await verificarPrazos(banco.pool);
+        // Uma parte com erro não para a outra.
+        const prazos = await verificarPrazos(banco.pool).catch((erro) => {
+          app.log.error({ erro }, "Verificação de prazos falhou");
+          return 0;
+        });
         const pushes = enviar ? await enviarPushPendentes(banco.pool, enviar, app.log) : 0;
         if (prazos + pushes > 0)
           app.log.info({ evento: "notificacoes", prazos, pushes }, "Avisos de prazo e push");

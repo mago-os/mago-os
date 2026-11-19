@@ -294,11 +294,11 @@ Todas com o prefixo `/api` no site, menos `/mcp`, que fica em `https://teste.osm
 | POST | `/tarefas/:id/planejamento` | tarefas.editar | Muda prioridade, prazo (dia, hora e fuso), início, etiquetas e recorrência; só o que veio muda, nulo apaga. |
 | POST | `/tarefas/:id/seguir` | tarefas.ver | Passa a seguir a tarefa (recebe aviso dos comentários). |
 | DELETE | `/tarefas/:id/seguir` | tarefas.ver | Deixa de seguir a tarefa. |
-| POST | `/avisos/lidos` | agentes.ver | Marca todos os avisos da pessoa como lidos. |
-| GET | `/notificacoes` | agentes.ver | A chave pública do push, se o push está ligado neste aparelho, e as preferências da pessoa. |
-| POST | `/notificacoes/push` | agentes.ver | Liga o push neste aparelho (assinatura Web Push do navegador). |
-| DELETE | `/notificacoes/push` | agentes.ver | Desliga o push neste aparelho. |
-| POST | `/notificacoes/preferencias` | agentes.ver | Grava o que chega por onde (sino, push) e o horário de silêncio. |
+| POST | `/avisos/lidos` | tarefas.ver | Marca todos os avisos da pessoa como lidos. |
+| GET | `/notificacoes` | tarefas.ver | A chave pública do push, se o push está ligado neste aparelho, e as preferências da pessoa. |
+| POST | `/notificacoes/push` | tarefas.ver | Liga o push neste aparelho (assinatura Web Push do navegador). |
+| DELETE | `/notificacoes/push` | tarefas.ver | Desliga o push neste aparelho. |
+| POST | `/notificacoes/preferencias` | tarefas.ver | Grava o que chega por onde (sino, push) e o horário de silêncio. |
 | GET | `/visoes` | tarefas.ver | Lista as visões salvas da pessoa (só as dela). |
 | POST | `/visoes` | tarefas.ver | Salva uma visão (nome, tipo, filtros e agrupamento). |
 | DELETE | `/visoes/:id` | tarefas.ver | Apaga uma visão da pessoa. |
@@ -332,8 +332,8 @@ Todas com o prefixo `/api` no site, menos `/mcp`, que fica em `https://teste.osm
 | GET | `/agentes/:id/chaves` | agentes.editar | Lista as chaves (só o começo de cada uma). |
 | POST | `/agentes/:id/chaves` | agentes.editar | Cria uma chave; a chave inteira vem só nesta resposta. |
 | POST | `/agentes/:id/chaves/:chaveId/revogar` | agentes.editar | Revoga a chave (vale no pedido seguinte). |
-| GET | `/avisos` | agentes.ver | Avisos não lidos da própria pessoa. |
-| POST | `/avisos/:id/lido` | agentes.ver | Marca o aviso como lido. |
+| GET | `/avisos` | tarefas.ver | Avisos não lidos da própria pessoa. |
+| POST | `/avisos/:id/lido` | tarefas.ver | Marca o aviso como lido. |
 | POST | `/agente/estou-vivo` | chave do agente | Sinal de vida do agente (Authorization: Bearer mago_ag_...). |
 | POST | `/mcp` | chave do agente | Servidor MCP (transporte HTTP, sem sessão). Ferramentas abaixo. |
 

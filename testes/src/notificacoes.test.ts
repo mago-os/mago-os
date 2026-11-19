@@ -171,6 +171,21 @@ describe.skipIf(!bancoDisponivel)("notificações", () => {
       "tarefa_atribuida",
     ]);
     expect(await avisosDe("fabio@teste.invalid")).toEqual([]);
+    // Quem não vê a tarefa também não vira seguidor dela pela menção.
+    expect(
+      (
+        await dono.query("select 1 from seguidores_de_tarefa where tarefa_id = $1 and pessoa_id = $2", [
+          t,
+          ids.fabio,
+        ])
+      ).rowCount,
+    ).toBe(0);
+    // Passar de novo para a mesma pessoa não avisa outra vez.
+    await pedir("POST", "/avisos/lidos", await como("flora@teste.invalid"));
+    await pedir("POST", `/tarefas/${t}/responsavel`, ana, {
+      responsavel: { tipo: "pessoa", pessoaId: ids.flora },
+    });
+    expect(await avisosDe("flora@teste.invalid")).toEqual([]);
     // A Flora comenta: a Ana (que criou e segue) recebe; a Flora não.
     await pedir("POST", `/tarefas/${t}/comentarios`, await como("flora@teste.invalid"), { texto: "Vi" });
     expect((await avisosDe("ana@teste.invalid")).map((a) => a.tipo)).toEqual(["comentario"]);
@@ -251,6 +266,17 @@ describe.skipIf(!bancoDisponivel)("notificações", () => {
     expect(await enviarPushPendentes(poolApp, enviar, log)).toBe(0);
     await pedir("POST", "/notificacoes/preferencias", flora, { porTipo: {}, silencio: null });
     expect(await enviarPushPendentes(poolApp, enviar, log)).toBe(1);
+    // Tipo com o push desligado não sai pelo push (mas fica no sino).
+    await pedir("POST", "/notificacoes/preferencias", flora, {
+      porTipo: { tarefa_atribuida: { tela: true, push: false } },
+      silencio: null,
+    });
+    await pedir("POST", "/tarefas", ana, {
+      titulo: "Só no sino",
+      responsavel: { tipo: "pessoa", pessoaId: ids.flora },
+    });
+    expect(await enviarPushPendentes(poolApp, enviar, log)).toBe(0);
+    await pedir("POST", "/notificacoes/preferencias", flora, { porTipo: {}, silencio: null });
     // Assinatura que o serviço diz não existir mais é apagada.
     await pedir("POST", "/tarefas", ana, {
       titulo: "Mais uma",

@@ -4,10 +4,13 @@
  * fora do horário de silêncio. O texto do push nunca leva dado da tarefa: o detalhe aparece ao abrir, depois da checagem
  * de permissão.
  */
-import type { PreferenciasDeNotificacao, TipoDeAviso } from "@mago-os/contratos";
+import type { Perfil, PreferenciasDeNotificacao, TipoDeAviso } from "@mago-os/contratos";
 import type pg from "pg";
 import * as webPush from "web-push";
 import { comEmpresa } from "../empresa.ts";
+import { type Ajuste, filtroDoAlcance, permissaoNoModulo } from "../permissoes/calcular.ts";
+import { MODULOS_DO_NUCLEO } from "../permissoes/modulos.ts";
+import { buscarTarefa, type Quem } from "../tarefas/servico.ts";
 
 /** O texto do push de cada tipo: genérico, sem título de tarefa nem nome (pode aparecer na tela bloqueada). */
 export const TEXTO_DO_PUSH: Record<TipoDeAviso, string> = {
@@ -24,24 +27,35 @@ export const TEXTO_DO_PUSH: Record<TipoDeAviso, string> = {
 };
 
 /**
- * A pessoa vê a tarefa (para não mandar aviso com título a quem não a vê). Conservador: administrador, ou ligada à
- * tarefa (responsável, quem criou, quem pegou, quem segue) ou membro do projeto dela, ou que vê a tarefa-mãe dela.
+ * A pessoa vê a tarefa, pela mesma regra das rotas: a permissão dela em "tarefas" e "projetos" (perfil e ajustes) vira
+ * o alcance, e a consulta é a mesma de buscarTarefa. Seguir a tarefa não dá acesso a ela.
  */
 export async function pessoaVeTarefa(c: pg.PoolClient, pessoaId: string, tarefaId: string): Promise<boolean> {
-  const r = await c.query(
-    `select 1 from tarefas t
-      where t.id = $2 and t.empresa_id = empresa_ativa() and (
-        exists (select 1 from vinculos v where v.empresa_id = t.empresa_id and v.pessoa_id = $1
-                  and v.situacao = 'ativo' and v.perfil = 'administrador')
-        or exists (select 1 from vinculos v where v.empresa_id = t.empresa_id and v.pessoa_id = $1 and v.situacao = 'ativo'
-                  and ($1 in (t.responsavel_pessoa_id, t.criada_por_pessoa_id, t.travada_por_pessoa_id)
-                       or exists (select 1 from seguidores_de_tarefa s where s.tarefa_id = t.id and s.pessoa_id = $1)
-                       or (t.projeto_id is not null and membro_do_projeto(t.projeto_id, $1))
-                       or exists (select 1 from tarefas m where m.id = t.tarefa_mae_id and m.empresa_id = t.empresa_id
-                                    and $1 in (m.responsavel_pessoa_id, m.criada_por_pessoa_id, m.travada_por_pessoa_id)))))`,
-    [pessoaId, tarefaId],
+  const v = await c.query<{ id: string; perfil: Perfil; area: string | null }>(
+    "select id, perfil, area from vinculos where empresa_id = empresa_ativa() and pessoa_id = $1 and situacao = 'ativo'",
+    [pessoaId],
   );
-  return (r.rowCount ?? 0) > 0;
+  const vinculo = v.rows[0];
+  if (!vinculo) return false;
+  const a = await c.query<Ajuste>(
+    "select modulo, acao, alcance from ajustes_de_permissao where vinculo_id = $1",
+    [vinculo.id],
+  );
+  const modulo = (id: string) => MODULOS_DO_NUCLEO.find((m) => m.id === id);
+  const tarefas = modulo("tarefas");
+  const projetos = modulo("projetos");
+  if (!tarefas) return false;
+  const ver = permissaoNoModulo(vinculo, tarefas, a.rows).acoes.ver;
+  const filtro = filtroDoAlcance(ver, pessoaId, vinculo.area);
+  if (!filtro) return false;
+  const verProjetos = projetos ? permissaoNoModulo(vinculo, projetos, a.rows).acoes.ver : "nada";
+  const quem: Quem = {
+    tipo: "pessoa",
+    pessoaId,
+    filtro,
+    projetos: verProjetos === "nada" ? "nenhum" : verProjetos === "tudo" ? "todos" : "membro",
+  };
+  return (await buscarTarefa(c, quem, tarefaId)) !== null;
 }
 
 export async function preferenciasDe(c: pg.PoolClient, pessoaId: string): Promise<PreferenciasDeNotificacao> {
@@ -65,7 +79,10 @@ export async function salvarPreferencias(
   );
 }
 
-export async function seguir(c: pg.PoolClient, tarefaId: string, pessoas: string[]): Promise<void> {
+/** Passa a seguir a tarefa (só quem vê a tarefa; quem não vê fica de fora). */
+export async function seguir(c: pg.PoolClient, tarefaId: string, todas: string[]): Promise<void> {
+  const pessoas: string[] = [];
+  for (const p of new Set(todas)) if (await pessoaVeTarefa(c, p, tarefaId)) pessoas.push(p);
   if (pessoas.length === 0) return;
   await c.query(
     `insert into seguidores_de_tarefa (empresa_id, tarefa_id, pessoa_id)
@@ -139,7 +156,13 @@ export async function notificarTarefa(
 }
 
 /** "Hoje" e a hora agora (HH:MM) no fuso. */
-function agoraNoFuso(fuso: string, agora: Date): { dia: string; hora: string } {
+function agoraNoFuso(fusoPedido: string, agora: Date): { dia: string; hora: string } {
+  let fuso = fusoPedido;
+  try {
+    new Intl.DateTimeFormat("en-CA", { timeZone: fuso });
+  } catch {
+    fuso = "UTC";
+  }
   const p = Object.fromEntries(
     new Intl.DateTimeFormat("en-CA", {
       timeZone: fuso,
@@ -175,6 +198,7 @@ export async function verificarPrazos(poolApp: pg.Pool, agora = new Date()): Pro
   let total = 0;
   for (const { empresa_id } of empresas.rows) {
     total += await comEmpresa(poolApp, empresa_id, async (c) => {
+      // Fuso inválido de uma pessoa não pode parar a verificação: cai para UTC.
       const r = await c.query<{
         id: string;
         titulo: string;
@@ -256,9 +280,10 @@ export function enviadorWebPush(chaves: ChavesVapid): Enviador {
 }
 
 /**
- * Manda os pushes pendentes (fila, a cada minuto). Fora do silêncio da pessoa, manda para cada aparelho conectado
- * com push ligado e marca o aviso; no silêncio, deixa para depois. Assinatura que o serviço diz não existir mais
- * (404, 410) é apagada.
+ * Manda os pushes pendentes (fila, a cada minuto). Por pessoa: no silêncio dela, os avisos esperam; fora dele, os
+ * avisos são marcados como enviados numa transação curta e o envio pela internet acontece depois, fora da transação
+ * (sem segurar o banco, e sem mandar duas vezes se algo falhar no meio). Tipo com o push desligado nas preferências
+ * não sai. Assinatura que o serviço diz não existir mais (404, 410) é apagada.
  */
 export async function enviarPushPendentes(
   poolApp: pg.Pool,
@@ -271,45 +296,68 @@ export async function enviarPushPendentes(
   );
   let enviados = 0;
   for (const { empresa_id } of empresas.rows) {
-    enviados += await comEmpresa(poolApp, empresa_id, async (c) => {
-      const avisos = await c.query<{
-        id: string;
-        pessoa_id: string;
-        tipo: TipoDeAviso;
-        link: string;
-        fuso: string;
-      }>(
-        `select a.id, a.pessoa_id, a.tipo, a.link, coalesce(p.fuso_horario, 'UTC') as fuso
-           from avisos a join pessoas p on p.id = a.pessoa_id
-          where a.empresa_id = empresa_ativa() and a.push_pendente
-          order by a.criado_em limit 200 for update of a skip locked`,
-      );
-      let n = 0;
-      for (const a of avisos.rows) {
-        const prefs = await preferenciasDe(c, a.pessoa_id);
-        if (emSilencio(prefs.silencio, agoraNoFuso(a.fuso, agora).hora)) continue;
-        const assinaturas = await c.query<{ id: string; endpoint: string; p256dh: string; auth: string }>(
-          `select s.id, s.endpoint, s.p256dh, s.auth from assinaturas_de_push s
-            where s.empresa_id = empresa_ativa() and s.pessoa_id = $1 and aparelho_conectado(s.aparelho_id, s.pessoa_id)`,
-          [a.pessoa_id],
+    try {
+      const lote = await comEmpresa(poolApp, empresa_id, async (c) => {
+        const pessoas = await c.query<{ pessoa_id: string; fuso: string }>(
+          `select distinct a.pessoa_id, coalesce(p.fuso_horario, 'UTC') as fuso
+             from avisos a join pessoas p on p.id = a.pessoa_id
+            where a.empresa_id = empresa_ativa() and a.push_pendente`,
         );
-        const conteudo = JSON.stringify({ titulo: "Mago OS", corpo: TEXTO_DO_PUSH[a.tipo], link: a.link });
-        for (const s of assinaturas.rows) {
-          try {
-            await enviar({ endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } }, conteudo);
-            await c.query("update assinaturas_de_push set ultimo_envio_em = now() where id = $1", [s.id]);
-            n += 1;
-          } catch (erro) {
-            const status = (erro as { statusCode?: number }).statusCode;
-            if (status === 404 || status === 410) {
-              await c.query("delete from assinaturas_de_push where id = $1", [s.id]);
-            } else log.warn({ evento: "push.falhou", status }, "Push não saiu");
+        const envios: {
+          assinatura: { id: string; endpoint: string; p256dh: string; auth: string };
+          conteudo: string;
+        }[] = [];
+        for (const pessoa of pessoas.rows) {
+          const prefs = await preferenciasDe(c, pessoa.pessoa_id);
+          if (emSilencio(prefs.silencio, agoraNoFuso(pessoa.fuso, agora).hora)) continue;
+          const avisos = await c.query<{ id: string; tipo: TipoDeAviso; link: string }>(
+            `update avisos set push_pendente = false
+              where id in (select id from avisos where empresa_id = empresa_ativa() and pessoa_id = $1 and push_pendente
+                            order by criado_em limit 50 for update skip locked)
+              returning id, tipo, link`,
+            [pessoa.pessoa_id],
+          );
+          const assinaturas = await c.query<{ id: string; endpoint: string; p256dh: string; auth: string }>(
+            `select s.id, s.endpoint, s.p256dh, s.auth from assinaturas_de_push s
+              where s.empresa_id = empresa_ativa() and s.pessoa_id = $1 and aparelho_conectado(s.aparelho_id, s.pessoa_id)`,
+            [pessoa.pessoa_id],
+          );
+          for (const a of avisos.rows) {
+            if (prefs.porTipo[a.tipo]?.push === false) continue;
+            const conteudo = JSON.stringify({
+              titulo: "Mago OS",
+              corpo: TEXTO_DO_PUSH[a.tipo],
+              link: a.link,
+            });
+            for (const assinatura of assinaturas.rows) envios.push({ assinatura, conteudo });
           }
         }
-        await c.query("update avisos set push_pendente = false where id = $1", [a.id]);
+        return envios;
+      });
+      const entregues: string[] = [];
+      const sumiram: string[] = [];
+      for (const { assinatura: s, conteudo } of lote) {
+        try {
+          await enviar({ endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } }, conteudo);
+          entregues.push(s.id);
+          enviados += 1;
+        } catch (erro) {
+          const status = (erro as { statusCode?: number }).statusCode;
+          if (status === 404 || status === 410) sumiram.push(s.id);
+          else log.warn({ evento: "push.falhou", status }, "Push não saiu");
+        }
       }
-      return n;
-    });
+      if (entregues.length + sumiram.length > 0) {
+        await comEmpresa(poolApp, empresa_id, async (c) => {
+          await c.query("update assinaturas_de_push set ultimo_envio_em = now() where id = any($1::uuid[])", [
+            entregues,
+          ]);
+          await c.query("delete from assinaturas_de_push where id = any($1::uuid[])", [sumiram]);
+        });
+      }
+    } catch (erro) {
+      log.warn({ erro, evento: "push.empresa_falhou" }, "Push de uma empresa não saiu");
+    }
   }
   return enviados;
 }

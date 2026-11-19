@@ -773,9 +773,12 @@ export function registrarRotasDasTarefas(
         if (tarefa.trava && !travadaPorQuem(tarefa, quem)) return { travada: true as const };
         const recusa = await responsavelRecusado(c, r.valor.responsavel);
         if (recusa) return { recusa };
+        const chave = (x: Responsavel | null) =>
+          x === null ? "" : x.tipo === "pessoa" ? `p:${x.pessoaId}` : `a:${x.agenteId}`;
         return {
           tarefa: await trocarResponsavel(c, quem, tarefa, r.valor.responsavel),
           soltou: tarefa.trava !== null,
+          mudouResponsavel: chave(tarefa.responsavel) !== chave(r.valor.responsavel),
         };
       });
       if (!feito) return naoEncontrada(resposta);
@@ -787,7 +790,7 @@ export function registrarRotasDasTarefas(
         para: r.valor.responsavel,
       });
       if (feito.soltou) await registrar(pedido, "tarefa.soltou", id);
-      await avisar(pedido, { tipo: "trocou_responsavel", tarefa: feito.tarefa });
+      if (feito.mudouResponsavel) await avisar(pedido, { tipo: "trocou_responsavel", tarefa: feito.tarefa });
       return feito.tarefa;
     },
   );

@@ -157,32 +157,32 @@ export const ROTAS: Rota[] = [
   {
     metodo: "POST",
     caminho: "/avisos/lidos",
-    permissao: "agentes.ver",
+    permissao: "tarefas.ver",
     oQueFaz: "Marca todos os avisos da pessoa como lidos.",
   },
   {
     metodo: "GET",
     caminho: "/notificacoes",
-    permissao: "agentes.ver",
+    permissao: "tarefas.ver",
     oQueFaz: "A chave pública do push, se o push está ligado neste aparelho, e as preferências da pessoa.",
   },
   {
     metodo: "POST",
     caminho: "/notificacoes/push",
-    permissao: "agentes.ver",
+    permissao: "tarefas.ver",
     oQueFaz: "Liga o push neste aparelho (assinatura Web Push do navegador).",
     recebe: PedidoDeAssinaturaDePush,
   },
   {
     metodo: "DELETE",
     caminho: "/notificacoes/push",
-    permissao: "agentes.ver",
+    permissao: "tarefas.ver",
     oQueFaz: "Desliga o push neste aparelho.",
   },
   {
     metodo: "POST",
     caminho: "/notificacoes/preferencias",
-    permissao: "agentes.ver",
+    permissao: "tarefas.ver",
     oQueFaz: "Grava o que chega por onde (sino, push) e o horário de silêncio.",
     recebe: PreferenciasDeNotificacao,
   },
@@ -401,13 +401,13 @@ export const ROTAS: Rota[] = [
   {
     metodo: "GET",
     caminho: "/avisos",
-    permissao: "agentes.ver",
+    permissao: "tarefas.ver",
     oQueFaz: "Avisos não lidos da própria pessoa.",
   },
   {
     metodo: "POST",
     caminho: "/avisos/:id/lido",
-    permissao: "agentes.ver",
+    permissao: "tarefas.ver",
     oQueFaz: "Marca o aviso como lido.",
   },
   {
