@@ -1,6 +1,6 @@
 # Spec da Fase 1: M3 Projetos e tarefas completos
 
-Parte da [spec da Fase 1](README.md). Estado em 19/11/2026: **proposta**, esperando o "aprovado" do Sandro. Nenhum código do M3 começa antes disso.
+Parte da [spec da Fase 1](README.md). Estado em 19/11/2026: **aprovado** pelo Sandro, com todas as recomendações (inclusive a M3-11 e os eventos da agenda simples no M5). Em construção.
 
 **Pronto quando:** a Nolask organiza um projeto real no Mago OS (sugestão: a própria construção do Mago OS, com as tarefas do M4), com espaço, projeto, diretor e gerente, listas, subtarefas, prazos e etiquetas, e acompanha pelo Kanban, pela lista e pelo calendário. Uma menção a uma pessoa chega no sino e no celular, um anexo passa pelo antivírus antes de abrir, a central de prioridades mostra o que vence hoje e o Ctrl+K acha a tarefa pelo nome. Os testes provam que uma empresa não vê projetos, anexos, notificações nem resultados de busca da outra.
 
@@ -16,7 +16,7 @@ Parte da [spec da Fase 1](README.md). Estado em 19/11/2026: **proposta**, espera
 | M3-08 | Anexos no R2, com antivírus ClamAV | M3-05 | M |
 | M3-09 | Busca Ctrl+K | M3-02 | M |
 | M3-10 | Painéis encaixáveis com layout salvo por usuário | M3-04, M3-07 | M |
-| M3-11 | Tela "Dados da empresa" (proposta nova, ver decisão 11) | M1 | P |
+| M3-11 | Tela "Dados da empresa" (entrou no M3, decisão 11) | M1 | P |
 
 A ordem da tabela é a ordem de construção. A M3-02 da tabela original ("Listas, subtarefas, checklist, prioridade, prazo, etiquetas e recorrência") era grande demais e virou duas (M3-02 e M3-03), e por isso os números seguintes andaram uma casa em relação a [M2-a-M6.md](M2-a-M6.md). A M3-08 (anexos) não depende das visões e pode ser feita em paralelo depois da M3-05, assim que o bucket do R2 estiver criado com o Sandro. A M3-11 pode entrar a qualquer momento.
 
@@ -170,7 +170,7 @@ Pronto quando: o Sandro monta no computador as tarefas do projeto ao lado da cen
 
 ### M3-11 Tela "Dados da empresa"
 
-Proposta nova (decisão 11). Precisa da aprovação do Sandro, por ser mudança de escopo.
+Entrou no M3 com a aprovação do Sandro em 19/11/2026 (decisão 11).
 
 - [ ] Tela para o administrador ver e mudar os dados da conta: nome, nome legal, tipo e documento (CNPJ ou CPF), telefone, fuso e idioma; o fuso passa a valer para a recorrência e os prazos (M3-03)
 - [ ] Mudar o documento pede o segundo fator de novo, como as outras ações perigosas, e o CPF continua mascarado para quem não é administrador nem Dono
@@ -180,7 +180,7 @@ Pronto quando: o Sandro muda o fuso da Nolask pela tela, e a mudança aparece na
 
 ## Decisões para o Sandro
 
-Cada uma tem a recomendação primeiro. Responder "aprovado" aceita todas as recomendações; dá para trocar qualquer uma pelo número.
+Aprovadas pelo Sandro em 19/11/2026, todas com a recomendação.
 
 1. **Quem vê as tarefas de um projeto.** Recomendado: administrador e gestor veem todos os projetos; o funcionário vê só os projetos em que é membro (mais as próprias tarefas, como hoje). Alternativa: todo mundo da empresa vê todos os projetos, e só os marcados "privado" ficam restritos.
 2. **Tarefa sem projeto.** Recomendado: o projeto é opcional. As tarefas do M2, as criadas pelo Telegram (M5) e as rápidas continuam valendo como "Sem projeto", e dá para mover depois. Alternativa: toda tarefa num projeto, com um projeto "Geral" criado sozinho em cada empresa.

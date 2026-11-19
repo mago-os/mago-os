@@ -10,7 +10,7 @@ Detalhado em [M2-prova.md](M2-prova.md) (18/11/2026).
 
 ## M3 Projetos e tarefas completos
 
-Detalhado em [M3-projetos.md](M3-projetos.md) (proposta de 19/11/2026, esperando aprovação). A M3-02 original virou duas, e entrou a proposta da M3-11 (tela "Dados da empresa").
+Detalhado em [M3-projetos.md](M3-projetos.md) (aprovado em 19/11/2026). A M3-02 original virou duas, e entrou a proposta da M3-11 (tela "Dados da empresa").
 
 ## M4 Agentes internos e regras
 
@@ -29,6 +29,8 @@ Pronto quando: o coordenador recebe um pedido, passa ao especialista e pede apro
 | M4-09 | Botão "Parar todos os agentes", com 2FA, motivo e retomada |
 
 ## M5 Telegram e rotinas
+
+Aprovado em 19/11/2026 (decisão 8 do M3): os eventos da agenda simples da Fase 1 (eventos, prazos das tarefas e alertas no app e no Telegram) entram neste marco, numa tarefa a numerar quando o M5 for detalhado.
 
 Pronto quando: o Sandro cria uma tarefa e aprova um pedido pelo Telegram, e uma rotina roda sozinha no horário.
 
