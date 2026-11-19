@@ -32,15 +32,18 @@ import {
 import { auditar } from "../auditoria/registrar.ts";
 import { comEmpresa } from "../empresa.ts";
 import {
+  autorDe,
   buscarTarefa,
   comentar,
   listarComentarios,
   listarTarefas,
   mudarStatus,
   pegarTarefa,
+  pessoaAtivaNaEmpresa,
   type Quem,
   tirarTrava,
   travadaPorQuem,
+  trocarResponsavel,
 } from "../tarefas/servico.ts";
 
 const ABERTOS: StatusTarefa[] = ["a_fazer", "em_andamento", "precisa_de_ajuda"];
@@ -91,8 +94,21 @@ export function registrarServidorMcp(app: FastifyInstance, o: OpcoesDoMcp): void
       void transporte.close();
       void servidor.close();
     });
-    await servidor.connect(transporte);
-    await transporte.handleRequest(pedido.raw, resposta.raw, pedido.body);
+    // Depois do hijack, o Fastify não responde mais por nós: qualquer erro precisa virar resposta aqui.
+    try {
+      await servidor.connect(transporte);
+      await transporte.handleRequest(pedido.raw, resposta.raw, pedido.body);
+    } catch (erro) {
+      pedido.log.error({ erro }, "MCP: erro ao atender o pedido");
+      if (!resposta.raw.headersSent) {
+        resposta.raw.writeHead(500, { "content-type": "application/json" });
+        resposta.raw.end(
+          JSON.stringify({ jsonrpc: "2.0", error: { code: -32603, message: "Erro interno." }, id: null }),
+        );
+      } else {
+        resposta.raw.end();
+      }
+    }
   });
 
   // Sem sessão no servidor: não há fluxo aberto (GET) nem sessão para encerrar (DELETE).
@@ -194,7 +210,9 @@ async function executar(
     case "minhas_tarefas": {
       const e = entrada as EntradaDa<"minhas_tarefas">;
       const tarefas = await naEmpresa((c) => listarTarefas(c, quem, { status: e.status ?? ABERTOS }));
-      await ler(Math.max(1, tarefas.length));
+      // A lista das próprias tarefas conta 1 leitura por chamada: o agente pergunta a cada minuto, e isso não pode
+      // consumir o limite de leitura (pensado para conteúdo: tarefa aberta com comentários).
+      await ler(1);
       return { tarefas };
     }
     case "ver_tarefa": {
@@ -227,10 +245,24 @@ async function executar(
         const tarefa = await buscarTarefa(c, quem, e.tarefaId, true);
         if (!tarefa) return null;
         if (!travadaPorQuem(tarefa, quem)) return { naoE: true as const };
-        const solta = await tirarTrava(c, tarefa.id);
-        const comentario = e.motivo
-          ? await comentar(c, { tipo: "agente", agenteId: agente.agenteId }, tarefa.id, e.motivo)
-          : null;
+        // O comentário vem antes, para a tarefa devolvida já trazer a última atualização.
+        const comentario = e.motivo ? await comentar(c, autorDe(quem), tarefa.id, e.motivo) : null;
+        let solta = await tirarTrava(c, tarefa.id);
+        // Se era do agente, volta para a pessoa responsável por ele (senão ele a veria de novo no próximo minuto).
+        if (solta.responsavel?.tipo === "agente" && solta.responsavel.agenteId === agente.agenteId) {
+          const r = await c.query<{ responsavel_id: string }>(
+            "select responsavel_id from agentes where id = $1 and empresa_id = empresa_ativa()",
+            [agente.agenteId],
+          );
+          const pessoaId = r.rows[0]?.responsavel_id;
+          const ativa = pessoaId ? await pessoaAtivaNaEmpresa(c, pessoaId) : false;
+          solta = await trocarResponsavel(
+            c,
+            quem,
+            solta,
+            ativa && pessoaId ? { tipo: "pessoa", pessoaId } : null,
+          );
+        }
         return { tarefa: solta, comentario };
       });
       if (!feito) throw naoAchou();
@@ -244,7 +276,7 @@ async function executar(
       const e = entrada as EntradaDa<"comentar">;
       const comentario = await naEmpresa(async (c) => {
         const tarefa = await buscarTarefa(c, quem, e.tarefaId, true);
-        return tarefa ? comentar(c, { tipo: "agente", agenteId: agente.agenteId }, tarefa.id, e.texto) : null;
+        return tarefa ? comentar(c, autorDe(quem), tarefa.id, e.texto) : null;
       });
       if (!comentario) throw naoAchou();
       await registrar("tarefa.comentou", e.tarefaId, { comentarioId: comentario.id });
@@ -260,23 +292,25 @@ async function executar(
         if (!tarefa) return null;
         if (!travadaPorQuem(tarefa, quem)) return { naoE: true as const };
         const de = tarefa.status;
-        const nova = await mudarStatus(c, quem, tarefa, status, e.resultado ?? null);
         const motivo = (e as { motivo?: string }).motivo;
-        const comentario = motivo
-          ? await comentar(c, { tipo: "agente", agenteId: agente.agenteId }, tarefa.id, motivo)
-          : null;
-        return { tarefa: nova, de, comentario };
+        const comentario = motivo ? await comentar(c, autorDe(quem), tarefa.id, motivo) : null;
+        // Mesmo status sem resultado: nada muda (como na tela).
+        const mudou = status !== de || e.resultado !== undefined;
+        const nova = mudou ? await mudarStatus(c, quem, tarefa, status, e.resultado ?? null) : tarefa;
+        return { tarefa: nova, de, comentario, mudou };
       });
       if (!feito) throw naoAchou();
       if ("naoE" in feito)
         throw new RecusaDaFerramenta("Pegue a tarefa (pegar_tarefa) antes de mudar o status ou entregar.");
       if (feito.comentario)
         await registrar("tarefa.comentou", e.tarefaId, { comentarioId: feito.comentario.id });
-      await registrar("tarefa.mudou_status", e.tarefaId, {
-        de: feito.de,
-        para: feito.tarefa.status,
-        comResultado: feito.tarefa.resultado !== null,
-      });
+      if (feito.mudou) {
+        await registrar("tarefa.mudou_status", e.tarefaId, {
+          de: feito.de,
+          para: feito.tarefa.status,
+          comResultado: feito.tarefa.resultado !== null,
+        });
+      }
       return feito.tarefa;
     }
     case "estou_vivo":

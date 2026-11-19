@@ -237,7 +237,7 @@ export function documentacaoDaApi(): string {
   partes.push(
     "## Rotas",
     "",
-    "Todas com o prefixo `/api` no site. As rotas da tela pedem a sessão da pessoa e passam pela verificação central de permissões.",
+    "Todas com o prefixo `/api` no site, menos `/mcp`, que fica em `https://teste.osmago.com/mcp`. As rotas da tela pedem a sessão da pessoa e passam pela verificação central de permissões.",
     "",
   );
   partes.push("| Método | Caminho | Permissão | O que faz |", "| --- | --- | --- | --- |");

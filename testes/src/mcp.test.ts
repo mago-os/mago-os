@@ -183,6 +183,27 @@ describe.skipIf(!bancoDisponivel)("servidor MCP", () => {
     await daDois.close();
   });
 
+  it("soltar devolve a tarefa para a pessoa responsável pelo agente, e ela sai da lista dele", async () => {
+    const t = await dono.query<{ id: string }>(
+      "insert into tarefas (empresa_id, titulo, responsavel_agente_id) values ($1, 'Difícil demais', $2) returning id",
+      [empresas.Um, agentes.Um],
+    );
+    const tarefaId = t.rows[0]?.id as string;
+    const cliente = await conectar(chaves.Um?.chave ?? "");
+    await chamar(cliente, "pegar_tarefa", { tarefaId });
+    const solta = await chamar(cliente, "soltar_tarefa", { tarefaId, motivo: "Não tenho acesso a isso." });
+    expect(solta.structuredContent).toMatchObject({
+      status: "a_fazer",
+      trava: null,
+      responsavel: { tipo: "pessoa" },
+    });
+    const lista = await chamar(cliente, "minhas_tarefas");
+    expect(((lista.structuredContent?.tarefas ?? []) as { id: string }[]).map((x) => x.id)).not.toContain(
+      tarefaId,
+    );
+    await cliente.close();
+  });
+
   it("entrada fora do contrato é recusada", async () => {
     const cliente = await conectar(chaves.Um?.chave ?? "");
     expect((await chamar(cliente, "ver_tarefa", { tarefaId: "nao-e-uuid" })).isError).toBe(true);
