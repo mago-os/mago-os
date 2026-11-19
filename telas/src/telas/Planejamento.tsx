@@ -39,10 +39,7 @@ export function MarcaDePrioridade({ prioridade }: { prioridade: Prioridade | nul
 
 /** O prazo como a pessoa lê: com hora, no fuso de quem vê; só o dia, o próprio dia. */
 export function textoDoPrazo(prazo: Prazo): string {
-  if (prazo.hora === null) {
-    const [a, m, d] = prazo.dia.split("-");
-    return `${d}/${m}/${a}`;
-  }
+  if (prazo.hora === null) return diaBr(prazo.dia);
   return new Date(prazo.em).toLocaleString("pt-BR", {
     day: "2-digit",
     month: "2-digit",
@@ -66,6 +63,17 @@ export function MarcaDePrazo({ tarefa }: { tarefa: Pick<Tarefa, "prazo" | "statu
 }
 
 const DIAS = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
+
+/** AAAA-MM-DD para DD/MM/AAAA. */
+export function diaBr(dia: string): string {
+  const [a, m, d] = dia.split("-");
+  return `${d}/${m}/${a}`;
+}
+
+function semDiaDoMes(regra: RegraDeRecorrencia): RegraDeRecorrencia {
+  const { diaDoMes: _, ...resto } = regra;
+  return resto;
+}
 const NOMES_FREQUENCIA: Record<Frequencia, string> = {
   diaria: "Todo dia",
   semanal: "Toda semana",
@@ -117,7 +125,8 @@ export function PlanejamentoDaTarefa({
       prazo: dia ? { dia, hora: hora || null, ...(tarefa.prazo ? { fuso: tarefa.prazo.fuso } : {}) } : null,
       inicio: inicio || null,
       etiquetas: marcadas,
-      recorrencia: dia ? regra : null,
+      // O dia do mês da recorrência mensal acompanha o prazo (o servidor completa).
+      recorrencia: dia && regra ? semDiaDoMes(regra) : null,
     });
     setMensagem(r.ok ? null : { tipo: "erro", texto: r.mensagem ?? "" });
     if (r.ok) setEditando(false);
@@ -155,11 +164,7 @@ export function PlanejamentoDaTarefa({
             <span className="text-texto-2">Sem prioridade</span>
           )}
           {tarefa.prazo ? <MarcaDePrazo tarefa={tarefa} /> : <span className="text-texto-2">Sem prazo</span>}
-          {tarefa.inicio && (
-            <span className="text-xs text-texto-2">
-              Início: {tarefa.inicio.split("-").reverse().join("/")}
-            </span>
-          )}
+          {tarefa.inicio && <span className="text-xs text-texto-2">Início: {diaBr(tarefa.inicio)}</span>}
           {tarefa.recorrencia && (
             <span className="text-xs text-texto-2">
               Repete: {NOMES_FREQUENCIA[tarefa.recorrencia.frequencia].toLowerCase()} (vez {tarefa.ocorrencia}
@@ -340,7 +345,7 @@ export function PlanejamentoDaTarefa({
                 className="h-10 w-20 rounded-md border border-linha bg-cartao px-2 text-base"
                 value={regra.vezes ?? ""}
                 onChange={(e) =>
-                  setRegra({ ...regra, vezes: e.target.value ? Number(e.target.value) : null })
+                  setRegra({ ...regra, vezes: e.target.value ? Math.max(1, Number(e.target.value)) : null })
                 }
               />
               vezes

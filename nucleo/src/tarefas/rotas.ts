@@ -213,7 +213,7 @@ export function registrarRotasDasTarefas(
     };
     const feito = await naEmpresa(pedido, async (c) => {
       if (temPlano) {
-        const recusaDoPlano = await recusaDoPlanejamento(c, null, plano);
+        const recusaDoPlano = await recusaDoPlanejamento(c, null, plano, r.valor.tarefaMaeId !== undefined);
         if (recusaDoPlano) return { recusaDoPlano };
       }
       // Subtarefa (M3-02): precisa alcançar a mãe, que não pode ser subtarefa nem estar com outra pessoa.

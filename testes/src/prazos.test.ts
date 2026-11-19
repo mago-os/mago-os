@@ -164,11 +164,11 @@ describe.skipIf(!bancoDisponivel)("prioridade, prazo, etiquetas e recorrência",
     const ana = await como("ana@teste.invalid");
     const etiqueta = (await pedir("POST", "/etiquetas", ana, { nome: "Rotina", cor: "#3b82f6" })).json();
     expect((await pedir("POST", "/etiquetas", ana, { nome: "rotina", cor: "#3b82f6" })).statusCode).toBe(409);
-    // 23/11/2026 é segunda-feira.
+    // 25/11/2030 é segunda-feira (no futuro, para a conta não depender de hoje).
     const t = await pedir("POST", "/tarefas", ana, {
       titulo: "Conferir o backup",
       prioridade: "alta",
-      prazo: { dia: "2026-11-23", hora: "09:00", fuso: "America/Sao_Paulo" },
+      prazo: { dia: "2030-11-25", hora: "09:00", fuso: "America/Sao_Paulo" },
       etiquetas: [etiqueta.id],
       recorrencia: { frequencia: "semanal", intervalo: 1, diasDaSemana: [1] },
     });
@@ -192,7 +192,7 @@ describe.skipIf(!bancoDisponivel)("prioridade, prazo, etiquetas e recorrência",
       ocorrencia: 2,
       recorrenteDeId: id,
       etiquetas: [etiqueta.id],
-      prazo: { dia: "2026-11-30", hora: "09:00", fuso: "America/Sao_Paulo", em: "2026-11-30T12:00:00.000Z" },
+      prazo: { dia: "2030-12-02", hora: "09:00", fuso: "America/Sao_Paulo", em: "2030-12-02T12:00:00.000Z" },
       criadaPor: { tipo: "sistema" },
     });
     expect(nova.checklist).toMatchObject([{ texto: "Ver o último backup", marcado: false }]);
@@ -219,7 +219,7 @@ describe.skipIf(!bancoDisponivel)("prioridade, prazo, etiquetas e recorrência",
     const t = (
       await pedir("POST", "/tarefas", ana, {
         titulo: "Duas vezes",
-        prazo: { dia: "2026-11-23" },
+        prazo: { dia: "2030-11-23" },
         recorrencia: { frequencia: "diaria", intervalo: 1, vezes: 2 },
       })
     ).json().id;
@@ -231,6 +231,32 @@ describe.skipIf(!bancoDisponivel)("prioridade, prazo, etiquetas e recorrência",
     expect((await dono.query("select 1 from tarefas where recorrente_de_id = $1", [segunda])).rowCount).toBe(
       0,
     );
+  });
+
+  it("concluída com atraso, a próxima vai para a primeira data a partir de hoje; subtarefa não se repete", async () => {
+    const ana = await como("ana@teste.invalid");
+    const t = (
+      await pedir("POST", "/tarefas", ana, {
+        titulo: "Atrasada",
+        prazo: { dia: "2020-01-06", fuso: "UTC" },
+        recorrencia: { frequencia: "diaria", intervalo: 1 },
+      })
+    ).json().id;
+    await pedir("POST", `/tarefas/${t}/status`, ana, { status: "concluida" });
+    const r = await dono.query<{ dia: string; ocorrencia: number }>(
+      "select to_char(prazo_dia, 'YYYY-MM-DD') as dia, ocorrencia from tarefas where recorrente_de_id = $1",
+      [t],
+    );
+    const hoje = new Date().toISOString().slice(0, 10);
+    expect(r.rows[0]?.dia).toBe(hoje);
+    expect(r.rows[0]?.ocorrencia).toBeGreaterThan(2);
+    const sub = await pedir("POST", "/tarefas", ana, {
+      titulo: "Sub recorrente",
+      tarefaMaeId: t,
+      prazo: { dia: "2030-01-01" },
+      recorrencia: { frequencia: "diaria", intervalo: 1 },
+    });
+    expect(sub.statusCode).toBe(400);
   });
 
   it("planejamento: prioridade, prazo, início e etiquetas, cada mudança na auditoria", async () => {

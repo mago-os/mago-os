@@ -13,14 +13,32 @@ import type pg from "pg";
 import { FORMATO_UUID } from "../comum.ts";
 import { diferencaEmDias, proximoDia } from "./recorrencia.ts";
 
-/** O fuso é um fuso IANA que o Node conhece (o banco recusaria um desconhecido com erro feio). */
-export function fusoValido(fuso: string): boolean {
-  try {
-    new Intl.DateTimeFormat("pt-BR", { timeZone: fuso });
-    return true;
-  } catch {
-    return false;
-  }
+/** O fuso é um que o próprio banco conhece (é ele que calcula o momento do prazo). */
+export async function fusoValido(c: pg.PoolClient, fuso: string): Promise<boolean> {
+  const r = await c.query("select 1 from pg_timezone_names where name = $1", [fuso]);
+  return (r.rowCount ?? 0) > 0;
+}
+
+/** Hoje, no fuso dado (AAAA-MM-DD). */
+export function hojeNoFuso(fuso: string, agora = new Date()): string {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: fuso,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(agora);
+}
+
+/** Texto igual para o mesmo objeto, com as chaves em ordem (o jsonb do banco devolve em outra ordem). */
+function canonico(valor: unknown): string {
+  if (valor === null || typeof valor !== "object") return JSON.stringify(valor ?? null);
+  if (Array.isArray(valor)) return `[${valor.map(canonico).join(",")}]`;
+  const o = valor as Record<string, unknown>;
+  return `{${Object.keys(o)
+    .filter((k) => o[k] !== undefined)
+    .sort()
+    .map((k) => `${JSON.stringify(k)}:${canonico(o[k])}`)
+    .join(",")}}`;
 }
 
 /** Fuso da empresa ativa (prazo sem fuso escolhido vale o da empresa). */
@@ -53,6 +71,12 @@ export function completarRegra(regra: RegraDeRecorrencia, diaDoPrazo: string): R
   return regra;
 }
 
+/** Sem o dia do mês guardado (para recalcular a partir de um prazo novo). */
+function semDiaDoMes(regra: RegraDeRecorrencia): RegraDeRecorrencia {
+  const { diaDoMes: _, ...resto } = regra;
+  return resto;
+}
+
 /**
  * Confere o planejamento pedido contra o que a tarefa já tem (nulo: tarefa nova). Devolve o motivo da recusa, ou nulo.
  */
@@ -60,18 +84,23 @@ export async function recusaDoPlanejamento(
   c: pg.PoolClient,
   atual: Tarefa | null,
   pedido: PedidoDePlanejamento,
+  /** A tarefa é (ou vai ser) uma subtarefa: subtarefa não se repete (só a tarefa-mãe). */
+  ehSubtarefa = atual?.tarefaMaeId != null,
 ): Promise<string | null> {
   if (pedido.recorrencia) {
+    if (ehSubtarefa) return "Subtarefa não se repete: ponha a recorrência na tarefa-mãe.";
     const r = conferirRegraDeRecorrencia(pedido.recorrencia);
     if (!r.ok) return "Confira a recorrência: dias da semana só na semanal, dia do mês só na mensal.";
   }
-  if (pedido.prazo?.fuso && !fusoValido(pedido.prazo.fuso)) return "Fuso do prazo desconhecido.";
+  if (pedido.prazo?.fuso && !(await fusoValido(c, pedido.prazo.fuso))) return "Fuso do prazo desconhecido.";
   if (pedido.etiquetas && !(await etiquetasDaEmpresa(c, pedido.etiquetas))) {
     return "Uma das etiquetas não existe nesta empresa.";
   }
   const prazo = pedido.prazo === undefined ? (atual?.prazo ?? null) : pedido.prazo;
   const recorrencia = pedido.recorrencia === undefined ? (atual?.recorrencia ?? null) : pedido.recorrencia;
   if (recorrencia && !prazo) return "Tarefa recorrente precisa de prazo.";
+  if (recorrencia?.ate && prazo && recorrencia.ate < prazo.dia)
+    return "A repetição precisa terminar depois do prazo.";
   const inicio = pedido.inicio === undefined ? (atual?.inicio ?? null) : pedido.inicio;
   if (inicio && prazo && inicio > prazo.dia) return "O início vem antes do prazo.";
   return null;
@@ -84,13 +113,24 @@ export async function planejar(
   pedido: PedidoDePlanejamento,
   fusoPadrao: string,
 ): Promise<{ prioridade: boolean; prazo: boolean; etiquetas: boolean; recorrencia: boolean }> {
+  // Prazo novo sem fuso continua no fuso que a tarefa já tinha (ou no da empresa, se não tinha prazo).
   const prazo =
     pedido.prazo === undefined
       ? tarefa.prazo
       : pedido.prazo === null
         ? null
-        : { dia: pedido.prazo.dia, hora: pedido.prazo.hora ?? null, fuso: pedido.prazo.fuso ?? fusoPadrao };
-  const recorrenciaPedida = pedido.recorrencia === undefined ? tarefa.recorrencia : pedido.recorrencia;
+        : {
+            dia: pedido.prazo.dia,
+            hora: pedido.prazo.hora ?? null,
+            fuso: pedido.prazo.fuso ?? tarefa.prazo?.fuso ?? fusoPadrao,
+          };
+  // Mudou só o prazo: o dia do mês da recorrência mensal acompanha o prazo novo.
+  const recorrenciaPedida =
+    pedido.recorrencia === undefined
+      ? tarefa.recorrencia && pedido.prazo !== undefined
+        ? semDiaDoMes(tarefa.recorrencia)
+        : tarefa.recorrencia
+      : pedido.recorrencia;
   const recorrencia = recorrenciaPedida && prazo ? completarRegra(recorrenciaPedida, prazo.dia) : null;
   await c.query(
     `update tarefas set prioridade = $2, prazo_dia = $3::date, prazo_hora = $4::time, prazo_fuso = $5,
@@ -118,7 +158,7 @@ export async function planejar(
     prioridade: pedido.prioridade !== undefined && pedido.prioridade !== tarefa.prioridade,
     prazo: pedido.prazo !== undefined && chaveDoPrazo(prazo) !== chaveDoPrazo(tarefa.prazo),
     etiquetas,
-    recorrencia: JSON.stringify(recorrencia) !== JSON.stringify(tarefa.recorrencia),
+    recorrencia: canonico(recorrencia) !== canonico(tarefa.recorrencia),
   };
 }
 
@@ -148,7 +188,26 @@ export async function gravarEtiquetas(
  */
 export async function recorrerSePreciso(c: pg.PoolClient, tarefa: Tarefa): Promise<string | null> {
   if (tarefa.status !== "concluida" || !tarefa.recorrencia || !tarefa.prazo) return null;
-  const dia = proximoDia(tarefa.recorrencia, tarefa.prazo.dia, tarefa.ocorrencia);
+  if (tarefa.tarefaMaeId !== null) return null;
+  // O dia do prazo da primeira vez guarda o dia do mês e do ano (um 29 de fevereiro volta ao 29 no ano bissexto).
+  const primeiro = await c.query<{ dia: string }>(
+    `with recursive serie as (
+       select id, recorrente_de_id, prazo_dia, 0 as passo from tarefas where id = $1 and empresa_id = empresa_ativa()
+       union all
+       select t.id, t.recorrente_de_id, t.prazo_dia, s.passo + 1 from tarefas t join serie s on t.id = s.recorrente_de_id
+        where t.empresa_id = empresa_ativa() and s.passo < 1000)
+     select to_char(prazo_dia, 'YYYY-MM-DD') as dia from serie order by passo desc limit 1`,
+    [tarefa.id],
+  );
+  const diaOriginal = primeiro.rows[0]?.dia ?? tarefa.prazo.dia;
+  // Concluída com atraso: a próxima vai para a primeira data da série a partir de hoje (não nasce já atrasada).
+  const hoje = hojeNoFuso(tarefa.prazo.fuso);
+  let ocorrencia = tarefa.ocorrencia;
+  let dia: string | null = tarefa.prazo.dia;
+  do {
+    dia = proximoDia(tarefa.recorrencia, dia, ocorrencia, diaOriginal);
+    ocorrencia += 1;
+  } while (dia !== null && dia < hoje && ocorrencia < tarefa.ocorrencia + 100_000);
   if (!dia) return null;
   const desloca = diferencaEmDias(tarefa.prazo.dia, dia);
   // Responsável que não está mais ativo não recebe a próxima: ela fica sem responsável.
@@ -157,7 +216,7 @@ export async function recorrerSePreciso(c: pg.PoolClient, tarefa: Tarefa): Promi
                           prazo_fuso, inicio, recorrencia, ocorrencia, recorrente_de_id,
                           responsavel_pessoa_id, responsavel_agente_id)
      select t.empresa_id, t.titulo, t.descricao, t.projeto_id, t.lista_id, t.prioridade, $2::date, t.prazo_hora,
-            t.prazo_fuso, t.inicio + $3::int, t.recorrencia, t.ocorrencia + 1, t.id,
+            t.prazo_fuso, t.inicio + $3::int, t.recorrencia, $4::int, t.id,
             (select v.pessoa_id from vinculos v where v.empresa_id = t.empresa_id
                 and v.pessoa_id = t.responsavel_pessoa_id and v.situacao = 'ativo'),
             (select a.id from agentes a where a.empresa_id = t.empresa_id
@@ -165,7 +224,7 @@ export async function recorrerSePreciso(c: pg.PoolClient, tarefa: Tarefa): Promi
        from tarefas t where t.id = $1 and t.empresa_id = empresa_ativa() and t.tarefa_mae_id is null
      on conflict (recorrente_de_id) where recorrente_de_id is not null do nothing
      returning id`,
-    [tarefa.id, dia, desloca],
+    [tarefa.id, dia, desloca, ocorrencia],
   );
   const nova = r.rows[0]?.id;
   if (!nova) return null;
