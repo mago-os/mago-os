@@ -24,6 +24,7 @@ import { Entrar, RecuperarSenha, RedefinirSenha } from "./telas/Acesso";
 import { Auditoria, Pessoas, Seguranca } from "./telas/Administrador";
 import { Agentes, PaginaDoAgente } from "./telas/Agentes";
 import { AvisosDeAcesso, MeusAparelhos } from "./telas/Aparelhos";
+import { AvisosDoMago } from "./telas/Avisos";
 import { AceitarConvite } from "./telas/Convite";
 import { AtivarDoisFatores, ConfirmarSegundoFator } from "./telas/DoisFatores";
 import { Empresas } from "./telas/Empresas";
@@ -264,6 +265,7 @@ export function App() {
       instalar={instalar ? () => void instalar.prompt() : null}
     >
       <AvisosDeAcesso avisos={avisos} aoResponder={() => void carregarAvisos()} />
+      {temEmpresaAtiva && <AvisosDoMago />}
       {conteudo}
     </Casca>
   );

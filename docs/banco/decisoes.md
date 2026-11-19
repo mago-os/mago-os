@@ -152,3 +152,11 @@ O login (`mago_acesso`) não lê papéis nem as regras da plataforma direto. As 
 
 - A função `avisar_mudanca()` e os gatilhos em `tarefas`, `comentarios_de_tarefa` e `agentes` mandam um aviso no canal `mago_mudancas` (LISTEN/NOTIFY) a cada mudança. O aviso leva só a empresa, o tipo (tarefa ou agente), o id e a operação: nada de título, texto ou nome.
 - Cada cópia da API escuta o canal com uma conexão própria e repassa o aviso só às telas da mesma empresa. A tela busca de novo pela rota normal, então a permissão continua valendo. Funciona com mais de uma cópia e na troca azul e verde.
+
+## 20. Chaves, limites e avisos dos agentes (18/11/2026, M2-04)
+
+- `chaves_de_agente` guarda só o começo da chave (único) e o resumo SHA-256 da chave inteira, nunca a chave. A API não apaga chaves: revoga. Ver [decisão 0017](../decisoes/0017-chave-do-agente.md).
+- Antes de saber a empresa, o pedido do agente acha a chave pelo começo com `reconhecer_chave` (dono): devolve uma linha só, com o começo exato. A conferência do resumo é feita na API, em tempo constante.
+- `contadores_de_agente`: pedidos por minuto (por chave) e leituras por hora (por agente), no banco, para valer com várias cópias da API. `limpar_contadores_de_agente` apaga os com mais de 2 horas.
+- `avisos`: avisos para uma pessoa dentro do Mago OS, só para quem tem vínculo na empresa, com link sempre interno.
+- `agentes_sem_sinal` (dono): para a verificação a cada minuto, devolve só os ids dos agentes com tarefa pegada e sem sinal; o trabalho em cada empresa roda com a empresa dela.

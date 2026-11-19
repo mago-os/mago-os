@@ -61,14 +61,14 @@ Pronto quando: dois agentes de teste tentam pegar a mesma tarefa ao mesmo tempo 
 
 Precisa da aprovação do Sandro (é segurança).
 
-- [ ] Chave própria por agente, mostrada uma vez só na tela; no banco fica só o resumo (hash) e o começo da chave, para reconhecer na lista
-- [ ] Mais de uma chave por agente (para trocar sem parar), cada uma com nome, validade opcional, último uso e botão Revogar; revogar vale no pedido seguinte
-- [ ] A chave só vale para a empresa e o agente dela; agente pausado ou desligado é recusado
-- [ ] Limite de pedidos por minuto por chave e limite de leitura por hora (padrão 500 registros, como no plano): passou, o agente é pausado e o responsável é avisado
-- [ ] Sinal de vida: todo pedido do agente atualiza o "último sinal"; existe também uma ação só para dizer "estou vivo"
-- [ ] Verificação a cada minuto (pg-boss): tarefa pegada por um agente sem sinal há mais de 15 minutos (alterável por agente) volta para A fazer, com comentário do sistema, e o responsável humano recebe aviso no Mago OS e por e-mail
-- [ ] Eventos de auditoria: `chave.criou`, `chave.revogou`, `chave.recusou` (com o motivo, sem a chave), `agente.sem_sinal`, `agente.passou_do_limite`
-- [ ] Nota de decisão em `docs/decisoes` sobre o formato da chave e o sinal de vida
+- [x] Chave própria por agente, mostrada uma vez só na tela; no banco fica só o resumo (hash) e o começo da chave, para reconhecer na lista
+- [x] Mais de uma chave por agente (para trocar sem parar), cada uma com nome, validade opcional, último uso e botão Revogar; revogar vale no pedido seguinte
+- [x] A chave só vale para a empresa e o agente dela; agente pausado ou desligado é recusado
+- [x] Limite de pedidos por minuto por chave e limite de leitura por hora (padrão 500 registros, como no plano): passou, o agente é pausado e o responsável é avisado
+- [x] Sinal de vida: todo pedido do agente atualiza o "último sinal"; existe também uma ação só para dizer "estou vivo"
+- [x] Verificação a cada minuto (pg-boss): tarefa pegada por um agente sem sinal há mais de 15 minutos (alterável por agente) volta para A fazer, com comentário do sistema, e o responsável humano recebe aviso no Mago OS e por e-mail
+- [x] Eventos de auditoria: `chave.criou`, `chave.revogou`, `chave.recusou` (com o motivo, sem a chave), `agente.sem_sinal`, `agente.passou_do_limite`
+- [x] Nota de decisão em `docs/decisoes` sobre o formato da chave e o sinal de vida
 
 Pronto quando: a chave revogada é recusada no pedido seguinte, e um agente de teste que para de responder perde a tarefa em até 16 minutos, com o responsável avisado.
 

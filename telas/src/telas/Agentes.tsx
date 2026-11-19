@@ -2,7 +2,7 @@
  * Central de agentes (M2-03): a lista com situação, responsável, último sinal de vida e tarefas abertas, e a página
  * do agente. Todo mundo vê; só o administrador cadastra, edita, pausa, retoma e desliga (a API confere de novo).
  */
-import { MINUTOS_SEM_SINAL_PADRAO, type SituacaoAgente } from "@mago-os/contratos";
+import { type ChaveDeAgente, MINUTOS_SEM_SINAL_PADRAO, type SituacaoAgente } from "@mago-os/contratos";
 import { ArrowLeft, Bot, Plus } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { listarPessoas, type PessoaDaEmpresa } from "@/acesso";
@@ -10,8 +10,11 @@ import {
   type AgenteNaLista,
   acaoNoAgente,
   cadastrarAgente,
+  criarChave,
   editarAgente,
   listarAgentes,
+  listarChaves,
+  revogarChave,
   verAgente,
 } from "@/agentes";
 import { Button } from "@/componentes/ui/button";
@@ -328,6 +331,7 @@ export function PaginaDoAgente({
           )}
         </Card>
       )}
+      {podeEditar && <ChavesDoAgente agenteId={agente.id} desligado={desligado} />}
       {!desligado && !editando && (podeEditar || podeDesligar) && (
         <div className="flex flex-wrap gap-2">
           {podeEditar && (
@@ -353,6 +357,158 @@ export function PaginaDoAgente({
         </div>
       )}
     </main>
+  );
+}
+
+const dataCurta = (iso: string) =>
+  new Date(iso).toLocaleString("pt-BR", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+
+/**
+ * Chaves do agente (M2-04): a lista (só o começo de cada uma), criar (a chave inteira aparece uma vez, para copiar)
+ * e revogar. Revogar vale no pedido seguinte do agente.
+ */
+function ChavesDoAgente({ agenteId, desligado }: { agenteId: string; desligado: boolean }) {
+  const [chaves, setChaves] = useState<ChaveDeAgente[]>([]);
+  const [criando, setCriando] = useState(false);
+  const [nova, setNova] = useState<string | null>(null);
+  const [copiada, setCopiada] = useState(false);
+  const [mensagem, setMensagem] = useState<Mensagem>(null);
+  const carregar = useCallback(async () => {
+    const r = await listarChaves(agenteId);
+    if (r.ok && r.dados) setChaves(r.dados);
+  }, [agenteId]);
+  useEffect(() => {
+    void carregar();
+  }, [carregar]);
+
+  async function aoCriar(evento: React.FormEvent<HTMLFormElement>) {
+    evento.preventDefault();
+    const f = new FormData(evento.currentTarget);
+    const validade = String(f.get("validaAte") ?? "");
+    const r = await criarChave(agenteId, {
+      nome: String(f.get("nome")).trim(),
+      validaAte: validade ? new Date(`${validade}T23:59:59`).toISOString() : null,
+    });
+    if (!r.ok || !r.dados) return setMensagem({ tipo: "erro", texto: r.mensagem ?? "" });
+    setCriando(false);
+    setCopiada(false);
+    setNova(r.dados.segredo);
+    setMensagem(null);
+    void carregar();
+  }
+
+  async function aoRevogar(chave: ChaveDeAgente) {
+    if (
+      !window.confirm(
+        `Revogar a chave "${chave.nome}"? O agente que usa esta chave para de entrar no próximo pedido.`,
+      )
+    )
+      return;
+    const r = await revogarChave(agenteId, chave.id);
+    setMensagem(r.ok ? { tipo: "ok", texto: "Chave revogada." } : { tipo: "erro", texto: r.mensagem ?? "" });
+    void carregar();
+  }
+
+  async function copiar() {
+    if (!nova) return;
+    try {
+      await navigator.clipboard.writeText(nova);
+      setCopiada(true);
+    } catch {
+      setMensagem({ tipo: "erro", texto: "Não deu para copiar sozinho. Selecione a chave e copie." });
+    }
+  }
+
+  return (
+    <Card className="gap-3">
+      <div className="flex items-center justify-between gap-2">
+        <CardTitulo>Chaves</CardTitulo>
+        {!desligado && !criando && !nova && (
+          <Button size="pequeno" variant="contorno" onClick={() => setCriando(true)}>
+            <Plus /> Criar chave
+          </Button>
+        )}
+      </div>
+      <CardDescricao>
+        O agente entra no Mago OS com uma destas chaves. Para trocar sem parar: crie a nova, troque no agente
+        e revogue a antiga.
+      </CardDescricao>
+      {nova && (
+        <div className="grid gap-2 rounded-md border border-alerta/40 bg-suave p-3" role="status">
+          <p className="text-sm font-medium">
+            Copie a chave agora. Ela não aparece de novo: o Mago OS guarda só um resumo dela.
+          </p>
+          <code className="break-all rounded bg-cartao px-2 py-1.5 font-mono text-xs" data-chave-nova>
+            {nova}
+          </code>
+          <div className="flex gap-2">
+            <Button size="pequeno" onClick={() => void copiar()}>
+              {copiada ? "Copiada" : "Copiar"}
+            </Button>
+            <Button size="pequeno" variant="fantasma" onClick={() => setNova(null)}>
+              Já guardei
+            </Button>
+          </div>
+        </div>
+      )}
+      {criando && (
+        <form className="grid gap-3" onSubmit={(e) => void aoCriar(e)}>
+          <Campo
+            id="nome-da-chave"
+            name="nome"
+            rotulo="Nome da chave"
+            required
+            maxLength={80}
+            placeholder="Ex.: Mac do Sandro"
+          />
+          <Campo id="validade-da-chave" name="validaAte" type="date" rotulo="Válida até (opcional)" />
+          <div className="flex gap-2">
+            <Button type="submit" size="pequeno">
+              Criar
+            </Button>
+            <Button type="button" size="pequeno" variant="fantasma" onClick={() => setCriando(false)}>
+              Cancelar
+            </Button>
+          </div>
+        </form>
+      )}
+      {mensagem && <Aviso {...mensagem} />}
+      {chaves.length === 0 && <p className="text-sm text-texto-2">Nenhuma chave ainda.</p>}
+      <ul className="grid gap-2">
+        {chaves.map((k) => (
+          <li key={k.id} className="grid gap-1 rounded-md border border-linha p-2.5 text-sm">
+            <span className="flex flex-wrap items-center gap-2">
+              <span className="font-medium">{k.nome}</span>
+              <code className="font-mono text-xs text-texto-2">{k.prefixo}_…</code>
+              {k.revogadaEm && (
+                <span className="rounded-full bg-suave px-2 py-0.5 text-xs text-texto-2">Revogada</span>
+              )}
+            </span>
+            <span className="flex flex-wrap items-center gap-x-3 text-xs text-texto-2">
+              <span>Criada em {dataCurta(k.criadaEm)}</span>
+              <span>{k.ultimoUsoEm ? `Último uso ${dataCurta(k.ultimoUsoEm)}` : "Nunca usada"}</span>
+              {k.validaAte && <span>Vale até {dataCurta(k.validaAte)}</span>}
+              {!k.revogadaEm && (
+                <Button
+                  size="pequeno"
+                  variant="fantasma"
+                  className="ml-auto text-perigo"
+                  onClick={() => void aoRevogar(k)}
+                >
+                  Revogar
+                </Button>
+              )}
+            </span>
+          </li>
+        ))}
+      </ul>
+    </Card>
   );
 }
 
