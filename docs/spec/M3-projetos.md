@@ -1,6 +1,6 @@
 # Spec da Fase 1: M3 Projetos e tarefas completos
 
-Parte da [spec da Fase 1](README.md). Estado em 19/11/2026: **aprovado** pelo Sandro, com todas as recomendações (inclusive a M3-11 e os eventos da agenda simples no M5). Em construção: M3-01 e M3-02 prontas em 19/11/2026.
+Parte da [spec da Fase 1](README.md). Estado em 19/11/2026: **aprovado** pelo Sandro, com todas as recomendações (inclusive a M3-11 e os eventos da agenda simples no M5). Em construção: M3-01, M3-02 e M3-03 prontas em 19/11/2026.
 
 **Pronto quando:** a Nolask organiza um projeto real no Mago OS (sugestão: a própria construção do Mago OS, com as tarefas do M4), com espaço, projeto, diretor e gerente, listas, subtarefas, prazos e etiquetas, e acompanha pelo Kanban, pela lista e pelo calendário. Uma menção a uma pessoa chega no sino e no celular, um anexo passa pelo antivírus antes de abrir, a central de prioridades mostra o que vence hoje e o Ctrl+K acha a tarefa pelo nome. Os testes provam que uma empresa não vê projetos, anexos, notificações nem resultados de busca da outra.
 
@@ -60,14 +60,14 @@ Pronto quando: o Claude no Mac recebe uma tarefa, cria três subtarefas pelo MCP
 
 ### M3-03 Prioridade, prazo, etiquetas e recorrência
 
-- [ ] Prioridade (decisão 6): Urgente, Alta, Normal, Baixa ou sem prioridade
-- [ ] Prazo com data e, se quiser, hora, sempre guardado com fuso; a tela mostra no fuso de quem vê. Data de início opcional, para o calendário
-- [ ] Etiquetas da empresa (nome e cor), várias por tarefa; quem pode criar etiqueta é quem pode editar tarefas, e só o administrador apaga
-- [ ] Recorrência (decisão 7): ao concluir uma tarefa recorrente, o sistema cria a próxima com o próximo prazo, copiando título, descrição, responsável, lista, etiquetas e checklist (desmarcado). Regras: todo dia, dias da semana escolhidos, todo mês num dia, todo ano, a cada N dias; parar numa data ou depois de N vezes. Fuso da empresa
-- [ ] Prazo vencido não muda o status: a tarefa só aparece como atrasada (cor e filtro), e o aviso fica para a M3-06
-- [ ] MCP: `minhas_tarefas` e `ver_tarefa` trazem prioridade, prazo e etiquetas; `minhas_tarefas` vem ordenada por prioridade e prazo
-- [ ] Eventos de auditoria: `tarefa.mudou_prioridade`, `tarefa.mudou_prazo`, `tarefa.mudou_etiquetas`, `tarefa.recorreu`, `etiqueta.criou`, `etiqueta.excluiu`
-- [ ] Testes: recorrência na virada do mês, no dia 31, no horário de verão de Lisboa e de São Paulo, e uma recorrência criada duas vezes por engano (só uma tarefa nasce, garantido no banco)
+- [x] Prioridade (decisão 6): Urgente, Alta, Normal, Baixa ou sem prioridade
+- [x] Prazo com data e, se quiser, hora, sempre guardado com fuso; a tela mostra no fuso de quem vê. Data de início opcional, para o calendário
+- [x] Etiquetas da empresa (nome e cor), várias por tarefa; quem pode criar etiqueta é quem pode editar tarefas, e só o administrador apaga
+- [x] Recorrência (decisão 7): ao concluir uma tarefa recorrente, o sistema cria a próxima com o próximo prazo, copiando título, descrição, responsável, lista, etiquetas e checklist (desmarcado). Regras: todo dia, dias da semana escolhidos, todo mês num dia, todo ano, a cada N dias; parar numa data ou depois de N vezes. Fuso do prazo (o da empresa, se ninguém escolher). Na mensal sem dia do mês, fica guardado o dia do prazo, para o 31 voltar ao 31 depois de um mês curto; o responsável que não está mais ativo não recebe a próxima (fica sem responsável). Concluída com atraso, a próxima vai para a primeira data da série a partir de hoje (não nasce atrasada); subtarefa não se repete (decidido na codificação)
+- [x] Prazo vencido não muda o status: a tarefa só aparece como atrasada (cor e filtro), e o aviso fica para a M3-06
+- [x] MCP: `minhas_tarefas` e `ver_tarefa` trazem prioridade, prazo e etiquetas; `minhas_tarefas` vem ordenada por prioridade e prazo
+- [x] Eventos de auditoria: `tarefa.mudou_prioridade`, `tarefa.mudou_prazo`, `tarefa.mudou_etiquetas`, `tarefa.mudou_recorrencia` (acrescentado na codificação), `tarefa.recorreu`, `etiqueta.criou`, `etiqueta.excluiu`
+- [x] Testes: recorrência na virada do mês, no dia 31, no horário de verão de Lisboa e de São Paulo, e uma recorrência criada duas vezes por engano (só uma tarefa nasce, garantido no banco)
 
 Pronto quando: o Sandro cria a tarefa "Conferir o backup" toda segunda às 9h, conclui, e a da semana seguinte aparece sozinha com o prazo certo.
 

@@ -27,6 +27,15 @@ export const Rastreio = Type.String({
   description: "Número de rastreio do pedido (32 caracteres hexadecimais).",
 });
 
+/** Cor em hexadecimal (#rrggbb), escolhida numa paleta da tela. */
+export const Cor = Type.String({
+  pattern: "^#[0-9a-f]{6}$",
+  description: "Cor no formato #rrggbb, em minúsculas.",
+});
+
+/** Dia do calendário, sem hora (AAAA-MM-DD). */
+export const Dia = Type.String({ format: "date", description: "Dia no formato AAAA-MM-DD." });
+
 /** Endereço IP (v4 ou v6). */
 export const Ip = Type.Union([Type.String({ format: "ipv4" }), Type.String({ format: "ipv6" })], {
   description: "Endereço IP, v4 ou v6.",

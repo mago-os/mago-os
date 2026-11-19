@@ -34,6 +34,7 @@ import { agenteRecebeTarefas } from "../agentes/servico.ts";
 import { auditar } from "../auditoria/registrar.ts";
 import { comEmpresa } from "../empresa.ts";
 import { buscarItem, editarItem, listarChecklist } from "../tarefas/checklist.ts";
+import { recorrerSePreciso } from "../tarefas/planejamento.ts";
 import {
   autorDe,
   buscarTarefa,
@@ -65,7 +66,7 @@ class RecusaDaFerramenta extends Error {
   override name = "RecusaDaFerramenta";
 }
 
-type AcaoDeTarefa = (typeof ACOES_TAREFAS)[number] | (typeof ACOES_CHECKLIST)[number];
+type AcaoDeTarefa = (typeof ACOES_TAREFAS)[number] | (typeof ACOES_CHECKLIST)[number] | "tarefa.recorreu";
 
 export function registrarServidorMcp(app: FastifyInstance, o: OpcoesDoMcp): void {
   app.post("/mcp", async (pedido, resposta) => {
@@ -309,7 +310,9 @@ async function executar(
         // Mesmo status sem resultado: nada muda (como na tela).
         const mudou = status !== de || e.resultado !== undefined;
         const nova = mudou ? await mudarStatus(c, quem, tarefa, status, e.resultado ?? null) : tarefa;
-        return { tarefa: nova, de, comentario, mudou };
+        // Entregou uma recorrente: nasce a próxima (M3-03).
+        const proxima = mudou && de !== "concluida" ? await recorrerSePreciso(c, nova) : null;
+        return { tarefa: nova, de, comentario, mudou, proxima };
       });
       if (!feito) throw naoAchou();
       if ("naoE" in feito)
@@ -321,6 +324,12 @@ async function executar(
           de: feito.de,
           para: feito.tarefa.status,
           comResultado: feito.tarefa.resultado !== null,
+        });
+      }
+      if (feito.proxima) {
+        await registrar("tarefa.recorreu", e.tarefaId, {
+          proximaId: feito.proxima,
+          ocorrencia: feito.tarefa.ocorrencia + 1,
         });
       }
       return feito.tarefa;

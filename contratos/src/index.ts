@@ -23,4 +23,5 @@ export * from "./permissoes.ts";
 export * from "./projetos/lista.ts";
 export * from "./projetos/projeto.ts";
 export * from "./tarefas/checklist.ts";
+export * from "./tarefas/prazos.ts";
 export * from "./tarefas/tarefa.ts";

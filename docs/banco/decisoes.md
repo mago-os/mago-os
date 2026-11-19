@@ -177,3 +177,10 @@ O login (`mago_acesso`) não lê papéis nem as regras da plataforma direto. As 
 - Subtarefa: um nível só e sempre no projeto e na lista da mãe (gatilho `acertar_tarefa`). Quando a mãe muda de projeto ou de lista, o gatilho `levar_subtarefas` leva as subtarefas junto. Excluir a mãe exclui as subtarefas.
 - Projetos que já existiam ganharam a lista "Geral" e os cinco status padrão na própria migração.
 - Os gatilhos do tempo real avisam listas e status como "projeto" e o checklist como "tarefa".
+
+## 23. Prioridade, prazo, etiquetas e recorrência (19/11/2026, M3-03)
+
+- O prazo é guardado como dia (`prazo_dia`), hora opcional (`prazo_hora`) e o fuso em que foi marcado (`prazo_fuso`). O gatilho `calcular_prazo` calcula `prazo_em` no próprio banco, no fuso do prazo (sem hora, 23:59), então a mudança de horário de verão de cada lugar já entra na conta. `prazo_em` serve para ordenar e para os avisos de prazo (M3-06).
+- `etiquetas` (nome único na empresa, sem diferença de maiúsculas) e `etiquetas_de_tarefa` têm `empresa_id`, RLS forçado e a política de `empresa_ativa()`, com chaves compostas: a tarefa só recebe etiqueta da própria empresa.
+- A regra da recorrência fica na tarefa (`recorrencia`, jsonb conferido pelo contrato na API). Ao concluir, a próxima nasce com `recorrente_de_id` apontando para a anterior; o índice único em `recorrente_de_id` garante uma próxima só, mesmo com conclusão repetida ou dois pedidos ao mesmo tempo. Apagar a anterior só limpa a referência (`ON DELETE SET NULL` só nessa coluna).
+- O banco confere: prazo completo (dia, fuso e momento juntos; hora só com dia), recorrência só com prazo e início antes do prazo.

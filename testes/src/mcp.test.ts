@@ -222,6 +222,27 @@ describe.skipIf(!bancoDisponivel)("servidor MCP", () => {
     await cliente.close();
   });
 
+  it("minhas_tarefas vem das mais urgentes para as menos (prioridade, depois o prazo)", async () => {
+    await dono.query(
+      `insert into tarefas (empresa_id, titulo, responsavel_agente_id, prioridade, prazo_dia, prazo_fuso) values
+         ($1, 'Z baixa', $2, 'baixa', null, null),
+         ($1, 'Y urgente mais tarde', $2, 'urgente', '2026-12-20', 'UTC'),
+         ($1, 'X urgente antes', $2, 'urgente', '2026-12-01', 'UTC'),
+         ($1, 'W sem prioridade', $2, null, null, null)`,
+      [empresas.Dois, agentes.Dois],
+    );
+    const cliente = await conectar(chaves.Dois?.chave ?? "");
+    const lista = await chamar(cliente, "minhas_tarefas");
+    expect(((lista.structuredContent?.tarefas ?? []) as { titulo: string }[]).map((t) => t.titulo)).toEqual([
+      "X urgente antes",
+      "Y urgente mais tarde",
+      "Z baixa",
+      "W sem prioridade",
+    ]);
+    await dono.query("delete from tarefas where empresa_id = $1", [empresas.Dois]);
+    await cliente.close();
+  });
+
   it("a chave de uma empresa não vê nem mexe em tarefa da outra", async () => {
     const t = await dono.query<{ id: string }>(
       "insert into tarefas (empresa_id, titulo, responsavel_agente_id) values ($1, 'Segredo da Um', $2) returning id",

@@ -5,6 +5,7 @@
  */
 import {
   type ACOES_CHECKLIST,
+  type ACOES_PRAZOS,
   type ACOES_TAREFAS,
   conferir,
   conferirPedidoDeMudarStatus,
@@ -12,14 +13,18 @@ import {
   PedidoDeComentario,
   PedidoDeDestravar,
   PedidoDeEditarItemDeChecklist,
+  PedidoDeEtiqueta,
   PedidoDeItemDeChecklist,
   PedidoDeMudarLista,
   PedidoDeMudarProjeto,
+  PedidoDePlanejamento,
   PedidoDeTarefa,
   PedidoDeTrocarResponsavel,
+  type PedidoDePlanejamento as Planejamento,
   type Responsavel,
   STATUS_ENCERRADOS,
   type StatusTarefa,
+  type Tarefa,
 } from "@mago-os/contratos";
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import type pg from "pg";
@@ -31,6 +36,15 @@ import { acessoDo, type Verificador } from "../permissoes/verificar.ts";
 import { buscarLista, listarListas, listarStatus } from "../projetos/listas.ts";
 import { type AlcanceDeProjeto, buscarProjeto } from "../projetos/servico.ts";
 import { buscarItem, criarItem, editarItem, excluirItem, listarChecklist } from "./checklist.ts";
+import {
+  criarEtiqueta,
+  excluirEtiqueta,
+  fusoDaEmpresa,
+  listarEtiquetas,
+  planejar,
+  recorrerSePreciso,
+  recusaDoPlanejamento,
+} from "./planejamento.ts";
 import {
   autorDe,
   buscarTarefa,
@@ -58,7 +72,8 @@ import {
 type AcaoDeTarefa =
   | (typeof ACOES_TAREFAS)[number]
   | "tarefa.mudou_projeto"
-  | (typeof ACOES_CHECKLIST)[number];
+  | (typeof ACOES_CHECKLIST)[number]
+  | (typeof ACOES_PRAZOS)[number];
 
 const naoEncontrada = (resposta: FastifyReply) =>
   resposta.code(404).send({ code: "TAREFA_NAO_ENCONTRADA", message: "Tarefa não encontrada." });
@@ -181,7 +196,26 @@ export function registrarRotasDasTarefas(
       r.valor.responsavel === undefined
         ? { tipo: "pessoa", pessoaId: sessao.pessoa.id }
         : r.valor.responsavel;
+    // Prioridade, prazo, início, etiquetas e recorrência (M3-03) podem vir já na criação.
+    const plano: Planejamento = {
+      ...(r.valor.prioridade !== undefined ? { prioridade: r.valor.prioridade } : {}),
+      ...(r.valor.prazo !== undefined ? { prazo: r.valor.prazo } : {}),
+      ...(r.valor.inicio !== undefined ? { inicio: r.valor.inicio } : {}),
+      ...(r.valor.etiquetas !== undefined ? { etiquetas: r.valor.etiquetas } : {}),
+      ...(r.valor.recorrencia !== undefined ? { recorrencia: r.valor.recorrencia } : {}),
+    };
+    const temPlano = Object.keys(plano).length > 0;
+    /** Depois de criar, grava o planejamento e devolve a tarefa como ficou. */
+    const comPlano = async (c: pg.PoolClient, tarefa: Tarefa) => {
+      if (!temPlano) return tarefa;
+      await planejar(c, tarefa, plano, await fusoDaEmpresa(c));
+      return (await buscarTarefa(c, { ...quem, filtro: { tipo: "tudo" } }, tarefa.id)) as Tarefa;
+    };
     const feito = await naEmpresa(pedido, async (c) => {
+      if (temPlano) {
+        const recusaDoPlano = await recusaDoPlanejamento(c, null, plano, r.valor.tarefaMaeId !== undefined);
+        if (recusaDoPlano) return { recusaDoPlano };
+      }
       // Subtarefa (M3-02): precisa alcançar a mãe, que não pode ser subtarefa nem estar com outra pessoa.
       if (r.valor.tarefaMaeId !== undefined) {
         if (r.valor.projetoId !== undefined || r.valor.listaId !== undefined) {
@@ -209,7 +243,7 @@ export function registrarRotasDasTarefas(
           responsavel,
           tarefaMaeId: mae.id,
         });
-        return { tarefa, mae: mae.id };
+        return { tarefa: await comPlano(c, tarefa), mae: mae.id };
       }
       if (projetoId !== null) {
         const projeto = alcanceDosProjetos
@@ -228,16 +262,21 @@ export function registrarRotasDasTarefas(
       const recusa = await responsavelRecusado(c, responsavel);
       if (recusa) return { recusa };
       return {
-        tarefa: await criarTarefa(c, quem, {
-          titulo: r.valor.titulo,
-          descricao: r.valor.descricao ?? null,
-          responsavel,
-          projetoId,
-          listaId: r.valor.listaId ?? null,
-        }),
+        tarefa: await comPlano(
+          c,
+          await criarTarefa(c, quem, {
+            titulo: r.valor.titulo,
+            descricao: r.valor.descricao ?? null,
+            responsavel,
+            projetoId,
+            listaId: r.valor.listaId ?? null,
+          }),
+        ),
         mae: null,
       };
     });
+    if ("recusaDoPlano" in feito)
+      return resposta.code(400).send({ code: "PLANEJAMENTO_INVALIDO", message: feito.recusaDoPlano });
     if ("semMae" in feito)
       return resposta.code(400).send({ code: "SUBTAREFA_INVALIDA", message: feito.semMae });
     if ("semProjeto" in feito) return projetoInvalido(resposta);
@@ -246,6 +285,9 @@ export function registrarRotasDasTarefas(
     await registrar(pedido, "tarefa.criou", feito.tarefa.id, {
       responsavel: responsavel?.tipo ?? null,
       projetoId: feito.tarefa.projetoId,
+      prioridade: feito.tarefa.prioridade,
+      prazo: feito.tarefa.prazo?.dia ?? null,
+      recorrente: feito.tarefa.recorrencia !== null,
     });
     if (feito.mae)
       await registrar(pedido, "tarefa.criou_subtarefa", feito.mae, { subtarefaId: feito.tarefa.id });
@@ -331,7 +373,9 @@ export function registrarRotasDasTarefas(
         const comentario = r.valor.motivo
           ? await comentar(c, autorDe(quem), tarefa.id, r.valor.motivo)
           : null;
-        return { tarefa: nova, de, mudou, pegou, soltou, comentario };
+        // Concluiu uma recorrente: nasce a próxima (M3-03).
+        const proxima = mudou && de !== "concluida" ? await recorrerSePreciso(c, nova) : null;
+        return { tarefa: nova, de, mudou, pegou, soltou, comentario, proxima };
       });
       if (!feito) return naoEncontrada(resposta);
       if ("travada" in feito) return travada(resposta);
@@ -353,6 +397,12 @@ export function registrarRotasDasTarefas(
           para: feito.tarefa.status,
           statusDoProjetoId: feito.tarefa.statusDoProjetoId,
           comResultado: feito.tarefa.resultado !== null,
+        });
+      }
+      if (feito.proxima) {
+        await registrar(pedido, "tarefa.recorreu", id, {
+          proximaId: feito.proxima,
+          ocorrencia: feito.tarefa.ocorrencia + 1,
         });
       }
       return feito.tarefa;
@@ -457,6 +507,115 @@ export function registrarRotasDasTarefas(
       if (!feito) return naoEncontrada(resposta);
       if ("travada" in feito) return travada(resposta);
       await registrar(pedido, "checklist.editou", id, { itemId, mudanca: "excluiu" });
+      return { ok: true };
+    },
+  );
+
+  // Planejamento (M3-03): prioridade, prazo, início, etiquetas e recorrência. Não é status: a trava não impede.
+  app.post(
+    "/tarefas/:id/planejamento",
+    { preHandler: verificador.exigir("tarefas", "editar") },
+    async (pedido, resposta) => {
+      const { id } = pedido.params as { id: string };
+      const r = conferir(PedidoDePlanejamento, pedido.body);
+      if (!r.ok) return invalido(resposta, r.problemas);
+      const quem = quemDoPedido(pedido);
+      const feito = await naEmpresa(pedido, async (c) => {
+        const tarefa = await buscarTarefa(c, quem, id, true);
+        if (!tarefa) return null;
+        const recusa = await recusaDoPlanejamento(c, tarefa, r.valor);
+        if (recusa) return { recusa };
+        const mudou = await planejar(c, tarefa, r.valor, await fusoDaEmpresa(c));
+        return { mudou, tarefa: (await buscarTarefa(c, quem, id)) ?? tarefa };
+      });
+      if (!feito) return naoEncontrada(resposta);
+      if ("recusa" in feito)
+        return resposta.code(400).send({ code: "PLANEJAMENTO_INVALIDO", message: feito.recusa });
+      const t = feito.tarefa;
+      if (feito.mudou.prioridade)
+        await registrar(pedido, "tarefa.mudou_prioridade", id, { para: t.prioridade });
+      if (feito.mudou.prazo) {
+        await registrar(pedido, "tarefa.mudou_prazo", id, {
+          dia: t.prazo?.dia ?? null,
+          hora: t.prazo?.hora ?? null,
+        });
+      }
+      if (feito.mudou.etiquetas)
+        await registrar(pedido, "tarefa.mudou_etiquetas", id, { etiquetas: t.etiquetas });
+      if (feito.mudou.recorrencia) {
+        await registrar(pedido, "tarefa.mudou_recorrencia", id, {
+          frequencia: t.recorrencia?.frequencia ?? null,
+        });
+      }
+      return t;
+    },
+  );
+
+  // Etiquetas da empresa (M3-03): todos que veem tarefas veem; quem edita tarefas cria; só quem exclui todas apaga.
+  app.get("/etiquetas", { preHandler: verificador.exigir("tarefas", "ver") }, async (pedido) =>
+    naEmpresa(pedido, async (c) => ({ etiquetas: await listarEtiquetas(c) })),
+  );
+
+  app.post(
+    "/etiquetas",
+    { preHandler: verificador.exigir("tarefas", "editar") },
+    async (pedido, resposta) => {
+      const r = conferir(PedidoDeEtiqueta, pedido.body);
+      if (!r.ok) return invalido(resposta, r.problemas);
+      const etiqueta = await naEmpresa(pedido, (c) => criarEtiqueta(c, r.valor.nome, r.valor.cor));
+      if (!etiqueta) {
+        return resposta
+          .code(409)
+          .send({ code: "ETIQUETA_REPETIDA", message: "Já existe uma etiqueta com esse nome." });
+      }
+      const { sessao } = acessoDo(pedido);
+      await auditar(
+        poolApp,
+        {
+          empresaId: sessao.empresaId,
+          ator: { tipo: "pessoa", pessoaId: sessao.pessoa.id },
+          acao: "etiqueta.criou",
+          alvo: { tipo: "etiqueta", id: etiqueta.id },
+          origem: origemDoPedido(pedido),
+          rastreio: pedido.id,
+          detalhes: {},
+        },
+        pedido.log,
+      );
+      return resposta.code(201).send(etiqueta);
+    },
+  );
+
+  app.delete(
+    "/etiquetas/:id",
+    { preHandler: verificador.exigir("tarefas", "excluir") },
+    async (pedido, resposta) => {
+      const { id } = pedido.params as { id: string };
+      const { sessao, filtro } = acessoDo(pedido);
+      // A etiqueta é da empresa toda: só quem exclui qualquer tarefa (o administrador, por padrão) apaga.
+      if (filtro.tipo !== "tudo") {
+        return resposta
+          .code(403)
+          .send({ code: "SEM_PERMISSAO", message: "Você não tem permissão para isso." });
+      }
+      const ok = await naEmpresa(pedido, (c) => excluirEtiqueta(c, id));
+      if (!ok)
+        return resposta
+          .code(404)
+          .send({ code: "ETIQUETA_NAO_ENCONTRADA", message: "Etiqueta não encontrada." });
+      await auditar(
+        poolApp,
+        {
+          empresaId: sessao.empresaId,
+          ator: { tipo: "pessoa", pessoaId: sessao.pessoa.id },
+          acao: "etiqueta.excluiu",
+          alvo: { tipo: "etiqueta", id },
+          origem: origemDoPedido(pedido),
+          rastreio: pedido.id,
+          detalhes: {},
+        },
+        pedido.log,
+      );
       return { ok: true };
     },
   );
