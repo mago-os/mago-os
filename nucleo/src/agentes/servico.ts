@@ -138,6 +138,13 @@ export async function mudarSituacao(
   agenteId: string,
   situacao: SituacaoAgente,
 ): Promise<Agente> {
+  // Retomado começa a contar o limite de pedidos do zero (senão volta a ser pausado no primeiro pedido).
+  if (situacao === "ativo") {
+    await c.query(
+      "delete from contadores_de_agente where empresa_id = empresa_ativa() and agente_id = $1 and janela = 'pedidos_minuto'",
+      [agenteId],
+    );
+  }
   const r = await c.query<LinhaDoAgente>(
     `update agentes a set situacao = $2, atualizado_em = now(),
             desligado_em = case when $2 = 'desligado' then now() else null end

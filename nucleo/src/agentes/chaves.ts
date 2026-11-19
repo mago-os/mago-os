@@ -201,6 +201,7 @@ export async function autenticarAgente(
     valida_ate: Date | null;
     revogada_em: Date | null;
     situacao_do_agente: string;
+    situacao_da_empresa: string;
   }>("select * from reconhecer_chave($1)", [prefixo]);
   const linha = achada.rows[0];
   const resumo = Buffer.from(resumoDaChave(chave), "hex");
@@ -228,6 +229,8 @@ export async function autenticarAgente(
     return { ok: false, motivo, status };
   };
 
+  // Empresa suspensa: ninguém dela entra, nem os agentes (sem auditoria, como uma chave que não existe).
+  if (linha.situacao_da_empresa !== "ativa") return { ok: false, motivo: "desconhecida", status: 401 };
   if (linha.revogada_em) return recusar("revogada", 401);
   if (linha.valida_ate && linha.valida_ate.getTime() <= Date.now()) return recusar("vencida", 401);
   if (linha.situacao_do_agente === "desligado") return recusar("agente_desligado", 403);
@@ -256,7 +259,8 @@ export async function autenticarAgente(
       await auditarDoAgente(o, linha.empresa_id, linha.agente_id, "agente.passou_do_limite", {
         limite: "pedidos_minuto",
       });
-      await feito.avisar();
+      // O e-mail sai sem segurar a resposta ao agente.
+      void feito.avisar();
     }
     return recusar("passou_do_limite", 429);
   }
@@ -329,9 +333,34 @@ export async function verificarAgentesVivos(o: Omit<OpcoesDaChave, "origem" | "r
   );
   let devolvidas = 0;
   for (const { empresa_id, agente_id } of sem.rows) {
+    // Uma empresa com problema não segura a verificação das outras.
+    try {
+      devolvidas += await devolverDoAgenteSemSinal(o, empresa_id, agente_id);
+    } catch (erro) {
+      o.log.error({ erro, empresaId: empresa_id, agenteId: agente_id }, "Verificação de agente vivo falhou");
+    }
+  }
+  return devolvidas;
+}
+
+async function devolverDoAgenteSemSinal(
+  o: Omit<OpcoesDaChave, "origem" | "rastreio">,
+  empresa_id: string,
+  agente_id: string,
+): Promise<number> {
+  {
     const feito = await comEmpresa(o.poolApp, empresa_id, async (c) => {
-      const a = await c.query<{ nome: string; responsavel_id: string; minutos_sem_sinal: number }>(
-        "select nome, responsavel_id, minutos_sem_sinal from agentes where id = $1 and empresa_id = empresa_ativa() for update",
+      // Confere de novo com a linha travada: o agente pode ter dado sinal entre a lista e agora.
+      const a = await c.query<{
+        nome: string;
+        responsavel_id: string;
+        minutos_sem_sinal: number;
+        situacao: string;
+      }>(
+        `select nome, responsavel_id, minutos_sem_sinal, situacao from agentes
+          where id = $1 and empresa_id = empresa_ativa()
+            and (ultimo_sinal_em is null or ultimo_sinal_em < now() - make_interval(mins => minutos_sem_sinal))
+          for update`,
         [agente_id],
       );
       const agente = a.rows[0];
@@ -349,7 +378,8 @@ export async function verificarAgentesVivos(o: Omit<OpcoesDaChave, "origem" | "r
           agenteNome: agente.nome,
           responsavelId: agente.responsavel_id,
           tipo: "agente_sem_sinal",
-          oQueAconteceu: "ficou sem sinal",
+          // Pausado não consegue mais entrar: a tarefa volta para não ficar presa com ele.
+          oQueAconteceu: agente.situacao === "pausado" ? "está pausado e ficou sem sinal" : "ficou sem sinal",
           tarefas: tarefas.map((t) => t.titulo),
         },
         o.carteiro,
@@ -358,8 +388,7 @@ export async function verificarAgentesVivos(o: Omit<OpcoesDaChave, "origem" | "r
       );
       return { tarefas, avisar };
     });
-    if (!feito) continue;
-    devolvidas += feito.tarefas.length;
+    if (!feito) return 0;
     await auditarDoAgente(
       { ...o, origem: { canal: "sistema", ip: null, aparelho: null } },
       empresa_id,
@@ -368,6 +397,6 @@ export async function verificarAgentesVivos(o: Omit<OpcoesDaChave, "origem" | "r
       { tarefasDevolvidas: feito.tarefas.length },
     );
     await feito.avisar();
+    return feito.tarefas.length;
   }
-  return devolvidas;
 }

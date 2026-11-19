@@ -60,11 +60,12 @@ REVOKE DELETE ON public.chaves_de_agente FROM mago_app;
 -- Achar a chave pelo começo, antes de saber a empresa. Devolve uma linha só, e só com o começo exato.
 CREATE FUNCTION public.reconhecer_chave(prefixo_da_chave text)
   RETURNS TABLE (chave_id uuid, empresa_id uuid, agente_id uuid, resumo text, valida_ate timestamptz,
-                 revogada_em timestamptz, situacao_do_agente text)
+                 revogada_em timestamptz, situacao_do_agente text, situacao_da_empresa text)
   LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public, pg_temp
   AS $$
-    SELECT k.id, k.empresa_id, k.agente_id, k.resumo, k.valida_ate, k.revogada_em, a.situacao
+    SELECT k.id, k.empresa_id, k.agente_id, k.resumo, k.valida_ate, k.revogada_em, a.situacao, e.situacao
       FROM public.chaves_de_agente k JOIN public.agentes a ON a.id = k.agente_id AND a.empresa_id = k.empresa_id
+      JOIN public.empresas e ON e.id = k.empresa_id
      WHERE k.prefixo = prefixo_da_chave
   $$;
 COMMENT ON FUNCTION public.reconhecer_chave(text) IS
@@ -133,7 +134,8 @@ CREATE FUNCTION public.agentes_sem_sinal()
   AS $$
     SELECT DISTINCT t.empresa_id, a.id
       FROM public.tarefas t JOIN public.agentes a ON a.id = t.travada_por_agente_id AND a.empresa_id = t.empresa_id
-     WHERE greatest(coalesce(a.ultimo_sinal_em, t.travada_em), t.travada_em)
+     WHERE a.situacao <> 'desligado'
+       AND greatest(coalesce(a.ultimo_sinal_em, t.travada_em), t.travada_em)
            < now() - make_interval(mins => a.minutos_sem_sinal)
   $$;
 COMMENT ON FUNCTION public.agentes_sem_sinal() IS

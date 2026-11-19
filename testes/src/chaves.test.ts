@@ -273,6 +273,9 @@ describe.skipIf(!bancoDisponivel)("chave do agente e agente vivo", () => {
     expect(status.slice(0, -1).every((s) => s === 200)).toBe(true);
     const sit = await dono.query("select situacao from agentes where id = $1", [outro]);
     expect(sit.rows[0].situacao).toBe("pausado");
+    // Retomado começa o limite do zero: o primeiro pedido passa.
+    await pedir("POST", `/agentes/${outro}/retomar`, await como("ana@teste.invalid"));
+    expect((await vivo(k.segredo)).statusCode).toBe(200);
     expect(avisos.at(-1)).toMatchObject({ agente: "Apressado" });
     const lista = await pedir("GET", "/avisos", await como("ana@teste.invalid"));
     const aviso = lista.json().find((a: { tipo: string }) => a.tipo === "agente_passou_do_limite");
@@ -343,6 +346,17 @@ describe.skipIf(!bancoDisponivel)("chave do agente e agente vivo", () => {
     expect(ev.rowCount).toBe(1);
     // Rodar de novo não faz nada: a tarefa já voltou.
     expect(await verificarAgentesVivos({ poolApp, carteiro, urlPublica: SITE, log: console })).toBe(0);
+  });
+
+  it("empresa suspensa: a chave dos agentes dela não entra", async () => {
+    const k = await novaChave(await novoAgente("Da suspensa"));
+    await dono.query("update empresas set situacao = 'suspensa' where id = $1", [empresaId]);
+    try {
+      const r = await vivo(k.segredo);
+      expect(r.statusCode).toBe(401);
+    } finally {
+      await dono.query("update empresas set situacao = 'ativa' where id = $1", [empresaId]);
+    }
   });
 
   it("desligar o agente também avisa no Mago OS", async () => {
