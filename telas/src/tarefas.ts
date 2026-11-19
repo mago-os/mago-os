@@ -2,6 +2,7 @@
  * Conversa da tela com as rotas de tarefas (M2-01). Os formatos vêm dos contratos.
  */
 import type {
+  AcontecimentoDaTarefa,
   ComentarioDeTarefa,
   Etiqueta,
   FiltroDeTarefas,
@@ -65,6 +66,8 @@ export interface TarefaAberta {
   status: StatusDoProjeto[];
   /** Listas do projeto da tarefa (vazio sem projeto). */
   listas: { id: string; nome: string }[];
+  /** O que aconteceu na tarefa, para a linha do tempo (M3-05). */
+  acontecimentos: AcontecimentoDaTarefa[];
 }
 
 export function listarTarefas(filtro: { minhas: boolean; status: StatusTarefa[]; projetoId?: string }) {
@@ -158,8 +161,26 @@ export const mudarStatus = (
 export const trocarResponsavel = (id: string, responsavel: Responsavel | null) =>
   pedir<Tarefa>("POST", `/tarefas/${encodeURIComponent(id)}/responsavel`, { responsavel });
 
-export const comentarTarefa = (id: string, texto: string) =>
-  pedir<ComentarioDeTarefa>("POST", `/tarefas/${encodeURIComponent(id)}/comentarios`, { texto });
+export const comentarTarefa = (
+  id: string,
+  texto: string,
+  opcoes: { interna?: boolean; mencoes?: Responsavel[] } = {},
+) =>
+  pedir<ComentarioDeTarefa>("POST", `/tarefas/${encodeURIComponent(id)}/comentarios`, { texto, ...opcoes });
+
+/** Edita o próprio comentário (até 15 minutos) e apaga (M3-05). */
+export const editarComentario = (id: string, comentarioId: string, texto: string) =>
+  pedir<ComentarioDeTarefa>(
+    "POST",
+    `/tarefas/${encodeURIComponent(id)}/comentarios/${encodeURIComponent(comentarioId)}`,
+    { texto },
+  );
+
+export const apagarComentario = (id: string, comentarioId: string) =>
+  pedir<ComentarioDeTarefa>(
+    "DELETE",
+    `/tarefas/${encodeURIComponent(id)}/comentarios/${encodeURIComponent(comentarioId)}`,
+  );
 
 export const excluirTarefa = (id: string) =>
   pedir<{ ok: true }>("DELETE", `/tarefas/${encodeURIComponent(id)}`);

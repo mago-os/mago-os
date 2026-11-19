@@ -43,6 +43,24 @@ test.describe("tela de tarefas", () => {
     await page.getByRole("button", { name: "Comentar" }).click();
     await expect(page.getByText("<b>sem HTML</b> só texto")).toBeVisible();
 
+    // M3-05: Markdown simples, nota interna, editar e apagar, e os acontecimentos na linha do tempo.
+    await page.getByPlaceholder("Escreva um comentário").fill("Ver **cláusula 3**");
+    await page.getByRole("button", { name: "Comentar" }).click();
+    await expect(page.locator("strong", { hasText: "cláusula 3" })).toBeVisible();
+    await page.getByLabel("Nota interna (só pessoas da empresa veem)").check();
+    await page.getByPlaceholder("Escreva um comentário").fill("Só entre nós");
+    await page.getByRole("button", { name: "Salvar nota interna" }).click();
+    await expect(page.getByText("nota interna", { exact: true })).toBeVisible();
+    await page.getByRole("button", { name: "Editar", exact: true }).last().click();
+    await page.getByLabel("Editar o comentário").fill("Só entre nós (revisado)");
+    await page.getByRole("button", { name: "Salvar", exact: true }).click();
+    await expect(page.getByText("Só entre nós (revisado)")).toBeVisible();
+    await expect(page.getByText("(editado)")).toBeVisible();
+    page.once("dialog", (d) => void d.accept());
+    await page.getByRole("button", { name: "Apagar", exact: true }).last().click();
+    await expect(page.getByText("Comentário apagado.")).toBeVisible();
+    await expect(page.getByText("pegou a tarefa")).toBeVisible();
+
     await page.getByRole("button", { name: "Concluir", exact: true }).click();
     await page.getByLabel("Resultado (o que foi entregue)").fill("Cláusula ajustada para 30 dias.");
     await page.getByRole("button", { name: "Concluir tarefa" }).click();

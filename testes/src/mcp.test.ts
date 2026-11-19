@@ -243,6 +243,35 @@ describe.skipIf(!bancoDisponivel)("servidor MCP", () => {
     await cliente.close();
   });
 
+  it("mencionado com @ (M3-05): vê a tarefa e a menção, não vê a nota interna, responde e não pega", async () => {
+    const t = await dono.query<{ id: string }>(
+      "insert into tarefas (empresa_id, titulo) values ($1, 'Revisar o contrato') returning id",
+      [empresas.Um],
+    );
+    const tarefaId = t.rows[0]?.id as string;
+    const c = await dono.query<{ id: string }>(
+      "insert into comentarios_de_tarefa (empresa_id, tarefa_id, texto) values ($1, $2, 'Olha isso') returning id",
+      [empresas.Um, tarefaId],
+    );
+    await dono.query(
+      "insert into mencoes_de_comentario (empresa_id, comentario_id, tarefa_id, agente_id) values ($1, $2, $3, $4)",
+      [empresas.Um, c.rows[0]?.id, tarefaId, agentes.Um],
+    );
+    await dono.query(
+      "insert into comentarios_de_tarefa (empresa_id, tarefa_id, texto, tipo) values ($1, $2, 'Segredo', 'nota_interna')",
+      [empresas.Um, tarefaId],
+    );
+    const cliente = await conectar(chaves.Um?.chave ?? "");
+    expect((await chamar(cliente, "minhas_tarefas")).structuredContent?.mencionado).toEqual([tarefaId]);
+    const vista = await chamar(cliente, "ver_tarefa", { tarefaId });
+    const textos = ((vista.structuredContent?.comentarios ?? []) as { texto: string }[]).map((x) => x.texto);
+    expect(textos).toEqual(["Olha isso"]);
+    expect((await chamar(cliente, "pegar_tarefa", { tarefaId })).isError).toBe(true);
+    expect((await chamar(cliente, "comentar", { tarefaId, texto: "Vi, vou olhar." })).isError).toBeFalsy();
+    expect((await chamar(cliente, "minhas_tarefas")).structuredContent?.mencionado).toEqual([]);
+    await cliente.close();
+  });
+
   it("a chave de uma empresa não vê nem mexe em tarefa da outra", async () => {
     const t = await dono.query<{ id: string }>(
       "insert into tarefas (empresa_id, titulo, responsavel_agente_id) values ($1, 'Segredo da Um', $2) returning id",

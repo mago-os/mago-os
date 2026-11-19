@@ -77,12 +77,40 @@ describe("tarefa", () => {
   });
 
   it("comentário aceita pessoa, agente e sistema como autor", () => {
-    const comentario = { id: ID, empresaId: ID2, tarefaId: ID, texto: "Comecei.", criadoEm: AGORA };
+    const comentario = {
+      id: ID,
+      empresaId: ID2,
+      tarefaId: ID,
+      tipo: "comentario",
+      texto: "Comecei.",
+      mencoes: [],
+      criadoEm: AGORA,
+      editadoEm: null,
+      apagadoEm: null,
+    };
     expect(conferirComentarioDeTarefa({ ...comentario, autor: { tipo: "agente", agenteId: ID } }).ok).toBe(
       true,
     );
     expect(conferirComentarioDeTarefa({ ...comentario, autor: { tipo: "sistema" } }).ok).toBe(true);
     expect(conferirComentarioDeTarefa({ ...comentario, autor: { tipo: "robo" } }).ok).toBe(false);
+  });
+
+  it("comentário apagado não tem texto, e nota interna é um tipo", () => {
+    const base = {
+      id: ID,
+      empresaId: ID2,
+      tarefaId: ID,
+      autor: { tipo: "pessoa", pessoaId: ID },
+      tipo: "nota_interna",
+      texto: null,
+      mencoes: [],
+      criadoEm: AGORA,
+      editadoEm: null,
+      apagadoEm: AGORA,
+    };
+    expect(conferirComentarioDeTarefa(base).ok).toBe(true);
+    expect(conferirComentarioDeTarefa({ ...base, apagadoEm: null }).ok).toBe(false);
+    expect(conferirComentarioDeTarefa({ ...base, tipo: "segredo" }).ok).toBe(false);
   });
 });
 

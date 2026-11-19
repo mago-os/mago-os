@@ -23,7 +23,6 @@ import { listarProjetos } from "@/projetos";
 import {
   abrirTarefa,
   acaoNaTrava,
-  comentarTarefa,
   criarTarefa,
   excluirTarefa,
   mudarLista,
@@ -35,6 +34,7 @@ import {
 import { useTempoReal } from "@/tempo-real";
 import { Aviso } from "./Acesso";
 import { useAoVoltar } from "./Administrador";
+import { LinhaDoTempo } from "./LinhaDoTempo";
 import { Checklist, Subtarefas } from "./PartesDaTarefa";
 import { PlanejamentoDaTarefa } from "./Planejamento";
 import { VisoesDeTarefas } from "./Visoes";
@@ -351,6 +351,7 @@ export function PaginaDaTarefa({
   podeEditar,
   podeDestravar,
   podeExcluir,
+  podeApagarComentarios = false,
 }: {
   id: string;
   euId: string;
@@ -358,6 +359,8 @@ export function PaginaDaTarefa({
   /** Destravar a tarefa pegada por outro (ação "aprovar" das tarefas; padrão: o administrador). */
   podeDestravar: boolean;
   podeExcluir: boolean;
+  /** Apaga comentários dos outros: quem exclui qualquer tarefa (alcance "tudo"; padrão: o administrador). */
+  podeApagarComentarios?: boolean;
 }) {
   const [aberta, setAberta] = useState<Omit<TarefaAberta, "tarefas"> | null | undefined>(undefined);
   const [mensagem, setMensagem] = useState<Mensagem>(null);
@@ -441,17 +444,6 @@ export function PaginaDaTarefa({
       return;
     }
     void aoMudarStatus(s.tipo, { statusId: s.id });
-  }
-
-  async function aoComentar(evento: React.FormEvent<HTMLFormElement>) {
-    evento.preventDefault();
-    const form = evento.currentTarget;
-    const texto = String(new FormData(form).get("comentario")).trim();
-    if (!texto) return;
-    const r = await comentarTarefa(tarefa.id, texto);
-    if (!r.ok) return setMensagem({ tipo: "erro", texto: r.mensagem ?? "" });
-    form.reset();
-    void carregar();
   }
 
   async function aoConcluir(evento: React.FormEvent<HTMLFormElement>) {
@@ -762,45 +754,18 @@ export function PaginaDaTarefa({
         </Card>
       )}
 
-      <section className="grid gap-3" aria-label="Comentários">
-        <h2 className="text-lg font-semibold">Comentários</h2>
-        {comentarios.length === 0 && <p className="text-sm text-texto-2">Nenhum comentário ainda.</p>}
-        <ul className="grid gap-2">
-          {comentarios.map((c) => (
-            <li
-              key={c.id}
-              data-destaque={destaques.has(c.id) || undefined}
-              className={cn(
-                "grid gap-1 rounded-lg border border-linha bg-cartao p-3 transition-colors duration-700",
-                destaques.has(c.id) && "border-tinta/40 bg-suave",
-              )}
-            >
-              <span className="flex flex-wrap items-center gap-2 text-xs text-texto-2">
-                <span className="font-medium text-tinta">{nomeDe(c.autor, nomesTodos)}</span>
-                <MarcaDeAgente quem={c.autor} />
-                <span>{quando(c.criadoEm)}</span>
-              </span>
-              <p className="whitespace-pre-wrap text-pretty">{c.texto}</p>
-            </li>
-          ))}
-        </ul>
-        <form className="grid gap-2" onSubmit={(e) => void aoComentar(e)}>
-          <label htmlFor="comentario" className="sr-only">
-            Escrever um comentário
-          </label>
-          <textarea
-            id="comentario"
-            name="comentario"
-            rows={2}
-            maxLength={10000}
-            placeholder="Escreva um comentário"
-            className="rounded-md border border-linha bg-cartao px-3 py-2 text-base"
-          />
-          <Button type="submit" variant="contorno" className="justify-self-start">
-            Comentar
-          </Button>
-        </form>
-      </section>
+      <LinhaDoTempo
+        tarefaId={tarefa.id}
+        comentarios={comentarios}
+        acontecimentos={aberta.acontecimentos}
+        nomes={nomesTodos}
+        pessoas={pessoas}
+        agentes={agentes}
+        euId={euId}
+        podeApagarTodos={podeApagarComentarios}
+        destaques={destaques}
+        aoMudar={() => void carregar()}
+      />
 
       {podeExcluir && (
         <Button

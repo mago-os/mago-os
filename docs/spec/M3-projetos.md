@@ -1,6 +1,6 @@
 # Spec da Fase 1: M3 Projetos e tarefas completos
 
-Parte da [spec da Fase 1](README.md). Estado em 19/11/2026: **aprovado** pelo Sandro, com todas as recomendações (inclusive a M3-11 e os eventos da agenda simples no M5). Em construção: M3-01 a M3-04 prontas em 19/11/2026.
+Parte da [spec da Fase 1](README.md). Estado em 19/11/2026: **aprovado** pelo Sandro, com todas as recomendações (inclusive a M3-11 e os eventos da agenda simples no M5). Em construção: M3-01 a M3-05 prontas em 19/11/2026.
 
 **Pronto quando:** a Nolask organiza um projeto real no Mago OS (sugestão: a própria construção do Mago OS, com as tarefas do M4), com espaço, projeto, diretor e gerente, listas, subtarefas, prazos e etiquetas, e acompanha pelo Kanban, pela lista e pelo calendário. Uma menção a uma pessoa chega no sino e no celular, um anexo passa pelo antivírus antes de abrir, a central de prioridades mostra o que vence hoje e o Ctrl+K acha a tarefa pelo nome. Os testes provam que uma empresa não vê projetos, anexos, notificações nem resultados de busca da outra.
 
@@ -89,14 +89,14 @@ Pronto quando: o Sandro abre o projeto "Construção do Mago OS" no Kanban, arra
 
 Precisa da aprovação do Sandro (o que os agentes recebem pelo MCP).
 
-- [ ] Linha do tempo única na tarefa: comentários, notas internas e os acontecimentos (mudou status, responsável, prazo, projeto, entregou resultado), em ordem, com quem fez. Os acontecimentos vêm de uma tabela própria da tarefa, não da auditoria (que continua só para o administrador)
-- [ ] Nota interna (decisão 10): visível só para as pessoas da empresa; não vai para os agentes pelo MCP nem, no futuro, para o cliente no portal. Na tela, com fundo próprio e o aviso "nota interna"
-- [ ] Comentário pode ser editado por quem escreveu em até 15 minutos, mostrando "editado"; apagar deixa "comentário apagado" no lugar. As duas coisas vão para a auditoria (no M2 comentário só se acrescentava)
-- [ ] Menções com @ a pessoas e agentes da empresa, com a lista sugerida ao digitar; só aparecem pessoas e agentes que podem ver a tarefa
-- [ ] Menção a um agente: a tarefa aparece para ele em `minhas_tarefas` marcada como "mencionado", até ele comentar; a menção não passa a tarefa para ele
-- [ ] Texto com formatação simples (negrito, lista, link, código) guardado como Markdown e mostrado com limpeza, nunca como HTML cru; o que vem de agente continua marcado e mostrado só como texto (regra do M2-05)
-- [ ] Eventos de auditoria: `tarefa.editou_comentario`, `tarefa.apagou_comentario`, `tarefa.mencionou`
-- [ ] Testes de vazamento: menção não chega para quem não vê a tarefa, e nota interna não sai pelo MCP
+- [x] Linha do tempo única na tarefa: comentários, notas internas e os acontecimentos (mudou status, responsável, prazo, projeto, entregou resultado), em ordem, com quem fez. Os acontecimentos vêm de uma tabela própria da tarefa, não da auditoria (que continua só para o administrador)
+- [x] Nota interna (decisão 10): visível só para as pessoas da empresa; não vai para os agentes pelo MCP nem, no futuro, para o cliente no portal. Na tela, com fundo próprio e o aviso "nota interna"
+- [x] Comentário pode ser editado por quem escreveu em até 15 minutos, mostrando "editado"; apagar deixa "comentário apagado" no lugar (quem escreveu, ou quem exclui qualquer tarefa, decidido na codificação). As duas coisas vão para a auditoria (no M2 comentário só se acrescentava)
+- [x] Menções com @ a pessoas e agentes da empresa, com a lista sugerida ao digitar. Ajuste na codificação: a lista sugere as pessoas e agentes ativos da empresa; a menção não abre a tarefa para uma pessoa que não a vê (o aviso da menção, na M3-06, só vai para quem vê)
+- [x] Menção a um agente: a tarefa aparece para ele em `minhas_tarefas` marcada como "mencionado", até ele comentar; a menção não passa a tarefa para ele
+- [x] Texto com formatação simples (negrito, lista, link, código) guardado como Markdown e mostrado com limpeza, nunca como HTML cru; o que vem de agente continua marcado e mostrado só como texto (regra do M2-05)
+- [x] Eventos de auditoria: `tarefa.editou_comentario`, `tarefa.apagou_comentario`, `tarefa.mencionou`
+- [x] Testes de vazamento: menção não chega para quem não vê a tarefa, e nota interna não sai pelo MCP
 
 Pronto quando: o Sandro escreve "@Claude no Mac olha isso" num comentário e uma nota interna na mesma tarefa, o Claude vê a menção pelo MCP e responde, e a nota interna não aparece para ele.
 

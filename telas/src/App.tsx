@@ -241,6 +241,7 @@ export function App() {
         podeEditar={pode("tarefas", "editar")}
         podeDestravar={pode("tarefas", "aprovar")}
         podeExcluir={pode("tarefas", "excluir")}
+        podeApagarComentarios={permissoes?.modulos.tarefas?.acoes.excluir === "tudo"}
       />
     );
   else if (caminho === "/projetos" && temEmpresaAtiva && pode("projetos", "ver"))

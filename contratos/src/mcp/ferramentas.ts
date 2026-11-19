@@ -40,7 +40,7 @@ export const FERRAMENTAS_MCP = [
   {
     nome: "minhas_tarefas",
     descricao:
-      "Lista as tarefas atribuídas a você ou que você pegou, das mais urgentes (prioridade e prazo) para as menos. Sem filtro, traz só as abertas (A fazer, Em andamento e Precisa de ajuda). Chame a cada minuto para saber se há trabalho novo.",
+      'Lista as tarefas atribuídas a você ou que você pegou, das mais urgentes (prioridade e prazo) para as menos, e as tarefas em que alguém mencionou você com @ e você ainda não respondeu (em "mencionado": veja e responda com comentar). Sem filtro, traz só as abertas (A fazer, Em andamento e Precisa de ajuda). Chame a cada minuto para saber se há trabalho novo.',
     entrada: Type.Object(
       {
         status: Type.Optional(
@@ -53,7 +53,14 @@ export const FERRAMENTAS_MCP = [
       },
       { additionalProperties: false },
     ),
-    saida: Type.Object({ tarefas: Type.Array(Tarefa) }, { additionalProperties: false }),
+    saida: Type.Object(
+      {
+        tarefas: Type.Array(Tarefa),
+        /** Ids das tarefas em que você foi mencionado com @ e ainda não comentou (M3-05). */
+        mencionado: Type.Array(Id),
+      },
+      { additionalProperties: false },
+    ),
   },
   {
     nome: "ver_tarefa",
@@ -82,7 +89,7 @@ export const FERRAMENTAS_MCP = [
   {
     nome: "comentar",
     descricao:
-      "Escreve um comentário numa tarefa sua, em texto simples. Use para contar o andamento ou fazer uma pergunta à pessoa responsável.",
+      "Escreve um comentário numa tarefa sua ou em que você foi mencionado, em texto simples. Use para contar o andamento, responder a uma menção ou fazer uma pergunta à pessoa responsável.",
     entrada: Type.Object(
       { tarefaId: Id, texto: Texto(10000, "O comentário, em texto simples.") },
       { additionalProperties: false },

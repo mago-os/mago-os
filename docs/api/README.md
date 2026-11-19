@@ -8,7 +8,7 @@ Endereço: `https://teste.osmago.com/mcp` (transporte HTTP do MCP, sem sessão).
 
 ### `minhas_tarefas`
 
-Lista as tarefas atribuídas a você ou que você pegou, das mais urgentes (prioridade e prazo) para as menos. Sem filtro, traz só as abertas (A fazer, Em andamento e Precisa de ajuda). Chame a cada minuto para saber se há trabalho novo.
+Lista as tarefas atribuídas a você ou que você pegou, das mais urgentes (prioridade e prazo) para as menos, e as tarefas em que alguém mencionou você com @ e você ainda não respondeu (em "mencionado": veja e responda com comentar). Sem filtro, traz só as abertas (A fazer, Em andamento e Precisa de ajuda). Chame a cada minuto para saber se há trabalho novo.
 
 Recebe:
 
@@ -17,6 +17,7 @@ Recebe:
 Devolve:
 
 - `tarefas` (lista de objeto, obrigatório)
+- `mencionado` (lista de id, obrigatório)
 
 ### `ver_tarefa`
 
@@ -106,7 +107,7 @@ Devolve:
 
 ### `comentar`
 
-Escreve um comentário numa tarefa sua, em texto simples. Use para contar o andamento ou fazer uma pergunta à pessoa responsável.
+Escreve um comentário numa tarefa sua ou em que você foi mencionado, em texto simples. Use para contar o andamento, responder a uma menção ou fazer uma pergunta à pessoa responsável.
 
 Recebe:
 
@@ -119,8 +120,12 @@ Devolve:
 - `empresaId` (id, obrigatório): Identificador (UUID).
 - `tarefaId` (id, obrigatório): Identificador (UUID).
 - `autor` (objeto ou objeto ou objeto, obrigatório): Pessoa, agente ou o próprio sistema.
-- `texto` (string, obrigatório): O comentário, em texto simples.
+- `tipo` ("comentario" | "nota_interna", obrigatório): comentario ou nota_interna.
+- `texto` (string ou null, obrigatório)
+- `mencoes` (lista de objeto ou objeto, obrigatório)
 - `criadoEm` (data e hora, obrigatório): Data e hora ISO 8601 com fuso.
+- `editadoEm` (data e hora ou null, obrigatório)
+- `apagadoEm` (data e hora ou null, obrigatório)
 
 ### `mudar_status`
 
@@ -276,10 +281,12 @@ Todas com o prefixo `/api` no site, menos `/mcp`, que fica em `https://teste.osm
 | --- | --- | --- | --- |
 | GET | `/tarefas` | tarefas.ver | Lista as tarefas que a pessoa alcança (query: minhas=1, status=a,b, projeto=<id>|sem, espaco, responsaveis=p:<id>,a:<id>, agente=1, prioridades, etiquetas, prazo=atrasadas|hoje|semana|sem_prazo, de, ate, subtarefas=0). |
 | POST | `/tarefas` | tarefas.criar | Cria uma tarefa, com ou sem projeto. Sem responsável, fica com quem criou; responsável nulo num projeto vai para o gerente, se o diretor quis. |
-| GET | `/tarefas/:id` | tarefas.ver | Mostra a tarefa com os comentários, as subtarefas, o checklist, os status do projeto e os nomes citados. |
+| GET | `/tarefas/:id` | tarefas.ver | Mostra a tarefa com a linha do tempo (comentários, notas internas e acontecimentos), as subtarefas, o checklist, os status do projeto e os nomes citados. |
 | POST | `/tarefas/:id/status` | tarefas.editar | Muda o status (concluir pode trazer o resultado; em andamento é pegar). Concluir uma recorrente cria a próxima. |
 | POST | `/tarefas/:id/responsavel` | tarefas.editar | Troca o responsável (pessoa ou agente ativo). |
-| POST | `/tarefas/:id/comentarios` | tarefas.ver | Comenta (mesmo travada por outro). |
+| POST | `/tarefas/:id/comentarios` | tarefas.ver | Comenta ou escreve uma nota interna (mesmo travada por outro), com menções com @. |
+| POST | `/tarefas/:id/comentarios/:comentarioId` | tarefas.ver | Edita o próprio comentário em até 15 minutos. |
+| DELETE | `/tarefas/:id/comentarios/:comentarioId` | tarefas.ver | Apaga o comentário (quem escreveu, ou quem exclui qualquer tarefa); fica "comentário apagado". |
 | POST | `/tarefas/:id/pegar` | tarefas.editar | Pega a tarefa: em andamento e travada para quem pegou. |
 | POST | `/tarefas/:id/soltar` | tarefas.editar | Solta a tarefa que pegou: volta para A fazer. |
 | POST | `/tarefas/:id/destravar` | tarefas.aprovar | Tira a trava de outro, com motivo. |
@@ -375,7 +382,15 @@ Recebe:
 
 Recebe:
 
-- `texto` (string, obrigatório): O comentário, em texto simples.
+- `texto` (string, obrigatório): O comentário, em Markdown simples.
+- `interna` (boolean)
+- `mencoes` (lista de objeto ou objeto)
+
+### POST `/tarefas/:id/comentarios/:comentarioId`
+
+Recebe:
+
+- `texto` (string, obrigatório): O comentário, em Markdown simples.
 
 ### POST `/tarefas/:id/destravar`
 

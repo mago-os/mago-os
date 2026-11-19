@@ -177,21 +177,45 @@ export function conferirTarefa(valor: unknown) {
   return conferir(Tarefa, valor, regrasDaTarefa);
 }
 
+/**
+ * Comentário ou nota interna (M3-05). Nota interna (decisão 10 do Sandro, 19/11/2026): só as pessoas da empresa
+ * veem; não vai para os agentes pelo MCP nem, no futuro, para o cliente no portal.
+ */
+export const TIPOS_DE_COMENTARIO = ["comentario", "nota_interna"] as const;
+export const TipoDeComentario = Type.Enum(TIPOS_DE_COMENTARIO, {
+  description: "comentario ou nota_interna.",
+});
+export type TipoDeComentario = Static<typeof TipoDeComentario>;
+
+/** Texto do comentário em Markdown simples (negrito, lista, link, código), mostrado com limpeza, nunca como HTML. */
+const TextoDoComentario = Texto(10000, "O comentário, em Markdown simples.");
+
 export const ComentarioDeTarefa = Type.Object(
   {
     id: Id,
     empresaId: Id,
     tarefaId: Id,
     autor: Autor,
-    texto: Texto(10000, "O comentário, em texto simples."),
+    tipo: TipoDeComentario,
+    /** Nulo quando o comentário foi apagado (fica "comentário apagado" no lugar). */
+    texto: OuNulo(TextoDoComentario),
+    /** Pessoas e agentes mencionados com @ (M3-05). */
+    mencoes: Type.Array(Responsavel, { maxItems: 50 }),
     criadoEm: DataHora,
+    editadoEm: OuNulo(DataHora),
+    apagadoEm: OuNulo(DataHora),
   },
-  { additionalProperties: false, description: "Comentário numa tarefa. Não se edita nem se apaga no M2." },
+  { additionalProperties: false, description: "Comentário ou nota interna numa tarefa." },
 );
 export type ComentarioDeTarefa = Static<typeof ComentarioDeTarefa>;
 
 export function conferirComentarioDeTarefa(valor: unknown) {
-  return conferir(ComentarioDeTarefa, valor);
+  return conferir(ComentarioDeTarefa, valor, [
+    (c) =>
+      (c.texto === null) !== (c.apagadoEm !== null)
+        ? [{ caminho: "/texto", mensagem: "comentário apagado não tem texto; com texto, não está apagado" }]
+        : [],
+  ]);
 }
 
 /** O que a API recebe para criar uma tarefa. Sem responsável, a tarefa fica com quem criou. */
@@ -244,10 +268,53 @@ export const PedidoDeTrocarResponsavel = Type.Object(
 export type PedidoDeTrocarResponsavel = Static<typeof PedidoDeTrocarResponsavel>;
 
 export const PedidoDeComentario = Type.Object(
-  { texto: Texto(10000, "O comentário, em texto simples.") },
+  {
+    texto: TextoDoComentario,
+    /** Nota interna: só as pessoas da empresa veem (M3-05). */
+    interna: Type.Optional(Type.Boolean()),
+    /** Quem foi mencionado com @ (a tela manda; o servidor confere que vê a tarefa). */
+    mencoes: Type.Optional(Type.Array(Responsavel, { maxItems: 50 })),
+  },
   { additionalProperties: false },
 );
 export type PedidoDeComentario = Static<typeof PedidoDeComentario>;
+
+/** Editar o texto (quem escreveu, em até 15 minutos). */
+export const PedidoDeEditarComentario = Type.Object(
+  { texto: TextoDoComentario },
+  { additionalProperties: false },
+);
+export type PedidoDeEditarComentario = Static<typeof PedidoDeEditarComentario>;
+
+/** O que aconteceu na tarefa, para a linha do tempo (M3-05). Detalhes só com ids e valores fixos, nunca texto livre. */
+export const TIPOS_DE_ACONTECIMENTO = [
+  "criou",
+  "mudou_status",
+  "trocou_responsavel",
+  "mudou_prazo",
+  "mudou_prioridade",
+  "mudou_projeto",
+  "mudou_lista",
+  "entregou_resultado",
+  "pegou",
+  "soltou",
+] as const;
+export const TipoDeAcontecimento = Type.Enum(TIPOS_DE_ACONTECIMENTO);
+export type TipoDeAcontecimento = Static<typeof TipoDeAcontecimento>;
+
+export const AcontecimentoDaTarefa = Type.Object(
+  {
+    id: Id,
+    empresaId: Id,
+    tarefaId: Id,
+    autor: Autor,
+    tipo: TipoDeAcontecimento,
+    detalhes: Type.Record(Type.String(), Type.Unknown()),
+    criadoEm: DataHora,
+  },
+  { additionalProperties: false, description: "Algo que aconteceu na tarefa, na linha do tempo." },
+);
+export type AcontecimentoDaTarefa = Static<typeof AcontecimentoDaTarefa>;
 
 /** Filtro da lista: "minhas" (sou o responsável ou criei) e por status. */
 export const FiltroDeTarefas = Type.Object(
@@ -288,6 +355,13 @@ export const PedidoDeDestravar = Type.Object(
 export type PedidoDeDestravar = Static<typeof PedidoDeDestravar>;
 
 /** Ações de auditoria das tarefas (M2-01 e M2-02). Nos detalhes vão ids e status, nunca o texto. */
+/** Ações de auditoria da linha do tempo (M3-05). */
+export const ACOES_LINHA_DO_TEMPO = [
+  "tarefa.editou_comentario",
+  "tarefa.apagou_comentario",
+  "tarefa.mencionou",
+] as const;
+
 export const ACOES_TAREFAS = [
   "tarefa.criou",
   "tarefa.mudou_status",
