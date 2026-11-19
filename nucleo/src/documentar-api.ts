@@ -11,6 +11,7 @@ import {
   FERRAMENTAS_MCP,
   FiltroDeTarefas,
   PedidoDeAgente,
+  PedidoDeAssinaturaDePush,
   PedidoDeChave,
   PedidoDeComentario,
   PedidoDeDestravar,
@@ -33,6 +34,7 @@ import {
   PedidoDeTarefa,
   PedidoDeTrocarResponsavel,
   PedidoDeVisaoSalva,
+  PreferenciasDeNotificacao,
 } from "@mago-os/contratos";
 import type { TSchema } from "typebox";
 
@@ -139,6 +141,50 @@ export const ROTAS: Rota[] = [
     oQueFaz:
       "Muda prioridade, prazo (dia, hora e fuso), início, etiquetas e recorrência; só o que veio muda, nulo apaga.",
     recebe: PedidoDePlanejamento,
+  },
+  {
+    metodo: "POST",
+    caminho: "/tarefas/:id/seguir",
+    permissao: "tarefas.ver",
+    oQueFaz: "Passa a seguir a tarefa (recebe aviso dos comentários).",
+  },
+  {
+    metodo: "DELETE",
+    caminho: "/tarefas/:id/seguir",
+    permissao: "tarefas.ver",
+    oQueFaz: "Deixa de seguir a tarefa.",
+  },
+  {
+    metodo: "POST",
+    caminho: "/avisos/lidos",
+    permissao: "agentes.ver",
+    oQueFaz: "Marca todos os avisos da pessoa como lidos.",
+  },
+  {
+    metodo: "GET",
+    caminho: "/notificacoes",
+    permissao: "agentes.ver",
+    oQueFaz: "A chave pública do push, se o push está ligado neste aparelho, e as preferências da pessoa.",
+  },
+  {
+    metodo: "POST",
+    caminho: "/notificacoes/push",
+    permissao: "agentes.ver",
+    oQueFaz: "Liga o push neste aparelho (assinatura Web Push do navegador).",
+    recebe: PedidoDeAssinaturaDePush,
+  },
+  {
+    metodo: "DELETE",
+    caminho: "/notificacoes/push",
+    permissao: "agentes.ver",
+    oQueFaz: "Desliga o push neste aparelho.",
+  },
+  {
+    metodo: "POST",
+    caminho: "/notificacoes/preferencias",
+    permissao: "agentes.ver",
+    oQueFaz: "Grava o que chega por onde (sino, push) e o horário de silêncio.",
+    recebe: PreferenciasDeNotificacao,
   },
   {
     metodo: "GET",

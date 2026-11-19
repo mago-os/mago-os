@@ -8,6 +8,7 @@ import { registrarRotasDoLogin } from "./acesso/rotas.ts";
 import { verificarAgentesVivos } from "./agentes/chaves.ts";
 import { registrarRotasDoAgente, registrarRotasDosAgentes } from "./agentes/rotas.ts";
 import { registrarRotasDosAvisos } from "./avisos/index.ts";
+import { enviadorWebPush, enviarPushPendentes, verificarPrazos } from "./avisos/notificacoes.ts";
 import { criarBanco } from "./banco.ts";
 import { ErroDeConfig, lerConfig } from "./config.ts";
 import { registrarRotasDaConta } from "./conta/rotas.ts";
@@ -29,6 +30,7 @@ import { registrarTempoReal } from "./tempo-real/index.ts";
 
 /** Fila da verificação de agente vivo (a cada minuto). */
 const FILA_AGENTES_VIVOS = "agentes-vivos";
+const FILA_NOTIFICACOES = "notificacoes";
 
 async function iniciar(): Promise<void> {
   const config = lerConfig();
@@ -64,10 +66,21 @@ async function iniciar(): Promise<void> {
     registrarRotasDosAgentes(app, opcoesDosAgentes);
     registrarRotasDoAgente(app, opcoesDosAgentes);
     registrarServidorMcp(app, opcoesDosAgentes);
-    registrarRotasDosAvisos(app, verificador, banco.pool);
+    registrarRotasDosAvisos(app, verificador, banco.pool, config.acesso.vapid?.publica ?? null);
     // Verificação a cada minuto (M2-04): tarefas de agentes sem sinal voltam para A fazer. O pg-boss garante que só
     // uma cópia da API roda cada vez.
     trabalhos.push(async () => {
+      // Avisos de prazo e push (M3-06), a cada minuto.
+      await fila.createQueue(FILA_NOTIFICACOES);
+      await fila.schedule(FILA_NOTIFICACOES, "* * * * *");
+      const vapid = config.acesso?.vapid ?? null;
+      const enviar = vapid ? enviadorWebPush(vapid) : null;
+      await fila.work(FILA_NOTIFICACOES, async () => {
+        const prazos = await verificarPrazos(banco.pool);
+        const pushes = enviar ? await enviarPushPendentes(banco.pool, enviar, app.log) : 0;
+        if (prazos + pushes > 0)
+          app.log.info({ evento: "notificacoes", prazos, pushes }, "Avisos de prazo e push");
+      });
       await fila.createQueue(FILA_AGENTES_VIVOS);
       await fila.schedule(FILA_AGENTES_VIVOS, "* * * * *");
       await fila.work(FILA_AGENTES_VIVOS, async () => {

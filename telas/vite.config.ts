@@ -37,6 +37,8 @@ export default defineConfig({
       workbox: {
         // A API nunca vem do cache: o estado precisa ser sempre o de agora.
         navigateFallbackDenylist: [/^\/api\//],
+        // Push (M3-06): o tratamento da notificação fica num arquivo próprio, carregado pelo service worker.
+        importScripts: ["sw-push.js"],
       },
     }),
   ],

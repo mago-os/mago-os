@@ -292,6 +292,13 @@ Todas com o prefixo `/api` no site, menos `/mcp`, que fica em `https://teste.osm
 | POST | `/tarefas/:id/destravar` | tarefas.aprovar | Tira a trava de outro, com motivo. |
 | POST | `/tarefas/:id/projeto` | tarefas.editar | Muda a tarefa de projeto (um projeto ativo que a pessoa alcança) ou tira do projeto (nulo). |
 | POST | `/tarefas/:id/planejamento` | tarefas.editar | Muda prioridade, prazo (dia, hora e fuso), início, etiquetas e recorrência; só o que veio muda, nulo apaga. |
+| POST | `/tarefas/:id/seguir` | tarefas.ver | Passa a seguir a tarefa (recebe aviso dos comentários). |
+| DELETE | `/tarefas/:id/seguir` | tarefas.ver | Deixa de seguir a tarefa. |
+| POST | `/avisos/lidos` | agentes.ver | Marca todos os avisos da pessoa como lidos. |
+| GET | `/notificacoes` | agentes.ver | A chave pública do push, se o push está ligado neste aparelho, e as preferências da pessoa. |
+| POST | `/notificacoes/push` | agentes.ver | Liga o push neste aparelho (assinatura Web Push do navegador). |
+| DELETE | `/notificacoes/push` | agentes.ver | Desliga o push neste aparelho. |
+| POST | `/notificacoes/preferencias` | agentes.ver | Grava o que chega por onde (sino, push) e o horário de silêncio. |
 | GET | `/visoes` | tarefas.ver | Lista as visões salvas da pessoa (só as dela). |
 | POST | `/visoes` | tarefas.ver | Salva uma visão (nome, tipo, filtros e agrupamento). |
 | DELETE | `/visoes/:id` | tarefas.ver | Apaga uma visão da pessoa. |
@@ -413,6 +420,20 @@ Recebe:
 - `inicio` (string ou null)
 - `etiquetas` (lista de id)
 - `recorrencia` (objeto ou null)
+
+### POST `/notificacoes/push`
+
+Recebe:
+
+- `endpoint` (string, obrigatório)
+- `chaves` (objeto, obrigatório)
+
+### POST `/notificacoes/preferencias`
+
+Recebe:
+
+- `porTipo` (objeto, obrigatório)
+- `silencio` (objeto ou null, obrigatório)
 
 ### POST `/visoes`
 

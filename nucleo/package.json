@@ -22,6 +22,7 @@
     "./agentes": "./src/agentes/index.ts",
     "./tempo-real": "./src/tempo-real/index.ts",
     "./avisos": "./src/avisos/index.ts",
+    "./avisos/notificacoes": "./src/avisos/notificacoes.ts",
     "./mcp": "./src/mcp/index.ts",
     "./documentar-api": "./src/documentar-api.ts"
   },
@@ -51,9 +52,11 @@
     "node-pg-migrate": "catalog:",
     "pg": "catalog:",
     "pg-boss": "catalog:",
-    "typebox": "catalog:"
+    "typebox": "catalog:",
+    "web-push": "catalog:"
   },
   "devDependencies": {
-    "@types/pg": "catalog:"
+    "@types/pg": "catalog:",
+    "@types/web-push": "catalog:"
   }
 }

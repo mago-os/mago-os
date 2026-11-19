@@ -42,6 +42,17 @@ erDiagram
     uuid feito_por FK
     timestamp_with_time_zone feito_em
   }
+  assinaturas_de_push {
+    uuid id PK
+    uuid empresa_id FK
+    uuid pessoa_id
+    uuid aparelho_id FK
+    text endpoint
+    text p256dh
+    text auth
+    timestamp_with_time_zone criada_em
+    timestamp_with_time_zone ultimo_envio_em
+  }
   avisos {
     uuid id PK
     uuid empresa_id FK
@@ -51,6 +62,8 @@ erDiagram
     text link
     timestamp_with_time_zone criado_em
     timestamp_with_time_zone lido_em
+    uuid tarefa_id
+    boolean push_pendente
   }
   chaves_de_agente {
     uuid id PK
@@ -178,6 +191,12 @@ erDiagram
     boolean email_verificado
     boolean dois_fatores_ativo
   }
+  preferencias_de_notificacao {
+    uuid empresa_id PK
+    uuid pessoa_id PK
+    jsonb preferencias
+    timestamp_with_time_zone atualizadas_em
+  }
   projetos {
     uuid id PK
     uuid empresa_id FK
@@ -194,6 +213,12 @@ erDiagram
     date fim
     timestamp_with_time_zone criado_em
     timestamp_with_time_zone atualizado_em
+  }
+  seguidores_de_tarefa {
+    uuid empresa_id FK
+    uuid tarefa_id PK
+    uuid pessoa_id PK
+    timestamp_with_time_zone desde
   }
   status_de_projeto {
     uuid id PK
@@ -236,6 +261,8 @@ erDiagram
     jsonb recorrencia
     integer ocorrencia
     uuid recorrente_de_id
+    timestamp_with_time_zone avisou_prazo_hoje_em
+    timestamp_with_time_zone avisou_prazo_vencido_em
   }
   vinculos {
     uuid id PK
@@ -403,6 +430,8 @@ erDiagram
   empresas ||--o{ ajustes_de_permissao : "empresa_id"
   vinculos ||--o{ ajustes_de_permissao : "vinculo_id"
   pessoas ||--o{ ajustes_de_permissao : "feito_por"
+  empresas ||--o{ assinaturas_de_push : "empresa_id"
+  acesso_aparelhos ||--o{ assinaturas_de_push : "aparelho_id"
   empresas ||--o{ avisos : "empresa_id"
   empresas ||--o{ chaves_de_agente : "empresa_id"
   empresas ||--o{ comentarios_de_tarefa : "empresa_id"
@@ -416,7 +445,9 @@ erDiagram
   empresas ||--o{ mencoes_de_comentario : "empresa_id"
   comentarios_de_tarefa ||--o{ mencoes_de_comentario : "comentario_id"
   pessoas ||--o{ papeis_plataforma : "pessoa_id"
+  empresas ||--o{ preferencias_de_notificacao : "empresa_id"
   empresas ||--o{ projetos : "empresa_id"
+  empresas ||--o{ seguidores_de_tarefa : "empresa_id"
   empresas ||--o{ status_de_projeto : "empresa_id"
   empresas ||--o{ tarefas : "empresa_id"
   empresas ||--o{ vinculos : "empresa_id"
@@ -507,9 +538,27 @@ Isolamento por empresa (Row Level Security): ligado e forçado.
 | feito_por | uuid | sim |  | sistema | Pessoa que fez o ajuste. Aponta para pessoas.id. |
 | feito_em | timestamp with time zone | sim | `now()` | sistema | Quando o ajuste foi feito. |
 
+### assinaturas_de_push
+
+Push ligado em cada aparelho (Web Push). Desconectar ou apagar o aparelho apaga a assinatura.
+
+Isolamento por empresa (Row Level Security): ligado e forçado.
+
+| Coluna | Tipo | Obrigatória | Padrão | Marca | Descrição |
+| --- | --- | --- | --- | --- | --- |
+| id | uuid | sim | `uuidv7()` | sistema | Identificador da assinatura (UUID v7). Chave primária. |
+| empresa_id | uuid | sim |  | sistema | Empresa cujos avisos vão para este aparelho. Aponta para empresas.id. |
+| pessoa_id | uuid | sim |  | sistema | Pessoa dona do aparelho. |
+| aparelho_id | uuid | sim |  | sistema | Aparelho do login (o mesmo da tela Meus aparelhos). Aponta para acesso.aparelhos.id. |
+| endpoint | text | sim |  | sensivel | Endereço de entrega do serviço de push do navegador. |
+| p256dh | text | sim |  | sensivel | Chave pública do navegador para cifrar a mensagem. |
+| auth | text | sim |  | sensivel | Segredo de autenticação do navegador. |
+| criada_em | timestamp with time zone | sim | `now()` | sistema | Quando o push foi ligado neste aparelho. |
+| ultimo_envio_em | timestamp with time zone | não |  | sistema | Último push entregue. |
+
 ### avisos
 
-Avisos para uma pessoa dentro do Mago OS, mostrados no Início até ela marcar como lido.
+Avisos (notificações) para uma pessoa: no sino e, se ela quiser, no push.
 
 Isolamento por empresa (Row Level Security): ligado e forçado.
 
@@ -518,11 +567,13 @@ Isolamento por empresa (Row Level Security): ligado e forçado.
 | id | uuid | sim | `uuidv7()` | sistema | Identificador do aviso (UUID v7). Chave primária. |
 | empresa_id | uuid | sim |  | sistema | Empresa do aviso. Aponta para empresas.id. |
 | pessoa_id | uuid | sim |  | sistema | Pessoa que recebe o aviso. |
-| tipo | text | sim |  | sistema | agente_sem_sinal, agente_passou_do_limite ou agente_desligado. |
+| tipo | text | sim |  | sistema | Tipo do aviso (agente_*, tarefa_atribuida, mencao, comentario, resultado_entregue, precisa_de_ajuda, prazo_hoje, prazo_vencido). |
 | texto | text | sim |  | empresa | O que aconteceu, numa frase. |
 | link | text | sim |  | sistema | Tela do Mago OS a abrir (sempre um caminho interno). |
 | criado_em | timestamp with time zone | sim | `now()` | sistema | Quando o aviso foi criado. |
 | lido_em | timestamp with time zone | não |  | sistema | Quando a pessoa marcou como lido. |
+| tarefa_id | uuid | não |  | sistema | Tarefa do aviso, quando é de uma tarefa (o aviso some junto com ela). |
+| push_pendente | boolean | sim | `false` | sistema | O push deste aviso ainda vai sair (a verificação a cada minuto manda, fora do horário de silêncio). |
 
 ### chaves_de_agente
 
@@ -741,6 +792,19 @@ Isolamento por empresa (Row Level Security): ligado e forçado.
 | email_verificado | boolean | sim | `false` | sistema | Se o e-mail já foi confirmado (pelo convite, pelo Google ou por um link enviado a ele). |
 | dois_fatores_ativo | boolean | sim | `false` | sistema | Se a pessoa ativou o app autenticador (o código é pedido a cada login, fora dos aparelhos confiáveis). |
 
+### preferencias_de_notificacao
+
+O que chega por onde (sino, push) e o horário de silêncio de cada pessoa na empresa.
+
+Isolamento por empresa (Row Level Security): ligado e forçado.
+
+| Coluna | Tipo | Obrigatória | Padrão | Marca | Descrição |
+| --- | --- | --- | --- | --- | --- |
+| empresa_id | uuid | sim |  | sistema | Empresa. Chave primária. |
+| pessoa_id | uuid | sim |  | sistema | Pessoa. Chave primária. |
+| preferencias | jsonb | sim | `'{}'::jsonb` | pessoal | Preferências (contrato PreferenciasDeNotificacao). |
+| atualizadas_em | timestamp with time zone | sim | `now()` | sistema | Última mudança. |
+
 ### projetos
 
 Projetos de um espaço, com um diretor (pessoa) e, se quiser, um gerente (pessoa ou agente).
@@ -764,6 +828,19 @@ Isolamento por empresa (Row Level Security): ligado e forçado.
 | fim | date | não |  | empresa | Dia de fim previsto, se houver. |
 | criado_em | timestamp with time zone | sim | `now()` | sistema | Quando o projeto foi criado. |
 | atualizado_em | timestamp with time zone | sim | `now()` | sistema | Última mudança no projeto (inclui membros). |
+
+### seguidores_de_tarefa
+
+Quem segue cada tarefa (recebe aviso dos comentários). Quem cria, o responsável e quem é mencionado seguem sozinhos.
+
+Isolamento por empresa (Row Level Security): ligado e forçado.
+
+| Coluna | Tipo | Obrigatória | Padrão | Marca | Descrição |
+| --- | --- | --- | --- | --- | --- |
+| empresa_id | uuid | sim |  | sistema | Empresa (a mesma da tarefa). Aponta para empresas.id. |
+| tarefa_id | uuid | sim |  | sistema | Tarefa seguida. Chave primária. |
+| pessoa_id | uuid | sim |  | sistema | Pessoa que segue. Chave primária. |
+| desde | timestamp with time zone | sim | `now()` | sistema | Desde quando segue. |
 
 ### status_de_projeto
 
@@ -820,6 +897,8 @@ Isolamento por empresa (Row Level Security): ligado e forçado.
 | recorrencia | jsonb | não |  | empresa | Regra da recorrência (contrato RegraDeRecorrencia). Vazio: não se repete. |
 | ocorrencia | integer | sim | `1` | sistema | Quantas vezes a tarefa já aconteceu, contando esta. |
 | recorrente_de_id | uuid | não |  | sistema | A tarefa anterior da recorrência, que ao ser concluída criou esta. |
+| avisou_prazo_hoje_em | timestamp with time zone | não |  | sistema | Quando o aviso de "vence hoje" foi mandado (mudar o prazo apaga). |
+| avisou_prazo_vencido_em | timestamp with time zone | não |  | sistema | Quando o aviso de "venceu" foi mandado (mudar o prazo apaga). |
 
 ### vinculos
 

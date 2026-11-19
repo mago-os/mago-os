@@ -32,6 +32,7 @@ import {
 } from "../agentes/chaves.ts";
 import { agenteRecebeTarefas } from "../agentes/servico.ts";
 import { auditar } from "../auditoria/registrar.ts";
+import { avisarDepois } from "../avisos/eventos.ts";
 import { comEmpresa } from "../empresa.ts";
 import { buscarItem, editarItem, listarChecklist } from "../tarefas/checklist.ts";
 import { acontecimentoDaAcao, mencoesPendentes, registrarAcontecimento } from "../tarefas/linha-do-tempo.ts";
@@ -311,6 +312,16 @@ async function executar(
       });
       if (!comentario) throw naoAchou();
       await registrar("tarefa.comentou", e.tarefaId, { comentarioId: comentario.id });
+      const comentada = await naEmpresa((c) => buscarTarefa(c, { ...quem, comoGerente: true }, e.tarefaId));
+      if (comentada) {
+        await avisarDepois(
+          o.poolApp,
+          agente.empresaId,
+          { tipo: "agente", agenteId: agente.agenteId },
+          { tipo: "comentou", tarefa: comentada, comentario },
+          pedido.log,
+        );
+      }
       return comentario;
     }
     case "mudar_status":
@@ -349,6 +360,15 @@ async function executar(
           proximaId: feito.proxima,
           ocorrencia: feito.tarefa.ocorrencia + 1,
         });
+      }
+      if (feito.mudou) {
+        await avisarDepois(
+          o.poolApp,
+          agente.empresaId,
+          { tipo: "agente", agenteId: agente.agenteId },
+          { tipo: "mudou_status", tarefa: feito.tarefa, de: feito.de },
+          pedido.log,
+        );
       }
       return feito.tarefa;
     }

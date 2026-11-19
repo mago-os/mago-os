@@ -13,7 +13,7 @@ export function AvisosDoMago() {
   const [avisos, setAvisos] = useState<Aviso[]>([]);
   const carregar = useCallback(async () => {
     const r = await listarMeusAvisos();
-    if (r.ok && r.dados) setAvisos(r.dados);
+    if (r.ok && r.dados) setAvisos(r.dados.filter((a) => a.tipo.startsWith("agente_")));
   }, []);
   useEffect(() => {
     void carregar();

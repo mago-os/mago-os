@@ -48,6 +48,8 @@ catalog:
   "@types/qrcode": 1.5.6
   "@fastify/websocket": 11.3.7
   "@modelcontextprotocol/sdk": 1.32.2
+  web-push: 4.0.0
+  "@types/web-push": 3.6.4
 
 # Só instala versões publicadas há pelo menos 1 dia (protege contra pacote adulterado recém-publicado).
 minimumReleaseAge: 1440

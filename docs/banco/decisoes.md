@@ -195,3 +195,12 @@ O login (`mago_acesso`) não lê papéis nem as regras da plataforma direto. As 
 - `comentarios_de_tarefa` ganha o tipo (comentário ou nota interna). A nota interna só vai para pessoas: a API não a entrega aos agentes pelo MCP (decisão 10 do Sandro). Editar e apagar passam a existir, mas a API só muda o texto e as datas de edição e exclusão (permissão por coluna); apagado fica sem texto, no mesmo lugar.
 - `mencoes_de_comentario` guarda quem foi mencionado (pessoa ou agente da mesma empresa, por chave composta). O agente mencionado num comentário (não nota) passa a ver aquela tarefa e a poder comentar nela, sem poder pegá-la nem mudá-la. A menção a uma pessoa não abre a tarefa para quem não a vê.
 - `acontecimentos_de_tarefa` guarda o que aconteceu (status, responsável, prazo, prioridade, projeto, lista, entrega, pegou, soltou), com ids e valores fixos, só acrescentando. É gravado junto com a auditoria, mas é da tarefa: quem vê a tarefa vê a linha do tempo, sem precisar ver a auditoria.
+
+## 26. Notificações (19/11/2026, M3-06)
+
+- `avisos` (da M2-04) passa a valer para as tarefas: novos tipos, a tarefa do aviso (some junto com ela) e `push_pendente`. Aviso novo avisa só as telas da própria pessoa pelo tempo real (tipo "aviso").
+- `seguidores_de_tarefa`: quem cria, o responsável e quem é mencionado seguem sozinhos; dá para seguir e deixar de seguir.
+- `assinaturas_de_push`: uma por aparelho do login, com as chaves do navegador marcadas como sensíveis. O push só sai para aparelho com sessão aberta (`aparelho_conectado`, dono, porque a API não lê `acesso.sessoes`); assinatura que o serviço diz não existir mais é apagada.
+- `preferencias_de_notificacao`: o que chega por onde e o horário de silêncio. No silêncio, o push espera; o sino recebe na hora.
+- Verificação a cada minuto (pg-boss): `empresas_com_prazo_para_avisar` e `empresas_com_push_pendente` (dono, só ids) acham o trabalho; cada empresa roda com a empresa dela. `tarefas.avisou_prazo_hoje_em` e `avisou_prazo_vencido_em` garantem um aviso por prazo; mudar o prazo apaga as marcas.
+- O aviso de tarefa só vai, e só aparece no sino, para quem vê a tarefa. O texto do push é genérico, sem dado da tarefa.

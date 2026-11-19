@@ -7,7 +7,7 @@
  * Os textos não usam o travessão, como os outros textos que a pessoa lê.
  */
 import type { FastifyBaseLogger } from "fastify";
-import type { Carteiro, DadosDoAvisoDeAgente } from "./login.ts";
+import type { Carteiro, DadosDoAparelhoNovo, DadosDoAvisoDeAgente } from "./login.ts";
 
 export const REMETENTE = "Mago OS <nao-responda@osmago.com>";
 
@@ -119,6 +119,24 @@ export function emailDeAvisoDeAgente(d: DadosDoAvisoDeAgente) {
   };
 }
 
+/** Aparelho novo (M3-06): sem link que faça login; o link leva à tela Meus aparelhos, que pede o login normal. */
+export function emailDeAparelhoNovo(d: DadosDoAparelhoNovo) {
+  return {
+    assunto: "Entrada em um aparelho novo no Mago OS",
+    ...montar(
+      "Entrada em um aparelho novo",
+      [
+        `Olá, ${d.nome.split(" ")[0]}. Sua conta do Mago OS entrou agora em um aparelho novo: ${d.aparelho}${
+          d.ip ? ` (IP ${d.ip})` : ""
+        }, em ${d.quando}.`,
+        "Se foi você, não precisa fazer nada. Se não foi, abra Meus aparelhos, toque em Não fui eu e troque a senha.",
+      ],
+      "Abrir Meus aparelhos",
+      d.link,
+    ),
+  };
+}
+
 /** Envia pelo Resend. Erro no envio vira exceção: quem chamou decide o que mostrar. */
 export function carteiroResend(chave: string, envio: typeof fetch = fetch): Carteiro {
   async function mandar(para: string, e: { assunto: string; html: string; text: string }) {
@@ -134,6 +152,7 @@ export function carteiroResend(chave: string, envio: typeof fetch = fetch): Cart
     enviarConvite: (d) => mandar(d.para, emailDeConvite(d)),
     enviarConviteDeEmpresa: (d) => mandar(d.para, emailDeConviteDeEmpresa(d)),
     enviarAvisoDeAgente: (d) => mandar(d.para, emailDeAvisoDeAgente(d)),
+    enviarAparelhoNovo: (d) => mandar(d.para, emailDeAparelhoNovo(d)),
   };
 }
 
@@ -166,6 +185,9 @@ export function carteiroDoLog(log: FastifyBaseLogger, ambiente: "local" | "teste
         { evento: "agente.aviso", para, agente, oQueAconteceu },
         "Aviso de agente (sem e-mail: ver o log)",
       );
+    },
+    async enviarAparelhoNovo({ para, aparelho }) {
+      log.warn({ evento: "sessao.aparelho_novo", para, aparelho }, "Aparelho novo (sem e-mail: ver o log)");
     },
   };
 }

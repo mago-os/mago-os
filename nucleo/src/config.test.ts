@@ -55,6 +55,7 @@ describe("configuração", () => {
       conferirSenhasVazadas: true,
       google: null,
       resend: null,
+      vapid: null,
     });
   });
 

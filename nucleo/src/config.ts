@@ -35,6 +35,11 @@ export interface ConfigDoAcesso {
   resend: string | null;
   /** Login com Google. Variáveis MAGO_GOOGLE_ID e MAGO_GOOGLE_SEGREDO, as duas ou nenhuma. */
   google: { id: string; segredo: string } | null;
+  /**
+   * Push (M3-06): chaves VAPID. Variáveis MAGO_VAPID_PUBLICA e MAGO_VAPID_PRIVADA, as duas ou nenhuma; sem elas, o
+   * push fica desligado (o sino continua).
+   */
+  vapid: { publica: string; privada: string; assunto: string } | null;
 }
 
 const NIVEIS: readonly NivelDeRegistro[] = ["fatal", "error", "warn", "info", "debug", "trace", "silent"];
@@ -128,5 +133,23 @@ function lerAcesso(
   const resend = env.MAGO_RESEND_CHAVE?.trim() || null;
   if (resend && !resend.startsWith("re_")) problemas.push("MAGO_RESEND_CHAVE precisa começar com re_");
 
-  return { bancoUrl, segredo, urlPublica, conferirSenhasVazadas: vazadas !== "nao_conferir", google, resend };
+  const vapidPublica = env.MAGO_VAPID_PUBLICA?.trim() ?? "";
+  const vapidPrivada = env.MAGO_VAPID_PRIVADA?.trim() ?? "";
+  if ((vapidPublica === "") !== (vapidPrivada === "")) {
+    problemas.push("Push: informe MAGO_VAPID_PUBLICA e MAGO_VAPID_PRIVADA juntas");
+  }
+  const vapid =
+    vapidPublica && vapidPrivada
+      ? { publica: vapidPublica, privada: vapidPrivada, assunto: "mailto:nao-responda@osmago.com" }
+      : null;
+
+  return {
+    bancoUrl,
+    segredo,
+    urlPublica,
+    conferirSenhasVazadas: vazadas !== "nao_conferir",
+    google,
+    resend,
+    vapid,
+  };
 }

@@ -21,6 +21,7 @@ import { Campo } from "@/componentes/ui/campo";
 import { Card, CardDescricao, CardTitulo } from "@/componentes/ui/card";
 import { Aviso } from "./Acesso";
 import { AtivarDoisFatores, ConfirmarSegundoFator } from "./DoisFatores";
+import { Notificacoes } from "./Notificacoes";
 import { usePasskeyPronta } from "./usePasskey";
 
 const IDIOMAS = [
@@ -120,6 +121,7 @@ export function MeuPerfil() {
         aoMudar={carregar}
         aoAtivarApp={() => setAtivandoApp(true)}
       />
+      <Notificacoes />
     </main>
   );
 }
