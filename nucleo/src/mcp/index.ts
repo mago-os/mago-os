@@ -34,6 +34,7 @@ import { agenteRecebeTarefas } from "../agentes/servico.ts";
 import { auditar } from "../auditoria/registrar.ts";
 import { comEmpresa } from "../empresa.ts";
 import { buscarItem, editarItem, listarChecklist } from "../tarefas/checklist.ts";
+import { acontecimentoDaAcao, mencoesPendentes, registrarAcontecimento } from "../tarefas/linha-do-tempo.ts";
 import { recorrerSePreciso } from "../tarefas/planejamento.ts";
 import {
   autorDe,
@@ -189,8 +190,21 @@ async function executar(
   const quem: Quem = { tipo: "agente", agenteId: agente.agenteId };
   const naEmpresa = <T>(trabalho: (c: pg.PoolClient) => Promise<T>) =>
     comEmpresa(o.poolApp, agente.empresaId, trabalho);
-  const registrar = (acao: AcaoDeTarefa, tarefaId: string, detalhes: Record<string, unknown> = {}) =>
-    auditar(
+  const registrar = async (acao: AcaoDeTarefa, tarefaId: string, detalhes: Record<string, unknown> = {}) => {
+    // O que interessa a quem acompanha a tarefa entra também na linha do tempo (M3-05).
+    const acontecimento = acontecimentoDaAcao(acao, detalhes);
+    if (acontecimento) {
+      await naEmpresa((c) =>
+        registrarAcontecimento(
+          c,
+          tarefaId,
+          { tipo: "agente", agenteId: agente.agenteId },
+          acontecimento.tipo,
+          acontecimento.detalhes,
+        ),
+      );
+    }
+    return auditar(
       o.poolApp,
       {
         empresaId: agente.empresaId,
@@ -203,6 +217,7 @@ async function executar(
       },
       pedido.log,
     );
+  };
   const ler = async (quantos: number) => {
     if (!(await contarLeituras(agente, quantos, o))) {
       throw new RecusaDaFerramenta(
@@ -219,7 +234,8 @@ async function executar(
       // A lista das próprias tarefas conta 1 leitura por chamada: o agente pergunta a cada minuto, e isso não pode
       // consumir o limite de leitura (pensado para conteúdo: tarefa aberta com comentários).
       await ler(1);
-      return { tarefas, mencionado: [] };
+      const mencionado = await naEmpresa((c) => mencoesPendentes(c, agente.agenteId));
+      return { tarefas, mencionado };
     }
     case "ver_tarefa": {
       const e = entrada as EntradaDa<"ver_tarefa">;
@@ -229,7 +245,8 @@ async function executar(
         if (!tarefa) return null;
         return {
           tarefa,
-          comentarios: await listarComentarios(c, tarefa.id),
+          // Nota interna não vai para os agentes (M3-05).
+          comentarios: await listarComentarios(c, tarefa.id, false),
           subtarefas: await listarSubtarefas(c, tarefa.id),
           checklist: await listarChecklist(c, tarefa.id),
         };
@@ -288,7 +305,8 @@ async function executar(
     case "comentar": {
       const e = entrada as EntradaDa<"comentar">;
       const comentario = await naEmpresa(async (c) => {
-        const tarefa = await buscarTarefa(c, quem, e.tarefaId, true);
+        // Comenta onde vê: as tarefas dele, as do projeto que gerencia e as em que foi mencionado (M3-05).
+        const tarefa = await buscarTarefa(c, { ...quem, comoGerente: true }, e.tarefaId, true);
         return tarefa ? comentar(c, autorDe(quem), tarefa.id, e.texto) : null;
       });
       if (!comentario) throw naoAchou();

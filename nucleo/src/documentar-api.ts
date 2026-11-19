@@ -15,6 +15,7 @@ import {
   PedidoDeComentario,
   PedidoDeDestravar,
   PedidoDeEditarAgente,
+  PedidoDeEditarComentario,
   PedidoDeEditarEspaco,
   PedidoDeEditarItemDeChecklist,
   PedidoDeEditarLista,
@@ -68,7 +69,7 @@ export const ROTAS: Rota[] = [
     caminho: "/tarefas/:id",
     permissao: "tarefas.ver",
     oQueFaz:
-      "Mostra a tarefa com os comentários, as subtarefas, o checklist, os status do projeto e os nomes citados.",
+      "Mostra a tarefa com a linha do tempo (comentários, notas internas e acontecimentos), as subtarefas, o checklist, os status do projeto e os nomes citados.",
   },
   {
     metodo: "POST",
@@ -89,8 +90,21 @@ export const ROTAS: Rota[] = [
     metodo: "POST",
     caminho: "/tarefas/:id/comentarios",
     permissao: "tarefas.ver",
-    oQueFaz: "Comenta (mesmo travada por outro).",
+    oQueFaz: "Comenta ou escreve uma nota interna (mesmo travada por outro), com menções com @.",
     recebe: PedidoDeComentario,
+  },
+  {
+    metodo: "POST",
+    caminho: "/tarefas/:id/comentarios/:comentarioId",
+    permissao: "tarefas.ver",
+    oQueFaz: "Edita o próprio comentário em até 15 minutos.",
+    recebe: PedidoDeEditarComentario,
+  },
+  {
+    metodo: "DELETE",
+    caminho: "/tarefas/:id/comentarios/:comentarioId",
+    permissao: "tarefas.ver",
+    oQueFaz: 'Apaga o comentário (quem escreveu, ou quem exclui qualquer tarefa); fica "comentário apagado".',
   },
   {
     metodo: "POST",

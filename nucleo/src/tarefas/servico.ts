@@ -14,6 +14,7 @@ import type {
   Responsavel,
   StatusTarefa,
   Tarefa,
+  TipoDeComentario,
 } from "@mago-os/contratos";
 import type pg from "pg";
 import type { Filtro } from "../permissoes/calcular.ts";
@@ -22,7 +23,8 @@ import type { Filtro } from "../permissoes/calcular.ts";
  * Quem está pedindo: uma pessoa (com o alcance da ação) ou um agente (as tarefas dele, M2-03).
  * "projetos" diz quais projetos a pessoa alcança além do alcance da ação (M3-01): "todos" (quem vê todos os
  * projetos, só para ver), "membro" (os projetos em que é diretora, gerente ou membro, para ver e editar) ou
- * "nenhum". "comoGerente": só para ver, o agente alcança também as tarefas do projeto que gerencia.
+ * "nenhum". "comoGerente": só para ver (e comentar), o agente alcança também as tarefas do projeto que gerencia, as
+ * subtarefas das que alcança e as tarefas em que foi mencionado (M3-05).
  */
 export type Quem =
   | { tipo: "pessoa"; pessoaId: string; filtro: Filtro; projetos?: "todos" | "membro" | "nenhum" }
@@ -56,10 +58,14 @@ function alcanceSobre(a: string, quem: Quem, jaUsados: number): { sql: string; v
   if (quem.tipo === "agente") {
     const dele = `(${a}.responsavel_agente_id = ${p(0)} or ${a}.travada_por_agente_id = ${p(0)})`;
     if (!quem.comoGerente) return { sql: dele, valores: [quem.agenteId] };
-    // Só para ver: o gerente agente enxerga as tarefas do projeto dele (M3-01), sem poder mexer nas dos outros.
+    // Só para ver (e comentar): o gerente agente enxerga as tarefas do projeto dele (M3-01), e o agente mencionado
+    // com @ num comentário enxerga aquela tarefa (M3-05). Mexer, só nas dele.
     return {
       sql: `(${dele} or exists (select 1 from projetos pr where pr.id = ${a}.projeto_id
-             and pr.empresa_id = ${a}.empresa_id and pr.gerente_agente_id = ${p(0)}))`,
+             and pr.empresa_id = ${a}.empresa_id and pr.gerente_agente_id = ${p(0)})
+             or exists (select 1 from mencoes_de_comentario mc join comentarios_de_tarefa cm on cm.id = mc.comentario_id
+                         where mc.tarefa_id = ${a}.id and mc.empresa_id = ${a}.empresa_id and mc.agente_id = ${p(0)}
+                           and cm.tipo = 'comentario' and cm.apagado_em is null))`,
       valores: [quem.agenteId],
     };
   }
@@ -303,33 +309,102 @@ export async function buscarTarefa(
   return linha ? linhaParaTarefa(linha) : null;
 }
 
-export async function listarComentarios(c: pg.PoolClient, tarefaId: string): Promise<ComentarioDeTarefa[]> {
-  const r = await c.query<{
-    id: string;
-    empresa_id: string;
-    tarefa_id: string;
-    autor_pessoa_id: string | null;
-    autor_agente_id: string | null;
-    texto: string;
-    criado_em: Date;
-  }>(
-    `select id, empresa_id, tarefa_id, autor_pessoa_id, autor_agente_id, texto, criado_em
-       from comentarios_de_tarefa where tarefa_id = $1 and empresa_id = empresa_ativa() order by criado_em, id`,
-    [tarefaId],
-  );
-  return r.rows.map((l) => ({
+interface LinhaDoComentario {
+  id: string;
+  empresa_id: string;
+  tarefa_id: string;
+  autor_pessoa_id: string | null;
+  autor_agente_id: string | null;
+  tipo: TipoDeComentario;
+  texto: string | null;
+  criado_em: Date;
+  editado_em: Date | null;
+  apagado_em: Date | null;
+  mencoes: { pessoa_id: string | null; agente_id: string | null }[];
+}
+
+const COLUNAS_DO_COMENTARIO = `cm.id, cm.empresa_id, cm.tarefa_id, cm.autor_pessoa_id, cm.autor_agente_id, cm.tipo,
+  cm.texto, cm.criado_em, cm.editado_em, cm.apagado_em,
+  coalesce((select json_agg(json_build_object('pessoa_id', m.pessoa_id, 'agente_id', m.agente_id) order by m.id)
+              from mencoes_de_comentario m where m.comentario_id = cm.id), '[]'::json) as mencoes`;
+
+function paraComentario(l: LinhaDoComentario): ComentarioDeTarefa {
+  return {
     id: l.id,
     empresaId: l.empresa_id,
     tarefaId: l.tarefa_id,
     autor: autorDaLinha(l.autor_pessoa_id, l.autor_agente_id),
-    // M3-05: tipo, menções, edição e exclusão entram com o banco, depois do contrato aprovado.
-    tipo: "comentario",
+    tipo: l.tipo,
     texto: l.texto,
-    mencoes: [],
+    // Comentário apagado não diz mais quem foi mencionado.
+    mencoes: l.apagado_em
+      ? []
+      : l.mencoes.map((m) =>
+          m.pessoa_id
+            ? { tipo: "pessoa" as const, pessoaId: m.pessoa_id }
+            : { tipo: "agente" as const, agenteId: m.agente_id as string },
+        ),
     criadoEm: l.criado_em.toISOString(),
-    editadoEm: null,
-    apagadoEm: null,
-  }));
+    editadoEm: iso(l.editado_em),
+    apagadoEm: iso(l.apagado_em),
+  };
+}
+
+/**
+ * Os comentários da tarefa, do mais antigo para o mais novo. Nota interna (M3-05) só vai para pessoas: o agente
+ * (incluirInternas falso) não recebe.
+ */
+export async function listarComentarios(
+  c: pg.PoolClient,
+  tarefaId: string,
+  incluirInternas = true,
+): Promise<ComentarioDeTarefa[]> {
+  const r = await c.query<LinhaDoComentario>(
+    `select ${COLUNAS_DO_COMENTARIO} from comentarios_de_tarefa cm
+      where cm.tarefa_id = $1 and cm.empresa_id = empresa_ativa() and ($2 or cm.tipo = 'comentario')
+      order by cm.criado_em, cm.id`,
+    [tarefaId, incluirInternas],
+  );
+  return r.rows.map(paraComentario);
+}
+
+/** Um comentário da tarefa, travado para mudar. */
+export async function buscarComentario(
+  c: pg.PoolClient,
+  tarefaId: string,
+  id: string,
+): Promise<ComentarioDeTarefa | null> {
+  if (!/^[0-9a-f-]{36}$/i.test(id)) return null;
+  const r = await c.query<LinhaDoComentario>(
+    `select ${COLUNAS_DO_COMENTARIO} from comentarios_de_tarefa cm
+      where cm.id = $1 and cm.tarefa_id = $2 and cm.empresa_id = empresa_ativa() for update of cm`,
+    [id, tarefaId],
+  );
+  return r.rows[0] ? paraComentario(r.rows[0]) : null;
+}
+
+/** Edita o texto (quem escreveu, dentro do prazo, conferido na rota). As menções ficam como estavam. */
+export async function editarComentario(
+  c: pg.PoolClient,
+  id: string,
+  texto: string,
+): Promise<ComentarioDeTarefa> {
+  const r = await c.query<LinhaDoComentario>(
+    `update comentarios_de_tarefa cm set texto = $2, editado_em = now()
+      where cm.id = $1 and cm.empresa_id = empresa_ativa() returning ${COLUNAS_DO_COMENTARIO}`,
+    [id, texto.trim()],
+  );
+  return paraComentario(r.rows[0] as LinhaDoComentario);
+}
+
+/** Apaga: o texto sai e o lugar fica ("comentário apagado"). */
+export async function apagarComentario(c: pg.PoolClient, id: string): Promise<ComentarioDeTarefa> {
+  const r = await c.query<LinhaDoComentario>(
+    `update comentarios_de_tarefa cm set texto = null, apagado_em = now()
+      where cm.id = $1 and cm.empresa_id = empresa_ativa() returning ${COLUNAS_DO_COMENTARIO}`,
+    [id],
+  );
+  return paraComentario(r.rows[0] as LinhaDoComentario);
 }
 
 /** A pessoa tem vínculo ativo na empresa ativa (só assim pode ser responsável por uma tarefa). */
@@ -439,35 +514,47 @@ export async function trocarResponsavel(
   return linhaParaTarefa(r.rows[0] as LinhaDaTarefa);
 }
 
-/** Acrescenta um comentário (de quem pede ou do sistema) e marca a tarefa como atualizada. */
+/**
+ * Acrescenta um comentário ou nota interna (de quem pede ou do sistema), com as menções, e marca a tarefa como
+ * atualizada.
+ */
 export async function comentar(
   c: pg.PoolClient,
   autor: Autor,
   tarefaId: string,
   texto: string,
+  opcoes: { tipo?: TipoDeComentario; mencoes?: Responsavel[] } = {},
 ): Promise<ComentarioDeTarefa> {
   const [pessoa, agente] = colunas(autor);
-  const r = await c.query<{ id: string; empresa_id: string; criado_em: Date }>(
-    `insert into comentarios_de_tarefa (empresa_id, tarefa_id, autor_pessoa_id, autor_agente_id, texto)
-     values (empresa_ativa(), $1, $2, $3, $4) returning id, empresa_id, criado_em`,
-    [tarefaId, pessoa, agente, texto.trim()],
+  const r = await c.query<{ id: string }>(
+    `insert into comentarios_de_tarefa (empresa_id, tarefa_id, autor_pessoa_id, autor_agente_id, texto, tipo)
+     values (empresa_ativa(), $1, $2, $3, $4, $5) returning id`,
+    [tarefaId, pessoa, agente, texto.trim(), opcoes.tipo ?? "comentario"],
   );
+  const id = (r.rows[0] as { id: string }).id;
+  const mencoes = opcoes.mencoes ?? [];
+  if (mencoes.length > 0) {
+    await c.query(
+      `insert into mencoes_de_comentario (empresa_id, comentario_id, tarefa_id, pessoa_id, agente_id)
+       select empresa_ativa(), $1, $2, m.pessoa_id, m.agente_id
+         from json_to_recordset($3::json) as m(pessoa_id uuid, agente_id uuid)`,
+      [
+        id,
+        tarefaId,
+        JSON.stringify(
+          mencoes.map((m) =>
+            m.tipo === "pessoa"
+              ? { pessoa_id: m.pessoaId, agente_id: null }
+              : { pessoa_id: null, agente_id: m.agenteId },
+          ),
+        ),
+      ],
+    );
+  }
   await c.query("update tarefas set atualizada_em = now() where id = $1 and empresa_id = empresa_ativa()", [
     tarefaId,
   ]);
-  const l = r.rows[0] as { id: string; empresa_id: string; criado_em: Date };
-  return {
-    id: l.id,
-    empresaId: l.empresa_id,
-    tarefaId,
-    autor,
-    tipo: "comentario",
-    texto: texto.trim(),
-    mencoes: [],
-    criadoEm: l.criado_em.toISOString(),
-    editadoEm: null,
-    apagadoEm: null,
-  };
+  return (await buscarComentario(c, tarefaId, id)) as ComentarioDeTarefa;
 }
 
 /** Muda a tarefa de projeto, ou tira do projeto (nulo). Trava, responsável e status ficam como estão. */

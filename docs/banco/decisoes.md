@@ -189,3 +189,9 @@ O login (`mago_acesso`) não lê papéis nem as regras da plataforma direto. As 
 
 - `visoes_salvas` é pessoal (decisão 9 do Sandro): além do isolamento por empresa, a política usa `pessoa_ativa()`, então o próprio banco só mostra e só deixa mexer nas visões de quem está pedindo. A pessoa precisa ter vínculo com a empresa (chave composta com `vinculos`), e a visão some se o vínculo for apagado.
 - Os filtros ficam em jsonb, conferidos pelo contrato `FiltroDeTarefas` na API. O "hoje" e o calendário usam o fuso da pessoa.
+
+## 25. Linha do tempo: notas internas, menções e acontecimentos (19/11/2026, M3-05)
+
+- `comentarios_de_tarefa` ganha o tipo (comentário ou nota interna). A nota interna só vai para pessoas: a API não a entrega aos agentes pelo MCP (decisão 10 do Sandro). Editar e apagar passam a existir, mas a API só muda o texto e as datas de edição e exclusão (permissão por coluna); apagado fica sem texto, no mesmo lugar.
+- `mencoes_de_comentario` guarda quem foi mencionado (pessoa ou agente da mesma empresa, por chave composta). O agente mencionado num comentário (não nota) passa a ver aquela tarefa e a poder comentar nela, sem poder pegá-la nem mudá-la. A menção a uma pessoa não abre a tarefa para quem não a vê.
+- `acontecimentos_de_tarefa` guarda o que aconteceu (status, responsável, prazo, prioridade, projeto, lista, entrega, pegou, soltou), com ids e valores fixos, só acrescentando. É gravado junto com a auditoria, mas é da tarefa: quem vê a tarefa vê a linha do tempo, sem precisar ver a auditoria.

@@ -5,6 +5,7 @@
  */
 import {
   type ACOES_CHECKLIST,
+  type ACOES_LINHA_DO_TEMPO,
   type ACOES_PRAZOS,
   type ACOES_TAREFAS,
   conferir,
@@ -12,6 +13,7 @@ import {
   FiltroDeTarefas,
   PedidoDeComentario,
   PedidoDeDestravar,
+  PedidoDeEditarComentario,
   PedidoDeEditarItemDeChecklist,
   PedidoDeEtiqueta,
   PedidoDeItemDeChecklist,
@@ -32,11 +34,17 @@ import type pg from "pg";
 import { origemDoPedido } from "../acesso/rotas.ts";
 import { agenteRecebeTarefas } from "../agentes/servico.ts";
 import { auditar } from "../auditoria/registrar.ts";
-import { comPessoa } from "../empresa.ts";
+import { comEmpresa, comPessoa } from "../empresa.ts";
 import { acessoDo, type Verificador } from "../permissoes/verificar.ts";
 import { buscarLista, listarListas, listarStatus } from "../projetos/listas.ts";
 import { type AlcanceDeProjeto, buscarProjeto } from "../projetos/servico.ts";
 import { buscarItem, criarItem, editarItem, excluirItem, listarChecklist } from "./checklist.ts";
+import {
+  acontecimentoDaAcao,
+  listarAcontecimentos,
+  mencionaveis,
+  registrarAcontecimento,
+} from "./linha-do-tempo.ts";
 import {
   criarEtiqueta,
   excluirEtiqueta,
@@ -47,10 +55,13 @@ import {
   recusaDoPlanejamento,
 } from "./planejamento.ts";
 import {
+  apagarComentario,
   autorDe,
+  buscarComentario,
   buscarTarefa,
   comentar,
   criarTarefa,
+  editarComentario,
   excluirTarefa,
   idsCitados,
   listarComentarios,
@@ -75,7 +86,8 @@ type AcaoDeTarefa =
   | (typeof ACOES_TAREFAS)[number]
   | "tarefa.mudou_projeto"
   | (typeof ACOES_CHECKLIST)[number]
-  | (typeof ACOES_PRAZOS)[number];
+  | (typeof ACOES_PRAZOS)[number]
+  | (typeof ACOES_LINHA_DO_TEMPO)[number];
 
 const naoEncontrada = (resposta: FastifyReply) =>
   resposta.code(404).send({ code: "TAREFA_NAO_ENCONTRADA", message: "Tarefa não encontrada." });
@@ -174,8 +186,26 @@ export function registrarRotasDasTarefas(
     return comPessoa(poolApp, sessao.pessoa.id, sessao.empresaId, trabalho);
   }
 
-  function registrar(pedido: FastifyRequest, acao: AcaoDeTarefa, tarefaId: string, detalhes = {}) {
+  async function registrar(
+    pedido: FastifyRequest,
+    acao: AcaoDeTarefa,
+    tarefaId: string,
+    detalhes: Record<string, unknown> = {},
+  ) {
     const { sessao } = acessoDo(pedido);
+    // O que interessa a quem acompanha a tarefa entra também na linha do tempo (M3-05).
+    const acontecimento = acontecimentoDaAcao(acao, detalhes);
+    if (acontecimento) {
+      await comEmpresa(poolApp, sessao.empresaId, (c) =>
+        registrarAcontecimento(
+          c,
+          tarefaId,
+          { tipo: "pessoa", pessoaId: sessao.pessoa.id },
+          acontecimento.tipo,
+          acontecimento.detalhes,
+        ),
+      );
+    }
     return auditar(
       poolApp,
       {
@@ -343,6 +373,7 @@ export function registrarRotasDasTarefas(
       const checklist = await listarChecklist(c, tarefa.id);
       const status = tarefa.projetoId ? await listarStatus(c, tarefa.projetoId) : [];
       const listas = tarefa.projetoId ? await listarListas(c, tarefa.projetoId) : [];
+      const acontecimentos = await listarAcontecimentos(c, tarefa.id);
       const marcaram = checklist.flatMap((i) => (i.marcadoPor ? [i.marcadoPor] : []));
       return {
         tarefa,
@@ -351,7 +382,18 @@ export function registrarRotasDasTarefas(
         checklist,
         status,
         listas,
+        acontecimentos,
         nomes: await nomesCitados(c, [
+          ...acontecimentos.flatMap((a) =>
+            a.autor.tipo === "pessoa"
+              ? [a.autor.pessoaId]
+              : a.autor.tipo === "agente"
+                ? [a.autor.agenteId]
+                : [],
+          ),
+          ...comentarios.flatMap((cm) =>
+            cm.mencoes.map((m) => (m.tipo === "pessoa" ? m.pessoaId : m.agenteId)),
+          ),
           ...idsCitados([tarefa, ...subtarefas], comentarios),
           ...marcaram.flatMap((a) =>
             a.tipo === "pessoa" ? [a.pessoaId] : a.tipo === "agente" ? [a.agenteId] : [],
@@ -755,7 +797,8 @@ export function registrarRotasDasTarefas(
     },
   );
 
-  // Comentar pede só "ver": quem alcança a tarefa pode comentar, mesmo travada por outro (M2-02).
+  // Comentar pede só "ver": quem alcança a tarefa pode comentar, mesmo travada por outro (M2-02). Nota interna e
+  // menções com @ entraram na M3-05.
   app.post(
     "/tarefas/:id/comentarios",
     { preHandler: verificador.exigir("tarefas", "ver") },
@@ -764,19 +807,98 @@ export function registrarRotasDasTarefas(
       const r = conferir(PedidoDeComentario, pedido.body);
       if (!r.ok) return invalido(resposta, r.problemas);
       const quem = quemDoPedido(pedido);
-      const comentario = await naEmpresa(pedido, async (c) => {
+      const mencoes = r.valor.mencoes ?? [];
+      const feito = await naEmpresa(pedido, async (c) => {
         const tarefa = await buscarTarefa(c, quem, id, true);
         if (!tarefa) return null;
+        if (!(await mencionaveis(c, mencoes)))
+          return { recusa: "Só dá para mencionar pessoas e agentes desta empresa." };
         const { sessao } = acessoDo(pedido);
-        return comentar(c, { tipo: "pessoa", pessoaId: sessao.pessoa.id }, tarefa.id, r.valor.texto);
+        return {
+          comentario: await comentar(
+            c,
+            { tipo: "pessoa", pessoaId: sessao.pessoa.id },
+            tarefa.id,
+            r.valor.texto,
+            {
+              tipo: r.valor.interna ? "nota_interna" : "comentario",
+              mencoes,
+            },
+          ),
+        };
       });
-      if (!comentario) return naoEncontrada(resposta);
-      await registrar(pedido, "tarefa.comentou", id, { comentarioId: comentario.id });
-      return resposta.code(201).send(comentario);
+      if (!feito) return naoEncontrada(resposta);
+      if ("recusa" in feito)
+        return resposta.code(400).send({ code: "MENCAO_INVALIDA", message: feito.recusa });
+      const cm = feito.comentario;
+      await registrar(pedido, "tarefa.comentou", id, { comentarioId: cm.id, tipo: cm.tipo });
+      if (cm.mencoes.length > 0) {
+        await registrar(pedido, "tarefa.mencionou", id, {
+          comentarioId: cm.id,
+          pessoas: cm.mencoes.filter((m) => m.tipo === "pessoa").length,
+          agentes: cm.mencoes.filter((m) => m.tipo === "agente").length,
+        });
+      }
+      return resposta.code(201).send(cm);
     },
   );
 
-  // Pegar (M2-02): só um consegue, garantido no banco. Quem pega vira o responsável.
+  // Editar o próprio comentário em até 15 minutos (M3-05).
+  app.post(
+    "/tarefas/:id/comentarios/:comentarioId",
+    { preHandler: verificador.exigir("tarefas", "ver") },
+    async (pedido, resposta) => {
+      const { id, comentarioId } = pedido.params as { id: string; comentarioId: string };
+      const r = conferir(PedidoDeEditarComentario, pedido.body);
+      if (!r.ok) return invalido(resposta, r.problemas);
+      const quem = quemDoPedido(pedido);
+      const feito = await naEmpresa(pedido, async (c) => {
+        const tarefa = await buscarTarefa(c, quem, id, true);
+        if (!tarefa) return null;
+        const cm = await buscarComentario(c, tarefa.id, comentarioId);
+        if (!cm) return null;
+        if (cm.autor.tipo !== "pessoa" || cm.autor.pessoaId !== quem.pessoaId) {
+          return { recusa: "Só quem escreveu edita o comentário." };
+        }
+        if (cm.apagadoEm) return { recusa: "Comentário apagado não se edita." };
+        if (Date.now() - new Date(cm.criadoEm).getTime() > 15 * 60_000) {
+          return { recusa: "Passou o prazo de 15 minutos para editar." };
+        }
+        return { comentario: await editarComentario(c, cm.id, r.valor.texto) };
+      });
+      if (!feito) return naoEncontrada(resposta);
+      if ("recusa" in feito) return resposta.code(409).send({ code: "NAO_EDITA", message: feito.recusa });
+      await registrar(pedido, "tarefa.editou_comentario", id, { comentarioId });
+      return feito.comentario;
+    },
+  );
+
+  // Apagar: quem escreveu, ou quem exclui qualquer tarefa (o administrador). Fica "comentário apagado" no lugar.
+  app.delete(
+    "/tarefas/:id/comentarios/:comentarioId",
+    { preHandler: verificador.exigir("tarefas", "ver") },
+    async (pedido, resposta) => {
+      const { id, comentarioId } = pedido.params as { id: string; comentarioId: string };
+      const quem = quemDoPedido(pedido);
+      const excluiTodas = acessoDo(pedido).permissoes.modulos.get("tarefas")?.acoes.excluir === "tudo";
+      const feito = await naEmpresa(pedido, async (c) => {
+        const tarefa = await buscarTarefa(c, quem, id, true);
+        if (!tarefa) return null;
+        const cm = await buscarComentario(c, tarefa.id, comentarioId);
+        if (!cm) return null;
+        const doAutor = cm.autor.tipo === "pessoa" && cm.autor.pessoaId === quem.pessoaId;
+        if (!doAutor && !excluiTodas)
+          return { recusa: "Só quem escreveu (ou o administrador) apaga o comentário." };
+        if (cm.apagadoEm) return { comentario: cm };
+        return { comentario: await apagarComentario(c, cm.id) };
+      });
+      if (!feito) return naoEncontrada(resposta);
+      if ("recusa" in feito) return resposta.code(403).send({ code: "SEM_PERMISSAO", message: feito.recusa });
+      await registrar(pedido, "tarefa.apagou_comentario", id, { comentarioId });
+      return feito.comentario;
+    },
+  );
+
   app.post(
     "/tarefas/:id/pegar",
     { preHandler: verificador.exigir("tarefas", "editar") },

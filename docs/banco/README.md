@@ -7,6 +7,16 @@
 
 ```mermaid
 erDiagram
+  acontecimentos_de_tarefa {
+    uuid id PK
+    uuid empresa_id FK
+    uuid tarefa_id
+    uuid autor_pessoa_id
+    uuid autor_agente_id
+    text tipo
+    jsonb detalhes
+    timestamp_with_time_zone criado_em
+  }
   agentes {
     uuid id PK
     uuid empresa_id FK
@@ -64,6 +74,9 @@ erDiagram
     uuid autor_agente_id
     text texto
     timestamp_with_time_zone criado_em
+    text tipo
+    timestamp_with_time_zone editado_em
+    timestamp_with_time_zone apagado_em
   }
   contadores_de_agente {
     uuid empresa_id FK
@@ -138,6 +151,14 @@ erDiagram
     uuid pessoa_id
     uuid agente_id
     timestamp_with_time_zone criado_em
+  }
+  mencoes_de_comentario {
+    uuid id PK
+    uuid empresa_id FK
+    uuid comentario_id FK
+    uuid tarefa_id
+    uuid pessoa_id
+    uuid agente_id
   }
   papeis_plataforma {
     uuid pessoa_id PK
@@ -377,6 +398,7 @@ erDiagram
     timestamp_with_time_zone criada_em
     timestamp_with_time_zone atualizada_em
   }
+  empresas ||--o{ acontecimentos_de_tarefa : "empresa_id"
   empresas ||--o{ agentes : "empresa_id"
   empresas ||--o{ ajustes_de_permissao : "empresa_id"
   vinculos ||--o{ ajustes_de_permissao : "vinculo_id"
@@ -391,6 +413,8 @@ erDiagram
   empresas ||--o{ itens_de_checklist : "empresa_id"
   empresas ||--o{ listas : "empresa_id"
   empresas ||--o{ membros_de_projeto : "empresa_id"
+  empresas ||--o{ mencoes_de_comentario : "empresa_id"
+  comentarios_de_tarefa ||--o{ mencoes_de_comentario : "comentario_id"
   pessoas ||--o{ papeis_plataforma : "pessoa_id"
   empresas ||--o{ projetos : "empresa_id"
   empresas ||--o{ status_de_projeto : "empresa_id"
@@ -426,6 +450,23 @@ erDiagram
 | `sistema` | Controle técnico do sistema |
 
 ## Dicionário de dados
+
+### acontecimentos_de_tarefa
+
+O que aconteceu em cada tarefa, para a linha do tempo. Só se acrescenta; detalhes com ids e valores fixos, sem texto.
+
+Isolamento por empresa (Row Level Security): ligado e forçado.
+
+| Coluna | Tipo | Obrigatória | Padrão | Marca | Descrição |
+| --- | --- | --- | --- | --- | --- |
+| id | uuid | sim | `uuidv7()` | sistema | Identificador do acontecimento (UUID v7). Chave primária. |
+| empresa_id | uuid | sim |  | sistema | Empresa (a mesma da tarefa). Aponta para empresas.id. |
+| tarefa_id | uuid | sim |  | sistema | Tarefa. |
+| autor_pessoa_id | uuid | não |  | sistema | Pessoa que fez. Os dois vazios: o sistema. |
+| autor_agente_id | uuid | não |  | sistema | Agente que fez. |
+| tipo | text | sim |  | sistema | O que aconteceu (criou, mudou_status, trocou_responsavel...). |
+| detalhes | jsonb | sim | `'{}'::jsonb` | sistema | Ids e valores fixos do acontecimento (de, para...). |
+| criado_em | timestamp with time zone | sim | `now()` | sistema | Quando aconteceu. |
 
 ### agentes
 
@@ -506,7 +547,7 @@ Isolamento por empresa (Row Level Security): ligado e forçado.
 
 ### comentarios_de_tarefa
 
-Comentários nas tarefas. Só se acrescentam: não se editam nem se apagam no M2.
+Comentários e notas internas das tarefas. Quem escreveu edita em até 15 minutos; apagado fica sem texto.
 
 Isolamento por empresa (Row Level Security): ligado e forçado.
 
@@ -517,8 +558,11 @@ Isolamento por empresa (Row Level Security): ligado e forçado.
 | tarefa_id | uuid | sim |  | sistema | Tarefa comentada. |
 | autor_pessoa_id | uuid | não |  | sistema | Pessoa que comentou. |
 | autor_agente_id | uuid | não |  | sistema | Agente que comentou. Os dois vazios: comentário do sistema. |
-| texto | text | sim |  | empresa | O comentário, em texto simples. Se veio de agente, é mostrado só como texto. |
+| texto | text | não |  | empresa | O comentário, em Markdown simples. Vazio: apagado. Se veio de agente, é mostrado só como texto. |
 | criado_em | timestamp with time zone | sim | `now()` | sistema | Quando foi comentado. |
+| tipo | text | sim | `'comentario'::text` | empresa | comentario ou nota_interna (só as pessoas da empresa veem). |
+| editado_em | timestamp with time zone | não |  | sistema | Quando o texto foi editado pela última vez. |
+| apagado_em | timestamp with time zone | não |  | sistema | Quando foi apagado (o texto sai, o lugar fica). |
 
 ### contadores_de_agente
 
@@ -649,6 +693,21 @@ Isolamento por empresa (Row Level Security): ligado e forçado.
 | pessoa_id | uuid | não |  | sistema | Pessoa membro, quando é uma pessoa. |
 | agente_id | uuid | não |  | sistema | Agente membro, quando é um agente. |
 | criado_em | timestamp with time zone | sim | `now()` | sistema | Quando entrou no projeto. |
+
+### mencoes_de_comentario
+
+Quem foi mencionado com @ em cada comentário (pessoa ou agente da empresa).
+
+Isolamento por empresa (Row Level Security): ligado e forçado.
+
+| Coluna | Tipo | Obrigatória | Padrão | Marca | Descrição |
+| --- | --- | --- | --- | --- | --- |
+| id | uuid | sim | `uuidv7()` | sistema | Identificador da menção (UUID v7). Chave primária. |
+| empresa_id | uuid | sim |  | sistema | Empresa (a mesma da tarefa). Aponta para empresas.id. |
+| comentario_id | uuid | sim |  | sistema | Comentário em que a menção foi feita. Aponta para comentarios_de_tarefa.id. |
+| tarefa_id | uuid | sim |  | sistema | Tarefa do comentário. |
+| pessoa_id | uuid | não |  | sistema | Pessoa mencionada. |
+| agente_id | uuid | não |  | sistema | Agente mencionado. |
 
 ### papeis_plataforma
 
