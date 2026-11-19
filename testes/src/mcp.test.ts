@@ -11,6 +11,7 @@ import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/
 import Fastify, { type FastifyInstance } from "fastify";
 import pg from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { umaVolta } from "../../infra/ferramentas/agente-de-teste.ts";
 import { bancoDisponivel } from "./preparar-banco.ts";
 
 const SITE = "https://teste.osmago.invalid";
@@ -202,6 +203,25 @@ describe.skipIf(!bancoDisponivel)("servidor MCP", () => {
       tarefaId,
     );
     await cliente.close();
+  });
+
+  it("o agente de teste genérico (M2-07) faz o ciclo completo sozinho", async () => {
+    const t = await dono.query<{ id: string }>(
+      "insert into tarefas (empresa_id, titulo, responsavel_agente_id) values ($1, 'Tarefa para o agente de teste', $2) returning id",
+      [empresas.Dois, agentes.Dois],
+    );
+    const feita = await umaVolta({
+      url: `${endereco}/mcp`,
+      chave: chaves.Dois?.chave ?? "",
+      registrar: () => {},
+    });
+    expect(feita).toBe(t.rows[0]?.id);
+    const r = await dono.query("select status, resultado from tarefas where id = $1", [feita]);
+    expect(r.rows[0].status).toBe("concluida");
+    expect(r.rows[0].resultado).toContain("Tarefa para o agente de teste");
+    expect(
+      await umaVolta({ url: `${endereco}/mcp`, chave: chaves.Dois?.chave ?? "", registrar: () => {} }),
+    ).toBeNull();
   });
 
   it("entrada fora do contrato é recusada", async () => {

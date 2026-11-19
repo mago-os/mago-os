@@ -30,6 +30,7 @@
   },
   "devDependencies": {
     "@biomejs/biome": "catalog:",
+    "@modelcontextprotocol/sdk": "catalog:",
     "@playwright/test": "catalog:",
     "@types/node": "catalog:",
     "typescript": "catalog:",
