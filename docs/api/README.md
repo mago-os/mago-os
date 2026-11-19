@@ -327,6 +327,15 @@ Recebe:
 - `minhas` (boolean)
 - `status` (lista de "a_fazer" | "em_andamento" | "precisa_de_ajuda" | "concluida" | "cancelada")
 - `projetoId` (id ou "sem")
+- `espacoId` (id): Identificador (UUID).
+- `responsaveis` (lista de objeto ou objeto)
+- `deAgente` (boolean)
+- `prioridades` (lista de "urgente" | "alta" | "normal" | "baixa" ou "sem")
+- `etiquetas` (lista de id)
+- `prazo` ("atrasadas" | "hoje" | "semana" | "sem_prazo")
+- `de` (string): Dia no formato AAAA-MM-DD.
+- `ate` (string): Dia no formato AAAA-MM-DD.
+- `subtarefas` (boolean)
 
 ### POST `/tarefas`
 
