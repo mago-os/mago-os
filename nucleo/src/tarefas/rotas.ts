@@ -11,6 +11,7 @@ import {
   conferir,
   conferirPedidoDeMudarStatus,
   FiltroDeTarefas,
+  PedidoDeAdiarPrioridade,
   PedidoDeComentario,
   PedidoDeDestravar,
   PedidoDeEditarComentario,
@@ -20,6 +21,7 @@ import {
   PedidoDeMudarLista,
   PedidoDeMudarProjeto,
   PedidoDePlanejamento,
+  PedidoDeResolverPrioridade,
   PedidoDeTarefa,
   PedidoDeTrocarResponsavel,
   PedidoDeVisaoSalva,
@@ -56,6 +58,7 @@ import {
   recorrerSePreciso,
   recusaDoPlanejamento,
 } from "./planejamento.ts";
+import { adiarPrioridade, CHAVE_VALIDA, listarPrioridades, resolverPrioridade } from "./prioridades.ts";
 import {
   apagarComentario,
   autorDe,
@@ -663,6 +666,46 @@ export function registrarRotasDasTarefas(
         });
       }
       return t;
+    },
+  );
+
+  // Central de prioridades (M3-07): calculada na hora; adiar e resolver são só da pessoa (sem auditoria).
+  app.get("/prioridades", { preHandler: verificador.exigir("tarefas", "ver") }, async (pedido) => {
+    const quem = quemDoPedido(pedido);
+    return naEmpresa(pedido, async (c) => ({ itens: await listarPrioridades(c, quem) }));
+  });
+
+  const chaveInvalida = (resposta: FastifyReply) =>
+    resposta.code(400).send({ code: "ITEM_INVALIDO", message: "Esse item não está na central." });
+
+  app.post(
+    "/prioridades/adiar",
+    { preHandler: verificador.exigir("tarefas", "ver") },
+    async (pedido, resposta) => {
+      const r = conferir(PedidoDeAdiarPrioridade, pedido.body);
+      if (!r.ok) return invalido(resposta, r.problemas);
+      if (!CHAVE_VALIDA.test(r.valor.chave)) return chaveInvalida(resposta);
+      const { sessao } = acessoDo(pedido);
+      const adiou = await naEmpresa(pedido, (c) =>
+        adiarPrioridade(c, sessao.pessoa.id, r.valor.chave, r.valor.ate),
+      );
+      if (!adiou) {
+        return resposta.code(400).send({ code: "DATA_INVALIDA", message: "Escolha um dia depois de hoje." });
+      }
+      return resposta.code(204).send();
+    },
+  );
+
+  app.post(
+    "/prioridades/resolver",
+    { preHandler: verificador.exigir("tarefas", "ver") },
+    async (pedido, resposta) => {
+      const r = conferir(PedidoDeResolverPrioridade, pedido.body);
+      if (!r.ok) return invalido(resposta, r.problemas);
+      if (!CHAVE_VALIDA.test(r.valor.chave)) return chaveInvalida(resposta);
+      const { sessao } = acessoDo(pedido);
+      await naEmpresa(pedido, (c) => resolverPrioridade(c, sessao.pessoa.id, r.valor.chave));
+      return resposta.code(204).send();
     },
   );
 

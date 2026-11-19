@@ -4,6 +4,7 @@
  */
 import {
   Download,
+  Flame,
   FolderKanban,
   House,
   ListChecks,
@@ -29,6 +30,7 @@ export interface ItemDoMenu {
 
 export const MENU_DA_PESSOA: ItemDoMenu[] = [
   { caminho: "/", nome: "Início", icone: House },
+  { caminho: "/prioridades", nome: "Prioridades", icone: Flame },
   { caminho: "/tarefas", nome: "Tarefas", icone: ListChecks },
   { caminho: "/projetos", nome: "Projetos", icone: FolderKanban },
   { caminho: "/perfil", nome: "Meu perfil", icone: UserRound },
@@ -201,15 +203,15 @@ export function Casca(props: PropsDaCasca) {
         className="fixed inset-x-0 bottom-0 z-10 grid grid-cols-5 items-end border-t border-linha bg-cartao/95 px-2 pt-1 pb-[env(safe-area-inset-bottom)] backdrop-blur md:hidden"
       >
         <ItemDeBaixo item={MENU_DA_PESSOA[0] as ItemDoMenu} aqui={caminho === "/"} />
-        <ItemDeBaixo item={MENU_DA_PESSOA[1] as ItemDoMenu} aqui={caminho.startsWith("/tarefas")} />
+        <ItemDeBaixo item={MENU_DA_PESSOA[2] as ItemDoMenu} aqui={caminho.startsWith("/tarefas")} />
         <a href="/" aria-label="Fale com o mago" className="mx-auto -mt-5 grid">
           <span className="grid size-14 place-items-center rounded-full bg-tinta shadow-lg">
             <Mago tamanho={44} cor="sobre-tinta" />
           </span>
         </a>
-        <ItemDeBaixo item={MENU_DA_PESSOA[2] as ItemDoMenu} aqui={caminho.startsWith("/projetos")} />
+        <ItemDeBaixo item={MENU_DA_PESSOA[3] as ItemDoMenu} aqui={caminho.startsWith("/projetos")} />
         <ItemDeBaixo
-          item={MENU_DA_PESSOA[3] as ItemDoMenu}
+          item={MENU_DA_PESSOA[4] as ItemDoMenu}
           aqui={caminho === "/perfil" || caminho === "/aparelhos"}
         />
       </nav>

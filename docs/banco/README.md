@@ -124,6 +124,14 @@ erDiagram
     timestamp_with_time_zone criado_em
     timestamp_with_time_zone atualizado_em
   }
+  estados_de_prioridade {
+    uuid empresa_id PK
+    uuid pessoa_id PK
+    text chave PK
+    timestamp_with_time_zone adiado_ate
+    timestamp_with_time_zone resolvido_em
+    timestamp_with_time_zone mudou_em
+  }
   etiquetas {
     uuid id PK
     uuid empresa_id FK
@@ -437,6 +445,7 @@ erDiagram
   empresas ||--o{ comentarios_de_tarefa : "empresa_id"
   empresas ||--o{ contadores_de_agente : "empresa_id"
   empresas ||--o{ espacos : "empresa_id"
+  empresas ||--o{ estados_de_prioridade : "empresa_id"
   empresas ||--o{ etiquetas : "empresa_id"
   empresas ||--o{ etiquetas_de_tarefa : "empresa_id"
   empresas ||--o{ itens_de_checklist : "empresa_id"
@@ -668,6 +677,21 @@ Isolamento por empresa (Row Level Security): ligado e forçado.
 | situacao | text | sim | `'ativo'::text` | empresa | ativo ou arquivado (escondido das listas, sem apagar nada). |
 | criado_em | timestamp with time zone | sim | `now()` | sistema | Quando o espaço foi criado. |
 | atualizado_em | timestamp with time zone | sim | `now()` | sistema | Última mudança no espaço. |
+
+### estados_de_prioridade
+
+O que cada pessoa fez com os itens da central de prioridades: adiou ou resolveu. Só a dona vê.
+
+Isolamento por empresa (Row Level Security): ligado e forçado.
+
+| Coluna | Tipo | Obrigatória | Padrão | Marca | Descrição |
+| --- | --- | --- | --- | --- | --- |
+| empresa_id | uuid | sim |  | sistema | Empresa. Chave primária. |
+| pessoa_id | uuid | sim |  | sistema | Pessoa dona do item. Chave primária. |
+| chave | text | sim |  | sistema | Chave do item (tarefa e prazo, menção ou aviso). Chave primária. |
+| adiado_ate | timestamp with time zone | não |  | pessoal | Até quando o item fica escondido (volta nesse momento). |
+| resolvido_em | timestamp with time zone | não |  | pessoal | Quando a pessoa marcou como resolvido. |
+| mudou_em | timestamp with time zone | sim | `now()` | sistema | Quando a pessoa adiou ou resolveu. |
 
 ### etiquetas
 
