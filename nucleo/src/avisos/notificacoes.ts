@@ -24,6 +24,7 @@ export const TEXTO_DO_PUSH: Record<TipoDeAviso, string> = {
   precisa_de_ajuda: "Uma tarefa precisa de ajuda",
   prazo_hoje: "Uma tarefa vence hoje",
   prazo_vencido: "Uma tarefa passou do prazo",
+  anexo_bloqueado: "O antivírus bloqueou um anexo",
 };
 
 /**

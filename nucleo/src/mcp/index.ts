@@ -8,12 +8,14 @@
  *   pede": só as tarefas atribuídas a ele ou que ele pegou, só da empresa dele, trava respeitada.
  * - Cada mudança vira evento de auditoria com o agente como ator e o canal "mcp". Leituras contam para o limite.
  */
+
 import {
   type ACOES_CHECKLIST,
   type ACOES_TAREFAS,
   conferir,
   type EntradaDa,
   FERRAMENTAS_MCP,
+  MINUTOS_DO_LINK_DE_ANEXO,
   type NomeDaFerramenta,
   type StatusTarefa,
 } from "@mago-os/contratos";
@@ -31,6 +33,7 @@ import {
   type OpcoesDaChave,
 } from "../agentes/chaves.ts";
 import { agenteRecebeTarefas } from "../agentes/servico.ts";
+import { buscarAnexo, listarAnexos, type ServicosDosAnexos, semCaminho } from "../anexos/servico.ts";
 import { auditar } from "../auditoria/registrar.ts";
 import { avisarDepois } from "../avisos/eventos.ts";
 import { comEmpresa } from "../empresa.ts";
@@ -61,6 +64,7 @@ export interface OpcoesDoMcp {
   carteiro: Carteiro;
   urlPublica: string;
   limites?: { pedidosPorMinuto: number; leiturasPorHora: number };
+  anexos?: ServicosDosAnexos | null;
 }
 
 /** Recusa que o agente lê (vira isError na resposta da ferramenta). */
@@ -81,6 +85,7 @@ export function registrarServidorMcp(app: FastifyInstance, o: OpcoesDoMcp): void
       origem,
       rastreio: pedido.id,
       ...(o.limites ? { limites: o.limites } : {}),
+      anexos: o.anexos ?? null,
     };
     const r = await autenticarAgente(pedido.headers.authorization, opcoesDaChave);
     if (!r.ok) {
@@ -250,7 +255,10 @@ async function executar(
           comentarios: await listarComentarios(c, tarefa.id, false),
           subtarefas: await listarSubtarefas(c, tarefa.id),
           checklist: await listarChecklist(c, tarefa.id),
-          anexos: [],
+          // Os anexos só das tarefas dele (decisão 2 da M3-08), e só os já liberados pelo antivírus.
+          anexos: (await buscarTarefa(c, quem, tarefa.id))
+            ? (await listarAnexos(c, tarefa.id, true)).map(semCaminho)
+            : [],
         };
       });
       if (!achou) throw naoAchou();
@@ -428,9 +436,38 @@ async function executar(
       }
       return feito.item;
     }
-    case "baixar_anexo":
-      // M3-08: entra na construção, depois dos contratos aprovados.
-      throw new RecusaDaFerramenta("Os anexos ainda não estão disponíveis.");
+    case "baixar_anexo": {
+      const e = entrada as EntradaDa<"baixar_anexo">;
+      const deposito = o.anexos?.deposito;
+      if (!deposito) throw new RecusaDaFerramenta("Os anexos ainda não estão ligados neste ambiente.");
+      const anexo = await naEmpresa(async (c) => {
+        if (!(await buscarTarefa(c, quem, e.tarefaId))) return null;
+        return buscarAnexo(c, e.tarefaId, e.anexoId);
+      });
+      if (!anexo) throw naoAchou();
+      if (anexo.situacao !== "disponivel")
+        throw new RecusaDaFerramenta("Esse anexo ainda não foi liberado pelo antivírus.");
+      const link = deposito.linkDeDownload(
+        anexo.caminho,
+        anexo.nome,
+        anexo.tipo,
+        MINUTOS_DO_LINK_DE_ANEXO * 60,
+      );
+      await auditar(
+        o.poolApp,
+        {
+          empresaId: agente.empresaId,
+          ator: { tipo: "agente", agenteId: agente.agenteId },
+          acao: "anexo.baixou",
+          alvo: { tipo: "tarefa", id: e.tarefaId },
+          origem: o.origem,
+          rastreio: o.rastreio ?? null,
+          detalhes: { anexoId: anexo.id },
+        },
+        o.log,
+      );
+      return { url: link.url, expiraEm: link.expiraEm.toISOString() };
+    }
     case "estou_vivo":
       // A conferência da chave já registrou o sinal de vida.
       return { ok: true, agora: new Date().toISOString() };

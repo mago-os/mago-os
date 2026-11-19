@@ -408,6 +408,8 @@ export async function editarComentario(
 
 /** Apaga: o texto sai e o lugar fica ("comentário apagado"). */
 export async function apagarComentario(c: pg.PoolClient, id: string): Promise<ComentarioDeTarefa> {
+  // Os anexos do comentário saem junto (o gatilho deixa os arquivos para a fila apagar do depósito, M3-08).
+  await c.query("delete from anexos where comentario_id = $1 and empresa_id = empresa_ativa()", [id]);
   const r = await c.query<LinhaDoComentario>(
     `update comentarios_de_tarefa cm set texto = null, apagado_em = now()
       where cm.id = $1 and cm.empresa_id = empresa_ativa() returning ${COLUNAS_DO_COMENTARIO}`,

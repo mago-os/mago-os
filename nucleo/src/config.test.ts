@@ -18,7 +18,40 @@ describe("configuração", () => {
       ambiente: "local",
       versao: "local",
       acesso: null,
+      anexos: { deposito: { tipo: "disco" }, clamav: null },
     });
+  });
+
+  it("anexos: as quatro variáveis do depósito juntas, e o ClamAV obrigatório fora do Mac", () => {
+    const S3 = {
+      MAGO_ANEXOS_ENDPOINT: "s3.us-east-005.backblazeb2.com",
+      MAGO_ANEXOS_BUCKET: "mago-os-anexos-teste",
+      MAGO_ANEXOS_CHAVE_ID: "id",
+      MAGO_ANEXOS_CHAVE_SEGREDO: "segredo",
+    };
+    expect(() => lerConfig({ DATABASE_URL: URL, MAGO_ANEXOS_BUCKET: "x" })).toThrow(/juntas/);
+    expect(() => lerConfig({ DATABASE_URL: URL, AMBIENTE: "teste", ...ACESSO, ...S3 })).toThrow(
+      /MAGO_CLAMAV/,
+    );
+    const c = lerConfig({
+      DATABASE_URL: URL,
+      AMBIENTE: "teste",
+      ...ACESSO,
+      ...S3,
+      MAGO_CLAMAV: "clamav:3310",
+    });
+    expect(c.anexos).toEqual({
+      deposito: {
+        tipo: "s3",
+        endpoint: "https://s3.us-east-005.backblazeb2.com",
+        bucket: "mago-os-anexos-teste",
+        chaveId: "id",
+        chaveSegredo: "segredo",
+      },
+      clamav: "clamav:3310",
+    });
+    // Fora do Mac, sem depósito, os anexos ficam desligados (sem derrubar a API).
+    expect(lerConfig({ DATABASE_URL: URL, AMBIENTE: "teste", ...ACESSO }).anexos).toBeNull();
   });
 
   it("lê os valores das variáveis de ambiente", () => {

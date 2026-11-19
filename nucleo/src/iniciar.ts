@@ -7,6 +7,15 @@ import { criarLogin, criarPoolDoLogin } from "./acesso/login.ts";
 import { registrarRotasDoLogin } from "./acesso/rotas.ts";
 import { verificarAgentesVivos } from "./agentes/chaves.ts";
 import { registrarRotasDoAgente, registrarRotasDosAgentes } from "./agentes/rotas.ts";
+import { antivirusDeTeste, criarClamav } from "./anexos/antivirus.ts";
+import {
+  criarDepositoEmDisco,
+  criarDepositoS3,
+  type DepositoEmDisco,
+  regiaoDoEndpoint,
+} from "./anexos/deposito.ts";
+import { registrarDepositoLocal, registrarRotasDosAnexos } from "./anexos/index.ts";
+import { cuidarDosAnexos, espacoTotal, type ServicosDosAnexos } from "./anexos/servico.ts";
 import { registrarRotasDosAvisos } from "./avisos/index.ts";
 import { enviadorWebPush, enviarPushPendentes, verificarPrazos } from "./avisos/notificacoes.ts";
 import { criarBanco } from "./banco.ts";
@@ -31,6 +40,11 @@ import { registrarTempoReal } from "./tempo-real/index.ts";
 /** Fila da verificação de agente vivo (a cada minuto). */
 const FILA_AGENTES_VIVOS = "agentes-vivos";
 const FILA_NOTIFICACOES = "notificacoes";
+/** Fila dos anexos (M3-08): antivírus, envios parados e arquivos para apagar. A cada minuto, e na hora do envio. */
+const FILA_ANEXOS = "anexos";
+/** Aviso de espaço dos anexos (conta gratuita do Backblaze): uma vez por dia. */
+const FILA_ESPACO = "anexos-espaco";
+const LIMITE_DE_AVISO_DO_ESPACO = 5 * 1024 * 1024 * 1024;
 
 async function iniciar(): Promise<void> {
   const config = lerConfig();
@@ -40,6 +54,21 @@ async function iniciar(): Promise<void> {
   const poolDoLogin = config.acesso ? criarPoolDoLogin(config.acesso.bancoUrl) : null;
   /** Trabalhos da fila, ligados depois que ela começa. */
   const trabalhos: (() => Promise<void>)[] = [];
+  // Anexos (M3-08): bucket e ClamAV em teste e produção; pasta do computador e conferente de teste no Mac.
+  const depositoLocal: DepositoEmDisco | null =
+    config.anexos?.deposito.tipo === "disco"
+      ? criarDepositoEmDisco(config.acesso?.urlPublica ?? `http://127.0.0.1:${config.porta}`)
+      : null;
+  const servicosDosAnexos: ServicosDosAnexos | null = (() => {
+    const a = config.anexos;
+    if (!a) return null;
+    const deposito =
+      a.deposito.tipo === "s3"
+        ? criarDepositoS3({ ...a.deposito, regiao: regiaoDoEndpoint(a.deposito.endpoint) })
+        : (depositoLocal as DepositoEmDisco);
+    return { deposito, antivirus: a.clamav ? criarClamav(a.clamav) : antivirusDeTeste };
+  })();
+  if (!servicosDosAnexos) app.log.warn("Anexos desligados: o depósito não foi configurado");
   if (config.acesso && poolDoLogin) {
     const carteiro = config.acesso.resend
       ? carteiroResend(config.acesso.resend)
@@ -65,7 +94,18 @@ async function iniciar(): Promise<void> {
     };
     registrarRotasDosAgentes(app, opcoesDosAgentes);
     registrarRotasDoAgente(app, opcoesDosAgentes);
-    registrarServidorMcp(app, opcoesDosAgentes);
+    registrarServidorMcp(app, { ...opcoesDosAgentes, anexos: servicosDosAnexos });
+    registrarRotasDosAnexos(app, {
+      verificador,
+      poolApp: banco.pool,
+      servicos: servicosDosAnexos,
+      acordarFila: () => {
+        void fila
+          .send(FILA_ANEXOS, {})
+          .catch((erro) => app.log.warn({ erro }, "Fila dos anexos não acordou"));
+      },
+    });
+    if (depositoLocal) await registrarDepositoLocal(app, depositoLocal);
     registrarRotasDosAvisos(app, verificador, banco.pool, config.acesso.vapid?.publica ?? null);
     // Verificação a cada minuto (M2-04): tarefas de agentes sem sinal voltam para A fazer. O pg-boss garante que só
     // uma cópia da API roda cada vez.
@@ -85,6 +125,25 @@ async function iniciar(): Promise<void> {
         if (prazos + pushes > 0)
           app.log.info({ evento: "notificacoes", prazos, pushes }, "Avisos de prazo e push");
       });
+      if (servicosDosAnexos) {
+        await fila.createQueue(FILA_ANEXOS);
+        await fila.schedule(FILA_ANEXOS, "* * * * *");
+        await fila.work(FILA_ANEXOS, async () => {
+          const feito = await cuidarDosAnexos(banco.pool, servicosDosAnexos, app.log);
+          if (feito.liberados + feito.bloqueados + feito.apagados > 0)
+            app.log.info({ evento: "anexos", ...feito }, "Anexos cuidados");
+        });
+        await fila.createQueue(FILA_ESPACO);
+        await fila.schedule(FILA_ESPACO, "0 9 * * *");
+        await fila.work(FILA_ESPACO, async () => {
+          const bytes = await espacoTotal(banco.pool);
+          if (bytes > LIMITE_DE_AVISO_DO_ESPACO)
+            app.log.error(
+              { evento: "anexos.espaco", bytes, limite: LIMITE_DE_AVISO_DO_ESPACO },
+              "Os anexos passaram de 5 GB: hora de rever o plano do depósito",
+            );
+        });
+      }
       await fila.createQueue(FILA_AGENTES_VIVOS);
       await fila.schedule(FILA_AGENTES_VIVOS, "* * * * *");
       await fila.work(FILA_AGENTES_VIVOS, async () => {
