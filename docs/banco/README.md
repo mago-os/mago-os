@@ -32,6 +32,30 @@ erDiagram
     uuid feito_por FK
     timestamp_with_time_zone feito_em
   }
+  avisos {
+    uuid id PK
+    uuid empresa_id FK
+    uuid pessoa_id
+    text tipo
+    text texto
+    text link
+    timestamp_with_time_zone criado_em
+    timestamp_with_time_zone lido_em
+  }
+  chaves_de_agente {
+    uuid id PK
+    uuid empresa_id FK
+    uuid agente_id
+    text nome
+    text prefixo
+    text resumo
+    uuid criada_por
+    timestamp_with_time_zone criada_em
+    timestamp_with_time_zone valida_ate
+    timestamp_with_time_zone ultimo_uso_em
+    timestamp_with_time_zone revogada_em
+    uuid revogada_por
+  }
   comentarios_de_tarefa {
     uuid id PK
     uuid empresa_id FK
@@ -40,6 +64,14 @@ erDiagram
     uuid autor_agente_id
     text texto
     timestamp_with_time_zone criado_em
+  }
+  contadores_de_agente {
+    uuid empresa_id FK
+    uuid agente_id
+    uuid chave_id
+    text janela
+    timestamp_with_time_zone inicio
+    integer valor
   }
   empresas {
     uuid id PK
@@ -249,7 +281,10 @@ erDiagram
   empresas ||--o{ ajustes_de_permissao : "empresa_id"
   vinculos ||--o{ ajustes_de_permissao : "vinculo_id"
   pessoas ||--o{ ajustes_de_permissao : "feito_por"
+  empresas ||--o{ avisos : "empresa_id"
+  empresas ||--o{ chaves_de_agente : "empresa_id"
   empresas ||--o{ comentarios_de_tarefa : "empresa_id"
+  empresas ||--o{ contadores_de_agente : "empresa_id"
   pessoas ||--o{ papeis_plataforma : "pessoa_id"
   empresas ||--o{ tarefas : "empresa_id"
   empresas ||--o{ vinculos : "empresa_id"
@@ -322,6 +357,44 @@ Isolamento por empresa (Row Level Security): ligado e forçado.
 | feito_por | uuid | sim |  | sistema | Pessoa que fez o ajuste. Aponta para pessoas.id. |
 | feito_em | timestamp with time zone | sim | `now()` | sistema | Quando o ajuste foi feito. |
 
+### avisos
+
+Avisos para uma pessoa dentro do Mago OS, mostrados no Início até ela marcar como lido.
+
+Isolamento por empresa (Row Level Security): ligado e forçado.
+
+| Coluna | Tipo | Obrigatória | Padrão | Marca | Descrição |
+| --- | --- | --- | --- | --- | --- |
+| id | uuid | sim | `uuidv7()` | sistema | Identificador do aviso (UUID v7). Chave primária. |
+| empresa_id | uuid | sim |  | sistema | Empresa do aviso. Aponta para empresas.id. |
+| pessoa_id | uuid | sim |  | sistema | Pessoa que recebe o aviso. |
+| tipo | text | sim |  | sistema | agente_sem_sinal, agente_passou_do_limite ou agente_desligado. |
+| texto | text | sim |  | empresa | O que aconteceu, numa frase. |
+| link | text | sim |  | sistema | Tela do Mago OS a abrir (sempre um caminho interno). |
+| criado_em | timestamp with time zone | sim | `now()` | sistema | Quando o aviso foi criado. |
+| lido_em | timestamp with time zone | não |  | sistema | Quando a pessoa marcou como lido. |
+
+### chaves_de_agente
+
+Chaves dos agentes. Só o começo e o resumo SHA-256 ficam aqui: a chave inteira aparece uma vez, na tela.
+
+Isolamento por empresa (Row Level Security): ligado e forçado.
+
+| Coluna | Tipo | Obrigatória | Padrão | Marca | Descrição |
+| --- | --- | --- | --- | --- | --- |
+| id | uuid | sim | `uuidv7()` | sistema | Identificador da chave (UUID v7). Chave primária. |
+| empresa_id | uuid | sim |  | sistema | Empresa do agente. Aponta para empresas.id. |
+| agente_id | uuid | sim |  | sistema | Agente dono da chave. |
+| nome | text | sim |  | empresa | Para que serve a chave (ex.: Mac do Sandro). |
+| prefixo | text | sim |  | sistema | Começo da chave (mago_ag_ + 10 caracteres), para achar e reconhecer na lista. |
+| resumo | text | sim |  | sensivel | Resumo SHA-256 da chave inteira. A chave em si não fica guardada. |
+| criada_por | uuid | sim |  | sistema | Pessoa que criou a chave. |
+| criada_em | timestamp with time zone | sim | `now()` | sistema | Quando a chave foi criada. |
+| valida_ate | timestamp with time zone | não |  | empresa | Até quando a chave vale. Vazio: até ser revogada. |
+| ultimo_uso_em | timestamp with time zone | não |  | sistema | Último pedido aceito com a chave. |
+| revogada_em | timestamp with time zone | não |  | sistema | Quando a chave foi revogada (deixa de valer no pedido seguinte). |
+| revogada_por | uuid | não |  | sistema | Pessoa que revogou a chave. |
+
 ### comentarios_de_tarefa
 
 Comentários nas tarefas. Só se acrescentam: não se editam nem se apagam no M2.
@@ -337,6 +410,21 @@ Isolamento por empresa (Row Level Security): ligado e forçado.
 | autor_agente_id | uuid | não |  | sistema | Agente que comentou. Os dois vazios: comentário do sistema. |
 | texto | text | sim |  | empresa | O comentário, em texto simples. Se veio de agente, é mostrado só como texto. |
 | criado_em | timestamp with time zone | sim | `now()` | sistema | Quando foi comentado. |
+
+### contadores_de_agente
+
+Contadores dos limites dos agentes: pedidos por minuto (por chave) e leituras por hora (por agente). Apagados depois de 2 horas.
+
+Isolamento por empresa (Row Level Security): ligado e forçado.
+
+| Coluna | Tipo | Obrigatória | Padrão | Marca | Descrição |
+| --- | --- | --- | --- | --- | --- |
+| empresa_id | uuid | sim |  | sistema | Empresa do agente. Aponta para empresas.id. |
+| agente_id | uuid | sim |  | sistema | Agente contado. |
+| chave_id | uuid | não |  | sistema | Chave usada (só nos pedidos por minuto). |
+| janela | text | sim |  | sistema | pedidos_minuto ou leituras_hora. |
+| inicio | timestamp with time zone | sim |  | sistema | Começo da janela (minuto ou hora cheios). |
+| valor | integer | sim | `0` | sistema | Quantos pedidos ou registros lidos na janela. |
 
 ### empresas
 

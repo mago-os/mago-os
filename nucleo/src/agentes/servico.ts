@@ -138,6 +138,13 @@ export async function mudarSituacao(
   agenteId: string,
   situacao: SituacaoAgente,
 ): Promise<Agente> {
+  // Retomado começa a contar o limite de pedidos do zero (senão volta a ser pausado no primeiro pedido).
+  if (situacao === "ativo") {
+    await c.query(
+      "delete from contadores_de_agente where empresa_id = empresa_ativa() and agente_id = $1 and janela = 'pedidos_minuto'",
+      [agenteId],
+    );
+  }
   const r = await c.query<LinhaDoAgente>(
     `update agentes a set situacao = $2, atualizado_em = now(),
             desligado_em = case when $2 = 'desligado' then now() else null end
@@ -217,15 +224,4 @@ export async function alcanceCobreAgente(c: pg.PoolClient, filtro: Filtro, agent
     [agente.responsavelId, filtro.area],
   );
   return (r.rowCount ?? 0) > 0;
-}
-
-/** Nome e e-mail da pessoa responsável, para o aviso. */
-export async function contatoDoResponsavel(
-  c: pg.PoolClient,
-  pessoaId: string,
-): Promise<{ nome: string; email: string } | null> {
-  const r = await c.query<{ nome: string; email: string }>("select nome, email from pessoas where id = $1", [
-    pessoaId,
-  ]);
-  return r.rows[0] ?? null;
 }

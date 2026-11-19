@@ -33,6 +33,9 @@ test.describe("central de agentes", () => {
     const c = new pg.Client({ connectionString: BANCO_DONO });
     await c.connect();
     await c.query("delete from tarefas where empresa_id = $1", [admin.empresaId]);
+    await c.query("delete from avisos where empresa_id = $1", [admin.empresaId]);
+    await c.query("delete from contadores_de_agente where empresa_id = $1", [admin.empresaId]);
+    await c.query("delete from chaves_de_agente where empresa_id = $1", [admin.empresaId]);
     await c.query("delete from agentes where empresa_id = $1", [admin.empresaId]);
     await c.end();
     await admin.limpar();
@@ -68,6 +71,20 @@ test.describe("central de agentes", () => {
     await page.goto("/agentes");
     await page.getByRole("link", { name: /Claude no Mac/ }).click();
     await expect(page.getByText("Tarefas abertas")).toBeVisible();
+    // Chave: a inteira aparece uma vez; depois, só o começo na lista.
+    await page.getByRole("button", { name: "Criar chave" }).click();
+    await page.getByLabel("Nome da chave").fill("Mac da Alice");
+    await page.getByRole("button", { name: "Criar", exact: true }).click();
+    const chave = await page.locator("[data-chave-nova]").textContent();
+    expect(chave).toMatch(/^mago_ag_[0-9a-z]{10}_[A-Za-z0-9_-]{43}$/);
+    await page.getByRole("button", { name: "Já guardei" }).click();
+    await expect(page.locator("[data-chave-nova]")).toHaveCount(0);
+    await expect(page.getByText("Nunca usada")).toBeVisible();
+    await expect(page.getByText(chave ?? "")).toHaveCount(0);
+    page.once("dialog", (d) => void d.accept());
+    await page.getByRole("button", { name: "Revogar" }).click();
+    await expect(page.getByText("Chave revogada.")).toBeVisible();
+
     await page.getByRole("button", { name: "Pausar" }).click();
     await expect(page.getByText("Agente pausado.")).toBeVisible();
     await page.getByRole("button", { name: "Retomar" }).click();
@@ -76,6 +93,12 @@ test.describe("central de agentes", () => {
     await page.getByRole("button", { name: "Desligar" }).click();
     await expect(page.getByText("Agente desligado.")).toBeVisible();
     await expect(page.getByRole("button", { name: "Pausar" })).toHaveCount(0);
+
+    // A responsável recebe o aviso no alto da tela.
+    await page.goto("/");
+    await expect(page.getByText("O agente Claude no Mac foi desligado.")).toBeVisible();
+    await page.getByRole("button", { name: "Marcar como lido" }).click();
+    await expect(page.getByText("O agente Claude no Mac foi desligado.")).toHaveCount(0);
 
     // A tarefa que era do agente passou para a pessoa responsável por ele.
     await page.goto("/tarefas");
