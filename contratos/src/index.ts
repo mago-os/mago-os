@@ -20,4 +20,5 @@ export * from "./identidade/sessao.ts";
 export * from "./identidade/vinculo.ts";
 export * from "./mcp/ferramentas.ts";
 export * from "./permissoes.ts";
+export * from "./projetos/projeto.ts";
 export * from "./tarefas/tarefa.ts";

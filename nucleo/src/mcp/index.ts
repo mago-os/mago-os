@@ -218,7 +218,8 @@ async function executar(
     case "ver_tarefa": {
       const e = entrada as EntradaDa<"ver_tarefa">;
       const achou = await naEmpresa(async (c) => {
-        const tarefa = await buscarTarefa(c, quem, e.tarefaId);
+        // Só para ver: o gerente agente alcança as tarefas do projeto dele (M3-01), mas não mexe nas dos outros.
+        const tarefa = await buscarTarefa(c, { ...quem, comoGerente: true }, e.tarefaId);
         return tarefa ? { tarefa, comentarios: await listarComentarios(c, tarefa.id) } : null;
       });
       if (!achou) throw naoAchou();

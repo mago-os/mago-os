@@ -55,6 +55,8 @@ export async function permissoesNaEmpresa(
 export interface AcessoDoPedido {
   sessao: SessaoDoPedido & { empresaId: string };
   permissoes: PermissoesNaEmpresa;
+  /** A ação que a rota exigiu (o alcance abaixo é o dela). */
+  acao: AcaoNoModulo;
   alcance: Alcance;
   filtro: Filtro;
   verSensiveis: boolean;
@@ -113,6 +115,7 @@ export function criarVerificador(
         (pedido as FastifyRequest & { acesso?: AcessoDoPedido }).acesso = {
           sessao: { ...sessao, empresaId: sessao.empresaId },
           permissoes,
+          acao,
           alcance,
           filtro,
           verSensiveis: permissao.verSensiveis,

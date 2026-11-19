@@ -30,6 +30,7 @@ import { AtivarDoisFatores, ConfirmarSegundoFator } from "./telas/DoisFatores";
 import { Empresas } from "./telas/Empresas";
 import { NovaConta } from "./telas/NovaConta";
 import { MeuPerfil } from "./telas/Perfil";
+import { PaginaDoProjeto, Projetos } from "./telas/Projetos";
 import { PaginaDaTarefa, Tarefas } from "./telas/Tarefas";
 import { aplicarTema, lerTema, type Tema } from "./tema";
 
@@ -211,6 +212,7 @@ export function App() {
   let conteudo: React.ReactNode;
   const tarefaAberta = /^\/tarefas\/([0-9a-f-]{36})$/i.exec(caminho)?.[1];
   const agenteAberto = /^\/agentes\/([0-9a-f-]{36})$/i.exec(caminho)?.[1];
+  const projetoAberto = /^\/projetos\/([0-9a-f-]{36})$/i.exec(caminho)?.[1];
   if (caminho === "/perfil") conteudo = <MeuPerfil />;
   else if (caminho === "/agentes" && pode("agentes", "ver"))
     conteudo = <Agentes podeCadastrar={pode("agentes", "criar")} euId={sessao.pessoa.id} />;
@@ -233,6 +235,25 @@ export function App() {
         podeEditar={pode("tarefas", "editar")}
         podeDestravar={pode("tarefas", "aprovar")}
         podeExcluir={pode("tarefas", "excluir")}
+      />
+    );
+  else if (caminho === "/projetos" && temEmpresaAtiva && pode("projetos", "ver"))
+    conteudo = (
+      <Projetos
+        podeCriarEspaco={pode("espacos", "criar")}
+        podeEditarEspaco={pode("espacos", "editar")}
+        podeCriarProjeto={pode("projetos", "criar")}
+        euId={sessao.pessoa.id}
+      />
+    );
+  else if (projetoAberto && temEmpresaAtiva && pode("projetos", "ver"))
+    conteudo = (
+      <PaginaDoProjeto
+        id={projetoAberto}
+        euId={sessao.pessoa.id}
+        administra={permissoes?.modulos.projetos?.acoes.editar === "tudo"}
+        podeCriarTarefa={pode("tarefas", "criar")}
+        podeExcluir={pode("projetos", "excluir")}
       />
     );
   else if (caminho === "/pessoas" && menuExtra.some((m) => m.caminho === "/pessoas"))

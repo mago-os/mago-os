@@ -160,3 +160,11 @@ O login (`mago_acesso`) não lê papéis nem as regras da plataforma direto. As 
 - `contadores_de_agente`: pedidos por minuto (por chave) e leituras por hora (por agente), no banco, para valer com várias cópias da API. `limpar_contadores_de_agente` apaga os com mais de 2 horas.
 - `avisos`: avisos para uma pessoa dentro do Mago OS, só para quem tem vínculo na empresa, com link sempre interno.
 - `agentes_sem_sinal` (dono): para a verificação a cada minuto, devolve só os ids dos agentes com tarefa pegada e sem sinal; o trabalho em cada empresa roda com a empresa dela.
+
+## 21. Espaços e projetos (19/11/2026, M3-01)
+
+- `espacos`, `projetos` e `membros_de_projeto` seguem o contrato de `contratos/src/projetos/projeto.ts`, com `empresa_id`, RLS forçado e a política de `empresa_ativa()`. Espaço não se apaga (a API não tem DELETE): arquiva-se.
+- O diretor fica no próprio projeto e é sempre uma pessoa com vínculo na mesma empresa; o gerente é uma pessoa ou um agente da mesma empresa, ou ninguém (chaves compostas). O banco recusa o diretor como gerente, e "o gerente recebe as tarefas sem responsável" sem gerente.
+- `membros_de_projeto` guarda só os membros comuns (pessoa ou agente, sem repetir). A função `membro_do_projeto(projeto, pessoa)` diz se a pessoa é diretora, gerente ou membro, e roda com a permissão de quem chama, então o RLS continua valendo.
+- A tarefa ganha `projeto_id`, opcional ("Sem projeto"), sempre de um projeto da mesma empresa. Projeto com tarefas não se exclui: arquiva-se.
+- Os gatilhos do tempo real (seção 19) passam a avisar também espaços, projetos e membros, com o tipo "projeto".

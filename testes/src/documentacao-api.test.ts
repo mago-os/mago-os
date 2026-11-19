@@ -11,8 +11,14 @@ describe("documentação da API", () => {
     expect(readFileSync(ARQUIVO_API, "utf8")).toBe(documentacaoDaApi());
   });
 
-  it("a tabela de rotas é igual às rotas registradas no código (tarefas, agentes, avisos e MCP)", () => {
-    const arquivos = ["tarefas/rotas.ts", "agentes/rotas.ts", "avisos/index.ts", "mcp/index.ts"];
+  it("a tabela de rotas é igual às rotas registradas no código (tarefas, projetos, agentes, avisos e MCP)", () => {
+    const arquivos = [
+      "tarefas/rotas.ts",
+      "projetos/rotas.ts",
+      "agentes/rotas.ts",
+      "avisos/index.ts",
+      "mcp/index.ts",
+    ];
     const noCodigo = new Set<string>();
     for (const a of arquivos) {
       const texto = readFileSync(new URL(`../../nucleo/src/${a}`, import.meta.url), "utf8");

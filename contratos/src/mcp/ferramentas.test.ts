@@ -8,13 +8,13 @@ import { describe, expect, it } from "vitest";
 import { FERRAMENTAS_MCP } from "./ferramentas.ts";
 
 const ASSINATURAS: Record<string, string> = {
-  minhas_tarefas: "acfab5ba90a56aa8",
-  ver_tarefa: "a65cf49f03595762",
-  pegar_tarefa: "1508780b7b017627",
-  soltar_tarefa: "44fb284936d8af92",
+  minhas_tarefas: "5e5a31bc6b2948b2",
+  ver_tarefa: "bd490f336a31f79b",
+  pegar_tarefa: "fd843de2f57f7971",
+  soltar_tarefa: "3d09aec94d496be7",
   comentar: "663b025cd6519fe2",
-  mudar_status: "c2e78b923c654646",
-  entregar_resultado: "1f7636f91f8f0abf",
+  mudar_status: "689b1eb322039855",
+  entregar_resultado: "45d164761d61be4e",
   estou_vivo: "e1ad16ca48cd4c7a",
 };
 

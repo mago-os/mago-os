@@ -7,7 +7,7 @@
 import { useEffect, useRef } from "react";
 
 export type AvisoDeMudanca =
-  | { tipo: "tarefa" | "agente"; id: string; operacao: "insert" | "update" | "delete" }
+  | { tipo: "tarefa" | "agente" | "projeto"; id: string; operacao: "insert" | "update" | "delete" }
   | { tipo: "reconectou" };
 
 type Ouvinte = (aviso: AvisoDeMudanca) => void;

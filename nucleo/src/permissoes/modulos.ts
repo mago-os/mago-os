@@ -39,6 +39,24 @@ export const MODULOS_DO_NUCLEO: readonly DeclaracaoDeModulo[] = [
     temDadosSensiveis: false,
     area: null,
   },
+  // Espaços (M3-01): todos veem; só o administrador cria, edita e arquiva.
+  {
+    id: "espacos",
+    nome: "Espaços",
+    acoes: ["ver", "criar", "editar"],
+    temDadosSensiveis: false,
+    area: null,
+  },
+  // Projetos (M3-01): o administrador e o gestor veem todos; o funcionário, os que é membro. Criar e editar (e
+  // arquivar) são do administrador e do gestor, e o diretor edita o próprio projeto; excluir, só o administrador.
+  // "Meus" nos projetos: ver = sou membro; editar = sou o diretor.
+  {
+    id: "projetos",
+    nome: "Projetos",
+    acoes: ["ver", "criar", "editar", "excluir"],
+    temDadosSensiveis: false,
+    area: null,
+  },
 ];
 
 /** Catálogo de módulos. Recusa na subida uma declaração fora do contrato ou um id repetido. */

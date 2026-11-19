@@ -9,10 +9,15 @@ import type { Autor, ComentarioDeTarefa, Responsavel, StatusTarefa, Tarefa } fro
 import type pg from "pg";
 import type { Filtro } from "../permissoes/calcular.ts";
 
-/** Quem está pedindo: uma pessoa (com o alcance da ação) ou um agente (só as tarefas dele, M2-03). */
+/**
+ * Quem está pedindo: uma pessoa (com o alcance da ação) ou um agente (as tarefas dele, M2-03).
+ * "projetos" diz quais projetos a pessoa alcança além do alcance da ação (M3-01): "todos" (quem vê todos os
+ * projetos, só para ver), "membro" (os projetos em que é diretora, gerente ou membro, para ver e editar) ou
+ * "nenhum". "comoGerente": só para ver, o agente alcança também as tarefas do projeto que gerencia.
+ */
 export type Quem =
-  | { tipo: "pessoa"; pessoaId: string; filtro: Filtro }
-  | { tipo: "agente"; agenteId: string };
+  | { tipo: "pessoa"; pessoaId: string; filtro: Filtro; projetos?: "todos" | "membro" | "nenhum" }
+  | { tipo: "agente"; agenteId: string; comoGerente?: boolean };
 
 export function autorDe(quem: Quem): Autor {
   return quem.tipo === "pessoa"
@@ -24,25 +29,37 @@ export function autorDe(quem: Quem): Autor {
 export function condicaoDeAlcance(quem: Quem, jaUsados: number): { sql: string; valores: string[] } {
   const p = (n: number) => `$${jaUsados + n + 1}`;
   if (quem.tipo === "agente") {
+    const dele = `(t.responsavel_agente_id = ${p(0)} or t.travada_por_agente_id = ${p(0)})`;
+    if (!quem.comoGerente) return { sql: dele, valores: [quem.agenteId] };
+    // Só para ver: o gerente agente enxerga as tarefas do projeto dele (M3-01), sem poder mexer nas dos outros.
     return {
-      sql: `(t.responsavel_agente_id = ${p(0)} or t.travada_por_agente_id = ${p(0)})`,
+      sql: `(${dele} or exists (select 1 from projetos pr where pr.id = t.projeto_id
+             and pr.empresa_id = t.empresa_id and pr.gerente_agente_id = ${p(0)}))`,
       valores: [quem.agenteId],
     };
   }
   // "Meus": sou o responsável, criei ou estou com a tarefa pegada.
   const meus = `(t.responsavel_pessoa_id = ${p(0)} or t.criada_por_pessoa_id = ${p(0)}
                  or t.travada_por_pessoa_id = ${p(0)})`;
+  // E as tarefas dos projetos que alcanço (M3-01): todos, ou os que sou membro.
+  const doProjeto =
+    quem.projetos === "todos"
+      ? "t.projeto_id is not null"
+      : quem.projetos === "membro"
+        ? `(t.projeto_id is not null and membro_do_projeto(t.projeto_id, ${p(0)}))`
+        : "false";
   const { filtro } = quem;
   if (filtro.tipo === "tudo") return { sql: "true", valores: [] };
-  if (filtro.tipo === "meus") return { sql: meus, valores: [filtro.pessoaId] };
+  if (filtro.tipo === "meus") return { sql: `(${meus} or ${doProjeto})`, valores: [filtro.pessoaId] };
   return {
-    sql: `(${meus} or exists (select 1 from vinculos v where v.empresa_id = t.empresa_id and v.area = ${p(1)}
+    sql: `(${meus} or ${doProjeto} or exists (select 1 from vinculos v where v.empresa_id = t.empresa_id
+             and v.area = ${p(1)}
              and v.pessoa_id in (t.responsavel_pessoa_id, t.criada_por_pessoa_id, t.travada_por_pessoa_id)))`,
     valores: [filtro.pessoaId, filtro.area],
   };
 }
 
-const COLUNAS = `t.id, t.empresa_id, t.titulo, t.descricao, t.status,
+const COLUNAS = `t.id, t.empresa_id, t.titulo, t.descricao, t.projeto_id, t.status,
   t.responsavel_pessoa_id, t.responsavel_agente_id, t.criada_por_pessoa_id, t.criada_por_agente_id,
   t.travada_por_pessoa_id, t.travada_por_agente_id, t.travada_em,
   t.resultado, t.resultado_por_pessoa_id, t.resultado_por_agente_id, t.criada_em, t.atualizada_em, t.encerrada_em`;
@@ -52,6 +69,7 @@ interface LinhaDaTarefa {
   empresa_id: string;
   titulo: string;
   descricao: string | null;
+  projeto_id: string | null;
   status: StatusTarefa;
   responsavel_pessoa_id: string | null;
   responsavel_agente_id: string | null;
@@ -87,6 +105,7 @@ export function linhaParaTarefa(l: LinhaDaTarefa): Tarefa {
     empresaId: l.empresa_id,
     titulo: l.titulo,
     descricao: l.descricao,
+    projetoId: l.projeto_id,
     status: l.status,
     responsavel: responsavelDe(l.responsavel_pessoa_id, l.responsavel_agente_id),
     criadaPor: autorDaLinha(l.criada_por_pessoa_id, l.criada_por_agente_id),
@@ -111,6 +130,8 @@ export interface FiltroDaLista {
   /** Só as tarefas em que quem pede é o responsável ou que ele criou. */
   minhas?: boolean;
   status?: StatusTarefa[];
+  /** Um projeto, ou "sem" para as tarefas sem projeto. */
+  projetoId?: string;
 }
 
 /** Lista as tarefas que quem pede alcança, as mais recentes primeiro (até 200 no M2). */
@@ -118,7 +139,13 @@ export async function listarTarefas(c: pg.PoolClient, quem: Quem, filtro: Filtro
   const alcance = condicaoDeAlcance(quem, 0);
   const valores: unknown[] = [...alcance.valores];
   const partes = [alcance.sql];
-  // "Minhas" só muda algo para a pessoa: o agente já vê só as dele.
+  // A lista do agente é sempre a dele (responsável ou com a trava), mesmo quando ele é gerente e alcança as
+  // outras tarefas do projeto: é dessa lista que ele pega o próximo trabalho.
+  if (quem.tipo === "agente") {
+    valores.push(quem.agenteId);
+    const eu = `$${valores.length}`;
+    partes.push(`(t.responsavel_agente_id = ${eu} or t.travada_por_agente_id = ${eu})`);
+  }
   if (filtro.minhas && quem.tipo === "pessoa") {
     valores.push(quem.pessoaId);
     const eu = `$${valores.length}`;
@@ -129,6 +156,11 @@ export async function listarTarefas(c: pg.PoolClient, quem: Quem, filtro: Filtro
   if (filtro.status && filtro.status.length > 0) {
     valores.push(filtro.status);
     partes.push(`t.status = any($${valores.length}::text[])`);
+  }
+  if (filtro.projetoId === "sem") partes.push("t.projeto_id is null");
+  else if (filtro.projetoId) {
+    valores.push(filtro.projetoId);
+    partes.push(`t.projeto_id = $${valores.length}`);
   }
   const r = await c.query<LinhaDaTarefa>(
     `select ${COLUNAS} from tarefas t where t.empresa_id = empresa_ativa() and ${partes.join(" and ")}
@@ -193,15 +225,28 @@ export async function pessoaAtivaNaEmpresa(c: pg.PoolClient, pessoaId: string): 
 export async function criarTarefa(
   c: pg.PoolClient,
   quem: Quem,
-  dados: { titulo: string; descricao: string | null; responsavel: Responsavel | null },
+  dados: {
+    titulo: string;
+    descricao: string | null;
+    responsavel: Responsavel | null;
+    projetoId?: string | null;
+  },
 ): Promise<Tarefa> {
   const [respPessoa, respAgente] = colunas(dados.responsavel);
   const [porPessoa, porAgente] = colunas(autorDe(quem));
   const r = await c.query<LinhaDaTarefa>(
     `insert into tarefas as t (empresa_id, titulo, descricao, responsavel_pessoa_id, responsavel_agente_id,
-                            criada_por_pessoa_id, criada_por_agente_id)
-     values (empresa_ativa(), $1, $2, $3, $4, $5, $6) returning ${COLUNAS}`,
-    [dados.titulo.trim(), dados.descricao?.trim() || null, respPessoa, respAgente, porPessoa, porAgente],
+                            criada_por_pessoa_id, criada_por_agente_id, projeto_id)
+     values (empresa_ativa(), $1, $2, $3, $4, $5, $6, $7) returning ${COLUNAS}`,
+    [
+      dados.titulo.trim(),
+      dados.descricao?.trim() || null,
+      respPessoa,
+      respAgente,
+      porPessoa,
+      porAgente,
+      dados.projetoId ?? null,
+    ],
   );
   return linhaParaTarefa(r.rows[0] as LinhaDaTarefa);
 }
@@ -289,6 +334,20 @@ export async function comentar(
     texto: texto.trim(),
     criadoEm: l.criado_em.toISOString(),
   };
+}
+
+/** Muda a tarefa de projeto, ou tira do projeto (nulo). Trava, responsável e status ficam como estão. */
+export async function mudarProjetoDaTarefa(
+  c: pg.PoolClient,
+  tarefaId: string,
+  projetoId: string | null,
+): Promise<Tarefa> {
+  const r = await c.query<LinhaDaTarefa>(
+    `update tarefas t set projeto_id = $2, atualizada_em = now()
+      where t.id = $1 and t.empresa_id = empresa_ativa() returning ${COLUNAS}`,
+    [tarefaId, projetoId],
+  );
+  return linhaParaTarefa(r.rows[0] as LinhaDaTarefa);
 }
 
 export async function excluirTarefa(c: pg.PoolClient, tarefaId: string): Promise<void> {

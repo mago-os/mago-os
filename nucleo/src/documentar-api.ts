@@ -1,8 +1,8 @@
 /**
  * Documentação da API gerada a partir dos contratos (M2-05): docs/api/README.md.
  *
- * Mostra as ferramentas do MCP (nome, descrição, o que recebe e o que devolve) e as rotas de tarefas, agentes e
- * chaves, com o esquema de cada pedido. Um teste confere que o arquivo está igual ao gerado: mudou um contrato,
+ * Mostra as ferramentas do MCP (nome, descrição, o que recebe e o que devolve) e as rotas de tarefas, projetos,
+ * agentes e chaves, com o esquema de cada pedido. Um teste confere que o arquivo está igual ao gerado: mudou um contrato,
  * rode `pnpm api:documentar` e inclua o arquivo no mesmo PR.
  */
 import { writeFileSync } from "node:fs";
@@ -15,7 +15,12 @@ import {
   PedidoDeComentario,
   PedidoDeDestravar,
   PedidoDeEditarAgente,
+  PedidoDeEditarEspaco,
+  PedidoDeEditarProjeto,
+  PedidoDeEspaco,
+  PedidoDeMudarProjeto,
   PedidoDeMudarStatus,
+  PedidoDeProjeto,
   PedidoDeTarefa,
   PedidoDeTrocarResponsavel,
 } from "@mago-os/contratos";
@@ -31,20 +36,21 @@ interface Rota {
   recebe?: TSchema;
 }
 
-/** As rotas de dados do M2 (a tela usa; o prefixo /api vem do Caddy). */
+/** As rotas de dados do M2 e do M3 (a tela usa; o prefixo /api vem do Caddy). */
 export const ROTAS: Rota[] = [
   {
     metodo: "GET",
     caminho: "/tarefas",
     permissao: "tarefas.ver",
-    oQueFaz: "Lista as tarefas que a pessoa alcança (query: minhas=1, status=a,b).",
+    oQueFaz: "Lista as tarefas que a pessoa alcança (query: minhas=1, status=a,b, projeto=<id> ou sem).",
     recebe: FiltroDeTarefas,
   },
   {
     metodo: "POST",
     caminho: "/tarefas",
     permissao: "tarefas.criar",
-    oQueFaz: "Cria uma tarefa. Sem responsável, fica com quem criou.",
+    oQueFaz:
+      "Cria uma tarefa, com ou sem projeto. Sem responsável, fica com quem criou; responsável nulo num projeto vai para o gerente, se o diretor quis.",
     recebe: PedidoDeTarefa,
   },
   {
@@ -94,10 +100,71 @@ export const ROTAS: Rota[] = [
     recebe: PedidoDeDestravar,
   },
   {
+    metodo: "POST",
+    caminho: "/tarefas/:id/projeto",
+    permissao: "tarefas.editar",
+    oQueFaz: "Muda a tarefa de projeto (um projeto ativo que a pessoa alcança) ou tira do projeto (nulo).",
+    recebe: PedidoDeMudarProjeto,
+  },
+  {
     metodo: "DELETE",
     caminho: "/tarefas/:id",
     permissao: "tarefas.excluir",
     oQueFaz: "Exclui a tarefa e os comentários (não se estiver com outro).",
+  },
+  {
+    metodo: "GET",
+    caminho: "/espacos",
+    permissao: "espacos.ver",
+    oQueFaz: "Lista os espaços da empresa (query: arquivados=1 inclui os arquivados).",
+  },
+  {
+    metodo: "POST",
+    caminho: "/espacos",
+    permissao: "espacos.criar",
+    oQueFaz: "Cria um espaço.",
+    recebe: PedidoDeEspaco,
+  },
+  {
+    metodo: "POST",
+    caminho: "/espacos/:id",
+    permissao: "espacos.editar",
+    oQueFaz: "Edita, arquiva ou desarquiva um espaço.",
+    recebe: PedidoDeEditarEspaco,
+  },
+  {
+    metodo: "GET",
+    caminho: "/projetos",
+    permissao: "projetos.ver",
+    oQueFaz:
+      "Lista os projetos que a pessoa alcança (todos, ou os que é membro), com as tarefas abertas (query: espaco=<id>, arquivados=1).",
+  },
+  {
+    metodo: "GET",
+    caminho: "/projetos/:id",
+    permissao: "projetos.ver",
+    oQueFaz: "Mostra o projeto, o espaço e os nomes do diretor, do gerente e dos membros.",
+  },
+  {
+    metodo: "POST",
+    caminho: "/projetos",
+    permissao: "projetos.criar",
+    oQueFaz: "Cria um projeto. Sem diretor, quem cria é o diretor.",
+    recebe: PedidoDeProjeto,
+  },
+  {
+    metodo: "POST",
+    caminho: "/projetos/:id",
+    permissao: "projetos.editar",
+    oQueFaz:
+      "Edita, arquiva ou muda os membros (o diretor ou o administrador; trocar o diretor, só quem vê todos).",
+    recebe: PedidoDeEditarProjeto,
+  },
+  {
+    metodo: "DELETE",
+    caminho: "/projetos/:id",
+    permissao: "projetos.excluir",
+    oQueFaz: "Exclui de vez um projeto sem tarefas.",
   },
   {
     metodo: "GET",

@@ -88,6 +88,24 @@ erDiagram
     text idioma
     text telefone
   }
+  espacos {
+    uuid id PK
+    uuid empresa_id FK
+    text nome
+    text descricao
+    text cor
+    text situacao
+    timestamp_with_time_zone criado_em
+    timestamp_with_time_zone atualizado_em
+  }
+  membros_de_projeto {
+    uuid id PK
+    uuid empresa_id FK
+    uuid projeto_id
+    uuid pessoa_id
+    uuid agente_id
+    timestamp_with_time_zone criado_em
+  }
   papeis_plataforma {
     uuid pessoa_id PK
     text papel
@@ -105,6 +123,23 @@ erDiagram
     timestamp_with_time_zone atualizada_em
     boolean email_verificado
     boolean dois_fatores_ativo
+  }
+  projetos {
+    uuid id PK
+    uuid empresa_id FK
+    uuid espaco_id
+    text nome
+    text descricao
+    text cor
+    text situacao
+    uuid diretor_id
+    uuid gerente_pessoa_id
+    uuid gerente_agente_id
+    boolean gerente_recebe_sem_responsavel
+    date inicio
+    date fim
+    timestamp_with_time_zone criado_em
+    timestamp_with_time_zone atualizado_em
   }
   tarefas {
     uuid id PK
@@ -125,6 +160,7 @@ erDiagram
     timestamp_with_time_zone criada_em
     timestamp_with_time_zone atualizada_em
     timestamp_with_time_zone encerrada_em
+    uuid projeto_id
   }
   vinculos {
     uuid id PK
@@ -285,7 +321,10 @@ erDiagram
   empresas ||--o{ chaves_de_agente : "empresa_id"
   empresas ||--o{ comentarios_de_tarefa : "empresa_id"
   empresas ||--o{ contadores_de_agente : "empresa_id"
+  empresas ||--o{ espacos : "empresa_id"
+  empresas ||--o{ membros_de_projeto : "empresa_id"
   pessoas ||--o{ papeis_plataforma : "pessoa_id"
+  empresas ||--o{ projetos : "empresa_id"
   empresas ||--o{ tarefas : "empresa_id"
   empresas ||--o{ vinculos : "empresa_id"
   pessoas ||--o{ vinculos : "pessoa_id"
@@ -448,6 +487,38 @@ Isolamento por empresa (Row Level Security): ligado e forçado.
 | idioma | text | sim | `'pt-BR'::text` | empresa | Idioma da conta (ex.: pt-BR). |
 | telefone | text | não |  | empresa | Telefone de contato da conta (opcional). |
 
+### espacos
+
+Espaços da empresa: agrupam projetos de uma área ou frente (ex.: Operações).
+
+Isolamento por empresa (Row Level Security): ligado e forçado.
+
+| Coluna | Tipo | Obrigatória | Padrão | Marca | Descrição |
+| --- | --- | --- | --- | --- | --- |
+| id | uuid | sim | `uuidv7()` | sistema | Identificador do espaço (UUID v7). Chave primária. |
+| empresa_id | uuid | sim |  | sistema | Empresa do espaço. Aponta para empresas.id. |
+| nome | text | sim |  | empresa | Nome do espaço. |
+| descricao | text | não |  | empresa | Para que serve o espaço. |
+| cor | text | sim | `'#1aa39a'::text` | empresa | Cor do espaço nas telas (#rrggbb). |
+| situacao | text | sim | `'ativo'::text` | empresa | ativo ou arquivado (escondido das listas, sem apagar nada). |
+| criado_em | timestamp with time zone | sim | `now()` | sistema | Quando o espaço foi criado. |
+| atualizado_em | timestamp with time zone | sim | `now()` | sistema | Última mudança no espaço. |
+
+### membros_de_projeto
+
+Membros comuns de cada projeto (pessoas ou agentes). O diretor e o gerente ficam no próprio projeto.
+
+Isolamento por empresa (Row Level Security): ligado e forçado.
+
+| Coluna | Tipo | Obrigatória | Padrão | Marca | Descrição |
+| --- | --- | --- | --- | --- | --- |
+| id | uuid | sim | `uuidv7()` | sistema | Identificador do membro (UUID v7). Chave primária. |
+| empresa_id | uuid | sim |  | sistema | Empresa (a mesma do projeto). Aponta para empresas.id. |
+| projeto_id | uuid | sim |  | sistema | Projeto. |
+| pessoa_id | uuid | não |  | sistema | Pessoa membro, quando é uma pessoa. |
+| agente_id | uuid | não |  | sistema | Agente membro, quando é um agente. |
+| criado_em | timestamp with time zone | sim | `now()` | sistema | Quando entrou no projeto. |
+
 ### papeis_plataforma
 
 Papéis acima das empresas. Na Fase 1 só existe o Dono da plataforma; o revendedor entra na Fase 2. Ter um papel aqui não abre os dados de nenhuma empresa.
@@ -480,9 +551,33 @@ Isolamento por empresa (Row Level Security): ligado e forçado.
 | email_verificado | boolean | sim | `false` | sistema | Se o e-mail já foi confirmado (pelo convite, pelo Google ou por um link enviado a ele). |
 | dois_fatores_ativo | boolean | sim | `false` | sistema | Se a pessoa ativou o app autenticador (o código é pedido a cada login, fora dos aparelhos confiáveis). |
 
+### projetos
+
+Projetos de um espaço, com um diretor (pessoa) e, se quiser, um gerente (pessoa ou agente).
+
+Isolamento por empresa (Row Level Security): ligado e forçado.
+
+| Coluna | Tipo | Obrigatória | Padrão | Marca | Descrição |
+| --- | --- | --- | --- | --- | --- |
+| id | uuid | sim | `uuidv7()` | sistema | Identificador do projeto (UUID v7). Chave primária. |
+| empresa_id | uuid | sim |  | sistema | Empresa do projeto. Aponta para empresas.id. |
+| espaco_id | uuid | sim |  | sistema | Espaço do projeto (da mesma empresa). |
+| nome | text | sim |  | empresa | Nome do projeto. |
+| descricao | text | não |  | empresa | Para que serve o projeto. |
+| cor | text | sim | `'#1aa39a'::text` | empresa | Cor do projeto nas telas (#rrggbb). |
+| situacao | text | sim | `'ativo'::text` | empresa | ativo ou arquivado (escondido das listas, sem apagar nada). |
+| diretor_id | uuid | sim |  | sistema | Pessoa diretora do projeto, dona das decisões (com vínculo na empresa). |
+| gerente_pessoa_id | uuid | não |  | sistema | Pessoa gerente do projeto, quando é uma pessoa. |
+| gerente_agente_id | uuid | não |  | sistema | Agente gerente do projeto, quando é um agente. |
+| gerente_recebe_sem_responsavel | boolean | sim | `false` | empresa | O gerente recebe as tarefas do projeto criadas sem responsável. |
+| inicio | date | não |  | empresa | Dia de início, se houver. |
+| fim | date | não |  | empresa | Dia de fim previsto, se houver. |
+| criado_em | timestamp with time zone | sim | `now()` | sistema | Quando o projeto foi criado. |
+| atualizado_em | timestamp with time zone | sim | `now()` | sistema | Última mudança no projeto (inclui membros). |
+
 ### tarefas
 
-Tarefas da empresa, feitas por pessoas ou agentes. Status fixos no M2; espaços, projetos e prazos vêm no M3.
+Tarefas da empresa, feitas por pessoas ou agentes, com ou sem projeto (M3-01). Status fixos no M2.
 
 Isolamento por empresa (Row Level Security): ligado e forçado.
 
@@ -506,6 +601,7 @@ Isolamento por empresa (Row Level Security): ligado e forçado.
 | criada_em | timestamp with time zone | sim | `now()` | sistema | Quando a tarefa foi criada. |
 | atualizada_em | timestamp with time zone | sim | `now()` | sistema | Última mudança na tarefa (inclui comentários). |
 | encerrada_em | timestamp with time zone | não |  | sistema | Quando foi concluída ou cancelada. |
+| projeto_id | uuid | não |  | sistema | Projeto da tarefa. Vazio: "Sem projeto". |
 
 ### vinculos
 
