@@ -14,6 +14,7 @@ Como publicar, voltar uma versão, restaurar o backup, trocar chaves e o que faz
 | Monitoramento e o que fazer se cair | [monitoramento.md](monitoramento.md) | Já existe |
 | Login: primeiro acesso, trocar e-mail, destravar, cliente do Google | [acesso.md](acesso.md) | Já existe |
 | Auditoria: cópia travada, verificação e o que fazer se falhar | [auditoria.md](auditoria.md) | Já existe |
+| Agentes externos: ligar (Hermes, Claude no Mac), trocar a chave e desligar | [agentes.md](agentes.md) | Já existe |
 
 ## Regras que valem sempre
 

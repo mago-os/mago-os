@@ -103,14 +103,14 @@ Pronto quando: com o Mago OS aberto no celular e no computador, um comentário f
 
 O Hermes ainda não está em produção (Sandro, 18/11/2026). No M2 fica tudo preparado para ligá-lo quando estiver: ele roda hoje na VPS01 (Hermes Agent v0.23, em Docker) e vai entrar no Mago OS de fora para dentro, como qualquer agente externo, sem porta nova e sem tocar na Ratoeira. Os passos abaixo marcados "quando o Hermes estiver em produção" não seguram o fim do M2.
 
-- [ ] Agente de teste genérico (um script pequeno em `infra/ferramentas/`) que faz o mesmo ciclo que o Hermes vai fazer: pergunta a cada minuto, pega, comenta e entrega; serve de modelo e de teste para qualquer agente externo
+- [x] Agente de teste genérico (um script pequeno em `infra/ferramentas/`) que faz o mesmo ciclo que o Hermes vai fazer: pergunta a cada minuto, pega, comenta e entrega; serve de modelo e de teste para qualquer agente externo
 
 - [ ] Quando o Hermes estiver em produção: cadastrar o Hermes na Central de agentes da 4xpert, com o Sandro como responsável, e criar a chave
 - [ ] Quando o Hermes estiver em produção: guardar a chave no Infisical e colocar no Hermes só pela configuração do servidor MCP dele (nunca em arquivo versionado)
 - [ ] Quando o Hermes estiver em produção: configurar o Mago OS como servidor MCP no Hermes
-- [ ] Rotina pronta (configuração e instruções escritas) para o Hermes que, a cada minuto, chama `minhas_tarefas` e trabalha a próxima (é ele que pergunta; o aviso do Mago OS para o agente, por webhook, é da Fase 2)
-- [ ] Instruções curtas para o Hermes: pegar, comentar o andamento, entregar o resultado e soltar a tarefa quando não souber fazer
-- [ ] Guia em `docs/operacao/agentes.md`: como ligar qualquer agente externo, com a seção do Hermes passo a passo, trocar a chave e desligar
+- [x] Rotina pronta (configuração e instruções escritas) para o Hermes que, a cada minuto, chama `minhas_tarefas` e trabalha a próxima (é ele que pergunta; o aviso do Mago OS para o agente, por webhook, é da Fase 2)
+- [x] Instruções curtas para o Hermes: pegar, comentar o andamento, entregar o resultado e soltar a tarefa quando não souber fazer
+- [x] Guia em `docs/operacao/agentes.md`: como ligar qualquer agente externo, com a seção do Hermes passo a passo, trocar a chave e desligar
 
 Pronto quando: o agente de teste genérico faz o ciclo completo em teste.osmago.com, e o guia do Hermes está escrito. Depois do M2, quando o Hermes estiver em produção: o Sandro cria a tarefa "verificar backup e espaço em disco da VPS01" para o Hermes, e o relatório aparece na tela.
 
