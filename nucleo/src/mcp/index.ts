@@ -250,6 +250,7 @@ async function executar(
           comentarios: await listarComentarios(c, tarefa.id, false),
           subtarefas: await listarSubtarefas(c, tarefa.id),
           checklist: await listarChecklist(c, tarefa.id),
+          anexos: [],
         };
       });
       if (!achou) throw naoAchou();
@@ -427,6 +428,9 @@ async function executar(
       }
       return feito.item;
     }
+    case "baixar_anexo":
+      // M3-08: entra na construção, depois dos contratos aprovados.
+      throw new RecusaDaFerramenta("Os anexos ainda não estão disponíveis.");
     case "estou_vivo":
       // A conferência da chave já registrou o sinal de vida.
       return { ok: true, agora: new Date().toISOString() };
