@@ -2,7 +2,7 @@
  * Projetos (M3-01), pensada primeiro para o celular: os espaços com os projetos dentro, e a página do projeto com
  * diretor, gerente, membros e as tarefas dele. Só aparece o que a pessoa alcança (a API confere de novo).
  */
-import type { Espaco, Projeto, Responsavel, Tarefa } from "@mago-os/contratos";
+import type { Espaco, Projeto, Responsavel } from "@mago-os/contratos";
 import { ArrowLeft, FolderPlus, Plus } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/componentes/ui/button";
@@ -21,7 +21,6 @@ import {
   listarProjetos,
   type ProjetoAberto,
 } from "@/projetos";
-import { listarTarefas } from "@/tarefas";
 import { useTempoReal } from "@/tempo-real";
 import { Aviso } from "./Acesso";
 import { useAoVoltar } from "./Administrador";
@@ -34,7 +33,6 @@ import {
   responsavelDoValor,
   SeletorDeResponsavel,
   useAgentesAtivos,
-  useDestaques,
   usePessoas,
   valorDoResponsavel,
 } from "./Tarefas";
@@ -468,6 +466,7 @@ export function PaginaDoProjeto({
   euId,
   administra,
   podeCriarTarefa,
+  podeEditarTarefa,
   podeExcluir,
 }: {
   id: string;
@@ -475,15 +474,10 @@ export function PaginaDoProjeto({
   /** Vê e edita todos os projetos (o administrador): troca o diretor de qualquer um. */
   administra: boolean;
   podeCriarTarefa: boolean;
+  podeEditarTarefa: boolean;
   podeExcluir: boolean;
 }) {
   const [aberto, setAberto] = useState<ProjetoAberto | null | undefined>(undefined);
-  const [tarefas, setTarefas] = useState<{
-    tarefas: Tarefa[];
-    nomes: Record<string, string>;
-    subtarefas?: Record<string, { total: number; prontas: number }>;
-  } | null>(null);
-  const [abertas, _setAbertas] = useState(true);
   const [espacos, setEspacos] = useState<Espaco[]>([]);
   const [editando, setEditando] = useState(false);
   const [criando, setCriando] = useState(false);
@@ -492,18 +486,10 @@ export function PaginaDoProjeto({
   const ultimoPedido = useRef(0);
   const carregar = useCallback(async () => {
     const numero = ++ultimoPedido.current;
-    const [p, t] = await Promise.all([
-      abrirProjeto(id),
-      listarTarefas({
-        minhas: false,
-        status: abertas ? ["a_fazer", "em_andamento", "precisa_de_ajuda"] : [],
-        projetoId: id,
-      }),
-    ]);
+    const p = await abrirProjeto(id);
     if (numero !== ultimoPedido.current) return;
     setAberto(p.ok && p.dados ? p.dados : null);
-    if (t.ok && t.dados) setTarefas(t.dados);
-  }, [id, abertas]);
+  }, [id]);
   useEffect(() => {
     void carregar();
   }, [carregar]);
@@ -511,19 +497,11 @@ export function PaginaDoProjeto({
     void listarEspacos().then((r) => setEspacos(r.dados?.espacos ?? []));
   }, []);
   useAoVoltar(carregar);
-  const [_destaques, destacar] = useDestaques();
+  // O projeto ou o espaço dele mudou (as tarefas a própria visão acompanha).
   useTempoReal((aviso) => {
     if (aviso.tipo === "reconectou") void carregar();
-    // O projeto, o espaço dele, ou uma tarefa nova ou desta lista mudou.
     if (aviso.tipo === "projeto" && (aviso.id === id || aviso.id === aberto?.projeto.espacoId))
       void carregar();
-    if (
-      aviso.tipo === "tarefa" &&
-      (aviso.operacao === "insert" || tarefas?.tarefas.some((t) => t.id === aviso.id))
-    ) {
-      void carregar();
-      destacar(aviso.id);
-    }
   });
 
   if (aberto === undefined) return <main className="min-h-dvh" aria-busy="true" />;
@@ -536,11 +514,6 @@ export function PaginaDoProjeto({
     );
   }
   const { projeto, espaco, nomes, listas, status } = aberto;
-  // As subtarefas aparecem dentro da tarefa-mãe (com o progresso), não soltas na lista.
-  const ids = new Set((tarefas?.tarefas ?? []).map((t) => t.id));
-  const _principais = (tarefas?.tarefas ?? []).filter(
-    (t) => t.tarefaMaeId === null || !ids.has(t.tarefaMaeId),
-  );
   // Edita o diretor e quem vê todos os projetos com a permissão de editar (a API confere de novo).
   const podeEditar = administra || projeto.diretorId === euId;
 
@@ -680,7 +653,7 @@ export function PaginaDoProjeto({
           escopo={{ projetoId: projeto.id }}
           statusDoProjeto={status}
           listas={listas}
-          podeEditar={podeCriarTarefa}
+          podeEditar={podeEditarTarefa}
           agrupamentoInicial={listas.length > 1 ? "lista" : null}
           vazio="Nenhuma tarefa que você vê neste projeto."
         />

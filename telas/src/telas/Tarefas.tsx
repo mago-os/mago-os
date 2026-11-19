@@ -49,8 +49,6 @@ const COR_DO_STATUS: Record<StatusTarefa, string> = {
   cancelada: "bg-suave text-texto-2 line-through",
 };
 
-const _ABERTOS: StatusTarefa[] = ["a_fazer", "em_andamento", "precisa_de_ajuda"];
-
 export const quando = (iso: string) =>
   new Date(iso).toLocaleString("pt-BR", {
     day: "2-digit",
@@ -113,7 +111,15 @@ export function useDestaques(): [Set<string>, (id: string) => void] {
 }
 
 /** Lista das tarefas. */
-export function Tarefas({ podeCriar, euId }: { podeCriar: boolean; euId: string }) {
+export function Tarefas({
+  podeCriar,
+  podeEditar,
+  euId,
+}: {
+  podeCriar: boolean;
+  podeEditar: boolean;
+  euId: string;
+}) {
   const [criando, setCriando] = useState(false);
   return (
     <main className="mx-auto grid max-w-5xl gap-4 px-4 py-5 md:py-8">
@@ -135,7 +141,7 @@ export function Tarefas({ podeCriar, euId }: { podeCriar: boolean; euId: string 
         />
       )}
       {/* Lista, Kanban e calendário, com filtros e visões salvas (M3-04). */}
-      <VisoesDeTarefas podeEditar={podeCriar} />
+      <VisoesDeTarefas podeEditar={podeEditar} />
     </main>
   );
 }

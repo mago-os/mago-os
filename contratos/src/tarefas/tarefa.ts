@@ -270,7 +270,7 @@ export const FiltroDeTarefas = Type.Object(
     etiquetas: Type.Optional(Type.Array(Id, { minItems: 1, maxItems: 20, uniqueItems: true })),
     /** Atalhos de prazo, no fuso de quem pede: atrasadas, vencendo hoje, nos próximos 7 dias ou sem prazo (M3-04). */
     prazo: Type.Optional(Type.Enum(["atrasadas", "hoje", "semana", "sem_prazo"] as const)),
-    /** Prazo (ou início) dentro destes dias, para o calendário (M3-04). */
+    /** O dia do prazo (no fuso de quem pede) dentro destes dias, para o calendário (M3-04). */
     de: Type.Optional(Dia),
     ate: Type.Optional(Dia),
     /** Inclui as subtarefas na lista (padrão: sim). */

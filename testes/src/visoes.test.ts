@@ -189,8 +189,8 @@ describe.skipIf(!bancoDisponivel)("visões e filtros", () => {
     expect(await titulos("/tarefas?prazo=hoje")).toEqual(["Hoje"]);
     expect((await titulos("/tarefas?prazo=sem_prazo")).includes("Velha")).toBe(false);
     expect(await titulos("/tarefas?de=2030-12-01&ate=2030-12-31")).toEqual(["Dezembro"]);
-    // O intervalo atravessado (início antes, prazo depois) também aparece.
-    expect(await titulos("/tarefas?de=2030-12-03&ate=2030-12-05")).toEqual(["Dezembro"]);
+    // O calendário olha só o dia do prazo.
+    expect(await titulos("/tarefas?de=2030-12-01&ate=2030-12-05")).toEqual([]);
     expect(await titulos("/tarefas?de=2031-01-01&ate=2031-01-31")).toEqual([]);
   });
 

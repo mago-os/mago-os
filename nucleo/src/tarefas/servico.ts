@@ -229,15 +229,13 @@ function filtrosDaM304(filtro: FiltroDaLista, valores: unknown[]): string[] {
   if (filtro.prazo === "atrasadas") {
     partes.push("(t.prazo_em < now() and t.status not in ('concluida', 'cancelada'))");
   } else if (filtro.prazo === "hoje") partes.push(`${diaDoPrazo} = ${hoje}`);
-  else if (filtro.prazo === "semana") partes.push(`${diaDoPrazo} between ${hoje} and ${hoje} + 7`);
+  else if (filtro.prazo === "semana") partes.push(`${diaDoPrazo} between ${hoje} and ${hoje} + 6`);
   else if (filtro.prazo === "sem_prazo") partes.push("t.prazo_em is null");
-  // Calendário: o prazo ou o início caem dentro dos dias pedidos (ou a tarefa atravessa o intervalo).
+  // Calendário: o dia do prazo (no fuso de quem pede) cai dentro dos dias pedidos.
   if (filtro.de || filtro.ate) {
     const de = filtro.de ? `${v(filtro.de)}::date` : "'-infinity'::date";
     const ate = filtro.ate ? `${v(filtro.ate)}::date` : "'infinity'::date";
-    partes.push(`((t.prazo_em is not null and ${diaDoPrazo} between ${de} and ${ate})
-                  or (t.inicio is not null and t.inicio between ${de} and ${ate})
-                  or (t.inicio is not null and t.prazo_em is not null and t.inicio < ${de} and ${diaDoPrazo} > ${ate}))`);
+    partes.push(`(t.prazo_em is not null and ${diaDoPrazo} between ${de} and ${ate})`);
   }
   if (filtro.subtarefas === false) partes.push("t.tarefa_mae_id is null");
   return partes;

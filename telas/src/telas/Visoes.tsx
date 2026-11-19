@@ -20,6 +20,7 @@ import {
 } from "@mago-os/contratos";
 import { ChevronLeft, ChevronRight, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { lerPerfil } from "@/acesso";
 import { Button } from "@/componentes/ui/button";
 import { cn } from "@/lib/utils";
 import {
@@ -94,13 +95,38 @@ function escolhasDoFiltro(f: FiltroDeTarefas): Escolhas {
   };
 }
 
-/** Dia (AAAA-MM-DD) em que a tarefa cai no calendário de quem vê: prazo com hora no fuso de quem vê; só o dia, o dia. */
-function diaNoCalendario(t: Tarefa): string | null {
+/**
+ * Dia (AAAA-MM-DD) em que a tarefa cai no calendário de quem vê, no fuso da pessoa (o mesmo que o servidor usa no
+ * filtro): prazo com hora, o dia daquele momento no fuso dela; só o dia, o próprio dia.
+ */
+function diaNoCalendario(t: Tarefa, fuso?: string): string | null {
   if (!t.prazo) return null;
   if (t.prazo.hora === null) return t.prazo.dia;
-  return new Intl.DateTimeFormat("en-CA", { year: "numeric", month: "2-digit", day: "2-digit" }).format(
-    new Date(t.prazo.em),
-  );
+  return partesNoFuso(new Date(t.prazo.em), fuso).dia;
+}
+
+/** Dia e hora (HH:MM) de um momento no fuso dado (ou no do navegador). */
+function partesNoFuso(momento: Date, fuso?: string): { dia: string; hora: string } {
+  const f = new Intl.DateTimeFormat("en-CA", {
+    ...(fuso ? { timeZone: fuso } : {}),
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  });
+  const p = Object.fromEntries(f.formatToParts(momento).map((x) => [x.type, x.value]));
+  return { dia: `${p.year}-${p.month}-${p.day}`, hora: `${p.hour}:${p.minute}` };
+}
+
+/** O fuso da pessoa (do perfil), para o calendário bater com o filtro do servidor. */
+function useFusoDaPessoa(): string | undefined {
+  const [fuso, setFuso] = useState<string | undefined>(undefined);
+  useEffect(() => {
+    void lerPerfil().then((p) => setFuso(p?.fusoHorario));
+  }, []);
+  return fuso;
 }
 
 const textoDoDia = (d: Date) =>
@@ -108,7 +134,7 @@ const textoDoDia = (d: Date) =>
 const hojeLocal = () => textoDoDia(new Date());
 
 export function VisoesDeTarefas({
-  escopo = {},
+  escopo: escopoRecebido = {},
   statusDoProjeto = [],
   listas = [],
   podeEditar,
@@ -125,6 +151,10 @@ export function VisoesDeTarefas({
   agrupamentoInicial?: Agrupamento | null;
   vazio?: string;
 }) {
+  // O escopo vem como objeto novo a cada render: guardar pelo id evita buscar de novo sem parar.
+  const projetoId = escopoRecebido.projetoId;
+  const escopo = useMemo(() => (projetoId ? { projetoId } : {}), [projetoId]);
+  const fuso = useFusoDaPessoa();
   const [visao, setVisao] = useState<TipoDeVisao>(visaoInicial);
   const [escolhas, setEscolhas] = useState<Escolhas>(
     escopo.projetoId ? { ...ESCOLHAS_PADRAO, minhas: false } : ESCOLHAS_PADRAO,
@@ -180,7 +210,12 @@ export function VisoesDeTarefas({
       destacar(aviso.id);
     }
   });
-  const carregarSalvas = useCallback(async () => setSalvas((await listarVisoes()).dados?.visoes ?? []), []);
+  // Só as visões do mesmo lugar: as de um projeto aparecem nele; as gerais, na tela de tarefas.
+  const carregarSalvas = useCallback(
+    async () =>
+      setSalvas(((await listarVisoes()).dados?.visoes ?? []).filter((v) => v.filtro.projetoId === projetoId)),
+    [projetoId],
+  );
   useEffect(() => {
     void carregarSalvas();
   }, [carregarSalvas]);
@@ -210,7 +245,8 @@ export function VisoesDeTarefas({
 
   async function aoExcluirVisao(v: VisaoSalva) {
     if (!window.confirm(`Apagar a visão ${v.nome}?`)) return;
-    await excluirVisao(v.id);
+    const r = await excluirVisao(v.id);
+    if (!r.ok) setMensagem({ tipo: "erro", texto: r.mensagem ?? "" });
     void carregarSalvas();
   }
 
@@ -341,6 +377,11 @@ export function VisoesDeTarefas({
 
       {erro && <Aviso tipo="erro" texto={erro} />}
       {mensagem && <Aviso {...mensagem} />}
+      {tarefas.length >= 200 && (
+        <p className="text-xs text-texto-2">
+          Mostrando as 200 tarefas mudadas mais recentemente. Use os filtros para ver as outras.
+        </p>
+      )}
 
       {visao === "lista" && (
         <VisaoEmLista
@@ -355,6 +396,7 @@ export function VisoesDeTarefas({
           pessoas={pessoas}
           agentes={agentes}
           vazio={lista ? vazio : null}
+          fuso={fuso}
           aoMudar={(m) => {
             setMensagem(m);
             void carregar();
@@ -380,6 +422,7 @@ export function VisoesDeTarefas({
           dias={dias}
           referencia={referencia}
           modo={modoDoCalendario}
+          fuso={fuso}
           podeEditar={podeEditar}
           aoMudarModo={setModoDoCalendario}
           aoNavegar={(passo) => setReferencia((r) => andar(r, modoDoCalendario, passo))}
@@ -397,6 +440,7 @@ export function VisoesDeTarefas({
 
 function grupoDe(
   t: Tarefa,
+  fuso: string | undefined,
   por: Agrupamento,
   nomes: Record<string, string>,
   statusDoProjeto: StatusDoProjeto[],
@@ -412,7 +456,7 @@ function grupoDe(
     case "prioridade":
       return t.prioridade ? NOMES_PRIORIDADE[t.prioridade] : "Sem prioridade";
     case "prazo": {
-      const dia = diaNoCalendario(t);
+      const dia = diaNoCalendario(t, fuso);
       if (!dia) return "Sem prazo";
       const hoje = hojeLocal();
       if (dia < hoje) return "Atrasadas";
@@ -440,8 +484,10 @@ function VisaoEmLista({
   pessoas,
   agentes,
   vazio,
+  fuso,
   aoMudar,
 }: {
+  fuso: string | undefined;
   tarefas: Tarefa[];
   nomes: Record<string, string>;
   resumo: Record<string, { total: number; prontas: number }>;
@@ -460,20 +506,24 @@ function VisaoEmLista({
     if (!agruparPor) return [["", tarefas]] as [string, Tarefa[]][];
     const mapa = new Map<string, Tarefa[]>();
     for (const t of tarefas) {
-      const g = grupoDe(t, agruparPor, nomes, statusDoProjeto, listas);
+      const g = grupoDe(t, fuso, agruparPor, nomes, statusDoProjeto, listas);
       mapa.set(g, [...(mapa.get(g) ?? []), t]);
     }
     const ordem = ORDEM_DOS_GRUPOS[agruparPor];
     return [...mapa.entries()].sort(([a], [b]) =>
       ordem ? ordem.indexOf(a) - ordem.indexOf(b) : a.localeCompare(b, "pt-BR"),
     );
-  }, [tarefas, agruparPor, nomes, statusDoProjeto, listas]);
+  }, [tarefas, fuso, agruparPor, nomes, statusDoProjeto, listas]);
 
   /** Muda as tarefas marcadas, uma por uma, pelas rotas de sempre (cada uma com permissão, trava e auditoria). */
   async function emMassa(mudanca: (id: string) => Promise<{ ok: boolean }>) {
     const ids = [...marcadas];
     let certas = 0;
-    for (const id of ids) if ((await mudanca(id)).ok) certas += 1;
+    // Cinco de cada vez: rápido sem sobrecarregar a API.
+    for (let i = 0; i < ids.length; i += 5) {
+      const lote = await Promise.all(ids.slice(i, i + 5).map(mudanca));
+      certas += lote.filter((r) => r.ok).length;
+    }
     setMarcadas(new Set());
     const recusadas = ids.length - certas;
     aoMudar(
@@ -772,6 +822,7 @@ function VisaoCalendario({
   dias,
   referencia,
   modo,
+  fuso,
   podeEditar,
   aoMudarModo,
   aoNavegar,
@@ -782,6 +833,7 @@ function VisaoCalendario({
   dias: string[];
   referencia: Date;
   modo: "mes" | "semana";
+  fuso: string | undefined;
   podeEditar: boolean;
   aoMudarModo: (m: "mes" | "semana") => void;
   aoNavegar: (passo: number) => void;
@@ -789,16 +841,23 @@ function VisaoCalendario({
 }) {
   const [sobre, setSobre] = useState<string | null>(null);
   const todas = [...tarefas, ...semPrazo];
-  const doDia = (dia: string) => tarefas.filter((t) => diaNoCalendario(t) === dia);
+  const doDia = (dia: string) => tarefas.filter((t) => diaNoCalendario(t, fuso) === dia);
   const mesDaReferencia = referencia.getMonth() + 1;
 
   /** Arrastar para um dia muda o prazo para ele (a hora e o fuso continuam os mesmos). */
   async function aoSoltar(id: string, dia: string) {
     const t = todas.find((x) => x.id === id);
-    if (!t || diaNoCalendario(t) === dia) return;
-    const r = await planejarTarefa(id, {
-      prazo: { dia, ...(t.prazo ? { hora: t.prazo.hora, fuso: t.prazo.fuso } : {}) },
-    });
+    if (!t || diaNoCalendario(t, fuso) === dia) return;
+    // Com hora: a mesma hora que a pessoa vê, no fuso dela, no dia novo (o cartão cai onde foi solto).
+    const prazo =
+      t.prazo?.hora != null
+        ? fuso
+          ? { dia, hora: partesNoFuso(new Date(t.prazo.em), fuso).hora, fuso }
+          : { dia, hora: t.prazo.hora, fuso: t.prazo.fuso }
+        : t.prazo
+          ? { dia, fuso: t.prazo.fuso }
+          : { dia };
+    const r = await planejarTarefa(id, { prazo });
     aoMudar(r.ok ? null : { tipo: "erro", texto: r.mensagem ?? "Não foi possível mudar o prazo." });
   }
 
