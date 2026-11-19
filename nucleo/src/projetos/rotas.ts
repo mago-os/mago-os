@@ -296,7 +296,8 @@ export function registrarRotasDosProjetos(
           membros: v.membros ?? comuns,
           gerenteRecebeSemResponsavel:
             v.gerenteRecebeSemResponsavel ??
-            (antes.gerenteRecebeSemResponsavel && (v.gerente ?? antes.gerente) !== null),
+            (antes.gerenteRecebeSemResponsavel &&
+              (v.gerente !== undefined ? v.gerente : antes.gerente) !== null),
           inicio: v.inicio !== undefined ? v.inicio : antes.inicio,
           fim: v.fim !== undefined ? v.fim : antes.fim,
           situacao: v.situacao ?? antes.situacao,
@@ -313,7 +314,8 @@ export function registrarRotasDosProjetos(
         if (v.membros !== undefined) mudou.add("membros");
         const recusa = await pessoasRecusadas(c, dados, mudou);
         if (recusa) return { recusa };
-        return { antes, projeto: await editarProjeto(c, id, dados), mudou };
+        const regravar = mudou.size > 0;
+        return { antes, projeto: await editarProjeto(c, id, dados, regravar), mudou };
       });
       if (!feito) return projetoNaoEncontrado(resposta);
       if ("recusa" in feito) return recusado(resposta, feito.recusa);

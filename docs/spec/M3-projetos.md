@@ -1,6 +1,6 @@
 # Spec da Fase 1: M3 Projetos e tarefas completos
 
-Parte da [spec da Fase 1](README.md). Estado em 19/11/2026: **aprovado** pelo Sandro, com todas as recomendações (inclusive a M3-11 e os eventos da agenda simples no M5). Em construção.
+Parte da [spec da Fase 1](README.md). Estado em 19/11/2026: **aprovado** pelo Sandro, com todas as recomendações (inclusive a M3-11 e os eventos da agenda simples no M5). Em construção: M3-01 pronta em 19/11/2026.
 
 **Pronto quando:** a Nolask organiza um projeto real no Mago OS (sugestão: a própria construção do Mago OS, com as tarefas do M4), com espaço, projeto, diretor e gerente, listas, subtarefas, prazos e etiquetas, e acompanha pelo Kanban, pela lista e pelo calendário. Uma menção a uma pessoa chega no sino e no celular, um anexo passa pelo antivírus antes de abrir, a central de prioridades mostra o que vence hoje e o Ctrl+K acha a tarefa pelo nome. Os testes provam que uma empresa não vê projetos, anexos, notificações nem resultados de busca da outra.
 
@@ -28,17 +28,17 @@ A ordem da tabela é a ordem de construção. A M3-02 da tabela original ("Lista
 
 Precisa da aprovação do Sandro (contratos novos e quem vê o quê).
 
-- [ ] Contratos de espaço e de projeto (nome, descrição, cor, situação ativo ou arquivado; no projeto, diretor, gerente, membros e datas opcionais de início e fim)
-- [ ] Tabelas `espacos`, `projetos` e `membros_de_projeto`, com `empresa_id`, RLS e marcas de coluna
-- [ ] Diretor do projeto: sempre uma pessoa da empresa, obrigatório. Gerente: uma pessoa ou um agente, opcional. Os dois entram como membros automaticamente
-- [ ] Quem vê o quê (decisão 1): administrador e gestor veem todos os projetos; o funcionário vê os projetos em que é membro e as tarefas deles, além das próprias tarefas como hoje
-- [ ] Espaço e projeto entram no catálogo de permissões (módulo "projetos": ver, criar, editar, arquivar). Criar espaço é do administrador; criar projeto, do administrador e do gestor; o diretor edita o próprio projeto e os membros dele
-- [ ] A tarefa ganha o projeto, que é opcional (decisão 2): as tarefas do M2 continuam valendo como "Sem projeto", e mudar a tarefa de projeto vai para a auditoria
-- [ ] O gerente agente, no M3, é só o papel: recebe as tarefas do projeto que ninguém pegou, se o diretor quiser (opção no projeto), e vê todas as tarefas do projeto pelo MCP. Planejar e acompanhar sozinho vem com os agentes internos (M4)
-- [ ] Arquivar espaço ou projeto esconde das listas sem apagar nada; excluir de vez só o administrador, e só projeto sem tarefas
-- [ ] Eventos de auditoria: `espaco.criou`, `espaco.editou`, `espaco.arquivou`, `projeto.criou`, `projeto.editou`, `projeto.arquivou`, `projeto.trocou_diretor`, `projeto.trocou_gerente`, `projeto.mudou_membros`, `tarefa.mudou_projeto`
-- [ ] Tela Projetos: espaços com os projetos dentro, página do projeto com diretor, gerente, membros e tarefas, pensada primeiro para o celular
-- [ ] Testes de vazamento: uma empresa não vê espaços, projetos nem membros da outra, e o funcionário não vê projeto em que não é membro
+- [x] Contratos de espaço e de projeto (nome, descrição, cor, situação ativo ou arquivado; no projeto, diretor, gerente, membros e datas opcionais de início e fim)
+- [x] Tabelas `espacos`, `projetos` e `membros_de_projeto`, com `empresa_id`, RLS e marcas de coluna
+- [x] Diretor do projeto: sempre uma pessoa da empresa, obrigatório. Gerente: uma pessoa ou um agente, opcional. Os dois entram como membros automaticamente
+- [x] Quem vê o quê (decisão 1): administrador e gestor veem todos os projetos e as tarefas deles; o funcionário vê os projetos em que é membro e as tarefas deles, além das próprias tarefas como hoje. Ser membro também deixa mexer nas tarefas do projeto (não excluir nem destravar)
+- [x] Espaço e projeto entram no catálogo de permissões (ajuste na codificação: dois módulos, "espacos" com ver, criar e editar, e "projetos" com ver, criar, editar e excluir; arquivar fica dentro de editar). Criar espaço é do administrador; criar e editar projeto, do administrador e do gestor; o diretor edita o próprio projeto e os membros dele; trocar o diretor, só quem edita todos os projetos
+- [x] A tarefa ganha o projeto, que é opcional (decisão 2): as tarefas do M2 continuam valendo como "Sem projeto", e mudar a tarefa de projeto vai para a auditoria
+- [x] O gerente agente, no M3, é só o papel: recebe as tarefas do projeto que ninguém pegou, se o diretor quiser (opção no projeto), e vê todas as tarefas do projeto pelo MCP (em `ver_tarefa`; a lista `minhas_tarefas` continua só com as dele, e ele não mexe nas tarefas dos outros). Planejar e acompanhar sozinho vem com os agentes internos (M4)
+- [x] Arquivar espaço ou projeto esconde das listas sem apagar nada; excluir de vez só o administrador, e só projeto sem tarefas
+- [x] Eventos de auditoria: `espaco.criou`, `espaco.editou`, `espaco.arquivou`, `projeto.criou`, `projeto.editou`, `projeto.arquivou`, `projeto.trocou_diretor`, `projeto.trocou_gerente`, `projeto.mudou_membros`, `tarefa.mudou_projeto`
+- [x] Tela Projetos: espaços com os projetos dentro, página do projeto com diretor, gerente, membros e tarefas, pensada primeiro para o celular
+- [x] Testes de vazamento: uma empresa não vê espaços, projetos nem membros da outra, e o funcionário não vê projeto em que não é membro
 
 Pronto quando: o Sandro cria o espaço "Operações" e o projeto "Construção do Mago OS", com ele de diretor e o Claude no Mac de gerente, põe uma pessoa de teste como membro, e o funcionário de teste fora do projeto não vê as tarefas dele.
 

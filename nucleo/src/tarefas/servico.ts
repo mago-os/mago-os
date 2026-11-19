@@ -10,13 +10,14 @@ import type pg from "pg";
 import type { Filtro } from "../permissoes/calcular.ts";
 
 /**
- * Quem está pedindo: uma pessoa (com o alcance da ação) ou um agente (as tarefas dele e, se for gerente, as do
- * projeto, M3-01). "projetos" diz quais projetos a pessoa alcança além do alcance da ação: "todos" (quem vê todos
- * os projetos, só para ver) ou "membro" (os projetos em que é diretora, gerente ou membro).
+ * Quem está pedindo: uma pessoa (com o alcance da ação) ou um agente (as tarefas dele, M2-03).
+ * "projetos" diz quais projetos a pessoa alcança além do alcance da ação (M3-01): "todos" (quem vê todos os
+ * projetos, só para ver), "membro" (os projetos em que é diretora, gerente ou membro, para ver e editar) ou
+ * "nenhum". "comoGerente": só para ver, o agente alcança também as tarefas do projeto que gerencia.
  */
 export type Quem =
-  | { tipo: "pessoa"; pessoaId: string; filtro: Filtro; projetos?: "todos" | "membro" }
-  | { tipo: "agente"; agenteId: string };
+  | { tipo: "pessoa"; pessoaId: string; filtro: Filtro; projetos?: "todos" | "membro" | "nenhum" }
+  | { tipo: "agente"; agenteId: string; comoGerente?: boolean };
 
 export function autorDe(quem: Quem): Autor {
   return quem.tipo === "pessoa"
@@ -28,11 +29,12 @@ export function autorDe(quem: Quem): Autor {
 export function condicaoDeAlcance(quem: Quem, jaUsados: number): { sql: string; valores: string[] } {
   const p = (n: number) => `$${jaUsados + n + 1}`;
   if (quem.tipo === "agente") {
-    // O gerente agente vê e mexe nas tarefas do projeto dele (M3-01); a trava continua valendo.
+    const dele = `(t.responsavel_agente_id = ${p(0)} or t.travada_por_agente_id = ${p(0)})`;
+    if (!quem.comoGerente) return { sql: dele, valores: [quem.agenteId] };
+    // Só para ver: o gerente agente enxerga as tarefas do projeto dele (M3-01), sem poder mexer nas dos outros.
     return {
-      sql: `(t.responsavel_agente_id = ${p(0)} or t.travada_por_agente_id = ${p(0)}
-             or exists (select 1 from projetos pr where pr.id = t.projeto_id and pr.empresa_id = t.empresa_id
-                         and pr.gerente_agente_id = ${p(0)}))`,
+      sql: `(${dele} or exists (select 1 from projetos pr where pr.id = t.projeto_id
+             and pr.empresa_id = t.empresa_id and pr.gerente_agente_id = ${p(0)}))`,
       valores: [quem.agenteId],
     };
   }
@@ -43,7 +45,9 @@ export function condicaoDeAlcance(quem: Quem, jaUsados: number): { sql: string; 
   const doProjeto =
     quem.projetos === "todos"
       ? "t.projeto_id is not null"
-      : `(t.projeto_id is not null and membro_do_projeto(t.projeto_id, ${p(0)}))`;
+      : quem.projetos === "membro"
+        ? `(t.projeto_id is not null and membro_do_projeto(t.projeto_id, ${p(0)}))`
+        : "false";
   const { filtro } = quem;
   if (filtro.tipo === "tudo") return { sql: "true", valores: [] };
   if (filtro.tipo === "meus") return { sql: `(${meus} or ${doProjeto})`, valores: [filtro.pessoaId] };

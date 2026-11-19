@@ -71,13 +71,15 @@ const invalido = (resposta: FastifyReply, problemas: unknown) =>
  */
 function quemDoPedido(pedido: FastifyRequest): Quem {
   const { sessao, filtro, acao, permissoes } = acessoDo(pedido);
-  const veTodosProjetos = permissoes.modulos.get("projetos")?.acoes.ver === "tudo";
-  return {
-    tipo: "pessoa",
-    pessoaId: sessao.pessoa.id,
-    filtro,
-    projetos: acao === "ver" && veTodosProjetos ? "todos" : "membro",
-  };
+  const verProjetos = permissoes.modulos.get("projetos")?.acoes.ver ?? "nada";
+  // Ser membro do projeto vale para ver e mexer nas tarefas dele, não para excluir nem destravar.
+  const projetos =
+    verProjetos === "nada" || (acao !== "ver" && acao !== "editar")
+      ? "nenhum"
+      : acao === "ver" && verProjetos === "tudo"
+        ? "todos"
+        : "membro";
+  return { tipo: "pessoa", pessoaId: sessao.pessoa.id, filtro, projetos };
 }
 
 /** Até onde a pessoa alcança os projetos para pôr uma tarefa neles: o "ver" do módulo projetos. */

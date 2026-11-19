@@ -34,7 +34,7 @@ const PADRAO_DO_NUCLEO: Record<
     tarefas: { ver: "equipe", criar: "equipe", editar: "equipe" },
     agentes: { ver: "tudo" },
     espacos: { ver: "tudo" },
-    projetos: { ver: "tudo", criar: "tudo", editar: "meus" },
+    projetos: { ver: "tudo", criar: "tudo", editar: "tudo" },
   },
   funcionario: {
     pessoas: { ver: "meus" },

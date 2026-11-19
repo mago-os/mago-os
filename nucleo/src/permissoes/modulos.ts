@@ -47,9 +47,9 @@ export const MODULOS_DO_NUCLEO: readonly DeclaracaoDeModulo[] = [
     temDadosSensiveis: false,
     area: null,
   },
-  // Projetos (M3-01): o administrador e o gestor veem todos; o funcionário, os que é membro. Criar é do
-  // administrador e do gestor; editar (e arquivar), do diretor do projeto e do administrador; excluir, só o
-  // administrador. "Meus" nos projetos: ver = sou membro; editar = sou o diretor.
+  // Projetos (M3-01): o administrador e o gestor veem todos; o funcionário, os que é membro. Criar e editar (e
+  // arquivar) são do administrador e do gestor, e o diretor edita o próprio projeto; excluir, só o administrador.
+  // "Meus" nos projetos: ver = sou membro; editar = sou o diretor.
   {
     id: "projetos",
     nome: "Projetos",

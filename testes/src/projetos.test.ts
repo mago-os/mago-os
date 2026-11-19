@@ -265,12 +265,17 @@ describe.skipIf(!bancoDisponivel)("espaços e projetos", () => {
     expect(r.json().code).toBe("PROJETO_INVALIDO");
   });
 
-  it("o gerente agente alcança as tarefas do projeto, mas a lista dele é só a dele", async () => {
+  it("o gerente agente vê as tarefas do projeto, mas só mexe nas dele", async () => {
     const quem = { tipo: "agente" as const, agenteId };
     const lista = await comEmpresa(poolApp, empresaId, (c) => listarTarefas(c, quem, {}));
     expect(lista.map((t) => t.titulo)).toEqual(["Sem dono"]);
-    const vista = await comEmpresa(poolApp, empresaId, (c) => buscarTarefa(c, quem, tarefaDoProjeto));
+    const vista = await comEmpresa(poolApp, empresaId, (c) =>
+      buscarTarefa(c, { ...quem, comoGerente: true }, tarefaDoProjeto),
+    );
     expect(vista?.titulo).toBe("Planejar o M4");
+    // Para mexer (pegar, mudar o status), a tarefa da Ana não está ao alcance dele.
+    const paraMexer = await comEmpresa(poolApp, empresaId, (c) => buscarTarefa(c, quem, tarefaDoProjeto));
+    expect(paraMexer).toBeNull();
     expect(tarefaSemResponsavel).not.toBe("");
   });
 
@@ -307,6 +312,25 @@ describe.skipIf(!bancoDisponivel)("espaços e projetos", () => {
       [projeto],
     );
     expect(eventos.rows.map((e) => e.acao)).toEqual(["projeto.criou", "projeto.mudou_membros"]);
+  });
+
+  it("tirar o gerente desliga sozinho o recebimento das tarefas sem responsável", async () => {
+    const ana = await como("ana@teste.invalid");
+    const r = await pedir("POST", `/projetos/${projeto}`, ana, { gerente: null });
+    expect(r.statusCode).toBe(200);
+    expect(r.json().gerente).toBeNull();
+    expect(r.json().gerenteRecebeSemResponsavel).toBe(false);
+  });
+
+  it("ser membro não dá o direito de excluir a tarefa de outro", async () => {
+    const fabio = await como("fabio@teste.invalid");
+    await dono.query(
+      `insert into ajustes_de_permissao (empresa_id, vinculo_id, modulo, acao, alcance, feito_por)
+       select v.empresa_id, v.id, 'tarefas', 'excluir', 'meus', $2 from vinculos v
+        where v.pessoa_id = $1 and v.empresa_id = $3`,
+      [ids.fabio, ids.ana, empresaId],
+    );
+    expect((await pedir("DELETE", `/tarefas/${tarefaDoProjeto}`, fabio)).statusCode).toBe(404);
   });
 
   it("projeto com tarefas não se exclui, mas se arquiva", async () => {

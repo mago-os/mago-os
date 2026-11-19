@@ -186,7 +186,7 @@ export async function buscarProjeto(
   const r = await c.query<LinhaDoProjeto>(
     `select ${COLUNAS_DO_PROJETO} from projetos p
       where p.id = $2 and p.empresa_id = empresa_ativa() and ${condicaoDoProjeto(alcance, 1)}
-      ${paraMudar ? "for update of p" : ""}`,
+      ${paraMudar ? "for no key update of p" : ""}`,
     [pessoaId, id],
   );
   return r.rows[0] ? paraProjeto(r.rows[0]) : null;
@@ -221,25 +221,26 @@ export function membrosComuns(d: Pick<DadosDoProjeto, "diretorId" | "gerente" | 
   });
 }
 
+/** Deixa os membros comuns iguais à lista: apaga só quem saiu e acrescenta só quem entrou. */
 async function gravarMembros(c: pg.PoolClient, projetoId: string, membros: Responsavel[]): Promise<void> {
-  await c.query("delete from membros_de_projeto where projeto_id = $1 and empresa_id = empresa_ativa()", [
-    projetoId,
-  ]);
-  if (membros.length === 0) return;
+  const pessoas = membros.flatMap((m) => (m.tipo === "pessoa" ? [m.pessoaId] : []));
+  const agentes = membros.flatMap((m) => (m.tipo === "agente" ? [m.agenteId] : []));
   await c.query(
-    `insert into membros_de_projeto (empresa_id, projeto_id, pessoa_id, agente_id)
-     select empresa_ativa(), $1, m.pessoa_id, m.agente_id
-       from json_to_recordset($2::json) as m(pessoa_id uuid, agente_id uuid)`,
-    [
-      projetoId,
-      JSON.stringify(
-        membros.map((m) =>
-          m.tipo === "pessoa"
-            ? { pessoa_id: m.pessoaId, agente_id: null }
-            : { pessoa_id: null, agente_id: m.agenteId },
-        ),
-      ),
-    ],
+    `delete from membros_de_projeto where projeto_id = $1 and empresa_id = empresa_ativa()
+        and not (coalesce(pessoa_id = any($2::uuid[]), false) or coalesce(agente_id = any($3::uuid[]), false))`,
+    [projetoId, pessoas, agentes],
+  );
+  await c.query(
+    `insert into membros_de_projeto (empresa_id, projeto_id, pessoa_id)
+     select empresa_ativa(), $1, x from unnest($2::uuid[]) as x
+      where not exists (select 1 from membros_de_projeto m where m.projeto_id = $1 and m.pessoa_id = x)`,
+    [projetoId, pessoas],
+  );
+  await c.query(
+    `insert into membros_de_projeto (empresa_id, projeto_id, agente_id)
+     select empresa_ativa(), $1, x from unnest($2::uuid[]) as x
+      where not exists (select 1 from membros_de_projeto m where m.projeto_id = $1 and m.agente_id = x)`,
+    [projetoId, agentes],
   );
 }
 
@@ -273,7 +274,13 @@ export async function criarProjeto(c: pg.PoolClient, d: DadosDoProjeto): Promise
   return (await buscarProjeto(c, d.diretorId, "todos", id)) as Projeto;
 }
 
-export async function editarProjeto(c: pg.PoolClient, id: string, d: DadosDoProjeto): Promise<Projeto> {
+export async function editarProjeto(
+  c: pg.PoolClient,
+  id: string,
+  d: DadosDoProjeto,
+  /** Só regrava os membros quando diretor, gerente ou a lista mudaram. */
+  regravarMembros = true,
+): Promise<Projeto> {
   const [gPessoa, gAgente] = colunasDoGerente(d.gerente);
   await c.query(
     `update projetos set espaco_id = $2, nome = $3, descricao = $4, cor = $5, diretor_id = $6,
@@ -295,7 +302,7 @@ export async function editarProjeto(c: pg.PoolClient, id: string, d: DadosDoProj
       d.situacao,
     ],
   );
-  await gravarMembros(c, id, membrosComuns(d));
+  if (regravarMembros) await gravarMembros(c, id, membrosComuns(d));
   return (await buscarProjeto(c, d.diretorId, "todos", id)) as Projeto;
 }
 

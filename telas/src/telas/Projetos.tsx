@@ -94,7 +94,7 @@ export function Projetos({
   const ultimoPedido = useRef(0);
   const carregar = useCallback(async () => {
     const numero = ++ultimoPedido.current;
-    const [e, p] = await Promise.all([listarEspacos(arquivados), listarProjetos({ arquivados })]);
+    const [e, p] = await Promise.all([listarEspacos(true), listarProjetos({ arquivados })]);
     if (numero !== ultimoPedido.current) return;
     if (e.ok && e.dados && p.ok && p.dados) {
       setEspacos(e.dados.espacos);
@@ -173,6 +173,8 @@ export function Projetos({
       )}
       {espacos?.map((e) => {
         const doEspaco = (lista?.projetos ?? []).filter((p) => p.espacoId === e.id);
+        // Espaço arquivado só aparece com o filtro, ou quando ainda tem projeto ativo dentro.
+        if (e.situacao === "arquivado" && !arquivados && doEspaco.length === 0) return null;
         return (
           <section key={e.id} className="grid gap-2" aria-label={e.nome}>
             <div className="flex items-center gap-2">
@@ -507,8 +509,14 @@ export function PaginaDoProjeto({
   useAoVoltar(carregar);
   const [destaques, destacar] = useDestaques();
   useTempoReal((aviso) => {
-    if (aviso.tipo === "reconectou" || (aviso.tipo === "projeto" && aviso.id === id)) void carregar();
-    if (aviso.tipo === "tarefa") {
+    if (aviso.tipo === "reconectou") void carregar();
+    // O projeto, o espaço dele, ou uma tarefa nova ou desta lista mudou.
+    if (aviso.tipo === "projeto" && (aviso.id === id || aviso.id === aberto?.projeto.espacoId))
+      void carregar();
+    if (
+      aviso.tipo === "tarefa" &&
+      (aviso.operacao === "insert" || tarefas?.tarefas.some((t) => t.id === aviso.id))
+    ) {
       void carregar();
       destacar(aviso.id);
     }
