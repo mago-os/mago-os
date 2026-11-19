@@ -10,19 +10,7 @@ Detalhado em [M2-prova.md](M2-prova.md) (18/11/2026).
 
 ## M3 Projetos e tarefas completos
 
-Pronto quando: a Nolask organiza um projeto real no Mago OS, com Kanban, lista e calendário.
-
-| Número | Tarefa |
-| --- | --- |
-| M3-01 | Espaços e projetos, com diretor e gerente |
-| M3-02 | Listas, subtarefas, checklist, prioridade, prazo, etiquetas e recorrência |
-| M3-03 | Visões em lista, Kanban e calendário, com filtros salvos |
-| M3-04 | Linha do tempo: comentários, notas internas e menções a pessoas e agentes |
-| M3-05 | Anexos guardados no R2, com antivírus ClamAV |
-| M3-06 | Notificações: sino na tela e push |
-| M3-07 | Central de prioridades básica: aprovações, menções e prazos |
-| M3-08 | Busca Ctrl+K |
-| M3-09 | Painéis encaixáveis com layout salvo por usuário |
+Detalhado em [M3-projetos.md](M3-projetos.md) (aprovado em 19/11/2026). A M3-02 original virou duas, e entrou a proposta da M3-11 (tela "Dados da empresa").
 
 ## M4 Agentes internos e regras
 
@@ -41,6 +29,8 @@ Pronto quando: o coordenador recebe um pedido, passa ao especialista e pede apro
 | M4-09 | Botão "Parar todos os agentes", com 2FA, motivo e retomada |
 
 ## M5 Telegram e rotinas
+
+Aprovado em 19/11/2026 (decisão 8 do M3): os eventos da agenda simples da Fase 1 (eventos, prazos das tarefas e alertas no app e no Telegram) entram neste marco, numa tarefa a numerar quando o M5 for detalhado.
 
 Pronto quando: o Sandro cria uma tarefa e aprova um pedido pelo Telegram, e uma rotina roda sozinha no horário.
 
