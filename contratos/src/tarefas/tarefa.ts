@@ -3,7 +3,7 @@
  * resultado entregue ao concluir.
  *
  * O formato já traz a trava (M2-02): quem pegou a tarefa e desde quando. Assim os contratos de tarefa
- * passam por uma aprovação só. Espaços, projetos, listas, prazos e etiquetas vêm no M3.
+ * passam por uma aprovação só. O projeto entrou na M3-01; listas, prazos e etiquetas vêm na M3-02 e na M3-03.
  */
 import { type Static, Type } from "typebox";
 import { conferir, DataHora, Id, OuNulo, type Problema, type Regra, Texto } from "../comum.ts";
@@ -76,6 +76,8 @@ export const Tarefa = Type.Object(
     empresaId: Id,
     titulo: Titulo,
     descricao: OuNulo(Descricao),
+    /** Projeto da tarefa (M3-01). Nulo: "Sem projeto" (decisão do Sandro em 19/11/2026). */
+    projetoId: OuNulo(Id),
     status: StatusTarefa,
     responsavel: OuNulo(Responsavel),
     criadaPor: Autor,
@@ -153,6 +155,7 @@ export const PedidoDeTarefa = Type.Object(
     titulo: Titulo,
     descricao: Type.Optional(OuNulo(Descricao)),
     responsavel: Type.Optional(OuNulo(Responsavel)),
+    projetoId: Type.Optional(OuNulo(Id)),
   },
   { additionalProperties: false },
 );
@@ -195,6 +198,8 @@ export const FiltroDeTarefas = Type.Object(
   {
     minhas: Type.Optional(Type.Boolean()),
     status: Type.Optional(Type.Array(StatusTarefa, { minItems: 1, uniqueItems: true })),
+    /** Um projeto, ou "sem" para as tarefas sem projeto (M3-01). */
+    projetoId: Type.Optional(Type.Union([Id, Type.Literal("sem")])),
   },
   { additionalProperties: false },
 );

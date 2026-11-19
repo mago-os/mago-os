@@ -87,6 +87,8 @@ export function linhaParaTarefa(l: LinhaDaTarefa): Tarefa {
     empresaId: l.empresa_id,
     titulo: l.titulo,
     descricao: l.descricao,
+    // M3-01: a coluna do projeto entra com a migração da tarefa, depois do contrato aprovado.
+    projetoId: null,
     status: l.status,
     responsavel: responsavelDe(l.responsavel_pessoa_id, l.responsavel_agente_id),
     criadaPor: autorDaLinha(l.criada_por_pessoa_id, l.criada_por_agente_id),

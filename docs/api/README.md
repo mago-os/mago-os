@@ -45,6 +45,7 @@ Devolve:
 - `empresaId` (id, obrigatório): Identificador (UUID).
 - `titulo` (string, obrigatório): O que precisa ser feito, numa linha.
 - `descricao` (string ou null, obrigatório)
+- `projetoId` (id ou null, obrigatório)
 - `status` ("a_fazer" | "em_andamento" | "precisa_de_ajuda" | "concluida" | "cancelada", obrigatório): a_fazer, em_andamento, precisa_de_ajuda, concluida ou cancelada. Concluída e cancelada encerram a tarefa.
 - `responsavel` (objeto ou objeto ou null, obrigatório)
 - `criadaPor` (objeto ou objeto ou objeto, obrigatório): Pessoa, agente ou o próprio sistema.
@@ -70,6 +71,7 @@ Devolve:
 - `empresaId` (id, obrigatório): Identificador (UUID).
 - `titulo` (string, obrigatório): O que precisa ser feito, numa linha.
 - `descricao` (string ou null, obrigatório)
+- `projetoId` (id ou null, obrigatório)
 - `status` ("a_fazer" | "em_andamento" | "precisa_de_ajuda" | "concluida" | "cancelada", obrigatório): a_fazer, em_andamento, precisa_de_ajuda, concluida ou cancelada. Concluída e cancelada encerram a tarefa.
 - `responsavel` (objeto ou objeto ou null, obrigatório)
 - `criadaPor` (objeto ou objeto ou objeto, obrigatório): Pessoa, agente ou o próprio sistema.
@@ -114,6 +116,7 @@ Devolve:
 - `empresaId` (id, obrigatório): Identificador (UUID).
 - `titulo` (string, obrigatório): O que precisa ser feito, numa linha.
 - `descricao` (string ou null, obrigatório)
+- `projetoId` (id ou null, obrigatório)
 - `status` ("a_fazer" | "em_andamento" | "precisa_de_ajuda" | "concluida" | "cancelada", obrigatório): a_fazer, em_andamento, precisa_de_ajuda, concluida ou cancelada. Concluída e cancelada encerram a tarefa.
 - `responsavel` (objeto ou objeto ou null, obrigatório)
 - `criadaPor` (objeto ou objeto ou objeto, obrigatório): Pessoa, agente ou o próprio sistema.
@@ -139,6 +142,7 @@ Devolve:
 - `empresaId` (id, obrigatório): Identificador (UUID).
 - `titulo` (string, obrigatório): O que precisa ser feito, numa linha.
 - `descricao` (string ou null, obrigatório)
+- `projetoId` (id ou null, obrigatório)
 - `status` ("a_fazer" | "em_andamento" | "precisa_de_ajuda" | "concluida" | "cancelada", obrigatório): a_fazer, em_andamento, precisa_de_ajuda, concluida ou cancelada. Concluída e cancelada encerram a tarefa.
 - `responsavel` (objeto ou objeto ou null, obrigatório)
 - `criadaPor` (objeto ou objeto ou objeto, obrigatório): Pessoa, agente ou o próprio sistema.
@@ -199,6 +203,7 @@ Recebe:
 
 - `minhas` (boolean)
 - `status` (lista de "a_fazer" | "em_andamento" | "precisa_de_ajuda" | "concluida" | "cancelada")
+- `projetoId` (id ou "sem")
 
 ### POST `/tarefas`
 
@@ -207,6 +212,7 @@ Recebe:
 - `titulo` (string, obrigatório): O que precisa ser feito, numa linha.
 - `descricao` (string ou null)
 - `responsavel` (objeto ou objeto ou null)
+- `projetoId` (id ou null)
 
 ### POST `/tarefas/:id/status`
 

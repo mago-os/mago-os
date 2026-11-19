@@ -11,6 +11,7 @@ const tarefa = {
   empresaId: ID2,
   titulo: "Verificar backup da VPS01",
   descricao: null,
+  projetoId: null,
   status: "a_fazer",
   responsavel: { tipo: "agente", agenteId: ID },
   criadaPor: { tipo: "pessoa", pessoaId: ID },
