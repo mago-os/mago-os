@@ -18,6 +18,7 @@ import {
 import { BotaoDoTema, Casca, type ItemDoMenu, Logo } from "./componentes/Casca";
 import { EstadoDoSistema } from "./componentes/EstadoDoSistema";
 import { Mago } from "./componentes/Mago";
+import { Sino } from "./componentes/Sino";
 import { Button } from "./componentes/ui/button";
 import { Card } from "./componentes/ui/card";
 import { Entrar, RecuperarSenha, RedefinirSenha } from "./telas/Acesso";
@@ -292,6 +293,7 @@ export function App() {
       aoTrocarEmpresa={(id) => void aoTrocarEmpresa(id)}
       aoSair={() => void aoSair()}
       instalar={instalar ? () => void instalar.prompt() : null}
+      sino={temEmpresaAtiva ? <Sino /> : null}
     >
       <AvisosDeAcesso avisos={avisos} aoResponder={() => void carregarAvisos()} />
       {temEmpresaAtiva && <AvisosDoMago />}

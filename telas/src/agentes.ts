@@ -1,7 +1,14 @@
 /**
  * Conversa da tela com a Central de agentes (M2-03). Os formatos vêm dos contratos.
  */
-import type { Agente, Aviso, ChaveCriada, ChaveDeAgente } from "@mago-os/contratos";
+import type {
+  Agente,
+  Aviso,
+  ChaveCriada,
+  ChaveDeAgente,
+  PedidoDeAssinaturaDePush,
+  PreferenciasDeNotificacao,
+} from "@mago-os/contratos";
 import { pedir } from "./tarefas";
 
 export interface AgenteNaLista extends Agente {
@@ -39,5 +46,18 @@ export const revogarChave = (agenteId: string, chaveId: string) =>
 
 /** Avisos da própria pessoa (agente sem sinal, passou do limite, desligado). */
 export const listarMeusAvisos = () => pedir<Aviso[]>("GET", "/avisos");
+
+/** Notificações (M3-06): marcar todos como lidos, push neste aparelho e preferências. */
+export const marcarTodosComoLidos = () => pedir<{ ok: true }>("POST", "/avisos/lidos");
+export const lerNotificacoes = () =>
+  pedir<{ chavePublica: string | null; pushNesteAparelho: boolean; preferencias: PreferenciasDeNotificacao }>(
+    "GET",
+    "/notificacoes",
+  );
+export const ligarPush = (dados: PedidoDeAssinaturaDePush) =>
+  pedir<{ ok: true }>("POST", "/notificacoes/push", dados);
+export const desligarPush = () => pedir<{ ok: true }>("DELETE", "/notificacoes/push");
+export const salvarPreferenciasDeNotificacao = (p: PreferenciasDeNotificacao) =>
+  pedir<PreferenciasDeNotificacao>("POST", "/notificacoes/preferencias", p);
 export const marcarAvisoComoLido = (id: string) =>
   pedir<{ ok: true }>("POST", `/avisos/${encodeURIComponent(id)}/lido`);

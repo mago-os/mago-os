@@ -68,6 +68,8 @@ export interface TarefaAberta {
   listas: { id: string; nome: string }[];
   /** O que aconteceu na tarefa, para a linha do tempo (M3-05). */
   acontecimentos: AcontecimentoDaTarefa[];
+  /** Quem pede segue a tarefa (M3-06). */
+  seguindo: boolean;
 }
 
 export function listarTarefas(filtro: { minhas: boolean; status: StatusTarefa[]; projetoId?: string }) {
@@ -167,6 +169,10 @@ export const comentarTarefa = (
   opcoes: { interna?: boolean; mencoes?: Responsavel[] } = {},
 ) =>
   pedir<ComentarioDeTarefa>("POST", `/tarefas/${encodeURIComponent(id)}/comentarios`, { texto, ...opcoes });
+
+/** Seguir e deixar de seguir a tarefa (M3-06). */
+export const seguirTarefa = (id: string, ligar: boolean) =>
+  pedir<{ seguindo: boolean }>(ligar ? "POST" : "DELETE", `/tarefas/${encodeURIComponent(id)}/seguir`);
 
 /** Edita o próprio comentário (até 15 minutos) e apaga (M3-05). */
 export const editarComentario = (id: string, comentarioId: string, texto: string) =>

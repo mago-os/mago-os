@@ -34,6 +34,8 @@ import type pg from "pg";
 import { origemDoPedido } from "../acesso/rotas.ts";
 import { agenteRecebeTarefas } from "../agentes/servico.ts";
 import { auditar } from "../auditoria/registrar.ts";
+import { avisarDepois, type EventoDeTarefa } from "../avisos/eventos.ts";
+import { deixarDeSeguir, segue, seguir } from "../avisos/notificacoes.ts";
 import { comEmpresa, comPessoa } from "../empresa.ts";
 import { acessoDo, type Verificador } from "../permissoes/verificar.ts";
 import { buscarLista, listarListas, listarStatus } from "../projetos/listas.ts";
@@ -184,6 +186,18 @@ export function registrarRotasDasTarefas(
   function naEmpresa<T>(pedido: FastifyRequest, trabalho: (c: pg.PoolClient) => Promise<T>) {
     const { sessao } = acessoDo(pedido);
     return comPessoa(poolApp, sessao.pessoa.id, sessao.empresaId, trabalho);
+  }
+
+  /** Os avisos e seguidores de um acontecimento (M3-06), depois da mudança. */
+  function avisar(pedido: FastifyRequest, e: EventoDeTarefa) {
+    const { sessao } = acessoDo(pedido);
+    return avisarDepois(
+      poolApp,
+      sessao.empresaId,
+      { tipo: "pessoa", pessoaId: sessao.pessoa.id },
+      e,
+      pedido.log,
+    );
   }
 
   async function registrar(
@@ -359,6 +373,7 @@ export function registrarRotasDasTarefas(
     });
     if (feito.mae)
       await registrar(pedido, "tarefa.criou_subtarefa", feito.mae, { subtarefaId: feito.tarefa.id });
+    await avisar(pedido, { tipo: "criou", tarefa: feito.tarefa });
     return resposta.code(201).send(feito.tarefa);
   });
 
@@ -374,6 +389,7 @@ export function registrarRotasDasTarefas(
       const status = tarefa.projetoId ? await listarStatus(c, tarefa.projetoId) : [];
       const listas = tarefa.projetoId ? await listarListas(c, tarefa.projetoId) : [];
       const acontecimentos = await listarAcontecimentos(c, tarefa.id);
+      const seguindo = await segue(c, tarefa.id, quem.pessoaId);
       const marcaram = checklist.flatMap((i) => (i.marcadoPor ? [i.marcadoPor] : []));
       return {
         tarefa,
@@ -383,6 +399,7 @@ export function registrarRotasDasTarefas(
         status,
         listas,
         acontecimentos,
+        seguindo,
         nomes: await nomesCitados(c, [
           ...acontecimentos.flatMap((a) =>
             a.autor.tipo === "pessoa"
@@ -485,9 +502,27 @@ export function registrarRotasDasTarefas(
           ocorrencia: feito.tarefa.ocorrencia + 1,
         });
       }
+      if (feito.pegou) await avisar(pedido, { tipo: "pegou", tarefa: feito.tarefa });
+      if (feito.mudou) await avisar(pedido, { tipo: "mudou_status", tarefa: feito.tarefa, de: feito.de });
       return feito.tarefa;
     },
   );
+
+  // Seguir e deixar de seguir (M3-06): quem vê a tarefa pode seguir e recebe os comentários dela.
+  const mudarSeguir = (ligar: boolean) => async (pedido: FastifyRequest, resposta: FastifyReply) => {
+    const { id } = pedido.params as { id: string };
+    const quem = quemDoPedido(pedido);
+    const ok = await naEmpresa(pedido, async (c) => {
+      const tarefa = await buscarTarefa(c, quem, id);
+      if (!tarefa) return false;
+      if (ligar) await seguir(c, tarefa.id, [quem.pessoaId]);
+      else await deixarDeSeguir(c, tarefa.id, quem.pessoaId);
+      return true;
+    });
+    return ok ? { seguindo: ligar } : naoEncontrada(resposta);
+  };
+  app.post("/tarefas/:id/seguir", { preHandler: verificador.exigir("tarefas", "ver") }, mudarSeguir(true));
+  app.delete("/tarefas/:id/seguir", { preHandler: verificador.exigir("tarefas", "ver") }, mudarSeguir(false));
 
   // Mudar de lista (M3-02), no mesmo projeto. A subtarefa segue a mãe e não muda sozinha.
   app.post(
@@ -738,9 +773,12 @@ export function registrarRotasDasTarefas(
         if (tarefa.trava && !travadaPorQuem(tarefa, quem)) return { travada: true as const };
         const recusa = await responsavelRecusado(c, r.valor.responsavel);
         if (recusa) return { recusa };
+        const chave = (x: Responsavel | null) =>
+          x === null ? "" : x.tipo === "pessoa" ? `p:${x.pessoaId}` : `a:${x.agenteId}`;
         return {
           tarefa: await trocarResponsavel(c, quem, tarefa, r.valor.responsavel),
           soltou: tarefa.trava !== null,
+          mudouResponsavel: chave(tarefa.responsavel) !== chave(r.valor.responsavel),
         };
       });
       if (!feito) return naoEncontrada(resposta);
@@ -752,6 +790,7 @@ export function registrarRotasDasTarefas(
         para: r.valor.responsavel,
       });
       if (feito.soltou) await registrar(pedido, "tarefa.soltou", id);
+      if (feito.mudouResponsavel) await avisar(pedido, { tipo: "trocou_responsavel", tarefa: feito.tarefa });
       return feito.tarefa;
     },
   );
@@ -840,6 +879,9 @@ export function registrarRotasDasTarefas(
           agentes: cm.mencoes.filter((m) => m.tipo === "agente").length,
         });
       }
+      const tarefaComentada = await naEmpresa(pedido, (c) => buscarTarefa(c, quem, id));
+      if (tarefaComentada)
+        await avisar(pedido, { tipo: "comentou", tarefa: tarefaComentada, comentario: cm });
       return resposta.code(201).send(cm);
     },
   );
@@ -922,6 +964,7 @@ export function registrarRotasDasTarefas(
         });
       }
       await registrar(pedido, "tarefa.pegou", id);
+      await avisar(pedido, { tipo: "pegou", tarefa: feito.tarefa });
       return feito.tarefa;
     },
   );

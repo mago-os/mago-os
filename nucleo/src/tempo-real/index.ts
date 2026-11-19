@@ -20,10 +20,12 @@ export const CANAL = "mago_mudancas";
 
 /** O que a tela recebe. "reconectou": avisos podem ter se perdido, busque tudo de novo. */
 export type AvisoDeMudanca =
-  | { tipo: "tarefa" | "agente" | "projeto"; id: string; operacao: "insert" | "update" | "delete" }
+  | { tipo: "tarefa" | "agente" | "projeto" | "aviso"; id: string; operacao: "insert" | "update" | "delete" }
   | { tipo: "reconectou" };
 
 interface Conexao {
+  /** Pessoa da conexão: o aviso de notificação (tipo "aviso") só vai para as conexões dela (M3-06). */
+  pessoaId: string;
   enviar(aviso: AvisoDeMudanca): void;
   fechar(codigo: number, motivo: string): void;
 }
@@ -115,15 +117,19 @@ export async function registrarTempoReal(app: FastifyInstance, o: OpcoesDoTempoR
       } catch {
         return;
       }
+      const tipo = aviso.tipo;
       if (
         !aviso.empresaId ||
-        (aviso.tipo !== "tarefa" && aviso.tipo !== "agente" && aviso.tipo !== "projeto") ||
+        (tipo !== "tarefa" && tipo !== "agente" && tipo !== "projeto" && tipo !== "aviso") ||
         !aviso.id
       )
         return;
       const operacao = aviso.operacao === "insert" || aviso.operacao === "delete" ? aviso.operacao : "update";
-      for (const c of porEmpresa.get(aviso.empresaId) ?? [])
-        c.enviar({ tipo: aviso.tipo, id: aviso.id, operacao });
+      for (const c of porEmpresa.get(aviso.empresaId) ?? []) {
+        // A notificação de uma pessoa (o id é a pessoa) não vai para as telas das outras.
+        if (tipo === "aviso" && c.pessoaId !== aviso.id) continue;
+        c.enviar({ tipo, id: aviso.id, operacao });
+      }
     },
     () => {
       for (const conjunto of porEmpresa.values()) for (const c of conjunto) c.enviar({ tipo: "reconectou" });
@@ -138,7 +144,7 @@ export async function registrarTempoReal(app: FastifyInstance, o: OpcoesDoTempoR
   /** A sessão ainda vale, com 2FA completo, e a pessoa tem vínculo ativo na empresa ativa. Devolve a empresa. */
   async function empresaDaSessao(
     pedido: FastifyRequest,
-  ): Promise<{ empresaId: string; sessaoId: string } | null> {
+  ): Promise<{ empresaId: string; sessaoId: string; pessoaId: string } | null> {
     const sessao = await sessaoDoPedido(o.login, o.poolAcesso, pedido);
     if (!sessao?.estado.completa || !sessao.empresaId) return null;
     const permissoes = await permissoesNaEmpresa(
@@ -147,7 +153,9 @@ export async function registrarTempoReal(app: FastifyInstance, o: OpcoesDoTempoR
       sessao.empresaId,
       o.verificador.catalogo,
     );
-    return permissoes ? { empresaId: sessao.empresaId, sessaoId: sessao.sessaoId } : null;
+    return permissoes
+      ? { empresaId: sessao.empresaId, sessaoId: sessao.sessaoId, pessoaId: sessao.pessoa.id }
+      : null;
   }
 
   await app.register(websocket, { options: { maxPayload: 1024 } });
@@ -169,6 +177,7 @@ export async function registrarTempoReal(app: FastifyInstance, o: OpcoesDoTempoR
       return;
     }
     const conexao: Conexao = {
+      pessoaId: inicio.pessoaId,
       enviar: (aviso) => {
         if (socket.readyState === socket.OPEN) socket.send(JSON.stringify(aviso));
       },

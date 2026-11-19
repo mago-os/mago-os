@@ -58,6 +58,19 @@ export interface Carteiro {
   }): Promise<void>;
   /** Aviso à pessoa responsável por um agente (M2-03: desligado; M2-04: sem sinal ou passou do limite). */
   enviarAvisoDeAgente?(dados: DadosDoAvisoDeAgente): Promise<void>;
+  /** Entrada em um aparelho novo (M3-06), além do aviso "Foi você?" nos outros aparelhos. */
+  enviarAparelhoNovo?(dados: DadosDoAparelhoNovo): Promise<void>;
+}
+
+export interface DadosDoAparelhoNovo {
+  para: string;
+  nome: string;
+  aparelho: string;
+  ip: string | null;
+  /** Data e hora já escritas no fuso da pessoa. */
+  quando: string;
+  /** Tela Meus aparelhos (pede o login normal; nunca entra sozinho). */
+  link: string;
 }
 
 export interface DadosDoAvisoDeAgente {
@@ -309,6 +322,14 @@ export function criarLogin(opcoes: OpcoesDoLogin, pool: pg.Pool) {
               });
               aparelhoId = aparelho.aparelhoId;
               if (aparelho.avisou) {
+                // E-mail de aparelho novo (M3-06): depois de salvar, sem segurar o login se o e-mail falhar.
+                void avisarAparelhoNovoPorEmail(
+                  pool,
+                  opcoes,
+                  sessao.userId,
+                  aparelho.nome,
+                  sessao.ipAddress ?? null,
+                );
                 await auditar(pool, {
                   empresaId: r.rows[0]?.empresa ?? null,
                   ator: { tipo: "pessoa", pessoaId: sessao.userId },
@@ -421,3 +442,40 @@ export type Login = ReturnType<typeof criarLogin>;
 
 /** Embaralha uma senha do mesmo jeito que o login (scrypt). Só para dados de teste: nunca em produção. */
 export { hashPassword as embaralharSenha } from "better-auth/crypto";
+
+/** Manda o e-mail de aparelho novo à própria pessoa (no fuso dela). Falhar só fica no registro. */
+async function avisarAparelhoNovoPorEmail(
+  pool: pg.Pool,
+  opcoes: { carteiro: Carteiro; urlPublica: string },
+  pessoaId: string,
+  aparelho: string,
+  ip: string | null,
+): Promise<void> {
+  try {
+    if (!opcoes.carteiro.enviarAparelhoNovo) return;
+    const r = await pool.query<{ nome: string; email: string; fuso_horario: string }>(
+      "select nome, email, fuso_horario from pessoas where id = $1",
+      [pessoaId],
+    );
+    const p = r.rows[0];
+    if (!p) return;
+    const quando = new Date().toLocaleString("pt-BR", {
+      timeZone: p.fuso_horario,
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+    await opcoes.carteiro.enviarAparelhoNovo({
+      para: p.email,
+      nome: p.nome,
+      aparelho,
+      ip,
+      quando,
+      link: `${new URL(opcoes.urlPublica).origin}/aparelhos`,
+    });
+  } catch {
+    // O aviso "Foi você?" nos outros aparelhos já ficou; o e-mail é um extra.
+  }
+}

@@ -101,7 +101,23 @@ export const ACOES_CHAVES = ["chave.criou", "chave.revogou", "chave.recusou"] as
  * Aviso para uma pessoa dentro do Mago OS (M2-04): o agente dela ficou sem sinal, passou do limite ou foi
  * desligado. Aparece no Início até ela marcar como lido; vai também por e-mail. Notificação push fica para o M3.
  */
-export const TIPOS_DE_AVISO = ["agente_sem_sinal", "agente_passou_do_limite", "agente_desligado"] as const;
+/**
+ * Tipos de aviso (notificação) para uma pessoa. Os de agente vêm da M2-04; os de tarefa, da M3-06: atribuída a
+ * mim, menção, comentário numa tarefa que sigo, resultado entregue numa tarefa que criei, pedido de ajuda, prazo
+ * vencendo hoje e prazo vencido.
+ */
+export const TIPOS_DE_AVISO = [
+  "agente_sem_sinal",
+  "agente_passou_do_limite",
+  "agente_desligado",
+  "tarefa_atribuida",
+  "mencao",
+  "comentario",
+  "resultado_entregue",
+  "precisa_de_ajuda",
+  "prazo_hoje",
+  "prazo_vencido",
+] as const;
 export const TipoDeAviso = Type.Enum(TIPOS_DE_AVISO);
 export type TipoDeAviso = Static<typeof TipoDeAviso>;
 

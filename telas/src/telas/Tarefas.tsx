@@ -28,6 +28,7 @@ import {
   mudarLista,
   mudarProjeto,
   mudarStatus,
+  seguirTarefa,
   type TarefaAberta,
   trocarResponsavel,
 } from "@/tarefas";
@@ -520,7 +521,17 @@ export function PaginaDaTarefa({
     <main className="mx-auto grid max-w-3xl gap-4 px-4 py-5 md:py-8">
       <Voltar />
       <div className="grid gap-2">
-        <h1 className="text-2xl font-bold tracking-tight text-pretty">{tarefa.titulo}</h1>
+        <div className="flex flex-wrap items-start justify-between gap-2">
+          <h1 className="text-2xl font-bold tracking-tight text-pretty">{tarefa.titulo}</h1>
+          {/* Seguir: recebe aviso dos comentários (M3-06). */}
+          <Button
+            variant="contorno"
+            size="pequeno"
+            onClick={() => void seguirTarefa(tarefa.id, !aberta.seguindo).then(() => carregar())}
+          >
+            {aberta.seguindo ? "Deixar de seguir" : "Seguir"}
+          </Button>
+        </div>
         {tarefa.tarefaMaeId && (
           <a
             href={`/tarefas/${tarefa.tarefaMaeId}`}
