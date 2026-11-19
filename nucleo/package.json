@@ -20,7 +20,9 @@
     "./tarefas": "./src/tarefas/index.ts",
     "./agentes": "./src/agentes/index.ts",
     "./tempo-real": "./src/tempo-real/index.ts",
-    "./avisos": "./src/avisos/index.ts"
+    "./avisos": "./src/avisos/index.ts",
+    "./mcp": "./src/mcp/index.ts",
+    "./documentar-api": "./src/documentar-api.ts"
   },
   "scripts": {
     "tipos": "tsc -p tsconfig.json",
@@ -30,13 +32,15 @@
     "banco:documentar": "node src/documentar-banco.ts",
     "plataforma:iniciar": "node src/plataforma.ts iniciar",
     "plataforma:senha": "node src/acesso/link-de-senha.ts",
-    "plataforma:desligar-2fa": "node src/acesso/desligar-dois-fatores.ts"
+    "plataforma:desligar-2fa": "node src/acesso/desligar-dois-fatores.ts",
+    "api:documentar": "node src/documentar-api.ts"
   },
   "dependencies": {
     "@better-auth/passkey": "catalog:",
     "@fastify/otel": "catalog:",
     "@fastify/websocket": "catalog:",
     "@mago-os/contratos": "workspace:*",
+    "@modelcontextprotocol/sdk": "catalog:",
     "@opentelemetry/api": "catalog:",
     "@opentelemetry/instrumentation-http": "catalog:",
     "@opentelemetry/instrumentation-pg": "catalog:",
@@ -45,7 +49,8 @@
     "fastify": "catalog:",
     "node-pg-migrate": "catalog:",
     "pg": "catalog:",
-    "pg-boss": "catalog:"
+    "pg-boss": "catalog:",
+    "typebox": "catalog:"
   },
   "devDependencies": {
     "@types/pg": "catalog:"

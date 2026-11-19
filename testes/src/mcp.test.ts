@@ -1,0 +1,204 @@
+/**
+ * Mago OS como servidor MCP (M2-05), de ponta a ponta com um cliente MCP de verdade (o SDK oficial) falando HTTP com
+ * o núcleo: lista as oito ferramentas, faz o ciclo da tarefa (listar, pegar, comentar, entregar), respeita a trava e
+ * a revogação da chave, e a chave de uma empresa não vê nada da outra.
+ */
+import { gerarChave } from "@mago-os/nucleo/agentes";
+import { type BancoTemporario, criarBancoTemporario } from "@mago-os/nucleo/banco-temporario";
+import { registrarServidorMcp } from "@mago-os/nucleo/mcp";
+import { Client } from "@modelcontextprotocol/sdk/client/index.js";
+import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
+import Fastify, { type FastifyInstance } from "fastify";
+import pg from "pg";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { bancoDisponivel } from "./preparar-banco.ts";
+
+const SITE = "https://teste.osmago.invalid";
+
+describe.skipIf(!bancoDisponivel)("servidor MCP", () => {
+  let banco: BancoTemporario;
+  let dono: pg.Client;
+  let poolApp: pg.Pool;
+  let app: FastifyInstance;
+  let endereco = "";
+  const empresas: Record<string, string> = {};
+  const agentes: Record<string, string> = {};
+  const chaves: Record<string, { chave: string; id: string }> = {};
+
+  async function criarEmpresaComAgente(nome: string, agente: string) {
+    const e = await dono.query<{ id: string }>("insert into empresas (nome) values ($1) returning id", [
+      nome,
+    ]);
+    const empresaId = e.rows[0]?.id as string;
+    const p = await dono.query<{ id: string }>(
+      "insert into pessoas (nome, email, email_verificado) values ($1, $2, true) returning id",
+      [`Dona da ${nome}`, `dona-${nome.toLowerCase()}@teste.invalid`],
+    );
+    const pessoaId = p.rows[0]?.id as string;
+    await dono.query(
+      `insert into vinculos (empresa_id, pessoa_id, perfil, situacao, convidado_em, entrou_em)
+       values ($1, $2, 'administrador', 'ativo', now(), now())`,
+      [empresaId, pessoaId],
+    );
+    const a = await dono.query<{ id: string }>(
+      "insert into agentes (empresa_id, nome, responsavel_id) values ($1, $2, $3) returning id",
+      [empresaId, agente, pessoaId],
+    );
+    const agenteId = a.rows[0]?.id as string;
+    const nova = gerarChave();
+    const k = await dono.query<{ id: string }>(
+      `insert into chaves_de_agente (empresa_id, agente_id, nome, prefixo, resumo, criada_por)
+       values ($1, $2, 'teste', $3, $4, $5) returning id`,
+      [empresaId, agenteId, nova.prefixo, nova.resumo, pessoaId],
+    );
+    empresas[nome] = empresaId;
+    agentes[nome] = agenteId;
+    chaves[nome] = { chave: nova.chave, id: k.rows[0]?.id as string };
+  }
+
+  async function conectar(chave: string): Promise<Client> {
+    const cliente = new Client({ name: "teste", version: "1.0.0" });
+    const transporte = new StreamableHTTPClientTransport(new URL(`${endereco}/mcp`), {
+      requestInit: { headers: { authorization: `Bearer ${chave}` } },
+    });
+    await cliente.connect(transporte);
+    return cliente;
+  }
+
+  type Resposta = {
+    isError?: boolean;
+    structuredContent?: Record<string, unknown>;
+    content: { text: string }[];
+  };
+  const chamar = async (cliente: Client, nome: string, args: Record<string, unknown> = {}) =>
+    (await cliente.callTool({ name: nome, arguments: args })) as unknown as Resposta;
+
+  beforeAll(async () => {
+    banco = await criarBancoTemporario();
+    dono = new pg.Client({ connectionString: banco.urlDono });
+    await dono.connect();
+    poolApp = new pg.Pool({ connectionString: banco.urlApp });
+    await criarEmpresaComAgente("Um", "Claude no Mac");
+    await criarEmpresaComAgente("Dois", "Agente da Dois");
+    app = Fastify();
+    registrarServidorMcp(app, {
+      poolApp,
+      urlPublica: SITE,
+      carteiro: { async enviarLinkDeSenha() {} },
+    });
+    endereco = await app.listen({ port: 0, host: "127.0.0.1" });
+  });
+
+  afterAll(async () => {
+    await app?.close();
+    await poolApp?.end();
+    await dono?.end();
+    await banco?.apagar();
+  });
+
+  it("lista as oito ferramentas, com descrição e esquema de entrada", async () => {
+    const cliente = await conectar(chaves.Um?.chave ?? "");
+    const { tools } = await cliente.listTools();
+    expect(tools.map((t) => t.name)).toEqual([
+      "minhas_tarefas",
+      "ver_tarefa",
+      "pegar_tarefa",
+      "soltar_tarefa",
+      "comentar",
+      "mudar_status",
+      "entregar_resultado",
+      "estou_vivo",
+    ]);
+    expect(tools.every((t) => (t.description ?? "").length > 20 && t.inputSchema.type === "object")).toBe(
+      true,
+    );
+    await cliente.close();
+  });
+
+  it("sem chave válida, nem conecta", async () => {
+    await expect(conectar("mago_ag_xxxxxxxxxx_".padEnd(62, "A"))).rejects.toThrow();
+    await expect(conectar("qualquer")).rejects.toThrow();
+  });
+
+  it("faz o ciclo: lista, pega, comenta e entrega, e tudo vai para a auditoria com o agente como ator", async () => {
+    const t = await dono.query<{ id: string }>(
+      "insert into tarefas (empresa_id, titulo, responsavel_agente_id) values ($1, 'Listar arquivos do Mac', $2) returning id",
+      [empresas.Um, agentes.Um],
+    );
+    const tarefaId = t.rows[0]?.id as string;
+    const cliente = await conectar(chaves.Um?.chave ?? "");
+    const lista = await chamar(cliente, "minhas_tarefas");
+    expect(((lista.structuredContent?.tarefas ?? []) as { id: string }[]).map((x) => x.id)).toEqual([
+      tarefaId,
+    ]);
+
+    const antes = await chamar(cliente, "entregar_resultado", { tarefaId, resultado: "cedo demais" });
+    expect(antes.isError).toBe(true);
+    expect(antes.content[0]?.text).toContain("Pegue a tarefa");
+
+    const pegou = await chamar(cliente, "pegar_tarefa", { tarefaId });
+    expect(pegou.structuredContent).toMatchObject({
+      status: "em_andamento",
+      trava: { por: { tipo: "agente" } },
+    });
+    const comentou = await chamar(cliente, "comentar", { tarefaId, texto: "<script>x</script> começando" });
+    expect(comentou.structuredContent).toMatchObject({ autor: { tipo: "agente", agenteId: agentes.Um } });
+    const entregou = await chamar(cliente, "entregar_resultado", {
+      tarefaId,
+      resultado: "12 arquivos encontrados.",
+    });
+    expect(entregou.structuredContent).toMatchObject({
+      status: "concluida",
+      resultado: "12 arquivos encontrados.",
+      resultadoPor: { tipo: "agente", agenteId: agentes.Um },
+      trava: null,
+    });
+    const vivo = await chamar(cliente, "estou_vivo");
+    expect(vivo.structuredContent?.ok).toBe(true);
+
+    const ev = await dono.query<{ acao: string; ator: { tipo: string }; origem: { canal: string } }>(
+      "select acao, ator, origem from auditoria.eventos where alvo->>'id' = $1 order by sequencia",
+      [tarefaId],
+    );
+    expect(ev.rows.map((l) => l.acao)).toEqual(["tarefa.pegou", "tarefa.comentou", "tarefa.mudou_status"]);
+    expect(ev.rows.every((l) => l.ator.tipo === "agente" && l.origem.canal === "mcp")).toBe(true);
+    await cliente.close();
+  });
+
+  it("a chave de uma empresa não vê nem mexe em tarefa da outra", async () => {
+    const t = await dono.query<{ id: string }>(
+      "insert into tarefas (empresa_id, titulo, responsavel_agente_id) values ($1, 'Segredo da Um', $2) returning id",
+      [empresas.Um, agentes.Um],
+    );
+    const tarefaId = t.rows[0]?.id as string;
+    const daDois = await conectar(chaves.Dois?.chave ?? "");
+    expect((await chamar(daDois, "minhas_tarefas")).structuredContent?.tarefas).toEqual([]);
+    expect((await chamar(daDois, "ver_tarefa", { tarefaId })).isError).toBe(true);
+    expect((await chamar(daDois, "pegar_tarefa", { tarefaId })).isError).toBe(true);
+    expect((await chamar(daDois, "comentar", { tarefaId, texto: "oi" })).isError).toBe(true);
+    const c = await dono.query("select count(*)::int as n from comentarios_de_tarefa where tarefa_id = $1", [
+      tarefaId,
+    ]);
+    expect(c.rows[0].n).toBe(0);
+    await daDois.close();
+  });
+
+  it("entrada fora do contrato é recusada", async () => {
+    const cliente = await conectar(chaves.Um?.chave ?? "");
+    expect((await chamar(cliente, "ver_tarefa", { tarefaId: "nao-e-uuid" })).isError).toBe(true);
+    expect(
+      (await chamar(cliente, "mudar_status", { tarefaId: agentes.Um, status: "concluida" })).isError,
+    ).toBe(true);
+    await cliente.close();
+  });
+
+  it("chave revogada para de valer no pedido seguinte", async () => {
+    const cliente = await conectar(chaves.Um?.chave ?? "");
+    expect((await chamar(cliente, "estou_vivo")).isError).toBeFalsy();
+    await dono.query(
+      "update chaves_de_agente set revogada_em = now(), revogada_por = (select responsavel_id from agentes where id = $2) where id = $1",
+      [chaves.Um?.id, agentes.Um],
+    );
+    await expect(chamar(cliente, "estou_vivo")).rejects.toThrow();
+  });
+});
