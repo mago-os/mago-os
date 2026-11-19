@@ -1,6 +1,21 @@
 # Mago OS (ambiente de testes). Gerado por /opt/mago-os/bin/publicar.sh a partir de mago-os.caddy.modelo: não editar
 # à mão, editar o modelo. Mantido fora do Caddyfile da Ratoeira; se a Ratoeira for reinstalada, recolocar a linha
 # "import /etc/caddy/mago-os.caddy" no fim do Caddyfile.
+
+# Trecho usado pela API e pelo MCP. O site passa pela Cloudflare: o IP que chega aqui é o dela. Quando o pedido vem
+# mesmo da Cloudflare (lista oficial em cloudflare.com/ips), a API recebe o IP verdadeiro que ela informa
+# (CF-Connecting-IP). Pedido de qualquer outro lugar segue com o IP de quem conectou, então ninguém consegue inventar
+# um IP no cabeçalho. Revisar a lista de IPs da Cloudflare de vez em quando (ela muda pouco): fica só aqui.
+(mago_os_api) {
+	@pela_cloudflare remote_ip 173.245.48.0/20 103.21.244.0/22 103.22.200.0/22 103.31.4.0/22 141.101.64.0/18 108.162.192.0/18 190.93.240.0/20 188.114.96.0/20 197.234.240.0/22 198.41.128.0/17 162.158.0.0/15 104.16.0.0/13 104.24.0.0/14 172.64.0.0/13 131.0.72.0/22 2400:cb00::/32 2606:4700::/32 2803:f800::/32 2405:b500::/32 2405:8100::/32 2a06:98c0::/29 2c0f:f248::/32
+	reverse_proxy @pela_cloudflare 127.0.0.1:{{PORTA_API}} {
+		header_up X-Forwarded-For {http.request.header.CF-Connecting-IP}
+	}
+	reverse_proxy 127.0.0.1:{{PORTA_API}} {
+		header_up X-Forwarded-For {remote_host}
+	}
+}
+
 teste.osmago.com {
 	encode zstd gzip
 	header {
@@ -15,19 +30,14 @@ teste.osmago.com {
 		reverse_proxy 127.0.0.1:3190
 	}
 
-	# API (núcleo), na cor que estiver no ar.
-	# O site passa pela Cloudflare: o IP que chega aqui é o dela. Quando o pedido vem mesmo da Cloudflare (lista
-	# oficial em cloudflare.com/ips), a API recebe o IP verdadeiro que ela informa (CF-Connecting-IP). Pedido de
-	# qualquer outro lugar segue com o IP de quem conectou, então ninguém consegue inventar um IP no cabeçalho.
-	# Revisar a lista de IPs da Cloudflare de vez em quando (ela muda pouco).
+	# API (núcleo), na cor que estiver no ar (regra de IP no trecho mago_os_api, no começo do arquivo).
 	handle_path /api/* {
-		@pela_cloudflare remote_ip 173.245.48.0/20 103.21.244.0/22 103.22.200.0/22 103.31.4.0/22 141.101.64.0/18 108.162.192.0/18 190.93.240.0/20 188.114.96.0/20 197.234.240.0/22 198.41.128.0/17 162.158.0.0/15 104.16.0.0/13 104.24.0.0/14 172.64.0.0/13 131.0.72.0/22 2400:cb00::/32 2606:4700::/32 2803:f800::/32 2405:b500::/32 2405:8100::/32 2a06:98c0::/29 2c0f:f248::/32
-		reverse_proxy @pela_cloudflare 127.0.0.1:{{PORTA_API}} {
-			header_up X-Forwarded-For {http.request.header.CF-Connecting-IP}
-		}
-		reverse_proxy 127.0.0.1:{{PORTA_API}} {
-			header_up X-Forwarded-For {remote_host}
-		}
+		import mago_os_api
+	}
+
+	# Servidor MCP dos agentes (M2-05): /mcp vai para a rota /mcp da API, com a mesma regra de IP.
+	handle /mcp {
+		import mago_os_api
 	}
 
 	# Tela: arquivos da versão publicada. Rotas do app caem no index.html.

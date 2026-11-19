@@ -14,6 +14,7 @@ import { registrarRotasDaConta } from "./conta/rotas.ts";
 import { registrarRotasDasContas } from "./contas/rotas.ts";
 import { registrarRotasDosConvites } from "./convites/rotas.ts";
 import { criarFila } from "./fila.ts";
+import { registrarServidorMcp } from "./mcp/index.ts";
 import { catalogoDeModulos } from "./permissoes/modulos.ts";
 import {
   registrarRotaDaAuditoria,
@@ -60,6 +61,7 @@ async function iniciar(): Promise<void> {
     };
     registrarRotasDosAgentes(app, opcoesDosAgentes);
     registrarRotasDoAgente(app, opcoesDosAgentes);
+    registrarServidorMcp(app, opcoesDosAgentes);
     registrarRotasDosAvisos(app, verificador, banco.pool);
     // Verificação a cada minuto (M2-04): tarefas de agentes sem sinal voltam para A fazer. O pg-boss garante que só
     // uma cópia da API roda cada vez.

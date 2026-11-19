@@ -76,14 +76,14 @@ Pronto quando: a chave revogada é recusada no pedido seguinte, e um agente de t
 
 Precisa da aprovação do Sandro (contrato das ferramentas e porta de entrada dos agentes).
 
-- [ ] Servidor MCP no próprio núcleo, em `teste.osmago.com/mcp` (sem DNS novo; `api.osmago.com` fica para quando houver a API pública), pelo transporte HTTP do MCP, com a chave do agente no cabeçalho `Authorization`
-- [ ] Ferramentas de tarefas: `minhas_tarefas`, `ver_tarefa`, `pegar_tarefa`, `soltar_tarefa`, `comentar`, `mudar_status`, `entregar_resultado` (conclui com o resultado) e `estou_vivo`
-- [ ] Cada ferramenta nasce de uma ação declarada no contrato (nome, descrição, o que recebe e o que devolve), e passa pela mesma verificação de permissão e auditoria das rotas da tela
-- [ ] Descrição das ferramentas congelada: um teste guarda a assinatura de cada uma, e mudar a descrição exige atualizar o teste no PR (aprovação humana), como pede a regra 14 da segurança dos agentes
-- [ ] Tudo o que vem do agente (comentário, resultado) é guardado marcado como "vindo de agente" e mostrado como texto, nunca como código na tela
-- [ ] Documentação gerada sozinha a partir das ações: `docs/api/README.md` (cada ação, o que recebe e o que devolve, para MCP e rotas) por um comando `pnpm api:documentar`, conferido no CI para nunca ficar desatualizado
-- [ ] Teste de ponta a ponta com um cliente MCP de verdade (o SDK oficial), incluindo o isolamento: a chave de uma empresa não vê tarefa da outra
-- [ ] Nota de decisão em `docs/decisoes` sobre o servidor MCP
+- [x] Servidor MCP no próprio núcleo, em `teste.osmago.com/mcp` (sem DNS novo; `api.osmago.com` fica para quando houver a API pública), pelo transporte HTTP do MCP, com a chave do agente no cabeçalho `Authorization`
+- [x] Ferramentas de tarefas: `minhas_tarefas`, `ver_tarefa`, `pegar_tarefa`, `soltar_tarefa`, `comentar`, `mudar_status`, `entregar_resultado` (conclui com o resultado) e `estou_vivo`
+- [x] Cada ferramenta nasce de uma ação declarada no contrato (nome, descrição, o que recebe e o que devolve), e passa pela mesma verificação de permissão e auditoria das rotas da tela
+- [x] Descrição das ferramentas congelada: um teste guarda a assinatura de cada uma, e mudar a descrição exige atualizar o teste no PR (aprovação humana), como pede a regra 14 da segurança dos agentes
+- [x] Tudo o que vem do agente (comentário, resultado) é guardado marcado como "vindo de agente" e mostrado como texto, nunca como código na tela
+- [x] Documentação gerada sozinha a partir das ações: `docs/api/README.md` (cada ação, o que recebe e o que devolve, para MCP e rotas) por um comando `pnpm api:documentar`, conferido no CI para nunca ficar desatualizado
+- [x] Teste de ponta a ponta com um cliente MCP de verdade (o SDK oficial), incluindo o isolamento: a chave de uma empresa não vê tarefa da outra
+- [x] Nota de decisão em `docs/decisoes` sobre o servidor MCP
 
 Pronto quando: um cliente MCP de teste lista as tarefas dele, pega uma, comenta e entrega o resultado, e a documentação gerada mostra as oito ferramentas.
 
