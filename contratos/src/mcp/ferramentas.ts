@@ -40,7 +40,7 @@ export const FERRAMENTAS_MCP = [
   {
     nome: "minhas_tarefas",
     descricao:
-      "Lista as tarefas atribuídas a você ou que você pegou, as mais recentes primeiro. Sem filtro, traz só as abertas (A fazer, Em andamento e Precisa de ajuda). Chame a cada minuto para saber se há trabalho novo.",
+      "Lista as tarefas atribuídas a você ou que você pegou, das mais urgentes (prioridade e prazo) para as menos. Sem filtro, traz só as abertas (A fazer, Em andamento e Precisa de ajuda). Chame a cada minuto para saber se há trabalho novo.",
     entrada: Type.Object(
       {
         status: Type.Optional(

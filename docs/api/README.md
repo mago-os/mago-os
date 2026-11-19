@@ -8,7 +8,7 @@ Endereço: `https://teste.osmago.com/mcp` (transporte HTTP do MCP, sem sessão).
 
 ### `minhas_tarefas`
 
-Lista as tarefas atribuídas a você ou que você pegou, as mais recentes primeiro. Sem filtro, traz só as abertas (A fazer, Em andamento e Precisa de ajuda). Chame a cada minuto para saber se há trabalho novo.
+Lista as tarefas atribuídas a você ou que você pegou, das mais urgentes (prioridade e prazo) para as menos. Sem filtro, traz só as abertas (A fazer, Em andamento e Precisa de ajuda). Chame a cada minuto para saber se há trabalho novo.
 
 Recebe:
 
@@ -51,6 +51,13 @@ Devolve:
 - `listaId` (id ou null, obrigatório)
 - `statusDoProjetoId` (id ou null, obrigatório)
 - `tarefaMaeId` (id ou null, obrigatório)
+- `prioridade` ("urgente" | "alta" | "normal" | "baixa" ou null, obrigatório)
+- `prazo` (objeto ou null, obrigatório)
+- `inicio` (string ou null, obrigatório)
+- `etiquetas` (lista de id, obrigatório)
+- `recorrencia` (objeto ou null, obrigatório)
+- `ocorrencia` (integer, obrigatório)
+- `recorrenteDeId` (id ou null, obrigatório)
 - `status` ("a_fazer" | "em_andamento" | "precisa_de_ajuda" | "concluida" | "cancelada", obrigatório): a_fazer, em_andamento, precisa_de_ajuda, concluida ou cancelada. Concluída e cancelada encerram a tarefa.
 - `responsavel` (objeto ou objeto ou null, obrigatório)
 - `criadaPor` (objeto ou objeto ou objeto, obrigatório): Pessoa, agente ou o próprio sistema.
@@ -80,6 +87,13 @@ Devolve:
 - `listaId` (id ou null, obrigatório)
 - `statusDoProjetoId` (id ou null, obrigatório)
 - `tarefaMaeId` (id ou null, obrigatório)
+- `prioridade` ("urgente" | "alta" | "normal" | "baixa" ou null, obrigatório)
+- `prazo` (objeto ou null, obrigatório)
+- `inicio` (string ou null, obrigatório)
+- `etiquetas` (lista de id, obrigatório)
+- `recorrencia` (objeto ou null, obrigatório)
+- `ocorrencia` (integer, obrigatório)
+- `recorrenteDeId` (id ou null, obrigatório)
 - `status` ("a_fazer" | "em_andamento" | "precisa_de_ajuda" | "concluida" | "cancelada", obrigatório): a_fazer, em_andamento, precisa_de_ajuda, concluida ou cancelada. Concluída e cancelada encerram a tarefa.
 - `responsavel` (objeto ou objeto ou null, obrigatório)
 - `criadaPor` (objeto ou objeto ou objeto, obrigatório): Pessoa, agente ou o próprio sistema.
@@ -128,6 +142,13 @@ Devolve:
 - `listaId` (id ou null, obrigatório)
 - `statusDoProjetoId` (id ou null, obrigatório)
 - `tarefaMaeId` (id ou null, obrigatório)
+- `prioridade` ("urgente" | "alta" | "normal" | "baixa" ou null, obrigatório)
+- `prazo` (objeto ou null, obrigatório)
+- `inicio` (string ou null, obrigatório)
+- `etiquetas` (lista de id, obrigatório)
+- `recorrencia` (objeto ou null, obrigatório)
+- `ocorrencia` (integer, obrigatório)
+- `recorrenteDeId` (id ou null, obrigatório)
 - `status` ("a_fazer" | "em_andamento" | "precisa_de_ajuda" | "concluida" | "cancelada", obrigatório): a_fazer, em_andamento, precisa_de_ajuda, concluida ou cancelada. Concluída e cancelada encerram a tarefa.
 - `responsavel` (objeto ou objeto ou null, obrigatório)
 - `criadaPor` (objeto ou objeto ou objeto, obrigatório): Pessoa, agente ou o próprio sistema.
@@ -157,6 +178,13 @@ Devolve:
 - `listaId` (id ou null, obrigatório)
 - `statusDoProjetoId` (id ou null, obrigatório)
 - `tarefaMaeId` (id ou null, obrigatório)
+- `prioridade` ("urgente" | "alta" | "normal" | "baixa" ou null, obrigatório)
+- `prazo` (objeto ou null, obrigatório)
+- `inicio` (string ou null, obrigatório)
+- `etiquetas` (lista de id, obrigatório)
+- `recorrencia` (objeto ou null, obrigatório)
+- `ocorrencia` (integer, obrigatório)
+- `recorrenteDeId` (id ou null, obrigatório)
 - `status` ("a_fazer" | "em_andamento" | "precisa_de_ajuda" | "concluida" | "cancelada", obrigatório): a_fazer, em_andamento, precisa_de_ajuda, concluida ou cancelada. Concluída e cancelada encerram a tarefa.
 - `responsavel` (objeto ou objeto ou null, obrigatório)
 - `criadaPor` (objeto ou objeto ou objeto, obrigatório): Pessoa, agente ou o próprio sistema.
@@ -188,6 +216,13 @@ Devolve:
 - `listaId` (id ou null, obrigatório)
 - `statusDoProjetoId` (id ou null, obrigatório)
 - `tarefaMaeId` (id ou null, obrigatório)
+- `prioridade` ("urgente" | "alta" | "normal" | "baixa" ou null, obrigatório)
+- `prazo` (objeto ou null, obrigatório)
+- `inicio` (string ou null, obrigatório)
+- `etiquetas` (lista de id, obrigatório)
+- `recorrencia` (objeto ou null, obrigatório)
+- `ocorrencia` (integer, obrigatório)
+- `recorrenteDeId` (id ou null, obrigatório)
 - `status` ("a_fazer" | "em_andamento" | "precisa_de_ajuda" | "concluida" | "cancelada", obrigatório): a_fazer, em_andamento, precisa_de_ajuda, concluida ou cancelada. Concluída e cancelada encerram a tarefa.
 - `responsavel` (objeto ou objeto ou null, obrigatório)
 - `criadaPor` (objeto ou objeto ou objeto, obrigatório): Pessoa, agente ou o próprio sistema.
@@ -299,6 +334,11 @@ Recebe:
 - `projetoId` (id ou null)
 - `listaId` (id): Identificador (UUID).
 - `tarefaMaeId` (id): Identificador (UUID).
+- `prioridade` ("urgente" | "alta" | "normal" | "baixa" ou null)
+- `prazo` (objeto ou null)
+- `inicio` (string ou null)
+- `etiquetas` (lista de id)
+- `recorrencia` (objeto ou null)
 
 ### POST `/tarefas/:id/status`
 

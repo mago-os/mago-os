@@ -11,8 +11,10 @@
  * papel: planejar e acompanhar sozinho vem com os agentes internos (M4).
  */
 import { type Static, Type } from "typebox";
-import { conferir, DataHora, Id, OuNulo, type Problema, type Regra, Texto } from "../comum.ts";
+import { Cor, conferir, DataHora, Dia, Id, OuNulo, type Problema, type Regra, Texto } from "../comum.ts";
 import { Responsavel } from "../tarefas/tarefa.ts";
+
+export { Cor, Dia };
 
 export const SITUACOES_DE_ORGANIZACAO = ["ativo", "arquivado"] as const;
 /** Arquivar esconde das listas sem apagar nada; dá para desarquivar. */
@@ -21,18 +23,9 @@ export const SituacaoDeOrganizacao = Type.Enum(SITUACOES_DE_ORGANIZACAO, {
 });
 export type SituacaoDeOrganizacao = Static<typeof SituacaoDeOrganizacao>;
 
-/** Cor em hexadecimal (#rrggbb), escolhida numa paleta da tela. */
-export const Cor = Type.String({
-  pattern: "^#[0-9a-f]{6}$",
-  description: "Cor no formato #rrggbb, em minúsculas.",
-});
-
 const NomeDoEspaco = Texto(80, "Nome do espaço (ex.: Operações, Comercial).");
 const NomeDoProjeto = Texto(120, "Nome do projeto (ex.: Construção do Mago OS).");
 const Descricao = Texto(5000, "Para que serve, em poucas linhas.");
-
-/** Dia do calendário, sem hora (AAAA-MM-DD). */
-export const Dia = Type.String({ format: "date", description: "Dia no formato AAAA-MM-DD." });
 
 export const Espaco = Type.Object(
   {

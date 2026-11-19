@@ -6,7 +6,8 @@
  * passam por uma aprovação só. O projeto entrou na M3-01; listas, prazos e etiquetas vêm na M3-02 e na M3-03.
  */
 import { type Static, Type } from "typebox";
-import { conferir, DataHora, Id, OuNulo, type Problema, type Regra, Texto } from "../comum.ts";
+import { conferir, DataHora, Dia, Id, OuNulo, type Problema, type Regra, Texto } from "../comum.ts";
+import { PedidoDePrazo, Prazo, Prioridade, RegraDeRecorrencia } from "./prazos.ts";
 
 /** Status fixos no M2 (decisão do Sandro em 18/11/2026). Status por projeto vem no M3. */
 export const STATUS_TAREFA = [
@@ -84,6 +85,20 @@ export const Tarefa = Type.Object(
     statusDoProjetoId: OuNulo(Id),
     /** Tarefa-mãe, quando esta é uma subtarefa (M3-02, um nível só). */
     tarefaMaeId: OuNulo(Id),
+    /** Prioridade (M3-03). Nulo: sem prioridade. */
+    prioridade: OuNulo(Prioridade),
+    /** Prazo (M3-03): dia, hora opcional e fuso. */
+    prazo: OuNulo(Prazo),
+    /** Dia de início, para o calendário (M3-03). */
+    inicio: OuNulo(Dia),
+    /** Etiquetas da empresa marcadas na tarefa (M3-03). */
+    etiquetas: Type.Array(Id, { maxItems: 20 }),
+    /** Como a tarefa se repete (M3-03). Precisa de prazo. */
+    recorrencia: OuNulo(RegraDeRecorrencia),
+    /** Quantas vezes a tarefa já aconteceu, contando esta (1 na primeira). */
+    ocorrencia: Type.Integer({ minimum: 1 }),
+    /** A tarefa anterior da recorrência, que ao ser concluída criou esta. */
+    recorrenteDeId: OuNulo(Id),
     status: StatusTarefa,
     responsavel: OuNulo(Responsavel),
     criadaPor: Autor,
@@ -146,6 +161,16 @@ export const regrasDaTarefa: Regra<Tarefa>[] = [
       ? [{ caminho: "/tarefaMaeId", mensagem: "a tarefa não é mãe dela mesma" }]
       : [];
   },
+  (t) => {
+    const problemas: Problema[] = [];
+    if (t.recorrencia !== null && t.prazo === null) {
+      problemas.push({ caminho: "/recorrencia", mensagem: "tarefa recorrente precisa de prazo" });
+    }
+    if (t.inicio !== null && t.prazo !== null && t.inicio > t.prazo.dia) {
+      problemas.push({ caminho: "/inicio", mensagem: "o início vem antes do prazo" });
+    }
+    return problemas;
+  },
 ];
 
 export function conferirTarefa(valor: unknown) {
@@ -180,6 +205,11 @@ export const PedidoDeTarefa = Type.Object(
     listaId: Type.Optional(Id),
     /** Cria como subtarefa desta tarefa (M3-02): fica no projeto e na lista dela. */
     tarefaMaeId: Type.Optional(Id),
+    prioridade: Type.Optional(OuNulo(Prioridade)),
+    prazo: Type.Optional(OuNulo(PedidoDePrazo)),
+    inicio: Type.Optional(OuNulo(Dia)),
+    etiquetas: Type.Optional(Type.Array(Id, { maxItems: 20, uniqueItems: true })),
+    recorrencia: Type.Optional(OuNulo(RegraDeRecorrencia)),
   },
   { additionalProperties: false },
 );
