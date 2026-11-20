@@ -239,28 +239,48 @@ export async function alcanceCobreAgente(c: pg.PoolClient, filtro: Filtro, agent
  * é o administrador mais antigo. Roda na transação de quem chamou; não faz nada se já existem.
  */
 export async function garantirAgentesDeNascenca(c: pg.PoolClient): Promise<void> {
-  const ja = await c.query(
-    "select 1 from agentes where empresa_id = empresa_ativa() and tipo = 'interno' and papel = 'coordenador' limit 1",
+  // Desligar é definitivo: se o coordenador (ou o Gerente) foi desligado, nasce um novo, pausado.
+  const vivos = await c.query<{
+    id: string;
+    papel: string;
+    especialidade: string | null;
+    responde_a_id: string | null;
+  }>(
+    `select id, papel, especialidade, responde_a_id from agentes
+      where empresa_id = empresa_ativa() and tipo = 'interno' and situacao <> 'desligado'`,
   );
-  if ((ja.rowCount ?? 0) > 0) return;
+  let coordenadorId = vivos.rows.find((a) => a.papel === "coordenador")?.id ?? null;
+  const gerente = vivos.rows.find((a) => a.especialidade === "gerente_de_projetos");
+  if (coordenadorId && gerente && gerente.responde_a_id === coordenadorId) return;
   const dono = await c.query<{ pessoa_id: string }>(
     `select pessoa_id from vinculos where empresa_id = empresa_ativa() and perfil = 'administrador'
         and situacao = 'ativo' order by entrou_em nulls last, pessoa_id limit 1`,
   );
   const responsavel = dono.rows[0]?.pessoa_id;
   if (!responsavel) return;
-  // Duas pessoas abrindo ao mesmo tempo: o índice de um coordenador por empresa barra a segunda (on conflict).
-  const coordenador = await c.query<{ id: string }>(
-    `insert into agentes (empresa_id, nome, descricao, tipo, responsavel_id, situacao, papel)
-     select empresa_ativa(), 'Coordenador', 'Recebe os pedidos no app e passa ao especialista certo.', 'interno', $1,
-            'pausado', 'coordenador'
-      where not exists (select 1 from agentes where empresa_id = empresa_ativa() and lower(nome) = 'coordenador'
-                          and situacao <> 'desligado')
-     on conflict do nothing returning id`,
-    [responsavel],
-  );
-  const id = coordenador.rows[0]?.id;
-  if (!id) return;
+  if (!coordenadorId) {
+    // Duas pessoas abrindo ao mesmo tempo: o índice de um coordenador por empresa barra a segunda (on conflict).
+    const novo = await c.query<{ id: string }>(
+      `insert into agentes (empresa_id, nome, descricao, tipo, responsavel_id, situacao, papel)
+       select empresa_ativa(), 'Coordenador', 'Recebe os pedidos no app e passa ao especialista certo.', 'interno',
+              $1, 'pausado', 'coordenador'
+        where not exists (select 1 from agentes where empresa_id = empresa_ativa() and lower(nome) = 'coordenador'
+                            and situacao <> 'desligado')
+       on conflict do nothing returning id`,
+      [responsavel],
+    );
+    coordenadorId = novo.rows[0]?.id ?? null;
+    if (!coordenadorId) return;
+  }
+  if (gerente) {
+    // O Gerente que respondia ao coordenador desligado passa a responder ao novo.
+    if (gerente.responde_a_id !== coordenadorId)
+      await c.query(
+        "update agentes set responde_a_id = $2, atualizado_em = now() where id = $1 and empresa_id = empresa_ativa()",
+        [gerente.id, coordenadorId],
+      );
+    return;
+  }
   await c.query(
     `insert into agentes (empresa_id, nome, descricao, tipo, responsavel_id, situacao, papel, especialidade,
        responde_a_id)
@@ -270,6 +290,6 @@ export async function garantirAgentesDeNascenca(c: pg.PoolClient): Promise<void>
       where not exists (select 1 from agentes where empresa_id = empresa_ativa()
                           and lower(nome) = 'gerente de projetos' and situacao <> 'desligado')
      on conflict do nothing`,
-    [responsavel, id],
+    [responsavel, coordenadorId],
   );
 }

@@ -365,7 +365,11 @@ export function PaginaDoAgente({
         </Card>
       )}
       {podeEditar && agente.tipo === "interno" && !desligado && (
-        <ModeloDoAgente agenteId={agente.id} aoMudar={() => void carregar()} />
+        <ModeloDoAgente
+          agenteId={agente.id}
+          pausado={agente.situacao === "pausado"}
+          aoMudar={() => void carregar()}
+        />
       )}
       {podeEditar && agente.tipo === "externo" && (
         <ChavesDoAgente agenteId={agente.id} desligado={desligado} />

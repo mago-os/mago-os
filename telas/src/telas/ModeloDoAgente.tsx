@@ -22,7 +22,16 @@ const deChave = (k: string): ModeloEscolhido | null => {
   return contaId && resto.length > 0 ? { contaId, modelo: resto.join("|") } : null;
 };
 
-export function ModeloDoAgente({ agenteId, aoMudar }: { agenteId: string; aoMudar?: () => void }) {
+export function ModeloDoAgente({
+  agenteId,
+  pausado = false,
+  aoMudar,
+}: {
+  agenteId: string;
+  /** O agente está pausado: depois de salvar, lembra de clicar em Retomar. */
+  pausado?: boolean;
+  aoMudar?: () => void;
+}) {
   const [liberados, setLiberados] = useState<ModeloLiberado[] | null>(null);
   const [principal, setPrincipal] = useState("");
   const [reserva, setReserva] = useState("");
@@ -47,7 +56,17 @@ export function ModeloDoAgente({ agenteId, aoMudar }: { agenteId: string; aoMuda
       `/agentes/${encodeURIComponent(agenteId)}/modelos`,
       { modelos: p ? { principal: p, reserva: deChave(reserva) } : null },
     );
-    setMensagem(r.ok ? { tipo: "ok", texto: "Modelo salvo." } : { tipo: "erro", texto: r.mensagem ?? "" });
+    setMensagem(
+      r.ok
+        ? {
+            tipo: "ok",
+            texto:
+              pausado && p
+                ? "Modelo salvo. Agora clique em Retomar, no fim da página, para ligar o agente."
+                : "Modelo salvo.",
+          }
+        : { tipo: "erro", texto: r.mensagem ?? "" },
+    );
     if (r.ok) aoMudar?.();
   }
 
