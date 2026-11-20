@@ -22,6 +22,7 @@
     "./projetos": "./src/projetos/index.ts",
     "./agentes": "./src/agentes/index.ts",
     "./contas-de-ia": "./src/contas-de-ia/index.ts",
+    "./agentes-internos": "./src/agentes-internos/index.ts",
     "./tempo-real": "./src/tempo-real/index.ts",
     "./avisos": "./src/avisos/index.ts",
     "./avisos/notificacoes": "./src/avisos/notificacoes.ts",

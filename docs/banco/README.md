@@ -35,6 +35,9 @@ erDiagram
     text modelo_principal
     uuid modelo_reserva_conta_id
     text modelo_reserva
+    text papel
+    text especialidade
+    uuid responde_a_id
   }
   ajustes_de_permissao {
     uuid id PK
@@ -153,6 +156,15 @@ erDiagram
     integer versao_do_aviso
     timestamp_with_time_zone limite_do_plano_ate
   }
+  conversas {
+    uuid id PK
+    uuid empresa_id FK
+    uuid pessoa_id
+    uuid agente_id
+    text titulo
+    timestamp_with_time_zone criada_em
+    timestamp_with_time_zone atualizada_em
+  }
   empresas {
     uuid id PK
     text nome
@@ -197,6 +209,25 @@ erDiagram
     uuid empresa_id FK
     uuid tarefa_id PK
     uuid etiqueta_id PK
+  }
+  execucoes_de_agente {
+    uuid id PK
+    uuid empresa_id FK
+    uuid agente_id
+    uuid pedido_por
+    text origem
+    uuid conversa_id
+    uuid tarefa_id
+    uuid execucao_mae_id
+    text instrucoes
+    text situacao
+    uuid modelo_conta_id
+    text modelo
+    text passou_ao_reserva_porque
+    text resumo
+    timestamp_with_time_zone criada_em
+    timestamp_with_time_zone iniciada_em
+    timestamp_with_time_zone terminada_em
   }
   itens_de_checklist {
     uuid id PK
@@ -244,6 +275,18 @@ erDiagram
     uuid tarefa_id
     uuid pessoa_id
     uuid agente_id
+  }
+  mensagens_de_conversa {
+    uuid id PK
+    uuid empresa_id FK
+    uuid conversa_id
+    uuid pessoa_id
+    uuid autor_pessoa_id
+    uuid autor_agente_id
+    text texto
+    uuid execucao_id
+    uuid[] tarefas
+    timestamp_with_time_zone criada_em
   }
   modelos_de_conta_de_ia {
     uuid empresa_id FK
@@ -520,16 +563,19 @@ erDiagram
   empresas ||--o{ comentarios_de_tarefa : "empresa_id"
   empresas ||--o{ contadores_de_agente : "empresa_id"
   empresas ||--o{ contas_de_ia : "empresa_id"
+  empresas ||--o{ conversas : "empresa_id"
   empresas ||--o{ espacos : "empresa_id"
   empresas ||--o{ estados_de_prioridade : "empresa_id"
   empresas ||--o{ etiquetas : "empresa_id"
   empresas ||--o{ etiquetas_de_tarefa : "empresa_id"
+  empresas ||--o{ execucoes_de_agente : "empresa_id"
   empresas ||--o{ itens_de_checklist : "empresa_id"
   empresas ||--o{ layouts_de_tela : "empresa_id"
   empresas ||--o{ listas : "empresa_id"
   empresas ||--o{ membros_de_projeto : "empresa_id"
   empresas ||--o{ mencoes_de_comentario : "empresa_id"
   comentarios_de_tarefa ||--o{ mencoes_de_comentario : "comentario_id"
+  empresas ||--o{ mensagens_de_conversa : "empresa_id"
   empresas ||--o{ modelos_de_conta_de_ia : "empresa_id"
   pessoas ||--o{ papeis_plataforma : "pessoa_id"
   empresas ||--o{ preferencias_de_notificacao : "empresa_id"
@@ -598,7 +644,7 @@ Isolamento por empresa (Row Level Security): ligado e forçado.
 | empresa_id | uuid | sim |  | sistema | Empresa do agente. Aponta para empresas.id. |
 | nome | text | sim |  | empresa | Nome do agente nas telas (ex.: Claude no Mac). |
 | descricao | text | não |  | empresa | Para que serve o agente. |
-| tipo | text | sim | `'externo'::text` | empresa | externo: roda fora do Mago OS e entra pelo MCP. Os internos vêm no M4. |
+| tipo | text | sim | `'externo'::text` | empresa | externo: roda fora e entra pelo MCP. interno: roda dentro do Mago OS (M4-02). |
 | onde_roda | text | não |  | empresa | Onde o agente roda, em texto livre (ex.: VPS01, Mac do Sandro). |
 | responsavel_id | uuid | sim |  | sistema | Pessoa da empresa que responde pelo agente e recebe os avisos dele. |
 | situacao | text | sim | `'ativo'::text` | empresa | ativo, pausado (sem tarefa nova) ou desligado (parado de vez). |
@@ -611,6 +657,9 @@ Isolamento por empresa (Row Level Security): ligado e forçado.
 | modelo_principal | text | não |  | empresa | Modelo principal do agente. |
 | modelo_reserva_conta_id | uuid | não |  | empresa | Conta de IA do modelo reserva (entra se o principal falhar ou chegar no teto). |
 | modelo_reserva | text | não |  | empresa | Modelo reserva do agente. |
+| papel | text | não |  | empresa | Agente interno: coordenador (porta de entrada) ou especialista. |
+| especialidade | text | não |  | empresa | Especialista: a área dele (no M4, gerente_de_projetos). |
+| responde_a_id | uuid | não |  | empresa | Especialista: o coordenador a quem responde. |
 
 ### ajustes_de_permissao
 
@@ -799,6 +848,22 @@ Isolamento por empresa (Row Level Security): ligado e forçado.
 | versao_do_aviso | integer | não |  | sistema | Assinatura: a versão do aviso que foi aceita. |
 | limite_do_plano_ate | timestamp with time zone | não |  | sistema | Assinatura: o limite do plano acabou e volta nesta hora. |
 
+### conversas
+
+Conversas de uma pessoa com um agente interno (M4-02). Só a dona vê.
+
+Isolamento por empresa (Row Level Security): ligado e forçado.
+
+| Coluna | Tipo | Obrigatória | Padrão | Marca | Descrição |
+| --- | --- | --- | --- | --- | --- |
+| id | uuid | sim | `uuidv7()` | sistema | Identificador da conversa (UUID v7). Chave primária. |
+| empresa_id | uuid | sim |  | sistema | Empresa da conversa. Aponta para empresas.id. |
+| pessoa_id | uuid | sim |  | sistema | Pessoa dona da conversa. |
+| agente_id | uuid | sim |  | sistema | Agente interno com quem ela fala. |
+| titulo | text | sim |  | pessoal | Título (a primeira frase do pedido). |
+| criada_em | timestamp with time zone | sim | `now()` | sistema | Quando a conversa começou. |
+| atualizada_em | timestamp with time zone | sim | `now()` | sistema | Última mensagem. |
+
 ### empresas
 
 Empresas que usam o Mago OS. Cada empresa só enxerga a própria linha; todas as outras tabelas de negócio apontam para cá pela coluna empresa_id.
@@ -878,6 +943,32 @@ Isolamento por empresa (Row Level Security): ligado e forçado.
 | empresa_id | uuid | sim |  | sistema | Empresa (a mesma da tarefa e da etiqueta). Aponta para empresas.id. |
 | tarefa_id | uuid | sim |  | sistema | Tarefa. Chave primária. |
 | etiqueta_id | uuid | sim |  | sistema | Etiqueta. Chave primária. |
+
+### execucoes_de_agente
+
+Cada vez que um agente interno trabalha (M4-02). Custo na M4-06; passo a passo na M4-07.
+
+Isolamento por empresa (Row Level Security): ligado e forçado.
+
+| Coluna | Tipo | Obrigatória | Padrão | Marca | Descrição |
+| --- | --- | --- | --- | --- | --- |
+| id | uuid | sim | `uuidv7()` | sistema | Identificador da execução (UUID v7). Chave primária. |
+| empresa_id | uuid | sim |  | sistema | Empresa da execução. Aponta para empresas.id. |
+| agente_id | uuid | sim |  | sistema | Agente interno que trabalhou. |
+| pedido_por | uuid | sim |  | sistema | Quem pediu: o agente age com a permissão dessa pessoa. |
+| origem | text | sim |  | sistema | conversa, tarefa ou delegacao. |
+| conversa_id | uuid | não |  | sistema | Conversa de onde veio (origem conversa). |
+| tarefa_id | uuid | não |  | sistema | Tarefa do trabalho (origem tarefa ou delegacao). |
+| execucao_mae_id | uuid | não |  | sistema | Execução que delegou esta. |
+| instrucoes | text | não |  | empresa | Instruções de quem delegou. |
+| situacao | text | sim | `'na_fila'::text` | sistema | na_fila, rodando, concluida, falhou ou parada. |
+| modelo_conta_id | uuid | não |  | sistema | Conta de IA que rodou de verdade. |
+| modelo | text | não |  | sistema | Modelo que rodou de verdade. |
+| passou_ao_reserva_porque | text | não |  | sistema | Por que o modelo reserva entrou. |
+| resumo | text | não |  | empresa | O que a execução fez, ou o erro em texto curto. |
+| criada_em | timestamp with time zone | sim | `now()` | sistema | Quando entrou na fila. |
+| iniciada_em | timestamp with time zone | não |  | sistema | Quando começou a rodar. |
+| terminada_em | timestamp with time zone | não |  | sistema | Quando terminou. |
 
 ### itens_de_checklist
 
@@ -960,6 +1051,25 @@ Isolamento por empresa (Row Level Security): ligado e forçado.
 | tarefa_id | uuid | sim |  | sistema | Tarefa do comentário. |
 | pessoa_id | uuid | não |  | sistema | Pessoa mencionada. |
 | agente_id | uuid | não |  | sistema | Agente mencionado. |
+
+### mensagens_de_conversa
+
+Mensagens das conversas com os agentes internos. O texto do agente é mostrado só como texto.
+
+Isolamento por empresa (Row Level Security): ligado e forçado.
+
+| Coluna | Tipo | Obrigatória | Padrão | Marca | Descrição |
+| --- | --- | --- | --- | --- | --- |
+| id | uuid | sim | `uuidv7()` | sistema | Identificador da mensagem (UUID v7). Chave primária. |
+| empresa_id | uuid | sim |  | sistema | Empresa da conversa. Aponta para empresas.id. |
+| conversa_id | uuid | sim |  | sistema | Conversa da mensagem. |
+| pessoa_id | uuid | sim |  | sistema | Dona da conversa (repetida aqui para a política de acesso). |
+| autor_pessoa_id | uuid | não |  | sistema | Quem escreveu, se foi a pessoa. |
+| autor_agente_id | uuid | não |  | sistema | Quem escreveu, se foi o agente (os dois vazios: o sistema). |
+| texto | text | sim |  | pessoal | O texto da mensagem. |
+| execucao_id | uuid | não |  | sistema | Execução que produziu a resposta do agente. |
+| tarefas | uuid[] | sim | `'{}'::uuid[]` | sistema | Tarefas criadas ou citadas, para a tela mostrar o link. |
+| criada_em | timestamp with time zone | sim | `now()` | sistema | Quando a mensagem foi escrita. |
 
 ### modelos_de_conta_de_ia
 

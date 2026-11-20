@@ -463,6 +463,24 @@ export function registrarRotasDasContasDeIa(app: FastifyInstance, o: OpcoesDasCo
     },
   );
 
+  // Os modelos liberados de todas as contas, para escolher o do agente.
+  app.get("/ia/modelos", { preHandler: verificador.exigir("agentes", "editar") }, async (pedido) =>
+    naEmpresa(pedido, async (c) => {
+      const r = await c.query<{ conta_id: string; conta: string; credencial: string; modelo: string }>(
+        `select m.conta_id, ct.nome as conta, ct.credencial, m.modelo
+           from modelos_de_conta_de_ia m join contas_de_ia ct on ct.id = m.conta_id
+          where m.empresa_id = empresa_ativa() and m.liberado and not m.sumiu
+          order by lower(ct.nome), m.modelo`,
+      );
+      return r.rows.map((l) => ({
+        contaId: l.conta_id,
+        conta: l.conta,
+        credencial: l.credencial,
+        modelo: l.modelo,
+      }));
+    }),
+  );
+
   // Modelo principal e reserva de um agente (o motor dos agentes internos usa na M4-02).
   app.get(
     "/agentes/:id/modelos",

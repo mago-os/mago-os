@@ -17,6 +17,7 @@ import {
   UserRound,
 } from "lucide-react";
 import type * as React from "react";
+import { useEffect } from "react";
 import type { EmpresaMinha, Sessao } from "@/acesso";
 import { cn } from "@/lib/utils";
 import { NOME_DO_TEMA, PROXIMO_TEMA, type Tema } from "@/tema";
@@ -91,6 +92,17 @@ interface PropsDaCasca {
 
 export function Casca(props: PropsDaCasca) {
   const { sessao, empresas, caminho, tema } = props;
+  // Ctrl+J (Cmd+J no Mac) abre a conversa com o mago de qualquer tela (M4-02).
+  useEffect(() => {
+    const aoTeclar = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "j") {
+        e.preventDefault();
+        window.location.assign("/conversa");
+      }
+    };
+    window.addEventListener("keydown", aoTeclar);
+    return () => window.removeEventListener("keydown", aoTeclar);
+  }, []);
   const menu = [...MENU_DA_PESSOA, ...(props.menuExtra ?? [])];
   const ativa = empresas.find((e) => e.ativa);
 
@@ -99,6 +111,18 @@ export function Casca(props: PropsDaCasca) {
       {/* Menu lateral (computador) */}
       <aside className="sticky top-0 hidden h-dvh flex-col gap-6 border-r border-linha bg-cartao p-4 md:flex">
         <Logo />
+        <a
+          href="/conversa"
+          title="Falar com o mago (Ctrl+J)"
+          className={cn(
+            "flex h-10 items-center gap-3 rounded-md border border-linha px-3 text-sm font-medium transition-colors",
+            caminho === "/conversa" ? "bg-tinta text-sobre-tinta" : "hover:bg-suave",
+          )}
+        >
+          <Mago tamanho={18} cor={caminho === "/conversa" ? "sobre-tinta" : "tinta"} />
+          Falar com o mago
+          <kbd className="ml-auto text-[10px] text-texto-2">Ctrl J</kbd>
+        </a>
         <nav aria-label="Menu principal" className="grid gap-1">
           {menu.map((item) => {
             const Icone = item.icone;
@@ -209,7 +233,7 @@ export function Casca(props: PropsDaCasca) {
       >
         <ItemDeBaixo item={MENU_DA_PESSOA[0] as ItemDoMenu} aqui={caminho === "/"} />
         <ItemDeBaixo item={MENU_DA_PESSOA[2] as ItemDoMenu} aqui={caminho.startsWith("/tarefas")} />
-        <a href="/" aria-label="Fale com o mago" className="mx-auto -mt-5 grid">
+        <a href="/conversa" aria-label="Fale com o mago" className="mx-auto -mt-5 grid">
           <span className="grid size-14 place-items-center rounded-full bg-tinta shadow-lg">
             <Mago tamanho={44} cor="sobre-tinta" />
           </span>

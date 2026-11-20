@@ -36,6 +36,7 @@ test.describe("central de agentes", () => {
     await c.query("delete from avisos where empresa_id = $1", [admin.empresaId]);
     await c.query("delete from contadores_de_agente where empresa_id = $1", [admin.empresaId]);
     await c.query("delete from chaves_de_agente where empresa_id = $1", [admin.empresaId]);
+    await c.query("delete from agentes where empresa_id = $1 and papel = 'especialista'", [admin.empresaId]);
     await c.query("delete from agentes where empresa_id = $1", [admin.empresaId]);
     await c.end();
     await admin.limpar();
@@ -52,7 +53,8 @@ test.describe("central de agentes", () => {
     await expect(page.getByRole("heading", { name: /, Alice!$/ })).toBeVisible();
 
     await page.goto("/agentes");
-    await expect(page.getByText("Nenhum agente cadastrado.")).toBeVisible();
+    // A empresa já nasce com o Coordenador e o Gerente de projetos, pausados (M4-02).
+    await expect(page.getByRole("link", { name: /Coordenador/ })).toBeVisible();
     await page.getByRole("button", { name: "Cadastrar" }).click();
     await page.getByLabel("Nome").fill("Claude no Mac");
     await page.getByLabel("Onde roda (opcional)").fill("Mac da Alice");

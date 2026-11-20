@@ -7,6 +7,7 @@ import { criarLogin, criarPoolDoLogin } from "./acesso/login.ts";
 import { registrarRotasDoLogin } from "./acesso/rotas.ts";
 import { verificarAgentesVivos } from "./agentes/chaves.ts";
 import { registrarRotasDoAgente, registrarRotasDosAgentes } from "./agentes/rotas.ts";
+import { type OpcoesDoMotor, registrarRotasDaConversa, rodarExecucao } from "./agentes-internos/index.ts";
 import { antivirusDeTeste, criarClamav } from "./anexos/antivirus.ts";
 import {
   criarDepositoEmDisco,
@@ -24,6 +25,7 @@ import { ErroDeConfig, lerConfig } from "./config.ts";
 import { registrarRotasDaConta } from "./conta/rotas.ts";
 import { registrarRotasDasContas } from "./contas/rotas.ts";
 import { criarCofre } from "./contas-de-ia/cofre.ts";
+import { modelosDeVerdade } from "./contas-de-ia/conversa.ts";
 import { provedoresDeVerdade } from "./contas-de-ia/provedores.ts";
 import { registrarRotasDasContasDeIa } from "./contas-de-ia/rotas.ts";
 import { registrarRotasDosConvites } from "./convites/rotas.ts";
@@ -46,6 +48,8 @@ import { registrarTempoReal } from "./tempo-real/index.ts";
 /** Fila da verificação de agente vivo (a cada minuto). */
 const FILA_AGENTES_VIVOS = "agentes-vivos";
 const FILA_NOTIFICACOES = "notificacoes";
+/** Execuções dos agentes internos (M4-02): uma por trabalho, chegam na hora em que a pessoa manda a mensagem. */
+const FILA_AGENTES_INTERNOS = "agentes-internos";
 /** Fila dos anexos (M3-08): antivírus, envios parados e arquivos para apagar. A cada minuto, e na hora do envio. */
 const FILA_ANEXOS = "anexos";
 /** Aviso de espaço dos anexos (conta gratuita do Backblaze): uma vez por dia. */
@@ -105,12 +109,48 @@ async function iniciar(): Promise<void> {
     // Contas de IA (M4-01): sem a chave mestra fora do Mac, ficam desligadas.
     if (!config.cofre) app.log.warn("Contas de IA desligadas: MAGO_COFRE_CHAVE_MESTRA não foi informada");
     else if (config.cofre.deTeste) app.log.warn("Cofre com a chave fixa do Mac: só para dados falsos");
+    const cofre = config.cofre ? criarCofre(config.cofre) : null;
     registrarRotasDasContasDeIa(app, {
       verificador,
       poolApp: banco.pool,
-      cofre: config.cofre ? criarCofre(config.cofre) : null,
+      cofre,
       provedores: provedoresDeVerdade(config.ambiente),
       ambiente: config.ambiente,
+    });
+    // Agentes internos (M4-02): a mensagem da pessoa e a delegação viram trabalho na fila; o motor roda cada um.
+    const acordarAgente = (empresaId: string, execucaoId: string) => {
+      void fila
+        .send(FILA_AGENTES_INTERNOS, { empresaId, execucaoId })
+        .catch((erro) =>
+          app.log.error({ erro, execucaoId }, "Fila dos agentes internos não recebeu o trabalho"),
+        );
+    };
+    const opcoesDoMotor: OpcoesDoMotor = {
+      poolApp: banco.pool,
+      cofre,
+      modelos: modelosDeVerdade(config.ambiente),
+      catalogo: verificador.catalogo,
+      opcoesMcp: {
+        poolApp: banco.pool,
+        carteiro,
+        urlPublica: config.acesso.urlPublica,
+        log: app.log,
+        origem: { canal: "sistema", ip: null, aparelho: null },
+        anexos: servicosDosAnexos,
+      },
+      log: app.log,
+      acordar: acordarAgente,
+    };
+    registrarRotasDaConversa(app, { verificador, poolApp: banco.pool, acordar: acordarAgente });
+    trabalhos.push(async () => {
+      await fila.createQueue(FILA_AGENTES_INTERNOS);
+      await fila.work<{ empresaId: string; execucaoId: string }>(
+        FILA_AGENTES_INTERNOS,
+        { batchSize: 1 },
+        async (trabalhos) => {
+          for (const t of trabalhos) await rodarExecucao(opcoesDoMotor, t.data.empresaId, t.data.execucaoId);
+        },
+      );
     });
     registrarRotasDoAgente(app, opcoesDosAgentes);
     registrarServidorMcp(app, { ...opcoesDosAgentes, anexos: servicosDosAnexos });

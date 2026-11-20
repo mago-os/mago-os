@@ -1,7 +1,7 @@
 # 0023 Motor dos agentes internos, coordenador e especialista
 
 - **Data:** 20/11/2026
-- **Situação:** proposta (aguarda o "aprovado" do Sandro nos contratos)
+- **Situação:** aceita (aprovada pelo Sandro no chat em 20/11/2026)
 - **Tarefa:** M4-02
 
 ## Contexto

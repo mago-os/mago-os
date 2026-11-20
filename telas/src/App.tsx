@@ -28,6 +28,7 @@ import { Agentes, PaginaDoAgente } from "./telas/Agentes";
 import { AvisosDeAcesso, MeusAparelhos } from "./telas/Aparelhos";
 import { AvisosDoMago } from "./telas/Avisos";
 import { ContasDeIa } from "./telas/ContasDeIa";
+import { Conversa } from "./telas/Conversa";
 import { AceitarConvite } from "./telas/Convite";
 import { DadosDaEmpresa } from "./telas/DadosDaEmpresa";
 import { AtivarDoisFatores, ConfirmarSegundoFator } from "./telas/DoisFatores";
@@ -223,6 +224,7 @@ export function App() {
   const agenteAberto = /^\/agentes\/([0-9a-f-]{36})$/i.exec(caminho)?.[1];
   const projetoAberto = /^\/projetos\/([0-9a-f-]{36})$/i.exec(caminho)?.[1];
   if (caminho === "/perfil") conteudo = <MeuPerfil />;
+  else if (caminho === "/conversa" && temEmpresaAtiva) conteudo = <Conversa euId={sessao.pessoa.id} />;
   else if (caminho === "/agentes" && pode("agentes", "ver"))
     conteudo = (
       <Agentes

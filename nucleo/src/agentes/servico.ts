@@ -9,17 +9,21 @@ import { comentar } from "../tarefas/servico.ts";
 
 const FORMATO_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-const COLUNAS = `a.id, a.empresa_id, a.nome, a.descricao, a.tipo, a.onde_roda, a.responsavel_id, a.situacao,
-  a.minutos_sem_sinal, a.ultimo_sinal_em, a.criado_em, a.atualizado_em, a.desligado_em`;
+const COLUNAS = `a.id, a.empresa_id, a.nome, a.descricao, a.tipo, a.onde_roda, a.responsavel_id, a.papel,
+  a.especialidade, a.responde_a_id, a.situacao, a.minutos_sem_sinal, a.ultimo_sinal_em, a.criado_em, a.atualizado_em,
+  a.desligado_em`;
 
 interface LinhaDoAgente {
   id: string;
   empresa_id: string;
   nome: string;
   descricao: string | null;
-  tipo: "externo";
+  tipo: Agente["tipo"];
   onde_roda: string | null;
   responsavel_id: string;
+  papel: Agente["papel"];
+  especialidade: Agente["especialidade"];
+  responde_a_id: string | null;
   situacao: SituacaoAgente;
   minutos_sem_sinal: number;
   ultimo_sinal_em: Date | null;
@@ -37,10 +41,9 @@ export function linhaParaAgente(l: LinhaDoAgente): Agente {
     tipo: l.tipo,
     ondeRoda: l.onde_roda,
     responsavelId: l.responsavel_id,
-    // Até a migração da M4-02, só existem agentes externos.
-    papel: null,
-    especialidade: null,
-    respondeAId: null,
+    papel: l.papel,
+    especialidade: l.especialidade,
+    respondeAId: l.responde_a_id,
     situacao: l.situacao,
     minutosSemSinal: l.minutos_sem_sinal,
     ultimoSinalEm: l.ultimo_sinal_em ? l.ultimo_sinal_em.toISOString() : null,
@@ -228,4 +231,45 @@ export async function alcanceCobreAgente(c: pg.PoolClient, filtro: Filtro, agent
     [agente.responsavelId, filtro.area],
   );
   return (r.rowCount ?? 0) > 0;
+}
+
+/**
+ * Os dois agentes de nascença (M4-02, decisão 0023): o Coordenador e o Gerente de projetos, pausados até o modelo ser
+ * escolhido. As empresas que já existiam ganharam os dois na migração; as novas, aqui, no primeiro uso. O responsável
+ * é o administrador mais antigo. Roda na transação de quem chamou; não faz nada se já existem.
+ */
+export async function garantirAgentesDeNascenca(c: pg.PoolClient): Promise<void> {
+  const ja = await c.query(
+    "select 1 from agentes where empresa_id = empresa_ativa() and tipo = 'interno' and papel = 'coordenador' limit 1",
+  );
+  if ((ja.rowCount ?? 0) > 0) return;
+  const dono = await c.query<{ pessoa_id: string }>(
+    `select pessoa_id from vinculos where empresa_id = empresa_ativa() and perfil = 'administrador'
+        and situacao = 'ativo' order by entrou_em nulls last, pessoa_id limit 1`,
+  );
+  const responsavel = dono.rows[0]?.pessoa_id;
+  if (!responsavel) return;
+  // Duas pessoas abrindo ao mesmo tempo: o índice de um coordenador por empresa barra a segunda (on conflict).
+  const coordenador = await c.query<{ id: string }>(
+    `insert into agentes (empresa_id, nome, descricao, tipo, responsavel_id, situacao, papel)
+     select empresa_ativa(), 'Coordenador', 'Recebe os pedidos no app e passa ao especialista certo.', 'interno', $1,
+            'pausado', 'coordenador'
+      where not exists (select 1 from agentes where empresa_id = empresa_ativa() and lower(nome) = 'coordenador'
+                          and situacao <> 'desligado')
+     on conflict do nothing returning id`,
+    [responsavel],
+  );
+  const id = coordenador.rows[0]?.id;
+  if (!id) return;
+  await c.query(
+    `insert into agentes (empresa_id, nome, descricao, tipo, responsavel_id, situacao, papel, especialidade,
+       responde_a_id)
+     select empresa_ativa(), 'Gerente de projetos',
+            'Planeja tarefas em subtarefas e checklist, distribui e acompanha prazos.', 'interno', $1, 'pausado',
+            'especialista', 'gerente_de_projetos', $2
+      where not exists (select 1 from agentes where empresa_id = empresa_ativa()
+                          and lower(nome) = 'gerente de projetos' and situacao <> 'desligado')
+     on conflict do nothing`,
+    [responsavel, id],
+  );
 }

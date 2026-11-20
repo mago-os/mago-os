@@ -165,8 +165,10 @@ describe.skipIf(!bancoDisponivel)("central de agentes", () => {
     claude = r.json().id;
     const fabio = await como("fabio@teste.invalid");
     const lista = await pedir("GET", "/agentes", fabio);
-    expect(lista.json().map((a: { nome: string }) => a.nome)).toEqual(["Claude no Mac"]);
-    expect(lista.json()[0].responsavelNome).toBe("Ana Admin");
+    // Além do Claude, a empresa tem os dois agentes internos de nascença (M4-02).
+    const externos = lista.json().filter((a: { tipo: string }) => a.tipo === "externo");
+    expect(externos.map((a: { nome: string }) => a.nome)).toEqual(["Claude no Mac"]);
+    expect(externos[0].responsavelNome).toBe("Ana Admin");
     const negado = await pedir("POST", "/agentes", fabio, {
       nome: "Outro",
       responsavelId: await idDe("fabio@teste.invalid"),
@@ -265,7 +267,10 @@ describe.skipIf(!bancoDisponivel)("central de agentes", () => {
 
   it("outra empresa não vê o agente nem consegue usá-lo", async () => {
     const otto = await como("otto@teste.invalid");
-    expect((await pedir("GET", "/agentes", otto)).json()).toEqual([]);
+    // Otto vê só os agentes internos da empresa dele.
+    const deOtto = (await pedir("GET", "/agentes", otto)).json() as { id: string; tipo: string }[];
+    expect(deOtto.filter((a) => a.tipo === "externo")).toEqual([]);
+    expect(deOtto.map((a) => a.id)).not.toContain(claude);
     expect((await pedir("GET", `/agentes/${claude}`, otto)).statusCode).toBe(404);
     expect((await pedir("POST", `/agentes/${claude}/pausar`, otto)).statusCode).toBe(404);
     const t = await pedir("POST", "/tarefas", otto, {

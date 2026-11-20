@@ -68,12 +68,15 @@ export interface OpcoesDoMcp {
   anexos?: ServicosDosAnexos | null;
 }
 
-/** Recusa que o agente lê (vira isError na resposta da ferramenta). */
-class RecusaDaFerramenta extends Error {
+/** Recusa que o agente lê (vira isError na resposta da ferramenta). Os agentes internos usam a mesma (M4-02). */
+export class RecusaDaFerramenta extends Error {
   override name = "RecusaDaFerramenta";
 }
 
-type AcaoDeTarefa = (typeof ACOES_TAREFAS)[number] | (typeof ACOES_CHECKLIST)[number] | "tarefa.recorreu";
+export type AcaoDeTarefa =
+  | (typeof ACOES_TAREFAS)[number]
+  | (typeof ACOES_CHECKLIST)[number]
+  | "tarefa.recorreu";
 
 export function registrarServidorMcp(app: FastifyInstance, o: OpcoesDoMcp): void {
   app.post("/mcp", async (pedido, resposta) => {
@@ -194,13 +197,16 @@ function erro(texto: string) {
   return { content: [{ type: "text" as const, text: texto }], isError: true };
 }
 
-/** Executa uma ferramenta na empresa do agente. Recusas viram RecusaDaFerramenta (texto para o agente). */
-async function executar(
+/**
+ * Executa uma ferramenta na empresa do agente. Recusas viram RecusaDaFerramenta (texto para o agente). Os agentes
+ * internos (M4-02) chamam esta mesma função para as ferramentas do MCP, com as mesmas regras.
+ */
+export async function executar(
   nome: NomeDaFerramenta,
   entrada: EntradaDa<NomeDaFerramenta>,
   agente: AgenteDoPedido,
   o: OpcoesDaChave,
-  pedido: FastifyRequest,
+  pedido: Pick<FastifyRequest, "log">,
 ): Promise<Record<string, unknown>> {
   const quem: Quem = { tipo: "agente", agenteId: agente.agenteId };
   const naEmpresa = <T>(trabalho: (c: pg.PoolClient) => Promise<T>) =>

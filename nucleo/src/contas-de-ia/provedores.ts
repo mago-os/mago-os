@@ -16,7 +16,7 @@ import type {
 import { type LoginDoCodex, lerLoginDoCodex } from "@mago-os/contratos";
 
 export const ENDERECO_DA_ANTHROPIC = "https://api.anthropic.com/v1";
-const VERSAO_DA_API_ANTHROPIC = "2023-06-01";
+export const VERSAO_DA_API_ANTHROPIC = "2023-06-01";
 const TEMPO_MAXIMO_MS = 15_000;
 const MAXIMO_DE_MODELOS = 1000;
 /** A lista de modelos não passa disso (o OpenRouter, com centenas de modelos, fica bem abaixo). */
@@ -49,8 +49,8 @@ export interface Provedores {
 export const MODELOS_DO_CHATGPT = ["gpt-5.1", "gpt-5.1-codex", "gpt-5.1-codex-mini", "gpt-5"] as const;
 
 /** Endereço e cliente públicos do login do Codex (os mesmos que o Codex usa para renovar o acesso). */
-const RENOVAR_LOGIN_DO_CHATGPT = "https://auth.openai.com/oauth/token";
-const CLIENTE_DO_CODEX = "app_EMoamEEZ73f0CkXaXp7hrann";
+export const RENOVAR_LOGIN_DO_CHATGPT = "https://auth.openai.com/oauth/token";
+export const CLIENTE_DO_CODEX = "app_EMoamEEZ73f0CkXaXp7hrann";
 
 /** Os 4 caracteres que identificam a credencial na tela (no JSON do Codex, o fim da conta ou do token). */
 export function finalDaCredencial(provedor: ProvedorDeIa, chave: string): string {
@@ -135,7 +135,7 @@ export async function enderecoSeguro(
   }
 }
 
-function erroPeloCodigo(codigo: number): string {
+export function erroPeloCodigo(codigo: number): string {
   if (codigo === 401 || codigo === 403) return "O provedor recusou a chave.";
   if (codigo === 404) return "O endereço não tem a lista de modelos (confira o endereço).";
   if (codigo === 429) return "O provedor pediu para esperar (limite de pedidos ou sem crédito).";
@@ -143,7 +143,7 @@ function erroPeloCodigo(codigo: number): string {
   return `O provedor respondeu com erro ${codigo}.`;
 }
 
-type RespostaJson =
+export type RespostaJson =
   | { ok: true; corpo: unknown }
   | { ok: false; erro: string; status?: number; esperarSegundos?: number };
 
@@ -156,10 +156,11 @@ export function esperaPedida(valor: string | null, agora = Date.now()): number |
     : undefined;
 }
 
-async function pedirJson(
+export async function pedirJson(
   url: string,
   cabecalhos: Record<string, string>,
   corpo?: unknown,
+  tempoMaximoMs = TEMPO_MAXIMO_MS,
 ): Promise<RespostaJson> {
   try {
     const r = await fetch(url, {
@@ -171,7 +172,7 @@ async function pedirJson(
       },
       ...(corpo === undefined ? {} : { body: JSON.stringify(corpo) }),
       redirect: "error",
-      signal: AbortSignal.timeout(TEMPO_MAXIMO_MS),
+      signal: AbortSignal.timeout(tempoMaximoMs),
     });
     if (!r.ok) {
       await r.body?.cancel();
