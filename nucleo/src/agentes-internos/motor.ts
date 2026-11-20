@@ -317,7 +317,14 @@ async function rodar(o: OpcoesDoMotor, empresaId: string, execucaoId: string): P
         throw new LimiteDaExecucao("Passou do tempo máximo da execução.");
       const r = await comReserva(
         modelosDoAgenteAtual,
-        (m) => naEmpresa((c) => modeloIndisponivel(c, m)),
+        // Sem reserva, a marca de limite do plano (um palpite de quando volta) não impede de tentar: quem decide é o
+        // provedor. Com reserva, a marca faz o agente ir direto para o reserva.
+        (m) =>
+          naEmpresa(async (c) => {
+            const motivo = await modeloIndisponivel(c, m);
+            if (motivo?.includes("limite do plano") && !modelosDoAgenteAtual.reserva) return null;
+            return motivo;
+          }),
         async (m) => {
           const acesso = await naEmpresa(async (c) => {
             const conta = await buscarConta(c, m.contaId);

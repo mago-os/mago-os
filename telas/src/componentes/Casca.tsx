@@ -120,8 +120,7 @@ export function Casca(props: PropsDaCasca) {
           )}
         >
           <Mago tamanho={18} cor={caminho === "/conversa" ? "sobre-tinta" : "tinta"} />
-          Falar com o mago
-          <kbd className="ml-auto text-[10px] text-texto-2">Ctrl J</kbd>
+          <span className="whitespace-nowrap">Falar com o mago</span>
         </a>
         <nav aria-label="Menu principal" className="grid gap-1">
           {menu.map((item) => {

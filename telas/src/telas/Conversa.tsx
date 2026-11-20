@@ -107,15 +107,15 @@ export function Conversa({ euId }: { euId: string }) {
   const nome = coordenador?.nome ?? "Coordenador";
 
   return (
-    <main className="mx-auto grid w-full max-w-5xl gap-4 px-4 py-5 md:grid-cols-[240px_1fr] md:py-8">
-      <aside className={cn("grid content-start gap-2", abertaId && "hidden md:grid")}>
+    <main className="mx-auto grid w-full min-w-0 max-w-5xl gap-4 px-4 py-5 md:grid-cols-[minmax(0,240px)_minmax(0,1fr)] md:py-8">
+      <aside className={cn("grid min-w-0 content-start gap-2", abertaId && "hidden md:grid")}>
         <Button onClick={() => setAbertaId(null)} variant="contorno">
           <Plus /> Conversa nova
         </Button>
         {lista?.conversas.length === 0 && <p className="text-sm text-texto-2">Nenhuma conversa ainda.</p>}
-        <ul className="grid gap-1">
+        <ul className="grid min-w-0 gap-1">
           {lista?.conversas.map((c) => (
-            <li key={c.id} className="group flex items-center gap-1">
+            <li key={c.id} className="group flex min-w-0 items-center gap-1">
               <button
                 type="button"
                 onClick={() => setAbertaId(c.id)}
