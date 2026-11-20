@@ -30,3 +30,4 @@ export * from "./tarefas/prazos.ts";
 export * from "./tarefas/prioridades.ts";
 export * from "./tarefas/tarefa.ts";
 export * from "./tarefas/visoes.ts";
+export * from "./telas/layouts.ts";
