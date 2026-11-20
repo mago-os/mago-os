@@ -586,7 +586,7 @@ function descreverAcao(e: EventoDaAuditoria): string {
     "sessao.encerrou": "Aparelho desconectado",
     "sessao.aparelho_novo": "Acesso por aparelho novo",
     "permissao.alterou": "Mudou uma permissão",
-    "empresa.alterou": "Mudou a segurança da empresa",
+    "empresa.alterou": "Mudou os dados ou a segurança da empresa",
     "empresa.trocou_ativa": "Trocou de empresa",
     "pessoa.alterou": "Mudou o perfil",
     "senha.trocou": "Trocou a senha",

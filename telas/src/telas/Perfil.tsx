@@ -24,14 +24,14 @@ import { AtivarDoisFatores, ConfirmarSegundoFator } from "./DoisFatores";
 import { Notificacoes } from "./Notificacoes";
 import { usePasskeyPronta } from "./usePasskey";
 
-const IDIOMAS = [
+export const IDIOMAS = [
   ["pt-BR", "Português (Brasil)"],
   ["pt-PT", "Português (Portugal)"],
   ["en", "English"],
   ["es", "Español"],
 ] as const;
 
-const FUSOS = [
+export const FUSOS = [
   "America/Sao_Paulo",
   "America/Manaus",
   "America/Fortaleza",

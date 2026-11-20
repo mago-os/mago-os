@@ -14,6 +14,8 @@ export const MODULOS_DO_NUCLEO: readonly DeclaracaoDeModulo[] = [
   },
   { id: "permissoes", nome: "Permissões", acoes: ["ver", "editar"], temDadosSensiveis: false, area: null },
   { id: "auditoria", nome: "Auditoria", acoes: ["ver"], temDadosSensiveis: true, area: null },
+  // Dados da empresa (M3-11): todos veem; muda quem tem "editar" (padrão: o administrador). Sensível: o CPF.
+  { id: "empresa", nome: "Dados da empresa", acoes: ["ver", "editar"], temDadosSensiveis: true, area: null },
   // Segurança da empresa (exigir 2FA ou passkey de todos). Padrão: só o administrador.
   {
     id: "seguranca",
