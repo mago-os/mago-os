@@ -30,6 +30,7 @@ const PADRAO_DO_NUCLEO: Record<
   Record<string, Partial<Record<AcaoNoModulo, Alcance>>>
 > = {
   gestor_area: {
+    empresa: { ver: "tudo" },
     pessoas: { ver: "equipe" },
     tarefas: { ver: "equipe", criar: "equipe", editar: "equipe" },
     agentes: { ver: "tudo" },
@@ -37,6 +38,7 @@ const PADRAO_DO_NUCLEO: Record<
     projetos: { ver: "tudo", criar: "tudo", editar: "tudo" },
   },
   funcionario: {
+    empresa: { ver: "tudo" },
     pessoas: { ver: "meus" },
     tarefas: { ver: "meus", criar: "meus", editar: "meus" },
     agentes: { ver: "tudo" },

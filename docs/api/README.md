@@ -326,6 +326,8 @@ Todas com o prefixo `/api` no site, menos `/mcp`, que fica em `https://teste.osm
 | POST | `/layouts/:id` | tarefas.ver (só os da pessoa) | Salva por cima um layout da pessoa. |
 | POST | `/layouts/:id/usar` | tarefas.ver (só os da pessoa) | Troca para o layout (ele passa a abrir sozinho). |
 | DELETE | `/layouts/:id` | tarefas.ver (só os da pessoa) | Apaga um layout da pessoa. |
+| GET | `/empresa/dados` | empresa.ver | Dados da empresa (nome, nome legal, documento, telefone, fuso e idioma); CPF mascarado para quem não vê dados sensíveis. |
+| POST | `/empresa/dados` | empresa.editar | Muda os dados da empresa (mudar o documento pede o segundo fator recente). |
 | GET | `/prioridades` | tarefas.ver | Central de prioridades de quem pede, na ordem fixa (atrasadas, hoje, ajuda, menções, avisos). |
 | POST | `/prioridades/adiar` | tarefas.ver | Adia um item da central até um dia (só para quem pede). |
 | POST | `/prioridades/resolver` | tarefas.ver | Marca um item da central como resolvido (aviso de agente fica lido). |

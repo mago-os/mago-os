@@ -70,7 +70,7 @@ test.describe("telas do administrador", () => {
 
     await page.goto("/auditoria");
     await expect(page.getByText("Mudou uma permissão").first()).toBeVisible();
-    await expect(page.getByText("Mudou a segurança da empresa").first()).toBeVisible();
+    await expect(page.getByText("Mudou os dados ou a segurança da empresa").first()).toBeVisible();
     await expect(page.getByText(/Alice Admin/).first()).toBeVisible();
   });
 

@@ -26,6 +26,7 @@
     "./avisos/notificacoes": "./src/avisos/notificacoes.ts",
     "./anexos": "./src/anexos/index.ts",
     "./busca": "./src/busca/index.ts",
+    "./dados-da-empresa": "./src/dados-da-empresa/index.ts",
     "./layouts": "./src/layouts/index.ts",
     "./anexos/servico": "./src/anexos/servico.ts",
     "./anexos/deposito": "./src/anexos/deposito.ts",

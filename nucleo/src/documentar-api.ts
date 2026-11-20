@@ -262,6 +262,19 @@ export const ROTAS: Rota[] = [
   },
   {
     metodo: "GET",
+    caminho: "/empresa/dados",
+    permissao: "empresa.ver",
+    oQueFaz:
+      "Dados da empresa (nome, nome legal, documento, telefone, fuso e idioma); CPF mascarado para quem não vê dados sensíveis.",
+  },
+  {
+    metodo: "POST",
+    caminho: "/empresa/dados",
+    permissao: "empresa.editar",
+    oQueFaz: "Muda os dados da empresa (mudar o documento pede o segundo fator recente).",
+  },
+  {
+    metodo: "GET",
     caminho: "/prioridades",
     permissao: "tarefas.ver",
     oQueFaz: "Central de prioridades de quem pede, na ordem fixa (atrasadas, hoje, ajuda, menções, avisos).",

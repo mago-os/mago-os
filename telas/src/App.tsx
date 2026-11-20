@@ -1,4 +1,4 @@
-import { Bot, Building2, ScrollText, Shield, Users } from "lucide-react";
+import { Bot, Building2, Landmark, ScrollText, Shield, Users } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import {
   type AvisoDeAcesso,
@@ -28,6 +28,7 @@ import { Agentes, PaginaDoAgente } from "./telas/Agentes";
 import { AvisosDeAcesso, MeusAparelhos } from "./telas/Aparelhos";
 import { AvisosDoMago } from "./telas/Avisos";
 import { AceitarConvite } from "./telas/Convite";
+import { DadosDaEmpresa } from "./telas/DadosDaEmpresa";
 import { AtivarDoisFatores, ConfirmarSegundoFator } from "./telas/DoisFatores";
 import { Empresas } from "./telas/Empresas";
 import { NovaConta } from "./telas/NovaConta";
@@ -206,6 +207,9 @@ export function App() {
       ? [{ caminho: "/pessoas", nome: "Pessoas", icone: Users }]
       : []),
     ...(pode("agentes", "ver") ? [{ caminho: "/agentes", nome: "Agentes", icone: Bot }] : []),
+    ...(pode("empresa", "editar")
+      ? [{ caminho: "/dados-da-empresa", nome: "Dados da empresa", icone: Landmark }]
+      : []),
     ...(pode("seguranca", "ver") || dono
       ? [{ caminho: "/seguranca", nome: "Segurança", icone: Shield }]
       : []),
@@ -284,6 +288,8 @@ export function App() {
   else if (caminho === "/empresas" && dono) conteudo = <Empresas />;
   else if (caminho === "/aparelhos") conteudo = <MeusAparelhos />;
   else if (caminho === "/prioridades" && temEmpresaAtiva) conteudo = <Prioridades />;
+  else if (caminho === "/dados-da-empresa" && temEmpresaAtiva && pode("empresa", "ver"))
+    conteudo = <DadosDaEmpresa />;
   else if (caminho === "/paineis" && temEmpresaAtiva)
     conteudo = (
       <Paineis

@@ -20,6 +20,7 @@ describe("documentação da API", () => {
       "anexos/index.ts",
       "busca/index.ts",
       "layouts/index.ts",
+      "dados-da-empresa/index.ts",
       "mcp/index.ts",
     ];
     const noCodigo = new Set<string>();
