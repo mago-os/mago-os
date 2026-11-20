@@ -30,3 +30,4 @@ Uma nota curta por decisão importante: o que foi decidido, por quê e o que foi
 | [0021](0021-cofre-e-contas-de-ia.md) | Cofre interno com envelope por empresa (AES-256-GCM, chave mestra no Infisical) e contas de IA com modelo principal e reserva | Aceita |
 | [0022](0022-assinatura-nas-contas-de-ia.md) | Plano de assinatura nas contas de IA (Claude Pro/Max e ChatGPT), por conta e risco do administrador, com o aceite na auditoria | Aceita |
 | [0023](0023-motor-dos-agentes-internos.md) | Motor dos agentes internos no núcleo (fila e ferramentas do próprio núcleo), coordenador e Gerente de projetos, conversa no app | Aceita |
+| [0024](0024-plano-anthropic-pelo-claude-code.md) | Plano de assinatura da Anthropic pelo Claude Code oficial (Claude Agent SDK), só com as ferramentas do Mago OS | Aceita |

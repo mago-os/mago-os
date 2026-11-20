@@ -11,6 +11,7 @@ import type { DeclaracaoDeModulo, ModeloEscolhido, PapelDeAgente } from "@mago-o
 import type pg from "pg";
 import type { OpcoesDaChave } from "../agentes/chaves.ts";
 import { auditar } from "../auditoria/registrar.ts";
+import type { RodarClaudeCode } from "../contas-de-ia/claude-code.ts";
 import type { Cofre } from "../contas-de-ia/cofre.ts";
 import { ErroDoModelo, type Modelos, type ParteDaConversa } from "../contas-de-ia/conversa.ts";
 import { comReserva, finalDaCredencial } from "../contas-de-ia/provedores.ts";
@@ -63,6 +64,8 @@ export interface OpcoesDoMotor {
   };
   /** Põe a execução na fila (a delegação cria execuções novas). */
   acordar(empresaId: string, execucaoId: string): void;
+  /** Roda pelo Claude Code oficial (plano de assinatura da Anthropic). Sem ele, esse plano não funciona. */
+  claudeCode?: RodarClaudeCode;
   /** Limites por execução (padrão: 30 rodadas e 10 minutos; ajuste por agente na M4-08). */
   limites?: { rodadas: number; tempoMs: number };
 }
@@ -95,6 +98,22 @@ com prazos coerentes com o prazo da tarefa. Atribua as subtarefas (atribuir) só
 quando for claro quem cuida. Comente na tarefa o plano, se ajudar. No fim, responda com um resumo do plano.
 
 ${REGRAS_FIXAS}`;
+}
+
+/** A conversa em texto, para o Claude Code (que recebe um pedido só, sem as partes separadas). */
+export function textoDasPartes(partes: ParteDaConversa[]): string {
+  const falas = partes.filter((p) => p.papel !== "resultado");
+  if (falas.length === 1 && falas[0]?.papel === "usuario") return falas[0].texto;
+  // Cada fala vai marcada, e a pessoa não consegue fechar a marcação para inventar uma fala do agente.
+  const limpar = (t: string) => t.replace(/<\/?mensagem[^>]*>/gi, "");
+  const linhas = falas.map((p) =>
+    p.papel === "usuario"
+      ? `<mensagem de="pessoa">\n${limpar(p.texto)}\n</mensagem>`
+      : p.papel === "assistente"
+        ? `<mensagem de="voce">\n${limpar(p.texto ?? "")}\n</mensagem>`
+        : "",
+  );
+  return `A conversa até agora (cada fala dentro de <mensagem>):\n\n${linhas.join("\n\n")}\n\nResponda à última mensagem da pessoa.`;
 }
 
 const externo = (dado: unknown) => `<conteudo_externo>\n${JSON.stringify(dado)}\n</conteudo_externo>`;
@@ -267,7 +286,7 @@ async function rodar(o: OpcoesDoMotor, empresaId: string, execucaoId: string): P
   }
   const agente: AgenteQueRoda = { id: agenteBruto.id, nome: agenteBruto.nome, papel: agenteBruto.papel };
   const cofre = o.cofre;
-  const modelosDoAgenteAtual = preparo.modelos;
+  let modelosDoAgenteAtual = preparo.modelos;
 
   const permissoes = await permissoesNaEmpresa(o.poolApp, execucao.pedidoPor, empresaId, o.catalogo);
   if (!permissoes) {
@@ -312,112 +331,236 @@ async function rodar(o: OpcoesDoMotor, empresaId: string, execucaoId: string): P
     let modeloUsado: ModeloEscolhido | null = null;
     let reserva: string | null = null;
 
-    for (let rodada = 0; rodada < limites.rodadas; rodada++) {
-      if (Date.now() - inicio > limites.tempoMs)
-        throw new LimiteDaExecucao("Passou do tempo máximo da execução.");
-      const r = await comReserva(
-        modelosDoAgenteAtual,
-        // Sem reserva, a marca de limite do plano (um palpite de quando volta) não impede de tentar: quem decide é o
-        // provedor. Com reserva, a marca faz o agente ir direto para o reserva.
-        (m) =>
-          naEmpresa(async (c) => {
-            const motivo = await modeloIndisponivel(c, m);
-            if (motivo?.includes("limite do plano") && !modelosDoAgenteAtual.reserva) return null;
-            return motivo;
-          }),
-        async (m) => {
-          const acesso = await naEmpresa(async (c) => {
-            const conta = await buscarConta(c, m.contaId);
-            const cifrada = await chaveCifradaDaConta(c, m.contaId);
-            if (!conta || !cifrada) throw new ErroDoModelo("A conta de IA não existe mais.");
-            return { conta, cifrada, chave: await cofre.abrirChaveDeIa(c, empresaId, m.contaId, cifrada) };
-          });
+    // Plano de assinatura da Anthropic: a execução inteira roda dentro do Claude Code oficial (decisão 0024), que
+    // cuida das rodadas e chama as ferramentas do Mago OS. Se falhar antes de qualquer ferramenta, entra o reserva.
+    let ferramentasUsadas = 0;
+    const pelaAssinatura = (m: ModeloEscolhido) =>
+      naEmpresa(async (c) => {
+        const conta = await buscarConta(c, m.contaId);
+        return conta?.provedor === "anthropic" && conta.credencial === "assinatura";
+      });
+    // Sem outro modelo depois, a marca de limite do plano (um palpite de quando volta) não impede de tentar: quem
+    // decide é o provedor. Com outro modelo depois, a marca faz o agente ir direto para ele.
+    const indisponivel = (m: ModeloEscolhido, haOutroDepois: boolean) =>
+      naEmpresa(async (c) => {
+        const motivo = await modeloIndisponivel(c, m);
+        if (motivo?.includes("limite do plano") && !haOutroDepois) return null;
+        return motivo;
+      });
+    const rodarNoClaudeCode = async (
+      m: ModeloEscolhido,
+      rodarCc: RodarClaudeCode,
+      haOutroDepois: boolean,
+    ) => {
+      const motivo = await indisponivel(m, haOutroDepois);
+      if (motivo) throw new ErroDoModelo(`Modelo ${m.modelo} indisponível: ${motivo}`);
+      const acesso = await naEmpresa(async (c) => {
+        const cifrada = await chaveCifradaDaConta(c, m.contaId);
+        if (!cifrada) throw new ErroDoModelo("A conta de IA não existe mais.");
+        return { chave: await cofre.abrirChaveDeIa(c, empresaId, m.contaId, cifrada) };
+      });
+      let fim: { tipo: "responder" | "perguntar"; texto: string; tarefas: string[] } | null = null;
+      // O Claude Code pode pedir várias ferramentas ao mesmo tempo: elas rodam uma de cada vez, e nada roda depois
+      // do fim (responder ou perguntar).
+      let vez: Promise<unknown> = Promise.resolve();
+      const executar = (nome: string, entrada: unknown) => {
+        const esta = vez.then(async (): Promise<{ texto: string; erro: boolean }> => {
+          if (fim) return { texto: "A execução já terminou. Não chame mais ferramentas.", erro: true };
+          ferramentasUsadas += 1;
           try {
-            const resposta = await o.modelos.conversar(
-              {
-                provedor: acesso.conta.provedor,
-                credencial: acesso.conta.credencial,
-                endereco: acesso.conta.endereco,
-                chave: acesso.chave,
-              },
-              { modelo: m.modelo, sistema, partes, ferramentas },
-            );
-            if (resposta.credencialNova) {
-              const nova = resposta.credencialNova;
-              await naEmpresa(async (c) =>
-                guardarCredencialRenovada(
-                  c,
-                  m.contaId,
-                  acesso.cifrada,
-                  await cofre.guardarChaveDeIa(c, empresaId, m.contaId, nova),
-                  finalDaCredencial(acesso.conta.provedor, nova),
-                ),
-              );
+            const feito = await executarFerramenta(ctx, nome, entrada);
+            if (feito.fim) {
+              fim = feito.fim;
+              return { texto: "Feito. Encerre agora, sem chamar mais ferramentas.", erro: false };
             }
-            return resposta;
+            return { texto: externo(feito.conteudo).slice(0, 60_000), erro: false };
           } catch (erro) {
-            // O login do ChatGPT pode ter sido renovado antes da falha: o novo precisa ir para o cofre mesmo assim.
-            if (erro instanceof ErroDoModelo && erro.credencialNova) {
-              const nova = erro.credencialNova;
-              await naEmpresa(async (c) =>
-                guardarCredencialRenovada(
-                  c,
-                  m.contaId,
-                  acesso.cifrada,
-                  await cofre.guardarChaveDeIa(c, empresaId, m.contaId, nova),
-                  finalDaCredencial(acesso.conta.provedor, nova),
-                ),
-              );
-            }
-            if (erro instanceof ErroDoModelo && erro.limiteAte)
-              await naEmpresa((c) => marcarLimiteDoPlano(c, m.contaId, erro.limiteAte));
-            throw erro;
+            if (erro instanceof RecusaDaFerramenta) return { texto: erro.message, erro: true };
+            o.log.error({ erro, execucaoId, ferramenta: nome }, "Agente interno: erro na ferramenta");
+            return { texto: "Não foi possível concluir a ferramenta agora.", erro: true };
           }
-        },
-      );
-      modeloUsado = r.usado;
-      reserva = reserva ?? r.passouAoReservaPorque;
-      const resposta = r.resultado;
-      partes.push({ papel: "assistente", texto: resposta.texto, chamadas: resposta.chamadas });
-
-      // Sem ferramenta: o texto é a resposta final.
-      if (resposta.chamadas.length === 0) {
-        await finalizar(
-          o,
-          empresaId,
-          ctx,
-          { tipo: "responder", texto: resposta.texto ?? "Pronto.", tarefas: [] },
-          avisarNaConversa,
-        );
-        await encerrar("concluida", (resposta.texto ?? "Respondeu.").slice(0, 2000), {
-          modelo: modeloUsado,
-          reserva,
         });
-        return;
+        vez = esta.catch(() => {});
+        return esta;
+      };
+      let texto: string | null = null;
+      try {
+        const r = await rodarCc({
+          token: acesso.chave,
+          modelo: m.modelo,
+          sistema,
+          prompt: textoDasPartes(partes),
+          ferramentas,
+          maximoDeRodadas: limites.rodadas,
+          // O tempo que sobra da execução (o reserva não ganha outros 10 minutos).
+          tempoMaximoMs: Math.max(5_000, limites.tempoMs - (Date.now() - inicio)),
+          executar,
+        });
+        texto = r.texto;
+      } catch (erro) {
+        // A resposta já foi dada (o Claude Code falhou só ao fechar): ela vale.
+        if (!fim) {
+          if (erro instanceof ErroDoModelo && erro.limiteAte)
+            await naEmpresa((c) => marcarLimiteDoPlano(c, m.contaId, erro.limiteAte));
+          throw erro;
+        }
+        o.log.warn({ erro, execucaoId }, "Claude Code: falhou depois da resposta");
       }
-      for (const chamada of resposta.chamadas) {
+      const final = fim ?? { tipo: "responder" as const, texto: texto ?? "Pronto.", tarefas: [] };
+      await finalizar(o, empresaId, ctx, final, avisarNaConversa);
+      await encerrar("concluida", final.texto.slice(0, 2000), { modelo: m, reserva });
+    };
+    const principalM = modelosDoAgenteAtual.principal;
+    const reservaM = modelosDoAgenteAtual.reserva;
+    const principalNoClaudeCode = await pelaAssinatura(principalM);
+    const reservaNoClaudeCode = reservaM ? await pelaAssinatura(reservaM) : false;
+    let reservaPeloClaudeCode: ModeloEscolhido | null = null;
+    if (principalNoClaudeCode) {
+      if (!o.claudeCode) {
+        if (!reservaM || reservaNoClaudeCode)
+          throw new ErroDoModelo(
+            "O Claude Code não está disponível neste servidor para usar o plano de assinatura.",
+          );
+        reserva = "O Claude Code não está disponível neste servidor.";
+        modelosDoAgenteAtual = { principal: reservaM, reserva: null };
+      } else {
         try {
-          const feito = await executarFerramenta(ctx, chamada.nome, chamada.entrada);
-          if (feito.fim) {
-            await finalizar(o, empresaId, ctx, feito.fim, avisarNaConversa);
-            await encerrar("concluida", feito.fim.texto.slice(0, 2000), { modelo: modeloUsado, reserva });
+          await rodarNoClaudeCode(principalM, o.claudeCode, reservaM !== null);
+          return;
+        } catch (erro) {
+          // Depois de alguma ferramenta, repetir no reserva poderia duplicar o trabalho: aí a execução falha.
+          if (!reservaM || ferramentasUsadas > 0 || !(erro instanceof ErroDoModelo)) throw erro;
+          reserva = erro.message;
+          if (reservaNoClaudeCode) {
+            await rodarNoClaudeCode(reservaM, o.claudeCode, false);
             return;
           }
-          // Todo resultado pode trazer texto de pessoas (títulos, descrições, comentários): vai como dado.
-          const conteudo = externo(feito.conteudo);
-          partes.push({
-            papel: "resultado",
-            chamadaId: chamada.id,
-            conteudo: conteudo.slice(0, 60_000),
-            erro: false,
-          });
-        } catch (erro) {
-          if (!(erro instanceof RecusaDaFerramenta)) throw erro;
-          partes.push({ papel: "resultado", chamadaId: chamada.id, conteudo: erro.message, erro: true });
+          modelosDoAgenteAtual = { principal: reservaM, reserva: null };
         }
       }
+    } else if (reservaM && reservaNoClaudeCode) {
+      // Principal pela API e reserva pelo plano: a API roda sozinha e, se falhar antes de alguma ferramenta, o
+      // reserva roda pelo Claude Code.
+      modelosDoAgenteAtual = { principal: principalM, reserva: null };
+      reservaPeloClaudeCode = o.claudeCode ? reservaM : null;
     }
-    throw new LimiteDaExecucao("Passou do limite de rodadas da execução.");
+
+    const rodarPelaApi = async (): Promise<void> => {
+      for (let rodada = 0; rodada < limites.rodadas; rodada++) {
+        if (Date.now() - inicio > limites.tempoMs)
+          throw new LimiteDaExecucao("Passou do tempo máximo da execução.");
+        const r = await comReserva(
+          modelosDoAgenteAtual,
+          (m) =>
+            indisponivel(m, m === modelosDoAgenteAtual.principal && modelosDoAgenteAtual.reserva !== null),
+          async (m) => {
+            const acesso = await naEmpresa(async (c) => {
+              const conta = await buscarConta(c, m.contaId);
+              const cifrada = await chaveCifradaDaConta(c, m.contaId);
+              if (!conta || !cifrada) throw new ErroDoModelo("A conta de IA não existe mais.");
+              // O plano da Anthropic só funciona pelo Claude Code (acima), não pela API direto.
+              if (conta.provedor === "anthropic" && conta.credencial === "assinatura")
+                throw new ErroDoModelo(
+                  "O plano de assinatura da Anthropic roda pelo Claude Code: use-o como principal.",
+                );
+              return { conta, cifrada, chave: await cofre.abrirChaveDeIa(c, empresaId, m.contaId, cifrada) };
+            });
+            try {
+              const resposta = await o.modelos.conversar(
+                {
+                  provedor: acesso.conta.provedor,
+                  credencial: acesso.conta.credencial,
+                  endereco: acesso.conta.endereco,
+                  chave: acesso.chave,
+                },
+                { modelo: m.modelo, sistema, partes, ferramentas },
+              );
+              if (resposta.credencialNova) {
+                const nova = resposta.credencialNova;
+                await naEmpresa(async (c) =>
+                  guardarCredencialRenovada(
+                    c,
+                    m.contaId,
+                    acesso.cifrada,
+                    await cofre.guardarChaveDeIa(c, empresaId, m.contaId, nova),
+                    finalDaCredencial(acesso.conta.provedor, nova),
+                  ),
+                );
+              }
+              return resposta;
+            } catch (erro) {
+              // O login do ChatGPT pode ter sido renovado antes da falha: o novo precisa ir para o cofre mesmo assim.
+              if (erro instanceof ErroDoModelo && erro.credencialNova) {
+                const nova = erro.credencialNova;
+                await naEmpresa(async (c) =>
+                  guardarCredencialRenovada(
+                    c,
+                    m.contaId,
+                    acesso.cifrada,
+                    await cofre.guardarChaveDeIa(c, empresaId, m.contaId, nova),
+                    finalDaCredencial(acesso.conta.provedor, nova),
+                  ),
+                );
+              }
+              if (erro instanceof ErroDoModelo && erro.limiteAte)
+                await naEmpresa((c) => marcarLimiteDoPlano(c, m.contaId, erro.limiteAte));
+              throw erro;
+            }
+          },
+        );
+        modeloUsado = r.usado;
+        reserva = reserva ?? r.passouAoReservaPorque;
+        const resposta = r.resultado;
+        partes.push({ papel: "assistente", texto: resposta.texto, chamadas: resposta.chamadas });
+
+        // Sem ferramenta: o texto é a resposta final.
+        if (resposta.chamadas.length === 0) {
+          await finalizar(
+            o,
+            empresaId,
+            ctx,
+            { tipo: "responder", texto: resposta.texto ?? "Pronto.", tarefas: [] },
+            avisarNaConversa,
+          );
+          await encerrar("concluida", (resposta.texto ?? "Respondeu.").slice(0, 2000), {
+            modelo: modeloUsado,
+            reserva,
+          });
+          return;
+        }
+        for (const chamada of resposta.chamadas) {
+          try {
+            ferramentasUsadas += 1;
+            const feito = await executarFerramenta(ctx, chamada.nome, chamada.entrada);
+            if (feito.fim) {
+              await finalizar(o, empresaId, ctx, feito.fim, avisarNaConversa);
+              await encerrar("concluida", feito.fim.texto.slice(0, 2000), { modelo: modeloUsado, reserva });
+              return;
+            }
+            // Todo resultado pode trazer texto de pessoas (títulos, descrições, comentários): vai como dado.
+            const conteudo = externo(feito.conteudo);
+            partes.push({
+              papel: "resultado",
+              chamadaId: chamada.id,
+              conteudo: conteudo.slice(0, 60_000),
+              erro: false,
+            });
+          } catch (erro) {
+            if (!(erro instanceof RecusaDaFerramenta)) throw erro;
+            partes.push({ papel: "resultado", chamadaId: chamada.id, conteudo: erro.message, erro: true });
+          }
+        }
+      }
+      throw new LimiteDaExecucao("Passou do limite de rodadas da execução.");
+    };
+    try {
+      await rodarPelaApi();
+    } catch (erro) {
+      if (!reservaPeloClaudeCode || !o.claudeCode || ferramentasUsadas > 0 || !(erro instanceof ErroDoModelo))
+        throw erro;
+      reserva = erro.message;
+      await rodarNoClaudeCode(reservaPeloClaudeCode, o.claudeCode, false);
+    }
   } catch (erro) {
     const limite = erro instanceof LimiteDaExecucao;
     const texto =
