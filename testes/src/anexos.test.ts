@@ -10,10 +10,10 @@ import { criarLogin, criarPoolDoLogin, embaralharSenha, registrarRotasDoLogin } 
 import { registrarDepositoLocal, registrarRotasDosAnexos } from "@mago-os/nucleo/anexos";
 import { antivirusDeTeste } from "@mago-os/nucleo/anexos/antivirus";
 import { criarDepositoEmDisco, type DepositoEmDisco } from "@mago-os/nucleo/anexos/deposito";
-import { cuidarDosAnexos } from "@mago-os/nucleo/anexos/servico";
+import { cuidarDosAnexos, listarAnexos } from "@mago-os/nucleo/anexos/servico";
 import { registrarRotasDosAvisos } from "@mago-os/nucleo/avisos";
 import { type BancoTemporario, criarBancoTemporario } from "@mago-os/nucleo/banco-temporario";
-import { comPessoa as comPessoaNaEmpresa } from "@mago-os/nucleo/empresa";
+import { comEmpresa, comPessoa as comPessoaNaEmpresa } from "@mago-os/nucleo/empresa";
 import { catalogoDeModulos, criarVerificador } from "@mago-os/nucleo/permissoes";
 import { registrarRotasDosProjetos } from "@mago-os/nucleo/projetos";
 import { registrarRotasDasTarefas } from "@mago-os/nucleo/tarefas";
@@ -303,5 +303,42 @@ describe.skipIf(!bancoDisponivel)("anexos", () => {
     expect((await pedir("DELETE", `/tarefas/${t}`, ana)).statusCode).toBeLessThan(300);
     await cuidarDosAnexos(poolApp, servicos(), log);
     expect(await deposito.info(caminho)).toBeNull();
+  });
+
+  it("anexo de nota interna não vai para o agente; o de comentário vai, depois do antivírus", async () => {
+    const ana = await como("ana@teste.invalid");
+    const t = (await pedir("POST", "/tarefas", ana, { titulo: "Notas" })).json().id as string;
+    const nota = (
+      await pedir("POST", `/tarefas/${t}/comentarios`, ana, { texto: "Só nós", interna: true })
+    ).json();
+    const comentario = (
+      await pedir("POST", `/tarefas/${t}/comentarios`, ana, { texto: "Para todos" })
+    ).json();
+    for (const [cm, nome] of [
+      [nota.id, "segredo.txt"],
+      [comentario.id, "aberto.txt"],
+    ] as const) {
+      const dados = Buffer.from(nome);
+      const r = (
+        await pedir("POST", `/tarefas/${t}/anexos`, ana, {
+          nome,
+          tipo: "text/plain",
+          tamanho: dados.length,
+          comentarioId: cm,
+        })
+      ).json();
+      await app.inject({
+        method: "PUT",
+        url: r.url.replace(`${SITE}/api`, ""),
+        headers: { "content-type": "text/plain" },
+        payload: dados,
+      });
+      await pedir("POST", `/tarefas/${t}/anexos/${r.anexo.id}/enviado`, ana);
+    }
+    await cuidarDosAnexos(poolApp, servicos(), log);
+    const doAgente = await comEmpresa(poolApp, empresaId, (c) => listarAnexos(c, t, true));
+    expect(doAgente.map((a) => a.nome)).toEqual(["aberto.txt"]);
+    // Na tela, a pessoa vê os dois.
+    expect(((await pedir("GET", `/tarefas/${t}/anexos`, ana)).json().anexos as unknown[]).length).toBe(2);
   });
 });

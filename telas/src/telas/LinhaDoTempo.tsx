@@ -21,7 +21,7 @@ import { Button } from "@/componentes/ui/button";
 import { cn } from "@/lib/utils";
 import { apagarComentario, comentarTarefa, editarComentario } from "@/tarefas";
 import { Aviso } from "./Acesso";
-import { BotoesDeAnexar, enviarArquivos, ListaDeAnexos } from "./Anexos";
+import { BotoesDeAnexar, enviarArquivos, ListaDeAnexos, problemaDoArquivo } from "./Anexos";
 import { MarcaDeAgente, nomeDe, quando } from "./Tarefas";
 
 type Mensagem = { texto: string; tipo: "erro" | "ok" } | null;
@@ -139,6 +139,7 @@ export function LinhaDoTempo({
   destaques,
   aoMudar,
   anexos = [],
+  anexosLigados = false,
   aoMudarAnexos = () => {},
 }: {
   tarefaId: string;
@@ -154,6 +155,8 @@ export function LinhaDoTempo({
   aoMudar: () => void;
   /** Anexos da tarefa (M3-08): os de cada comentário aparecem nele. */
   anexos?: Anexo[];
+  /** Os anexos estão ligados neste ambiente (sem eles, o comentário não oferece anexar). */
+  anexosLigados?: boolean;
   aoMudarAnexos?: () => void;
 }) {
   const [mensagem, setMensagem] = useState<Mensagem>(null);
@@ -263,6 +266,7 @@ export function LinhaDoTempo({
       </ul>
       {mensagem && <Aviso {...mensagem} />}
       <NovoComentario
+        anexosLigados={anexosLigados}
         tarefaId={tarefaId}
         pessoas={pessoas}
         agentes={agentes}
@@ -316,11 +320,13 @@ interface Mencionavel {
 
 /** Caixa de comentário com @ (sugere pessoas e agentes ao digitar) e a opção de nota interna. */
 function NovoComentario({
+  anexosLigados,
   tarefaId,
   pessoas,
   agentes,
   aoComentar,
 }: {
+  anexosLigados: boolean;
   tarefaId: string;
   pessoas: PessoaDaEmpresa[];
   agentes: AgenteNaLista[];
@@ -358,7 +364,11 @@ function NovoComentario({
 
   async function aoEnviar(evento: React.FormEvent<HTMLFormElement>) {
     evento.preventDefault();
-    if (!texto.trim()) return;
+    if (!texto.trim()) {
+      if (arquivos.length > 0)
+        setMensagem({ tipo: "erro", texto: "Escreva um comentário para enviar os arquivos junto." });
+      return;
+    }
     // Só vale a menção que continua no texto.
     const valendo = mencoes.filter((m) => texto.includes(`@${m.nome}`)).map((m) => m.quem);
     const enviado = texto;
@@ -436,7 +446,16 @@ function NovoComentario({
         </p>
       )}
       <div className="flex flex-wrap items-center gap-3">
-        <BotoesDeAnexar aoEscolher={(novos) => setArquivos((l) => [...l, ...novos])} />
+        {anexosLigados && (
+          <BotoesDeAnexar
+            aoEscolher={(novos) => {
+              // Confere já na escolha (tipo e tamanho), antes de o comentário ser enviado.
+              const problemas = novos.map(problemaDoArquivo).filter((x): x is string => x !== null);
+              setMensagem(problemas.length > 0 ? { tipo: "erro", texto: problemas.join(" ") } : null);
+              setArquivos((l) => [...l, ...novos.filter((a) => problemaDoArquivo(a) === null)]);
+            }}
+          />
+        )}
         <Button type="submit" variant="contorno">
           {interna ? "Salvar nota interna" : "Comentar"}
         </Button>

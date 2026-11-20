@@ -779,6 +779,7 @@ export function PaginaDaTarefa({
 
       <LinhaDoTempo
         anexos={anexosDaTarefa.anexos}
+        anexosLigados={anexosDaTarefa.ligados}
         aoMudarAnexos={() => void anexosDaTarefa.recarregar()}
         tarefaId={tarefa.id}
         comentarios={comentarios}

@@ -159,7 +159,12 @@ export function registrarRotasDosAnexos(app: FastifyInstance, o: OpcoesDosAnexos
     const servicos = o.servicos;
     const { id, anexoId } = pedido.params as { id: string; anexoId: string };
     const { sessao } = acessoDo(pedido);
-    const anexo = await naEmpresa(pedido, (c) => buscarAnexo(c, id, anexoId));
+    const quem = quemPara(pedido, "ver");
+    const anexo = await naEmpresa(pedido, async (c) => {
+      // Quem perdeu o acesso à tarefa depois de pedir o link não segue com o envio.
+      if (!quem || !(await buscarTarefa(c, quem, id))) return null;
+      return buscarAnexo(c, id, anexoId);
+    });
     if (anexo?.enviadoPor.tipo !== "pessoa" || anexo.enviadoPor.pessoaId !== sessao.pessoa.id)
       return naoEncontrado(resposta);
     if (anexo.situacao !== "enviando") return { anexo: semCaminho(anexo) };
@@ -202,7 +207,7 @@ export function registrarRotasDosAnexos(app: FastifyInstance, o: OpcoesDosAnexos
     const quem = quemPara(pedido, "ver");
     const feito = await naEmpresa(pedido, async (c) => {
       if (!quem || !(await buscarTarefa(c, quem, id))) return null;
-      const anexo = await buscarAnexo(c, id, anexoId, true);
+      const anexo = await buscarAnexo(c, id, anexoId, { paraMudar: true });
       if (!anexo) return null;
       const meu = anexo.enviadoPor.tipo === "pessoa" && anexo.enviadoPor.pessoaId === sessao.pessoa.id;
       if (!meu && !excluiTodas) return { recusa: true as const };
@@ -247,7 +252,7 @@ export async function registrarDepositoLocal(app: FastifyInstance, deposito: Dep
         return resposta
           .code(403)
           .send({ code: "LINK_INVALIDO", message: "Link vencido ou diferente do autorizado." });
-      await deposito.gravar(link.caminho, corpo);
+      await deposito.gravar(link.caminho, corpo, link.tipo);
       return resposta.code(200).send();
     });
     escopo.get("/deposito-local", async (pedido, resposta) => {

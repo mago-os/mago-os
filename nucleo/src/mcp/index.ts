@@ -18,6 +18,7 @@ import {
   MINUTOS_DO_LINK_DE_ANEXO,
   type NomeDaFerramenta,
   type StatusTarefa,
+  type Tarefa,
 } from "@mago-os/contratos";
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
@@ -181,6 +182,14 @@ function criarServidor(agente: AgenteDoPedido, o: OpcoesDaChave, pedido: Fastify
   return servidor;
 }
 
+/** A tarefa é do agente (responsável ou com a trava): só aí ele vê e baixa os anexos (decisão 2 da M3-08). */
+function ehDoAgente(t: Tarefa, agenteId: string): boolean {
+  return (
+    (t.responsavel?.tipo === "agente" && t.responsavel.agenteId === agenteId) ||
+    (t.trava?.por.tipo === "agente" && t.trava.por.agenteId === agenteId)
+  );
+}
+
 function erro(texto: string) {
   return { content: [{ type: "text" as const, text: texto }], isError: true };
 }
@@ -256,7 +265,7 @@ async function executar(
           subtarefas: await listarSubtarefas(c, tarefa.id),
           checklist: await listarChecklist(c, tarefa.id),
           // Os anexos só das tarefas dele (decisão 2 da M3-08), e só os já liberados pelo antivírus.
-          anexos: (await buscarTarefa(c, quem, tarefa.id))
+          anexos: ehDoAgente(tarefa, agente.agenteId)
             ? (await listarAnexos(c, tarefa.id, true)).map(semCaminho)
             : [],
         };
@@ -442,7 +451,7 @@ async function executar(
       if (!deposito) throw new RecusaDaFerramenta("Os anexos ainda não estão ligados neste ambiente.");
       const anexo = await naEmpresa(async (c) => {
         if (!(await buscarTarefa(c, quem, e.tarefaId))) return null;
-        return buscarAnexo(c, e.tarefaId, e.anexoId);
+        return buscarAnexo(c, e.tarefaId, e.anexoId, { paraAgente: true });
       });
       if (!anexo) throw naoAchou();
       if (anexo.situacao !== "disponivel")

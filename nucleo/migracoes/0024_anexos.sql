@@ -92,7 +92,11 @@ CREATE FUNCTION public.anexo_deixa_arquivo() RETURNS trigger
   LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp
   AS $$
   BEGIN
-    INSERT INTO public.arquivos_para_apagar (empresa_id, caminho) VALUES (OLD.empresa_id, OLD.caminho);
+    -- Empresa sendo excluída: os arquivos dela saem pelo prefixo empresas/<empresa>/ no fim da conta (Fase 2), e o
+    -- registro aqui iria junto com ela.
+    IF EXISTS (SELECT 1 FROM public.empresas WHERE id = OLD.empresa_id) THEN
+      INSERT INTO public.arquivos_para_apagar (empresa_id, caminho) VALUES (OLD.empresa_id, OLD.caminho);
+    END IF;
     RETURN OLD;
   END
   $$;

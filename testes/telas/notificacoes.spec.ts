@@ -58,7 +58,10 @@ test.describe("notificações", () => {
 
     await page.goto("/perfil");
     await expect(page.getByRole("heading", { name: "Notificações" })).toBeVisible();
+    // Espera a preferência ser salva antes de recarregar.
+    const salvou = page.waitForResponse((r) => r.url().includes("/api/notificacoes/preferencias"));
     await page.getByLabel("Menção com @ no push").uncheck();
+    await salvou;
     await page.reload();
     await expect(page.getByLabel("Menção com @ no push")).not.toBeChecked();
   });

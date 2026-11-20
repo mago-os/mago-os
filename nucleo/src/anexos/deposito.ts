@@ -6,7 +6,7 @@
  * o depósito recusa um arquivo diferente do que o núcleo autorizou.
  */
 import { createHash, createHmac, randomBytes, timingSafeEqual } from "node:crypto";
-import { copyFile, mkdir, readFile, rm, stat, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, normalize } from "node:path";
 
@@ -23,7 +23,8 @@ export interface Deposito {
   /** Tamanho e tipo do arquivo que chegou, ou null se não chegou. */
   info(caminho: string): Promise<{ tamanho: number; tipo: string | null } | null>;
   ler(caminho: string): Promise<Buffer>;
-  copiar(de: string, para: string): Promise<void>;
+  /** Grava os bytes (o antivírus conferiu exatamente estes: nada muda entre a conferência e o lugar definitivo). */
+  gravar(caminho: string, dados: Buffer, tipo: string): Promise<void>;
   /** Apaga (apagar o que não existe não é erro). */
   apagar(caminho: string): Promise<void>;
 }
@@ -116,6 +117,7 @@ export function criarDepositoS3(c: ConfigDoS3, agora: () => Date = () => new Dat
     metodo: "GET" | "HEAD" | "PUT" | "DELETE",
     chave: string,
     extras: Record<string, string> = {},
+    corpo?: Buffer,
   ): Promise<Response> {
     const t = agora();
     const amz = t
@@ -124,7 +126,7 @@ export function criarDepositoS3(c: ConfigDoS3, agora: () => Date = () => new Dat
       .replace(/\.\d{3}/, "");
     const dia = amz.slice(0, 8);
     const escopo = `${dia}/${c.regiao}/s3/aws4_request`;
-    const vazio = sha256("");
+    const vazio = sha256(corpo ?? "");
     const cab: Record<string, string> = { host, "x-amz-content-sha256": vazio, "x-amz-date": amz, ...extras };
     const nomes = Object.keys(cab).sort();
     const canon = [
@@ -140,6 +142,7 @@ export function criarDepositoS3(c: ConfigDoS3, agora: () => Date = () => new Dat
     const { host: _h, ...semHost } = cab;
     return fetch(`${base.origin}${caminhoDe(chave)}`, {
       method: metodo,
+      ...(corpo ? { body: new Uint8Array(corpo) } : {}),
       headers: {
         ...semHost,
         authorization: `AWS4-HMAC-SHA256 Credential=${c.chaveId}/${escopo}, SignedHeaders=${nomes.join(";")}, Signature=${assinatura}`,
@@ -172,9 +175,9 @@ export function criarDepositoS3(c: ConfigDoS3, agora: () => Date = () => new Dat
       if (!r.ok) throw new Error(`Depósito respondeu ${r.status} ao ler o arquivo`);
       return Buffer.from(await r.arrayBuffer());
     },
-    async copiar(de, para) {
-      const r = await pedir("PUT", para, { "x-amz-copy-source": `/${c.bucket}/${codificar(de, true)}` });
-      if (!r.ok) throw new Error(`Depósito respondeu ${r.status} ao mover o arquivo`);
+    async gravar(caminho, dados, tipo) {
+      const r = await pedir("PUT", caminho, { "content-type": tipo }, dados);
+      if (!r.ok) throw new Error(`Depósito respondeu ${r.status} ao gravar o arquivo`);
       await r.arrayBuffer();
     },
     async apagar(caminho) {
@@ -196,7 +199,6 @@ export interface DepositoEmDisco extends Deposito {
   conferirLink(
     token: string,
   ): { metodo: "GET" | "PUT"; caminho: string; tipo: string; tamanho: number | null; nome: string } | null;
-  gravar(caminho: string, dados: Buffer): Promise<void>;
 }
 
 /**
@@ -255,10 +257,6 @@ export function criarDepositoEmDisco(
       }
     },
     ler: (caminho) => readFile(arquivo(caminho)),
-    async copiar(de, para) {
-      await mkdir(dirname(arquivo(para)), { recursive: true });
-      await copyFile(arquivo(de), arquivo(para));
-    },
     apagar: (caminho) => rm(arquivo(caminho), { force: true }),
   };
 }

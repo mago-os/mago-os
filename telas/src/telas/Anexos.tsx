@@ -41,7 +41,7 @@ export function useAnexos(tarefaId: string) {
 }
 
 /** Confere antes de pedir o link (o núcleo confere de novo). Devolve o problema, ou null. */
-function problemaDoArquivo(arquivo: File): string | null {
+export function problemaDoArquivo(arquivo: File): string | null {
   if (extensaoBloqueada(arquivo.name))
     return `"${arquivo.name}" não pode ser anexado, porque pode rodar um programa.`;
   if (arquivo.size > TAMANHO_MAXIMO_DO_ANEXO) return `"${arquivo.name}" passa de 25 MB.`;

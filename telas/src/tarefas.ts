@@ -259,5 +259,7 @@ export async function enviarAnexo(
     "POST",
     `/tarefas/${encodeURIComponent(tarefaId)}/anexos/${encodeURIComponent(anexo.id)}/enviado`,
   );
-  return chegou.ok ? { ok: true, dados: anexo } : { ok: false, mensagem: chegou.mensagem ?? "" };
+  return chegou.ok
+    ? { ok: true, dados: chegou.dados?.anexo ?? anexo }
+    : { ok: false, mensagem: chegou.mensagem ?? "" };
 }

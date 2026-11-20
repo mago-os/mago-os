@@ -53,6 +53,6 @@ describe("depósito", () => {
     expect(d.conferirLink(`${token.slice(0, -2)}xx`)).toBeNull();
     agora = new Date(agora.getTime() + 301_000);
     expect(d.conferirLink(token)).toBeNull();
-    await expect(d.gravar("../fora", Buffer.from("x"))).rejects.toThrow(/fora do depósito/);
+    await expect(d.gravar("../fora", Buffer.from("x"), "text/plain")).rejects.toThrow(/fora do depósito/);
   });
 });
