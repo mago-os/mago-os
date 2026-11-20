@@ -27,3 +27,4 @@ Uma nota curta por decisão importante: o que foi decidido, por quê e o que foi
 | [0018](0018-tempo-real.md) | Tempo real: avisos por gatilho no PostgreSQL (LISTEN/NOTIFY) e WebSocket autenticado pela sessão | Aceita |
 | [0019](0019-servidor-mcp.md) | Servidor MCP no núcleo: HTTP sem sessão, chave do agente, oito ferramentas de tarefas com descrição congelada e documentação gerada | Aceita |
 | [0020](0020-anexos.md) | Anexos no Backblaze B2, com envio direto pela quarentena e antivírus ClamAV | Aceita |
+| [0021](0021-cofre-e-contas-de-ia.md) | Cofre interno com envelope por empresa (AES-256-GCM, chave mestra no Infisical) e contas de IA com modelo principal e reserva | Proposta |
