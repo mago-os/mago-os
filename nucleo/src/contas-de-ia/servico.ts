@@ -3,7 +3,13 @@
  * chamou (comPessoa ou comEmpresa), então o banco já isola a empresa. A coluna chave_cifrada só sai daqui para o
  * cofre: as funções que devolvem contas para fora nunca a selecionam.
  */
-import type { ContaDeIa, ModeloDaConta, ModeloEscolhido, ModelosDoAgente } from "@mago-os/contratos";
+import type {
+  ContaDeIa,
+  ContaDeIaNaLista,
+  ModeloDaConta,
+  ModeloEscolhido,
+  ModelosDoAgente,
+} from "@mago-os/contratos";
 import type pg from "pg";
 import { FORMATO_UUID } from "../comum.ts";
 
@@ -44,11 +50,7 @@ function paraConta(l: LinhaDaConta): ContaDeIa {
   };
 }
 
-/** A conta na lista: com quantos modelos ela tem e quantos estão liberados. */
-export interface ContaNaLista extends ContaDeIa {
-  modelos: number;
-  liberados: number;
-}
+export type ContaNaLista = ContaDeIaNaLista;
 
 export async function listarContas(c: pg.PoolClient): Promise<ContaNaLista[]> {
   const r = await c.query<LinhaDaConta & { modelos: number; liberados: number }>(
@@ -180,6 +182,9 @@ export async function listarModelos(c: pg.PoolClient, contaId: string): Promise<
  * marcados (e não podem ser escolhidos), os que voltaram deixam de estar marcados. Devolve quantos são novos.
  */
 export async function acertarModelos(c: pg.PoolClient, contaId: string, modelos: string[]): Promise<number> {
+  // Lista vazia (formato que não conhecemos, ou o provedor com problema): não marca tudo como "saiu", senão os
+  // agentes perderiam o modelo com a conta funcionando.
+  if (modelos.length === 0) return 0;
   const novos = await c.query(
     `insert into modelos_de_conta_de_ia (empresa_id, conta_id, modelo)
      select empresa_ativa(), $1, m from unnest($2::text[]) as m

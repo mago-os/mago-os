@@ -109,7 +109,7 @@ async function iniciar(): Promise<void> {
       verificador,
       poolApp: banco.pool,
       cofre: config.cofre ? criarCofre(config.cofre) : null,
-      provedores: provedoresDeVerdade(),
+      provedores: provedoresDeVerdade(config.ambiente),
       ambiente: config.ambiente,
     });
     registrarRotasDoAgente(app, opcoesDosAgentes);

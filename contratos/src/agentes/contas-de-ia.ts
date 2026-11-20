@@ -101,6 +101,17 @@ export const regrasDaContaDeIa: Regra<ContaDeIa>[] = [
       : [],
 ];
 
+/** A conta na lista da tela (GET /ia/contas): com quantos modelos tem e quantos estão liberados. */
+export const ContaDeIaNaLista = Type.Object(
+  {
+    ...ContaDeIa.properties,
+    modelos: Type.Integer({ minimum: 0 }),
+    liberados: Type.Integer({ minimum: 0 }),
+  },
+  { additionalProperties: false },
+);
+export type ContaDeIaNaLista = Static<typeof ContaDeIaNaLista>;
+
 export function conferirContaDeIa(valor: unknown) {
   return conferir(ContaDeIa, valor, regrasDaContaDeIa);
 }

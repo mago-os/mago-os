@@ -282,6 +282,44 @@ describe.skipIf(!bancoDisponivel)("contas de IA", () => {
     });
   });
 
+  it("nome repetido é recusado sem chamar o provedor, e renomear vira ia.editou", async () => {
+    const ana = await como("ana@teste.invalid");
+    const antes = provedores.chamadas;
+    const r = await pedir("POST", "/ia/contas", ana, {
+      nome: "anthropic da nolask",
+      provedor: "anthropic",
+      chave: CHAVE_BOA,
+    });
+    expect(r.statusCode).toBe(409);
+    expect(provedores.chamadas).toBe(antes);
+    const renomeada = await pedir("POST", `/ia/contas/${ids.conta}`, ana, { nome: "Anthropic principal" });
+    expect(renomeada.json().nome).toBe("Anthropic principal");
+    const ev = await dono.query<{ detalhes: { mudou: string[] } }>(
+      "select detalhes from auditoria.eventos where acao = 'ia.editou' and empresa_id = $1",
+      [empresaId],
+    );
+    expect(ev.rows.at(-1)?.detalhes.mudou).toEqual(["nome"]);
+  });
+
+  it("chave que o cofre não abre deixa a conta com erro, sem derrubar", async () => {
+    const ana = await como("ana@teste.invalid");
+    const copia = await dono.query<{ chave_cifrada: Buffer }>(
+      "select chave_cifrada from contas_de_ia where id = $1",
+      [ids.conta],
+    );
+    const adulterada = Buffer.from(copia.rows[0]?.chave_cifrada as Buffer);
+    adulterada[13] = (adulterada[13] ?? 0) ^ 1;
+    await dono.query("update contas_de_ia set chave_cifrada = $2 where id = $1", [ids.conta, adulterada]);
+    const r = await pedir("POST", `/ia/contas/${ids.conta}/testar`, ana, {});
+    expect(r.statusCode).toBe(200);
+    expect(r.json()).toMatchObject({ situacao: "com_erro" });
+    expect(r.json().ultimoErro).toContain("Troque a chave");
+    // Trocar a chave conserta.
+    expect((await pedir("POST", `/ia/contas/${ids.conta}`, ana, { chave: CHAVE_NOVA })).json().situacao).toBe(
+      "ativa",
+    );
+  });
+
   it("uma empresa não vê nem usa a conta da outra", async () => {
     const otto = await como("otto@teste.invalid");
     expect((await pedir("GET", "/ia/contas", otto)).json().contas).toEqual([]);

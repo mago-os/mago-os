@@ -1,3 +1,5 @@
+import { lerChaveMestra } from "./contas-de-ia/cofre.ts";
+
 /**
  * Configuração do núcleo, lida só de variáveis de ambiente (nada fica guardado no servidor).
  * Em teste e produção os valores vêm do Infisical (M0-08); no Mac, do ambiente local.
@@ -142,22 +144,22 @@ function lerCofre(
       ? { atual: { versao: 1, chave: CHAVE_MESTRA_DO_MAC }, anteriores: [], deTeste: true }
       : null;
   }
-  const chave = Buffer.from(texto, "base64");
-  if (chave.length !== 32) {
+  const atual = lerChaveMestra(texto, versao);
+  if (!atual) {
     problemas.push("MAGO_COFRE_CHAVE_MESTRA precisa ter 32 bytes em base64 (openssl rand -base64 32)");
     return null;
   }
   const anteriores: ConfigDoCofre["anteriores"] = [];
   const anterior = env.MAGO_COFRE_CHAVE_ANTERIOR?.trim() ?? "";
   if (anterior !== "") {
-    const chaveAnterior = Buffer.from(anterior, "base64");
-    if (chaveAnterior.length !== 32 || versao < 2)
+    const chaveAnterior = versao >= 2 ? lerChaveMestra(anterior, versao - 1) : null;
+    if (!chaveAnterior)
       problemas.push(
         "MAGO_COFRE_CHAVE_ANTERIOR precisa ter 32 bytes em base64, com MAGO_COFRE_VERSAO 2 ou mais",
       );
-    else anteriores.push({ versao: versao - 1, chave: chaveAnterior });
+    else anteriores.push(chaveAnterior);
   }
-  return { atual: { versao, chave }, anteriores, deTeste: false };
+  return { atual, anteriores, deTeste: false };
 }
 
 function lerAnexos(

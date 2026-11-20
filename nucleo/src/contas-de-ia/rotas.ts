@@ -13,6 +13,7 @@ import {
   PedidoDeContaDeIa,
   PedidoDeEditarContaDeIa,
   PedidoDeLiberarModelos,
+  type TesteDaContaDeIa,
 } from "@mago-os/contratos";
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import type pg from "pg";
@@ -22,7 +23,7 @@ import { alcanceCobreAgente, buscarAgente } from "../agentes/servico.ts";
 import { auditar } from "../auditoria/registrar.ts";
 import { comPessoa } from "../empresa.ts";
 import { acessoDo, type Verificador } from "../permissoes/verificar.ts";
-import type { Cofre } from "./cofre.ts";
+import { type Cofre, ErroDoCofre } from "./cofre.ts";
 import { enderecoPermitido, type Provedores } from "./provedores.ts";
 import {
   acertarModelos,
@@ -57,6 +58,17 @@ const naoEncontrada = (r: FastifyReply) =>
   r.code(404).send({ code: "CONTA_NAO_ENCONTRADA", message: "Conta de IA não encontrada." });
 
 const finalDa = (chave: string) => chave.slice(-4);
+
+const nomeRepetido = (r: FastifyReply) =>
+  r.code(409).send({ code: "NOME_EM_USO", message: "Já existe uma conta de IA com esse nome." });
+
+async function nomeEmUso(c: pg.PoolClient, nome: string): Promise<boolean> {
+  const r = await c.query(
+    "select 1 from contas_de_ia where empresa_id = empresa_ativa() and lower(nome) = lower($1)",
+    [nome.trim()],
+  );
+  return (r.rowCount ?? 0) > 0;
+}
 
 export function registrarRotasDasContasDeIa(app: FastifyInstance, o: OpcoesDasContasDeIa): void {
   const { verificador, poolApp, provedores } = o;
@@ -148,6 +160,7 @@ export function registrarRotasDasContasDeIa(app: FastifyInstance, o: OpcoesDasCo
           message: "Informe o endereço público da API do provedor, com https.",
         });
       if (!segundoFatorRecente(pedido)) return pedeConfirmacao(resposta);
+      if (await naEmpresa(pedido, (c) => nomeEmUso(c, p.nome))) return nomeRepetido(resposta);
       // Testa antes de gravar: chave recusada não fica guardada.
       const teste = await provedores.testar({ provedor: p.provedor, endereco, chave: p.chave });
       if (!teste.ok) return resposta.code(422).send({ code: "CHAVE_RECUSADA", message: teste.erro });
@@ -182,9 +195,7 @@ export function registrarRotasDasContasDeIa(app: FastifyInstance, o: OpcoesDasCo
         return resposta.code(201).send(conta);
       } catch (erro) {
         if ((erro as { constraint?: string }).constraint === "contas_de_ia_nome_unico")
-          return resposta
-            .code(409)
-            .send({ code: "NOME_EM_USO", message: "Já existe uma conta de IA com esse nome." });
+          return nomeRepetido(resposta);
         throw erro;
       }
     },
@@ -194,44 +205,48 @@ export function registrarRotasDasContasDeIa(app: FastifyInstance, o: OpcoesDasCo
     "/ia/contas/:id",
     { preHandler: verificador.exigir("contas_de_ia", "editar") },
     async (pedido, resposta) => {
-      const cofre = cofreOu(resposta);
-      if (!cofre) return resposta;
       const { id } = pedido.params as { id: string };
       const r = conferir(PedidoDeEditarContaDeIa, pedido.body);
       if (!r.ok) return resposta.code(400).send({ code: "PEDIDO_INVALIDO", problemas: r.problemas });
       const p = r.valor;
+      // O cofre só é preciso para trocar a chave: nome e teto mudam mesmo com ele desligado.
+      const cofre = p.chave !== undefined ? cofreOu(resposta) : o.cofre;
+      if (p.chave !== undefined && !cofre) return resposta;
       if (p.chave !== undefined && !segundoFatorRecente(pedido)) return pedeConfirmacao(resposta);
       const { sessao } = acessoDo(pedido);
-      const atual = await naEmpresa(pedido, (c) => buscarConta(c, id));
-      if (!atual) return naoEncontrada(resposta);
+      const previa = await naEmpresa(pedido, (c) => buscarConta(c, id));
+      if (!previa) return naoEncontrada(resposta);
       let modelos: string[] | null = null;
       if (p.chave !== undefined) {
         const teste = await provedores.testar({
-          provedor: atual.provedor,
-          endereco: atual.endereco,
+          provedor: previa.provedor,
+          endereco: previa.endereco,
           chave: p.chave,
         });
         if (!teste.ok) return resposta.code(422).send({ code: "CHAVE_RECUSADA", message: teste.erro });
         modelos = teste.modelos;
       }
       try {
-        const conta = await naEmpresa(pedido, async (c) => {
-          if (!(await buscarConta(c, id, true))) return null;
+        const feito = await naEmpresa(pedido, async (c) => {
+          // O "antes" da auditoria é lido aqui, com a linha travada: duas trocas ao mesmo tempo não se confundem.
+          const atual = await buscarConta(c, id, true);
+          if (!atual) return null;
           const chave = p.chave;
           const feita = await mudarConta(c, id, {
             ...(p.nome !== undefined ? { nome: p.nome } : {}),
             ...(p.tetoMensal !== undefined ? { tetoMensal: p.tetoMensal } : {}),
             ...(chave !== undefined
               ? {
-                  chaveCifrada: await cofre.guardarChaveDeIa(c, sessao.empresaId, id, chave),
+                  chaveCifrada: await (cofre as Cofre).guardarChaveDeIa(c, sessao.empresaId, id, chave),
                   finalDaChave: finalDa(chave),
                 }
               : {}),
           });
           if (modelos) await acertarModelos(c, id, modelos);
-          return feita;
+          return { atual, conta: feita };
         });
-        if (!conta) return naoEncontrada(resposta);
+        if (!feito) return naoEncontrada(resposta);
+        const { atual, conta } = feito;
         if (p.chave !== undefined)
           await registrar(
             pedido,
@@ -243,9 +258,7 @@ export function registrarRotasDasContasDeIa(app: FastifyInstance, o: OpcoesDasCo
               finalDaChave: conta.finalDaChave,
             },
           );
-        const mudou = (["nome", "tetoMensal"] as const).filter(
-          (k) => p[k] !== undefined && p[k] !== atual[k],
-        );
+        const mudou = (["nome", "tetoMensal"] as const).filter((k) => atual[k] !== conta[k]);
         if (mudou.length > 0)
           await registrar(
             pedido,
@@ -259,9 +272,7 @@ export function registrarRotasDasContasDeIa(app: FastifyInstance, o: OpcoesDasCo
         return conta;
       } catch (erro) {
         if ((erro as { constraint?: string }).constraint === "contas_de_ia_nome_unico")
-          return resposta
-            .code(409)
-            .send({ code: "NOME_EM_USO", message: "Já existe uma conta de IA com esse nome." });
+          return nomeRepetido(resposta);
         throw erro;
       }
     },
@@ -280,14 +291,26 @@ export function registrarRotasDasContasDeIa(app: FastifyInstance, o: OpcoesDasCo
         const conta = await buscarConta(c, id);
         const cifrada = conta ? await chaveCifradaDaConta(c, id) : null;
         if (!conta || !cifrada) return null;
-        return { conta, chave: await cofre.abrirChaveDeIa(c, sessao.empresaId, id, cifrada) };
+        try {
+          return { conta, chave: await cofre.abrirChaveDeIa(c, sessao.empresaId, id, cifrada) };
+        } catch (erro) {
+          if (!(erro instanceof ErroDoCofre)) throw erro;
+          pedido.log.error(
+            { evento: "cofre.falhou", contaId: id, motivo: erro.message },
+            "O cofre não abriu",
+          );
+          return { conta, chave: null };
+        }
       });
       if (!aberta) return naoEncontrada(resposta);
-      const teste = await provedores.testar({
-        provedor: aberta.conta.provedor,
-        endereco: aberta.conta.endereco,
-        chave: aberta.chave,
-      });
+      const teste: TesteDaContaDeIa =
+        aberta.chave === null
+          ? { ok: false, erro: "Não foi possível abrir a chave guardada. Troque a chave desta conta." }
+          : await provedores.testar({
+              provedor: aberta.conta.provedor,
+              endereco: aberta.conta.endereco,
+              chave: aberta.chave,
+            });
       const feito = await naEmpresa(pedido, async (c) => {
         if (!(await buscarConta(c, id, true))) return null;
         const conta = await marcarTeste(c, id, teste.ok ? null : teste.erro);

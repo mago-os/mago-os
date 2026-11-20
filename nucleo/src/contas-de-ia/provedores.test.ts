@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { comReserva, enderecoPermitido, modelosDaResposta, provedoresFalsos } from "./provedores.ts";
+import {
+  comReserva,
+  enderecoPermitido,
+  enderecoSeguro,
+  modelosDaResposta,
+  provedoresFalsos,
+} from "./provedores.ts";
 
 const CONTA = "0193a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5b";
 const OUTRA = "0193a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5c";
@@ -23,6 +29,27 @@ describe("provedores", () => {
       "https://exemplo.com/v1?x=1",
     ])
       expect(enderecoPermitido(ruim, "producao"), ruim).toBe(false);
+  });
+
+  it("fora do Mac, resolve o nome e recusa quando ele aponta para dentro", async () => {
+    const dns = (mapa: Record<string, string[]>) => async (h: string) => mapa[h] ?? [];
+    const resolver = dns({
+      "openrouter.ai": ["104.18.2.115"],
+      "127.0.0.1.nip.io": ["127.0.0.1"],
+      "misto.example": ["104.18.2.115", "10.0.0.7"],
+      "metadados.example": ["169.254.169.254"],
+      "v6.example": ["fd00::1"],
+    });
+    expect(await enderecoSeguro("https://openrouter.ai/api/v1", "producao", resolver)).toBe(true);
+    for (const host of [
+      "127.0.0.1.nip.io",
+      "misto.example",
+      "metadados.example",
+      "v6.example",
+      "nao-existe.example",
+    ])
+      expect(await enderecoSeguro(`https://${host}/v1`, "producao", resolver), host).toBe(false);
+    expect(await enderecoSeguro("http://localhost:11434/v1", "local", resolver)).toBe(true);
   });
 
   it("lê os modelos da resposta e ignora nomes estranhos", () => {

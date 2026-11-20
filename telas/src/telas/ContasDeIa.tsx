@@ -2,7 +2,7 @@
  * Agentes › Contas de IA (M4-01): conectar, testar, trocar a chave, liberar modelos e apagar. Só o administrador
  * (a API confere de novo). A chave só entra: a tela nunca recebe a chave de volta, só os 4 últimos caracteres.
  */
-import type { ContaDeIa, ModeloDaConta, ProvedorDeIa } from "@mago-os/contratos";
+import type { ContaDeIa, ContaDeIaNaLista, ModeloDaConta, ProvedorDeIa } from "@mago-os/contratos";
 import { ArrowLeft, KeyRound, Plus } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { Button } from "@/componentes/ui/button";
@@ -15,10 +15,7 @@ import { ConfirmarSegundoFator } from "./DoisFatores";
 
 type Mensagem = { texto: string; tipo: "erro" | "ok" } | null;
 
-export interface ContaNaLista extends ContaDeIa {
-  modelos: number;
-  liberados: number;
-}
+type ContaNaLista = ContaDeIaNaLista;
 
 const NOME_DO_PROVEDOR: Record<ProvedorDeIa, string> = {
   anthropic: "Anthropic",
@@ -36,7 +33,15 @@ function tetoEmCentavos(texto: string): number | null {
   return Number.isFinite(valor) && valor >= 0 ? Math.round(valor * 100) : Number.NaN;
 }
 
-export function ContasDeIa({ podeCriar, podeEditar }: { podeCriar: boolean; podeEditar: boolean }) {
+export function ContasDeIa({
+  podeCriar,
+  podeEditar,
+  podeExcluir,
+}: {
+  podeCriar: boolean;
+  podeEditar: boolean;
+  podeExcluir: boolean;
+}) {
   const [lista, setLista] = useState<{ ligado: boolean; contas: ContaNaLista[] } | null>(null);
   const [conectando, setConectando] = useState(false);
   const [aberta, setAberta] = useState<string | null>(null);
@@ -90,6 +95,7 @@ export function ContasDeIa({ podeCriar, podeEditar }: { podeCriar: boolean; pode
               <DetalheDaConta
                 conta={c}
                 podeEditar={podeEditar}
+                podeExcluir={podeExcluir}
                 aoFechar={() => setAberta(null)}
                 aoMudar={() => void carregar()}
               />
@@ -258,11 +264,13 @@ function FormularioDeConexao({
 function DetalheDaConta({
   conta,
   podeEditar,
+  podeExcluir,
   aoFechar,
   aoMudar,
 }: {
   conta: ContaNaLista;
   podeEditar: boolean;
+  podeExcluir: boolean;
   aoFechar: () => void;
   aoMudar: () => void;
 }) {
@@ -368,19 +376,23 @@ function DetalheDaConta({
       </div>
       {conta.situacao === "com_erro" && conta.ultimoErro && <Aviso tipo="erro" texto={conta.ultimoErro} />}
       {mensagem && <Aviso {...mensagem} />}
-      {podeEditar && (
+      {(podeEditar || podeExcluir) && (
         <div className="flex flex-wrap gap-2">
-          <Button size="pequeno" variant="contorno" disabled={ocupado} onClick={() => void testar()}>
-            Testar de novo
-          </Button>
-          {!trocando && (
+          {podeEditar && (
+            <Button size="pequeno" variant="contorno" disabled={ocupado} onClick={() => void testar()}>
+              Testar de novo
+            </Button>
+          )}
+          {podeEditar && !trocando && (
             <Button size="pequeno" variant="contorno" onClick={() => setTrocando(true)}>
               Trocar a chave
             </Button>
           )}
-          <Button size="pequeno" variant="fantasma" className="text-perigo" onClick={() => void apagar()}>
-            Apagar
-          </Button>
+          {podeExcluir && (
+            <Button size="pequeno" variant="fantasma" className="text-perigo" onClick={() => void apagar()}>
+              Apagar
+            </Button>
+          )}
         </div>
       )}
       {trocando && (

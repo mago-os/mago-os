@@ -233,7 +233,11 @@ export function App() {
     );
   else if (caminho === "/agentes/contas-de-ia" && pode("contas_de_ia", "ver"))
     conteudo = (
-      <ContasDeIa podeCriar={pode("contas_de_ia", "criar")} podeEditar={pode("contas_de_ia", "editar")} />
+      <ContasDeIa
+        podeCriar={pode("contas_de_ia", "criar")}
+        podeEditar={pode("contas_de_ia", "editar")}
+        podeExcluir={pode("contas_de_ia", "excluir")}
+      />
     );
   else if (agenteAberto && pode("agentes", "ver"))
     conteudo = (

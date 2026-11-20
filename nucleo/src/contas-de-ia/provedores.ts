@@ -5,12 +5,15 @@
  * A chave vai só no cabeçalho, nunca na URL. Os erros viram um texto curto, sem o corpo da resposta (que poderia
  * repetir a chave) e sem a chave.
  */
+import { lookup } from "node:dns/promises";
 import type { ModeloEscolhido, ModelosDoAgente, ProvedorDeIa, TesteDaContaDeIa } from "@mago-os/contratos";
 
 export const ENDERECO_DA_ANTHROPIC = "https://api.anthropic.com/v1";
 const VERSAO_DA_API_ANTHROPIC = "2023-06-01";
 const TEMPO_MAXIMO_MS = 15_000;
 const MAXIMO_DE_MODELOS = 1000;
+/** A lista de modelos não passa disso (o OpenRouter, com centenas de modelos, fica bem abaixo). */
+const MAXIMO_DA_RESPOSTA = 2_000_000;
 
 export interface AcessoAoProvedor {
   provedor: ProvedorDeIa;
@@ -26,7 +29,37 @@ export interface Provedores {
 
 const NOME_DE_MODELO = /^[A-Za-z0-9][A-Za-z0-9._:/@-]{0,119}$/;
 
-/** Hosts que um provedor compatível não pode apontar fora do Mac (rede interna, a própria máquina). */
+/** Endereço IP de rede interna, da própria máquina ou reservado (não pode receber a chave fora do Mac). */
+export function ipInterno(ip: string): boolean {
+  const v4 = /^(\d+)\.(\d+)\.(\d+)\.(\d+)$/.exec(ip.replace(/^::ffff:/i, ""));
+  if (v4) {
+    const [a = 0, b = 0, c = 0] = v4.slice(1).map(Number);
+    return (
+      a === 0 ||
+      a === 10 ||
+      a === 127 ||
+      (a === 100 && b >= 64 && b <= 127) ||
+      (a === 169 && b === 254) ||
+      (a === 172 && b >= 16 && b <= 31) ||
+      (a === 192 && b === 0 && c === 0) ||
+      (a === 192 && b === 168) ||
+      (a === 198 && (b === 18 || b === 19)) ||
+      a >= 224
+    );
+  }
+  const h = ip.toLowerCase();
+  if (!h.includes(":")) return false;
+  return (
+    h === "::" ||
+    h === "::1" ||
+    /^f[cd]/.test(h) ||
+    /^fe[89ab]/.test(h) ||
+    /^ff/.test(h) ||
+    h.startsWith("::ffff:")
+  );
+}
+
+/** Confere o formato do endereço (sem resolver o nome). Fora do Mac: só https e nada de rede interna escrita direto. */
 export function enderecoPermitido(endereco: string, ambiente: "local" | "teste" | "producao"): boolean {
   let url: URL;
   try {
@@ -39,24 +72,32 @@ export function enderecoPermitido(endereco: string, ambiente: "local" | "teste" 
   if (url.protocol !== "https:") return false;
   const host = url.hostname.toLowerCase().replace(/^\[|\]$/g, "");
   if (host === "localhost" || host.endsWith(".localhost") || host.endsWith(".internal")) return false;
-  if (/^\d+\.\d+\.\d+\.\d+$/.test(host)) {
-    const [a = 0, b = 0] = host.split(".").map(Number);
-    if (a === 10 || a === 127 || a === 0 || (a === 169 && b === 254) || (a === 192 && b === 168))
-      return false;
-    if (a === 172 && b >= 16 && b <= 31) return false;
-    if (a === 100 && b >= 64 && b <= 127) return false;
+  return !ipInterno(host);
+}
+
+export type Resolver = (host: string) => Promise<string[]>;
+
+const resolverDoSistema: Resolver = async (host) =>
+  (await lookup(host, { all: true, verbatim: true })).map((r) => r.address);
+
+/**
+ * Confere o endereço e, fora do Mac, resolve o nome e recusa se algum IP for interno (um nome como
+ * 127.0.0.1.nip.io passaria pela conferência do formato). Feito a cada pedido, logo antes de enviar a chave.
+ */
+export async function enderecoSeguro(
+  endereco: string,
+  ambiente: "local" | "teste" | "producao",
+  resolver: Resolver = resolverDoSistema,
+): Promise<boolean> {
+  if (!enderecoPermitido(endereco, ambiente)) return false;
+  if (ambiente === "local") return true;
+  const host = new URL(endereco).hostname.replace(/^\[|\]$/g, "");
+  try {
+    const ips = await resolver(host);
+    return ips.length > 0 && !ips.some(ipInterno);
+  } catch {
+    return false;
   }
-  if (host.includes(":")) {
-    if (
-      host === "::1" ||
-      host === "::" ||
-      /^f[cd]/.test(host) ||
-      /^fe80/.test(host) ||
-      host.startsWith("::ffff:")
-    )
-      return false;
-  }
-  return true;
 }
 
 function erroPeloCodigo(codigo: number): string {
@@ -81,9 +122,20 @@ async function pedirJson(
       await r.body?.cancel();
       return { ok: false, erro: erroPeloCodigo(r.status) };
     }
-    const texto = await r.text();
-    if (texto.length > 2_000_000) return { ok: false, erro: "A resposta do provedor veio grande demais." };
-    return { ok: true, corpo: JSON.parse(texto) };
+    // Lê aos pedaços e para no limite: uma resposta enorme não enche a memória da API.
+    const partes: Uint8Array[] = [];
+    let tamanho = 0;
+    if (r.body) {
+      for await (const parte of r.body) {
+        tamanho += parte.byteLength;
+        if (tamanho > MAXIMO_DA_RESPOSTA) {
+          await r.body.cancel().catch(() => {});
+          return { ok: false, erro: "A resposta do provedor veio grande demais." };
+        }
+        partes.push(parte);
+      }
+    }
+    return { ok: true, corpo: JSON.parse(Buffer.concat(partes).toString("utf8")) };
   } catch (erro) {
     if ((erro as Error).name === "TimeoutError")
       return { ok: false, erro: "O provedor demorou demais para responder." };
@@ -102,9 +154,14 @@ export function modelosDaResposta(corpo: unknown): string[] {
   return [...new Set(nomes)].slice(0, MAXIMO_DE_MODELOS);
 }
 
-export function provedoresDeVerdade(): Provedores {
+export function provedoresDeVerdade(
+  ambiente: "local" | "teste" | "producao",
+  resolver: Resolver = resolverDoSistema,
+): Provedores {
   return {
     async testar(a) {
+      if (a.provedor === "compativel_openai" && !(await enderecoSeguro(a.endereco ?? "", ambiente, resolver)))
+        return { ok: false, erro: "O endereço aponta para uma rede interna ou não existe." };
       const pedido =
         a.provedor === "anthropic"
           ? await pedirJson(`${ENDERECO_DA_ANTHROPIC}/models?limit=1000`, {
