@@ -37,6 +37,10 @@ export function linhaParaAgente(l: LinhaDoAgente): Agente {
     tipo: l.tipo,
     ondeRoda: l.onde_roda,
     responsavelId: l.responsavel_id,
+    // Até a migração da M4-02, só existem agentes externos.
+    papel: null,
+    especialidade: null,
+    respondeAId: null,
     situacao: l.situacao,
     minutosSemSinal: l.minutos_sem_sinal,
     ultimoSinalEm: l.ultimo_sinal_em ? l.ultimo_sinal_em.toISOString() : null,
