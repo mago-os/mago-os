@@ -12,7 +12,7 @@ CREATE TABLE public.layouts_de_tela (
   pessoa_id uuid NOT NULL,
   nome text NOT NULL CHECK (length(trim(nome)) BETWEEN 1 AND 80),
   aparelho text NOT NULL CHECK (aparelho IN ('computador', 'celular')),
-  estrutura jsonb NOT NULL CHECK (jsonb_typeof(estrutura) = 'object' AND octet_length(estrutura::text) <= 70000),
+  estrutura jsonb NOT NULL CHECK (jsonb_typeof(estrutura) = 'object' AND octet_length(estrutura::text) <= 200000),
   usado_em timestamptz,
   criado_em timestamptz NOT NULL DEFAULT now(),
   CONSTRAINT layouts_da_pessoa_na_empresa FOREIGN KEY (empresa_id, pessoa_id)

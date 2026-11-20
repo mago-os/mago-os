@@ -56,9 +56,18 @@ export function problemaDaEstrutura(e: EstruturaDoLayout): string | null {
     ?.panels;
   if (paineis && typeof paineis === "object") {
     for (const [id, p] of Object.entries(paineis)) {
-      const tipo = e.paineis.find((x) => x.id === id)?.tipo;
-      if (!tipo || p?.contentComponent !== tipo || !(TIPOS_DE_PAINEL as readonly string[]).includes(tipo))
+      const declarado = e.paineis.find((x) => x.id === id);
+      if (
+        !declarado ||
+        p?.contentComponent !== declarado.tipo ||
+        !(TIPOS_DE_PAINEL as readonly string[]).includes(declarado.tipo)
+      )
         return "A divisão cita um painel que não está no layout.";
+      // O que a tela vai abrir (os parâmetros guardados na divisão) é o mesmo painel declarado e conferido acima.
+      const guardado = (p as { params?: { painel?: Record<string, unknown> } }).params?.painel;
+      const campos = ["id", "tipo", "projetoId", "visaoId"] as const;
+      if (!guardado || campos.some((k) => guardado[k] !== declarado[k]))
+        return "A divisão cita um painel diferente do declarado no layout.";
     }
   }
   return null;
@@ -101,6 +110,10 @@ export function registrarRotasDosLayouts(
     if (problema) return invalido(resposta, problema);
     try {
       const feito = await naEmpresa(pedido, async (c) => {
+        // Um salvamento por vez para a mesma pessoa e aparelho: o limite vale mesmo com duas abas salvando juntas.
+        await c.query("select pg_advisory_xact_lock(hashtextextended(pessoa_ativa()::text || $1, 0))", [
+          r.valor.aparelho,
+        ]);
         const n = await c.query<{ n: string }>(
           "select count(*) as n from layouts_de_tela where empresa_id = empresa_ativa() and aparelho = $1",
           [r.valor.aparelho],

@@ -153,8 +153,12 @@ describe.skipIf(!bancoDisponivel)("layouts de painéis", () => {
       divisao: {
         grid: {},
         panels: {
-          t1: { id: "t1", contentComponent: "tarefas" },
-          p1: { id: "p1", contentComponent: "prioridades" },
+          t1: { id: "t1", contentComponent: "tarefas", params: { painel: { id: "t1", tipo: "tarefas" } } },
+          p1: {
+            id: "p1",
+            contentComponent: "prioridades",
+            params: { painel: { id: "p1", tipo: "prioridades" } },
+          },
         },
       },
     },
@@ -195,6 +199,11 @@ describe.skipIf(!bancoDisponivel)("layouts de painéis", () => {
       },
     };
     expect((await pedir("POST", "/layouts", flora, divisaoErrada)).statusCode).toBe(400);
+    // A divisão não pode abrir um painel diferente do declarado (outros parâmetros).
+    const trocado = structuredClone(MEU_DIA);
+    trocado.nome = "Trocado";
+    (trocado.estrutura.divisao.panels.t1.params.painel as Record<string, unknown>).tipo = "projeto";
+    expect((await pedir("POST", "/layouts", flora, trocado)).statusCode).toBe(400);
     const favorito = {
       ...MEU_DIA,
       nome: "Fav",

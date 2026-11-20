@@ -24,6 +24,7 @@ import { createContext, lazy, Suspense, useCallback, useContext, useEffect, useR
 import { listarMeusAvisos } from "@/agentes";
 import { Button } from "@/componentes/ui/button";
 import { cn } from "@/lib/utils";
+import { listarProjetos } from "@/projetos";
 import { pedir } from "@/tarefas";
 import { useTempoReal } from "@/tempo-real";
 import { Aviso as Mensagem } from "./Acesso";
@@ -44,6 +45,7 @@ export interface Permissoes {
   podeEditarTarefa: boolean;
   podeVerAgentes: boolean;
   podeCadastrarAgentes: boolean;
+  podeVerProjetos: boolean;
   administraProjetos: boolean;
   podeExcluirProjetos: boolean;
 }
@@ -136,9 +138,7 @@ function ConteudoDoPainel({
 function EscolherProjeto({ aoEscolher }: { aoEscolher: (id: string) => void }) {
   const [projetos, setProjetos] = useState<{ id: string; nome: string }[]>([]);
   useEffect(() => {
-    void pedir<{ projetos: { id: string; nome: string }[] }>("GET", "/projetos").then((r) =>
-      setProjetos(r.dados?.projetos ?? []),
-    );
+    void listarProjetos().then((r) => setProjetos(r.dados?.projetos ?? []));
   }, []);
   return (
     <label className="grid gap-2 p-4 text-sm">
@@ -205,7 +205,8 @@ const PADRAO: EstruturaDoLayout = {
 const ehCelular = () => window.matchMedia("(max-width: 767px)").matches;
 
 export function Paineis(permissoes: Permissoes) {
-  const aparelho = ehCelular() ? "celular" : "computador";
+  // O aparelho é decidido ao abrir a tela (girar ou estreitar a janela não troca o layout no meio do uso).
+  const [aparelho] = useState<"celular" | "computador">(() => (ehCelular() ? "celular" : "computador"));
   const [layouts, setLayouts] = useState<LayoutDeTela[]>([]);
   const [atual, setAtual] = useState<LayoutDeTela | null>(null);
   const [estrutura, setEstrutura] = useState<EstruturaDoLayout | null>(null);
@@ -252,7 +253,11 @@ export function Paineis(permissoes: Permissoes) {
       aparelho,
       estrutura: e,
     });
-    if (!r.ok || !r.dados) return setMensagem({ tipo: "erro", texto: r.mensagem ?? "" });
+    if (!r.ok || !r.dados)
+      return setMensagem({
+        tipo: "erro",
+        texto: r.mensagem || "Não foi possível salvar o layout. Confira o nome.",
+      });
     setAtual(r.dados);
     setMensagem({ tipo: "ok", texto: `Layout "${r.dados.nome}" salvo.` });
     void carregar();
@@ -269,7 +274,8 @@ export function Paineis(permissoes: Permissoes) {
 
   async function apagar() {
     if (!atual || !window.confirm(`Apagar o layout "${atual.nome}"?`)) return;
-    await pedir("DELETE", `/layouts/${atual.id}`);
+    const r = await pedir("DELETE", `/layouts/${atual.id}`);
+    if (!r.ok) return setMensagem({ tipo: "erro", texto: r.mensagem || "Não foi possível apagar o layout." });
     setAtual(null);
     setMensagem({ tipo: "ok", texto: "Layout apagado." });
     void carregar();
@@ -322,7 +328,7 @@ export function Paineis(permissoes: Permissoes) {
 
   return (
     <ContextoDosPaineis.Provider value={permissoes}>
-      <main className="grid h-[calc(100dvh-8rem)] grid-rows-[auto_1fr] gap-2 px-2 py-2 md:h-[calc(100dvh-4rem)] md:px-4">
+      <main className="flex h-[calc(100dvh-8rem)] flex-col gap-2 px-2 py-2 md:h-[calc(100dvh-4rem)] md:px-4">
         {/* Só mexe depois que o layout salvo chegou (senão ele chegaria por cima do que a pessoa fez). */}
         <fieldset
           disabled={estrutura === null}
@@ -350,7 +356,11 @@ export function Paineis(permissoes: Permissoes) {
             onChange={(e) => e.target.value && adicionar(e.target.value as TipoDePainel)}
           >
             <option value="">Adicionar painel...</option>
-            {TIPOS_DE_PAINEL.filter((t) => t !== "agentes" || permissoes.podeVerAgentes).map((t) => (
+            {TIPOS_DE_PAINEL.filter(
+              (t) =>
+                (t !== "agentes" || permissoes.podeVerAgentes) &&
+                (t !== "projeto" || permissoes.podeVerProjetos),
+            ).map((t) => (
               <option key={t} value={t}>
                 {NOMES[t]}
               </option>
@@ -371,10 +381,12 @@ export function Paineis(permissoes: Permissoes) {
         {mensagem && <Mensagem {...mensagem} />}
         {estrutura &&
           (aparelho === "celular" ? (
-            <AbasDoCelular estrutura={estrutura} aoMudar={setEstrutura} />
+            <div className="grid min-h-0 flex-1">
+              <AbasDoCelular estrutura={estrutura} aoMudar={setEstrutura} />
+            </div>
           ) : (
             <DockviewReact
-              className="dockview-theme-light dockview-theme-mago rounded-lg border border-linha"
+              className="dockview-theme-light dockview-theme-mago min-h-0 flex-1 rounded-lg border border-linha"
               components={COMPONENTES}
               onReady={aoFicarPronto}
             />
@@ -400,8 +412,9 @@ function AbasDoCelular({
   const [aberta, setAberta] = useState(ordem[0]?.id ?? "");
   const painel = ordem.find((p) => p.id === aberta) ?? ordem[0];
 
+  // Mexe na ordem que a pessoa vê (favoritos primeiro) e guarda essa mesma ordem.
   function mover(id: string, passo: -1 | 1) {
-    const lista = [...estrutura.paineis];
+    const lista = [...ordem];
     const i = lista.findIndex((p) => p.id === id);
     const j = i + passo;
     if (i < 0 || j < 0 || j >= lista.length) return;

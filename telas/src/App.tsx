@@ -292,6 +292,7 @@ export function App() {
         podeEditarTarefa={pode("tarefas", "editar")}
         podeVerAgentes={pode("agentes", "ver")}
         podeCadastrarAgentes={pode("agentes", "criar")}
+        podeVerProjetos={pode("projetos", "ver")}
         administraProjetos={permissoes?.modulos.projetos?.acoes.editar === "tudo"}
         podeExcluirProjetos={pode("projetos", "excluir")}
       />

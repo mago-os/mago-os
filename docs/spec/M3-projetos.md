@@ -1,6 +1,6 @@
 # Spec da Fase 1: M3 Projetos e tarefas completos
 
-Parte da [spec da Fase 1](README.md). Estado em 19/11/2026: **aprovado** pelo Sandro, com todas as recomendações (inclusive a M3-11 e os eventos da agenda simples no M5). Em construção: M3-01 a M3-07 prontas em 19/11/2026 e M3-08 e M3-09 em 20/11/2026.
+Parte da [spec da Fase 1](README.md). Estado em 19/11/2026: **aprovado** pelo Sandro, com todas as recomendações (inclusive a M3-11 e os eventos da agenda simples no M5). Em construção: M3-01 a M3-07 prontas em 19/11/2026 e M3-08 a M3-10 em 20/11/2026.
 
 **Pronto quando:** a Nolask organiza um projeto real no Mago OS (sugestão: a própria construção do Mago OS, com as tarefas do M4), com espaço, projeto, diretor e gerente, listas, subtarefas, prazos e etiquetas, e acompanha pelo Kanban, pela lista e pelo calendário. Uma menção a uma pessoa chega no sino e no celular, um anexo passa pelo antivírus antes de abrir, a central de prioridades mostra o que vence hoje e o Ctrl+K acha a tarefa pelo nome. Os testes provam que uma empresa não vê projetos, anexos, notificações nem resultados de busca da outra.
 
@@ -158,14 +158,14 @@ Pronto quando: o Sandro aperta Ctrl+K, digita "bakup" e acha a tarefa "Conferir 
 
 ### M3-10 Painéis encaixáveis com layout salvo por usuário
 
-- [ ] Biblioteca de painéis (decisão 16: dockview): dividir a tela em duas ou três partes, redimensionar, empilhar como abas, maximizar e fechar; janela solta só como opção
-- [ ] Painéis do M3: Tarefas (com as três visões), Projeto, Central de prioridades, Notificações, Agentes e Início
-- [ ] Cada painel baixa o código só quando entra na tela, e painel escondido não atualiza até voltar a aparecer
-- [ ] Layouts salvos por pessoa, com nome ("Meu dia", "Projetos"), trocados com um clique; o do computador e o do celular ficam separados
-- [ ] Tabela `layouts_de_tela` (pessoal), com `empresa_id`, RLS e marcas
-- [ ] No celular, os painéis viram abas em sequência, com ordem e favoritos escolhidos pela pessoa
-- [ ] Uso completo pelo teclado e leitor de tela (acessibilidade desde o início, como no plano)
-- [ ] Teste de tela: montar um layout, recarregar e ver o mesmo layout
+- [x] Biblioteca de painéis (decisão 16: dockview): dividir a tela em duas ou três partes, redimensionar, empilhar como abas, maximizar e fechar; janela solta só como opção. Ajuste na codificação (aprovado pelo Sandro): a janela solta fica para depois; os painéis ficam numa tela nova, Painéis, e as telas de sempre não mudam
+- [x] Painéis do M3: Tarefas (com as três visões), Projeto, Central de prioridades, Notificações, Agentes e Início
+- [x] Cada painel baixa o código só quando entra na tela, e painel escondido não atualiza até voltar a aparecer
+- [x] Layouts salvos por pessoa, com nome ("Meu dia", "Projetos"), trocados com um clique; o do computador e o do celular ficam separados; o último usado em cada aparelho abre sozinho (até 20 por aparelho, sem auditoria)
+- [x] Tabela `layouts_de_tela` (pessoal), com `empresa_id`, RLS e marcas
+- [x] No celular, os painéis viram abas em sequência, com ordem e favoritos escolhidos pela pessoa
+- [x] Uso completo pelo teclado e leitor de tela (acessibilidade desde o início, como no plano)
+- [x] Teste de tela: montar um layout, recarregar e ver o mesmo layout
 
 Pronto quando: o Sandro monta no computador as tarefas do projeto ao lado da central de prioridades, salva como "Meu dia", fecha o navegador e o layout volta igual; no celular, as mesmas partes aparecem como abas.
 
