@@ -13,8 +13,16 @@ import { cn } from "@/lib/utils";
 import { pedir } from "@/tarefas";
 import { Aviso } from "./Acesso";
 
+interface AgenteDaConversa {
+  id: string;
+  nome: string;
+  situacao: string;
+}
+
 interface Lista {
-  coordenador: { id: string; nome: string; situacao: string } | null;
+  coordenador: AgenteDaConversa | null;
+  /** Os especialistas com quem a pessoa pode falar direto (administrador e gestor). */
+  especialistas: AgenteDaConversa[];
   conversas: ConversaDoContrato[];
 }
 
@@ -38,6 +46,8 @@ export function Conversa({ euId }: { euId: string }) {
   const [texto, setTexto] = useState("");
   const [erro, setErro] = useState<string | null>(null);
   const [enviando, setEnviando] = useState(false);
+  /** Com quem é a conversa nova: vazio é o coordenador. */
+  const [falarCom, setFalarCom] = useState("");
   const fim = useRef<HTMLDivElement>(null);
 
   const carregarLista = useCallback(async () => {
@@ -84,7 +94,7 @@ export function Conversa({ euId }: { euId: string }) {
     setEnviando(true);
     setErro(null);
     const r = await pedir<{ conversa: ConversaDoContrato }>("POST", "/conversas/mensagens", {
-      ...(abertaId ? { conversaId: abertaId } : {}),
+      ...(abertaId ? { conversaId: abertaId } : falarCom ? { agenteId: falarCom } : {}),
       texto: limpo,
     });
     setEnviando(false);
@@ -102,7 +112,10 @@ export function Conversa({ euId }: { euId: string }) {
     void carregarLista();
   }
 
-  const coordenador = lista?.coordenador;
+  const agentes = [...(lista?.coordenador ? [lista.coordenador] : []), ...(lista?.especialistas ?? [])];
+  // O agente da conversa aberta, ou o escolhido para a conversa nova (vazio: o coordenador).
+  const idDoAgente = aberta?.conversa.agenteId ?? (falarCom || lista?.coordenador?.id);
+  const coordenador = agentes.find((a) => a.id === idDoAgente) ?? lista?.coordenador ?? null;
   const pensando = (aberta?.emAndamento ?? 0) > 0;
   const nome = coordenador?.nome ?? "Coordenador";
 
@@ -168,6 +181,25 @@ export function Conversa({ euId }: { euId: string }) {
               tipo="erro"
               texto={`${nome} ainda está pausado. O administrador escolhe o modelo de IA e liga em Agentes.`}
             />
+          )}
+          {!aberta && (lista?.especialistas.length ?? 0) > 0 && (
+            <label className="grid gap-1.5 text-sm font-medium">
+              Falar com
+              <select
+                value={falarCom}
+                onChange={(e) => setFalarCom(e.target.value)}
+                className="h-11 w-full min-w-0 rounded-md border border-linha bg-cartao px-3 text-base font-normal"
+              >
+                <option value="">
+                  {lista?.coordenador?.nome ?? "Coordenador"} (recebe e distribui os pedidos)
+                </option>
+                {lista?.especialistas.map((e) => (
+                  <option key={e.id} value={e.id}>
+                    {e.nome} (direto, sem passar pelo coordenador)
+                  </option>
+                ))}
+              </select>
+            </label>
           )}
           {!aberta && (
             <div className="grid gap-2">

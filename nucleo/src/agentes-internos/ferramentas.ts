@@ -225,11 +225,15 @@ export async function executarFerramenta(
         };
         const recusa = await recusaDoPlanejamento(c, null, planejamento);
         if (recusa) throw new RecusaDaFerramenta(recusa);
-        // A tarefa nasce com quem pediu como responsável; o coordenador pode delegar em seguida.
+        // Do coordenador, a tarefa nasce com quem pediu (ele delega em seguida); do especialista (conversa direta),
+        // nasce com ele, para ele planejar.
         let tarefa = await criarTarefa(c, agenteQuem, {
           titulo: entrada.titulo as string,
           descricao: (entrada.descricao as string | undefined) ?? null,
-          responsavel: { tipo: "pessoa", pessoaId },
+          responsavel:
+            ctx.agente.papel === "especialista"
+              ? { tipo: "agente", agenteId: ctx.agente.id }
+              : { tipo: "pessoa", pessoaId },
           projetoId: projetoId ?? null,
         });
         if (Object.keys(planejamento).length > 0) {
@@ -238,7 +242,9 @@ export async function executarFerramenta(
         }
         return tarefa;
       });
-      await registrar("tarefa.criou", feito.id, { responsavel: "pessoa" });
+      await registrar("tarefa.criou", feito.id, {
+        responsavel: ctx.agente.papel === "especialista" ? "agente" : "pessoa",
+      });
       await avisarDepois(
         ctx.poolApp,
         ctx.empresaId,

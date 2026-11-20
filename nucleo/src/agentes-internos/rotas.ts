@@ -30,6 +30,12 @@ export interface OpcoesDaConversa {
 const naoEncontrada = (r: FastifyReply) =>
   r.code(404).send({ code: "CONVERSA_NAO_ENCONTRADA", message: "Conversa não encontrada." });
 
+/** Falar direto com um especialista: administrador e gestor de área (decisão de 13/11/2026). */
+function podeFalarComEspecialista(pedido: FastifyRequest): boolean {
+  const { permissoes } = acessoDo(pedido);
+  return permissoes.perfil === "administrador" || permissoes.perfil === "gestor_area";
+}
+
 export function registrarRotasDaConversa(app: FastifyInstance, o: OpcoesDaConversa): void {
   const { verificador, poolApp } = o;
   // Todo mundo da empresa fala com o coordenador (o que o agente faz depois respeita a permissão de cada um).
@@ -48,8 +54,18 @@ export function registrarRotasDaConversa(app: FastifyInstance, o: OpcoesDaConver
         `select id, nome, situacao from agentes where empresa_id = empresa_ativa() and tipo = 'interno'
             and papel = 'coordenador' and situacao <> 'desligado' limit 1`,
       );
+      // Falar direto com um especialista: administrador e gestor (decisão de 13/11/2026).
+      const especialistas = podeFalarComEspecialista(pedido)
+        ? (
+            await c.query<{ id: string; nome: string; situacao: string }>(
+              `select id, nome, situacao from agentes where empresa_id = empresa_ativa() and tipo = 'interno'
+                  and papel = 'especialista' and situacao <> 'desligado' order by lower(nome)`,
+            )
+          ).rows
+        : [];
       return {
         coordenador: coordenador.rows[0] ?? null,
+        especialistas,
         conversas: await listarConversas(c, sessao.pessoa.id),
       };
     });
@@ -77,14 +93,18 @@ export function registrarRotasDaConversa(app: FastifyInstance, o: OpcoesDaConver
       await garantirAgentesDeNascenca(c);
       let conversa = r.valor.conversaId ? await buscarConversa(c, r.valor.conversaId) : null;
       if (r.valor.conversaId && !conversa) return { erro: "nao_encontrada" as const };
-      const agenteId = conversa?.agenteId;
-      const a = await c.query<{ id: string; nome: string; situacao: string }>(
-        `select id, nome, situacao from agentes where empresa_id = empresa_ativa() and tipo = 'interno'
-            and ${agenteId ? "id = $1" : "papel = 'coordenador' and situacao <> 'desligado'"} limit 1`,
+      // A conversa continua com o agente dela; uma nova vai ao coordenador ou, se pedido e permitido, ao especialista.
+      const pedidoDireto = !conversa && r.valor.agenteId ? r.valor.agenteId : null;
+      const agenteId = conversa?.agenteId ?? pedidoDireto;
+      const a = await c.query<{ id: string; nome: string; situacao: string; papel: string }>(
+        `select id, nome, situacao, papel from agentes where empresa_id = empresa_ativa() and tipo = 'interno'
+            and ${agenteId ? "id = $1 and situacao <> 'desligado'" : "papel = 'coordenador' and situacao <> 'desligado'"} limit 1`,
         agenteId ? [agenteId] : [],
       );
       const agente = a.rows[0];
-      if (!agente) return { erro: "sem_coordenador" as const };
+      if (!agente) return { erro: pedidoDireto ? ("nao_encontrada" as const) : ("sem_coordenador" as const) };
+      if (pedidoDireto && agente.papel === "especialista" && !podeFalarComEspecialista(pedido))
+        return { erro: "sem_permissao" as const };
       if (agente.situacao !== "ativo") return { erro: "pausado" as const, nome: agente.nome };
       // Uma execução de cada vez por conversa: a pessoa espera a resposta antes de mandar outra. A linha da conversa
       // fica travada até o fim da transação, para dois envios ao mesmo tempo não criarem duas execuções.
@@ -111,6 +131,11 @@ export function registrarRotasDaConversa(app: FastifyInstance, o: OpcoesDaConver
     });
     if ("erro" in feito) {
       if (feito.erro === "nao_encontrada") return naoEncontrada(resposta);
+      if (feito.erro === "sem_permissao")
+        return resposta.code(403).send({
+          code: "SEM_PERMISSAO",
+          message: "Só o administrador e o gestor falam direto com um especialista. Fale com o coordenador.",
+        });
       if (feito.erro === "ocupado")
         return resposta
           .code(409)

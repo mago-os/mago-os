@@ -692,6 +692,59 @@ describe.skipIf(!bancoDisponivel)("agentes internos", () => {
     });
   });
 
+  it("falar direto com o Gerente: o administrador pode, a funcionária não; o Gerente cria e planeja a tarefa", async () => {
+    const ana = await como("ana@teste.invalid");
+    const flora = await como("flora@teste.invalid");
+    const daAna = (await pedir("GET", "/conversas", ana)).json() as { especialistas: { id: string }[] };
+    expect(daAna.especialistas.map((e) => e.id)).toContain(ids.gerente);
+    const daFlora = (await pedir("GET", "/conversas", flora)).json() as { especialistas: unknown[] };
+    expect(daFlora.especialistas).toEqual([]);
+    const negado = await pedir("POST", "/conversas/mensagens", flora, { agenteId: ids.gerente, texto: "oi" });
+    expect(negado.statusCode).toBe(403);
+
+    roteiro = [
+      () => ({ chamadas: [{ id: "d1", nome: "criar_tarefa", entrada: { titulo: "Campanha de Natal" } }] }),
+      (p) => {
+        const tarefa = ultimoResultado(p).tarefa as {
+          id: string;
+          responsavel: { tipo: string; agenteId?: string };
+        };
+        expect(tarefa.responsavel).toEqual({ tipo: "agente", agenteId: ids.gerente });
+        return {
+          chamadas: [
+            {
+              id: "d2",
+              nome: "planejar",
+              entrada: {
+                tarefaId: tarefa.id,
+                subtarefas: [{ titulo: "Criar as artes" }],
+                checklist: ["Aprovar texto"],
+              },
+            },
+          ],
+        };
+      },
+      () => ({
+        chamadas: [{ id: "d3", nome: "responder", entrada: { texto: "Plano da campanha pronto." } }],
+      }),
+    ];
+    const r = await pedir("POST", "/conversas/mensagens", ana, {
+      agenteId: ids.gerente,
+      texto: "planeja a campanha de Natal",
+    });
+    expect(r.statusCode).toBe(201);
+    expect(r.json().conversa.agenteId).toBe(ids.gerente);
+    await rodarFila();
+    const sub = await dono.query(
+      "select 1 from tarefas s join tarefas m on m.id = s.tarefa_mae_id where m.titulo = 'Campanha de Natal'",
+    );
+    expect(sub.rowCount).toBe(1);
+    const ultima = (await pedir("GET", `/conversas/${r.json().conversa.id}`, ana)).json() as {
+      mensagens: { texto: string }[];
+    };
+    expect(ultima.mensagens.at(-1)?.texto).toBe("Plano da campanha pronto.");
+  });
+
   it("coordenador desligado por engano: nasce um novo, pausado, e o Gerente passa a responder a ele", async () => {
     const ana = await como("ana@teste.invalid");
     expect((await pedir("POST", `/agentes/${ids.coordenador}/desligar`, ana, {})).statusCode).toBe(200);

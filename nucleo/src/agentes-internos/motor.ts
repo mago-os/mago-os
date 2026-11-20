@@ -97,6 +97,8 @@ ${REGRAS_FIXAS}`;
 Planeje: quebre a tarefa em subtarefas (partes que alguém faz) e checklist (passos curtos) com a ferramenta planejar,
 com prazos coerentes com o prazo da tarefa. Atribua as subtarefas (atribuir) só quando as instruções pedirem ou
 quando for claro quem cuida. Comente na tarefa o plano, se ajudar. No fim, responda com um resumo do plano.
+Quando a pessoa falar direto com você na conversa, crie a tarefa (criar_tarefa) se for um trabalho novo, planeje-a e
+responda com o plano.
 
 ${REGRAS_FIXAS}`;
 }
