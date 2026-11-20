@@ -20,6 +20,7 @@ const OUTRO = "0193a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5c";
 const AGORA = "2026-11-20T18:00:00Z";
 
 const ASSINATURAS: Record<string, string> = {
+  procurar_projeto: "b35c4efb2935a448",
   criar_tarefa: "e9439dba303228d8",
   delegar: "c22f595c1a17e80c",
   perguntar: "1acac7eb1c4f04a5",

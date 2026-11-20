@@ -23,6 +23,7 @@ import {
   registrarRotasDasContasDeIa,
 } from "@mago-os/nucleo/contas-de-ia";
 import { catalogoDeModulos, criarVerificador } from "@mago-os/nucleo/permissoes";
+import { registrarRotasDosProjetos } from "@mago-os/nucleo/projetos";
 import Fastify, { type FastifyInstance } from "fastify";
 import pg from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -58,6 +59,7 @@ describe.skipIf(!bancoDisponivel)("agentes internos", () => {
   let roteiro: Parameters<typeof modelosFalsos>[0] = [];
   const modelos = modelosFalsos([]);
   let motor: OpcoesDoMotor;
+  const errosDoMotor: string[] = [];
   const pedidosAoClaudeCode: { token: string; modelo: string; prompt: string; ferramentas: string[] }[] = [];
   let roteiroDoClaudeCode: NonNullable<OpcoesDoMotor["claudeCode"]> = async () => ({
     texto: "Pronto.",
@@ -176,6 +178,7 @@ describe.skipIf(!bancoDisponivel)("agentes internos", () => {
     });
     const acordar = (empresa: string, execucaoId: string) => fila.push({ empresaId: empresa, execucaoId });
     registrarRotasDaConversa(app, { verificador, poolApp, acordar });
+    registrarRotasDosProjetos(app, verificador, poolApp);
     motor = {
       poolApp,
       cofre,
@@ -200,7 +203,10 @@ describe.skipIf(!bancoDisponivel)("agentes internos", () => {
         log: app.log,
         origem: { canal: "sistema", ip: null, aparelho: null },
       },
-      log: { error: () => {}, warn: () => {} },
+      log: {
+        error: (o: unknown) => errosDoMotor.push(String((o as { erro?: Error }).erro?.message ?? o)),
+        warn: () => {},
+      },
       acordar,
       // Claude Code falso: segue o roteiro do teste (chama as ferramentas do Mago OS como o de verdade).
       claudeCode: async (p) => {
@@ -427,6 +433,49 @@ describe.skipIf(!bancoDisponivel)("agentes internos", () => {
     const doCoordenador = modelos.pedidos.find((p) => p.sistema.includes("coordenador dos agentes"));
     expect(doCoordenador?.ferramentas.map((f) => f.nome)).not.toContain("planejar");
     expect(doCoordenador?.sistema).toContain(ids.gerente);
+  });
+
+  it("procurar projeto: acha pelo nome sem acento e a tarefa nasce no projeto", async () => {
+    const ana = await como("ana@teste.invalid");
+    // Pelas rotas de sempre: o projeto nasce com a lista e os status padrão.
+    const espaco = await pedir("POST", "/espacos", ana, { nome: "Marketing" });
+    const projeto = await pedir("POST", "/projetos", ana, {
+      espacoId: espaco.json().id,
+      nome: "Blog Institucional",
+    });
+    expect(projeto.statusCode).toBe(201);
+    ids.projeto = projeto.json().id;
+    roteiro = [
+      () => ({ chamadas: [{ id: "p1", nome: "procurar_projeto", entrada: { nome: "blog institucionál" } }] }),
+      (p) => {
+        const achados = ultimoResultado(p).projetos as { id: string; nome: string }[];
+        expect(achados).toEqual([{ id: ids.projeto, nome: "Blog Institucional" }]);
+        return {
+          chamadas: [
+            {
+              id: "p2",
+              nome: "criar_tarefa",
+              entrada: { titulo: "Post de lançamento", projetoId: ids.projeto },
+            },
+          ],
+        };
+      },
+      () => ({
+        chamadas: [
+          { id: "p3", nome: "responder", entrada: { texto: "Criei no projeto Blog Institucional." } },
+        ],
+      }),
+    ];
+    const r = await pedir("POST", "/conversas/mensagens", ana, {
+      texto: "cria um post de lançamento no projeto blog",
+    });
+    expect(r.statusCode).toBe(201);
+    await rodarFila();
+    expect(errosDoMotor).toEqual([]);
+    const t = await dono.query<{ projeto_id: string }>(
+      "select projeto_id from tarefas where titulo = 'Post de lançamento'",
+    );
+    expect(t.rows[0]?.projeto_id).toBe(ids.projeto);
   });
 
   it("o agente age com a permissão de quem pediu: a funcionária não alcança a tarefa da Ana", async () => {

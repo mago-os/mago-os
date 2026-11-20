@@ -172,6 +172,16 @@ const SubtarefaPlanejada = Type.Object(
 
 export const FERRAMENTAS_INTERNAS = [
   {
+    nome: "procurar_projeto",
+    descricao:
+      "Procura os projetos da empresa pelo nome (sem diferença de acento ou maiúscula), entre os que quem pediu alcança. Use quando a pessoa citar um projeto, para pegar o id antes de criar a tarefa. Se vier mais de um ou nenhum, pergunte à pessoa.",
+    entrada: Type.Object(
+      { nome: Texto(120, "O nome do projeto, ou parte dele, como a pessoa disse.") },
+      { additionalProperties: false },
+    ),
+    papeis: ["coordenador", "especialista"],
+  },
+  {
     nome: "criar_tarefa",
     descricao:
       "Cria uma tarefa a partir do pedido da pessoa, com título curto e claro, a descrição do que se espera e o prazo, se a pessoa disse. A tarefa fica com a permissão de quem pediu: se a pessoa não poderia criar, a ferramenta recusa.",
