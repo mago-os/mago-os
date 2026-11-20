@@ -544,4 +544,19 @@ describe.skipIf(!bancoDisponivel)("agentes internos", () => {
       c.release();
     }
   });
+
+  it("coordenador desligado por engano: nasce um novo, pausado, e o Gerente passa a responder a ele", async () => {
+    const ana = await como("ana@teste.invalid");
+    expect((await pedir("POST", `/agentes/${ids.coordenador}/desligar`, ana, {})).statusCode).toBe(200);
+    const agentes = (await pedir("GET", "/agentes", ana)).json() as {
+      id: string;
+      papel: string | null;
+      situacao: string;
+      respondeAId: string | null;
+    }[];
+    const novo = agentes.find((a) => a.papel === "coordenador" && a.situacao !== "desligado");
+    expect(novo).toMatchObject({ situacao: "pausado" });
+    expect(novo?.id).not.toBe(ids.coordenador);
+    expect(agentes.find((a) => a.id === ids.gerente)?.respondeAId).toBe(novo?.id);
+  });
 });
