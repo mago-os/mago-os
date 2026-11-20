@@ -88,7 +88,7 @@ CREATE TABLE public.execucoes_de_agente (
   CONSTRAINT execucoes_id_da_empresa UNIQUE (empresa_id, id),
   CONSTRAINT execucoes_do_agente FOREIGN KEY (empresa_id, agente_id) REFERENCES public.agentes (empresa_id, id),
   CONSTRAINT execucoes_de_quem_pediu FOREIGN KEY (empresa_id, pedido_por)
-    REFERENCES public.vinculos (empresa_id, pessoa_id),
+    REFERENCES public.vinculos (empresa_id, pessoa_id) ON DELETE CASCADE,
   CONSTRAINT execucoes_da_conversa FOREIGN KEY (empresa_id, conversa_id)
     REFERENCES public.conversas (empresa_id, id) ON DELETE CASCADE,
   CONSTRAINT execucoes_da_tarefa FOREIGN KEY (empresa_id, tarefa_id)
@@ -126,6 +126,23 @@ ALTER TABLE public.execucoes_de_agente ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.execucoes_de_agente FORCE ROW LEVEL SECURITY;
 CREATE POLICY execucoes_da_empresa_ativa ON public.execucoes_de_agente
   FOR ALL TO mago_app USING (empresa_id = public.empresa_ativa()) WITH CHECK (empresa_id = public.empresa_ativa());
+
+-- Execuções esquecidas (a API reiniciou no meio, ou a fila não recebeu o trabalho): na fila há mais de 2 minutos,
+-- ou rodando há mais de 15. Só ids; a verificação a cada minuto põe de novo na fila ou encerra.
+CREATE FUNCTION public.execucoes_esquecidas()
+  RETURNS TABLE (empresa_id uuid, execucao_id uuid, situacao text)
+  LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public, pg_temp
+  AS $$
+    SELECT e.empresa_id, e.id, e.situacao
+      FROM public.execucoes_de_agente e
+     WHERE (e.situacao = 'na_fila' AND e.criada_em < now() - interval '2 minutes')
+        OR (e.situacao = 'rodando' AND e.iniciada_em < now() - interval '15 minutes')
+     LIMIT 100
+  $$;
+COMMENT ON FUNCTION public.execucoes_esquecidas() IS
+  'Para a verificação a cada minuto: execuções paradas na fila ou rodando há tempo demais. Só ids.';
+REVOKE EXECUTE ON FUNCTION public.execucoes_esquecidas() FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.execucoes_esquecidas() TO mago_app;
 
 CREATE TABLE public.mensagens_de_conversa (
   id uuid PRIMARY KEY DEFAULT uuidv7(),
@@ -189,6 +206,7 @@ SELECT c.empresa_id, 'Gerente de projetos', 'Planeja tarefas em subtarefas e che
 -- Down Migration
 
 DROP TABLE public.mensagens_de_conversa;
+DROP FUNCTION public.execucoes_esquecidas();
 DROP TABLE public.execucoes_de_agente;
 DROP TABLE public.conversas;
 DELETE FROM public.agentes WHERE tipo = 'interno' AND papel = 'especialista';

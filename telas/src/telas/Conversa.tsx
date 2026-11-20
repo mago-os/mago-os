@@ -44,13 +44,18 @@ export function Conversa({ euId }: { euId: string }) {
     const r = await pedir<Lista>("GET", "/conversas");
     if (r.ok && r.dados) setLista(r.dados);
   }, []);
+  const idAberto = useRef(abertaId);
+  idAberto.current = abertaId;
   const carregarAberta = useCallback(async (id: string) => {
     const r = await pedir<Aberta>("GET", `/conversas/${encodeURIComponent(id)}`);
+    // A resposta de uma conversa que a pessoa já trocou não entra na tela.
+    if (idAberto.current !== id) return;
     if (r.ok && r.dados) setAberta(r.dados);
-    else {
+    else if (r.codigo === "CONVERSA_NAO_ENCONTRADA") {
       setAberta(null);
       setAbertaId(null);
     }
+    // Falha de rede: mantém o que está na tela, e a próxima volta tenta de novo.
   }, []);
 
   useEffect(() => {
@@ -63,11 +68,12 @@ export function Conversa({ euId }: { euId: string }) {
     if (location.pathname + location.search !== url) history.replaceState(null, "", url);
   }, [abertaId, carregarAberta]);
   // Enquanto o agente trabalha, pergunta de novo a cada 2 segundos.
+  const trabalhando = (aberta?.emAndamento ?? 0) > 0;
   useEffect(() => {
-    if (!abertaId || !aberta || aberta.emAndamento === 0) return;
-    const t = window.setTimeout(() => void carregarAberta(abertaId), 2000);
-    return () => window.clearTimeout(t);
-  }, [aberta, abertaId, carregarAberta]);
+    if (!abertaId || !trabalhando) return;
+    const t = window.setInterval(() => void carregarAberta(abertaId), 2000);
+    return () => window.clearInterval(t);
+  }, [trabalhando, abertaId, carregarAberta]);
   useEffect(() => {
     fim.current?.scrollIntoView({ block: "end" });
   }, [aberta?.mensagens.length, aberta?.emAndamento]);

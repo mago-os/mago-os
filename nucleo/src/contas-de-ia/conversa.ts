@@ -58,6 +58,8 @@ export interface RespostaDoModelo {
 export class ErroDoModelo extends Error {
   override name = "ErroDoModelo";
   readonly limiteAte: Date | null;
+  /** ChatGPT: o login foi renovado antes da falha e precisa voltar ao cofre mesmo assim. */
+  credencialNova?: string;
   constructor(mensagem: string, limiteAte: Date | null = null) {
     super(mensagem);
     this.limiteAte = limiteAte;
@@ -296,6 +298,25 @@ async function conversarChatGpt(a: AcessoAoProvedor, p: PedidoAoModelo): Promise
       last_refresh: new Date().toISOString(),
     });
   }
+  try {
+    return await chamarCodex(p, acesso, login.tokens.account_id, credencialNova);
+  } catch (erro) {
+    if (credencialNova) {
+      const e =
+        erro instanceof ErroDoModelo ? erro : new ErroDoModelo("Não foi possível conectar ao ChatGPT.");
+      e.credencialNova = credencialNova;
+      throw e;
+    }
+    throw erro;
+  }
+}
+
+async function chamarCodex(
+  p: PedidoAoModelo,
+  acesso: string,
+  contaId: string | undefined,
+  credencialNova: string | undefined,
+): Promise<RespostaDoModelo> {
   let resposta: Response;
   try {
     resposta = await fetch(RESPOSTAS_DO_CODEX, {
@@ -305,7 +326,7 @@ async function conversarChatGpt(a: AcessoAoProvedor, p: PedidoAoModelo): Promise
         "content-type": "application/json",
         accept: "text/event-stream",
         "OpenAI-Beta": "responses=experimental",
-        ...(login.tokens.account_id ? { "chatgpt-account-id": login.tokens.account_id } : {}),
+        ...(contaId ? { "chatgpt-account-id": contaId } : {}),
       },
       body: JSON.stringify({
         model: p.modelo,

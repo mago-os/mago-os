@@ -121,8 +121,57 @@ export function partesDaConversa(mensagens: { autor: { tipo: string }; texto: st
   return partes;
 }
 
-/** Roda uma execução. Nunca lança: o que der errado vira execução "falhou" e uma mensagem clara. */
+/** Roda uma execução. Nunca lança: o que der errado vira execução "falhou" (a conversa não fica presa). */
 export async function rodarExecucao(o: OpcoesDoMotor, empresaId: string, execucaoId: string): Promise<void> {
+  try {
+    await rodar(o, empresaId, execucaoId);
+  } catch (erro) {
+    o.log.error({ erro, execucaoId }, "Agente interno: erro fora da execução");
+    await comEmpresa(o.poolApp, empresaId, (c) =>
+      terminarExecucao(c, execucaoId, { situacao: "falhou", resumo: "Erro inesperado." }),
+    ).catch(() => {});
+  }
+}
+
+/**
+ * Verificação a cada minuto: execuções esquecidas (a API reiniciou no meio, ou a fila não recebeu o trabalho). As
+ * que estão na fila voltam para a fila; as que rodam há tempo demais são encerradas, e a conversa avisada.
+ */
+export async function verificarExecucoesEsquecidas(o: OpcoesDoMotor): Promise<number> {
+  const r = await o.poolApp.query<{ empresa_id: string; execucao_id: string; situacao: string }>(
+    "select empresa_id, execucao_id, situacao from execucoes_esquecidas()",
+  );
+  for (const e of r.rows) {
+    if (e.situacao === "na_fila") {
+      o.acordar(e.empresa_id, e.execucao_id);
+      continue;
+    }
+    await comEmpresa(o.poolApp, e.empresa_id, async (c) => {
+      const execucao = await buscarExecucao(c, e.execucao_id, true);
+      if (execucao?.situacao !== "rodando") return;
+      await terminarExecucao(c, e.execucao_id, {
+        situacao: "falhou",
+        resumo: "A execução parou no meio (o servidor reiniciou). Peça de novo.",
+      });
+      const conversa = execucao.conversaId ? await buscarConversa(c, execucao.conversaId) : null;
+      if (conversa)
+        await gravarMensagem(
+          c,
+          conversa,
+          { tipo: "sistema" },
+          "A resposta parou no meio. Mande a mensagem de novo.",
+          {
+            execucaoId: e.execucao_id,
+          },
+        );
+    }).catch((erro) =>
+      o.log.error({ erro, execucaoId: e.execucao_id }, "Agente interno: não encerrou a esquecida"),
+    );
+  }
+  return r.rowCount ?? 0;
+}
+
+async function rodar(o: OpcoesDoMotor, empresaId: string, execucaoId: string): Promise<void> {
   const limites = o.limites ?? LIMITES_PADRAO;
   const naEmpresa = <T>(trabalho: (c: pg.PoolClient) => Promise<T>) =>
     comEmpresa(o.poolApp, empresaId, trabalho);
@@ -200,7 +249,15 @@ export async function rodarExecucao(o: OpcoesDoMotor, empresaId: string, execuca
     );
     return;
   }
-  if (!preparo.modelos || !o.cofre) {
+  if (!o.cofre) {
+    await encerrar("falhou", "As contas de IA estão desligadas neste servidor.");
+    await avisarNaConversa(
+      "As contas de IA ainda não foram ligadas neste servidor. Avise o suporte.",
+      "sistema",
+    );
+    return;
+  }
+  if (!preparo.modelos) {
     await encerrar("falhou", "O agente ainda não tem modelo de IA escolhido.");
     await avisarNaConversa(
       `${agenteBruto.nome} ainda não tem modelo de IA. O administrador escolhe em Agentes.`,
@@ -239,6 +296,15 @@ export async function rodarExecucao(o: OpcoesDoMotor, empresaId: string, execuca
           (await pegarTarefa(c, { tipo: "agente", agenteId: agente.id }, execucao.tarefaId as string)) !==
           null,
       );
+      // Pegada por outra pessoa agora: não adianta rodar (as ferramentas recusariam a cada rodada).
+      if (!pegou) {
+        await encerrar("parada", "A tarefa está pegada por outra pessoa ou agente.");
+        await avisarNaConversa(
+          `${agente.nome} não começou: a tarefa está pegada por outra pessoa agora. Peça de novo quando ela soltar.`,
+          "sistema",
+        );
+        return;
+      }
     }
     const sistema = instrucoesDoPapel(agente.papel, agente.nome, preparo.especialistas);
     const ferramentas = ferramentasDoPapel(agente.papel);
@@ -283,6 +349,19 @@ export async function rodarExecucao(o: OpcoesDoMotor, empresaId: string, execuca
             }
             return resposta;
           } catch (erro) {
+            // O login do ChatGPT pode ter sido renovado antes da falha: o novo precisa ir para o cofre mesmo assim.
+            if (erro instanceof ErroDoModelo && erro.credencialNova) {
+              const nova = erro.credencialNova;
+              await naEmpresa(async (c) =>
+                guardarCredencialRenovada(
+                  c,
+                  m.contaId,
+                  acesso.cifrada,
+                  await cofre.guardarChaveDeIa(c, empresaId, m.contaId, nova),
+                  finalDaCredencial(acesso.conta.provedor, nova),
+                ),
+              );
+            }
             if (erro instanceof ErroDoModelo && erro.limiteAte)
               await naEmpresa((c) => marcarLimiteDoPlano(c, m.contaId, erro.limiteAte));
             throw erro;
@@ -317,8 +396,8 @@ export async function rodarExecucao(o: OpcoesDoMotor, empresaId: string, execuca
             await encerrar("concluida", feito.fim.texto.slice(0, 2000), { modelo: modeloUsado, reserva });
             return;
           }
-          const conteudo =
-            chamada.nome === "ver_tarefa" ? externo(feito.conteudo) : JSON.stringify(feito.conteudo);
+          // Todo resultado pode trazer texto de pessoas (títulos, descrições, comentários): vai como dado.
+          const conteudo = externo(feito.conteudo);
           partes.push({
             papel: "resultado",
             chamadaId: chamada.id,

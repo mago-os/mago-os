@@ -7,7 +7,12 @@ import { criarLogin, criarPoolDoLogin } from "./acesso/login.ts";
 import { registrarRotasDoLogin } from "./acesso/rotas.ts";
 import { verificarAgentesVivos } from "./agentes/chaves.ts";
 import { registrarRotasDoAgente, registrarRotasDosAgentes } from "./agentes/rotas.ts";
-import { type OpcoesDoMotor, registrarRotasDaConversa, rodarExecucao } from "./agentes-internos/index.ts";
+import {
+  type OpcoesDoMotor,
+  registrarRotasDaConversa,
+  rodarExecucao,
+  verificarExecucoesEsquecidas,
+} from "./agentes-internos/index.ts";
 import { antivirusDeTeste, criarClamav } from "./anexos/antivirus.ts";
 import {
   criarDepositoEmDisco,
@@ -50,6 +55,7 @@ const FILA_AGENTES_VIVOS = "agentes-vivos";
 const FILA_NOTIFICACOES = "notificacoes";
 /** Execuções dos agentes internos (M4-02): uma por trabalho, chegam na hora em que a pessoa manda a mensagem. */
 const FILA_AGENTES_INTERNOS = "agentes-internos";
+const FILA_EXECUCOES_ESQUECIDAS = "agentes-internos-esquecidas";
 /** Fila dos anexos (M3-08): antivírus, envios parados e arquivos para apagar. A cada minuto, e na hora do envio. */
 const FILA_ANEXOS = "anexos";
 /** Aviso de espaço dos anexos (conta gratuita do Backblaze): uma vez por dia. */
@@ -151,6 +157,14 @@ async function iniciar(): Promise<void> {
           for (const t of trabalhos) await rodarExecucao(opcoesDoMotor, t.data.empresaId, t.data.execucaoId);
         },
       );
+      // A cada minuto: execuções esquecidas (reinício no meio, ou trabalho que não chegou à fila).
+      await fila.createQueue(FILA_EXECUCOES_ESQUECIDAS);
+      await fila.schedule(FILA_EXECUCOES_ESQUECIDAS, "* * * * *");
+      await fila.work(FILA_EXECUCOES_ESQUECIDAS, async () => {
+        const n = await verificarExecucoesEsquecidas(opcoesDoMotor);
+        if (n > 0)
+          app.log.warn({ evento: "agentes_internos.esquecidas", n }, "Execuções esquecidas cuidadas");
+      });
     });
     registrarRotasDoAgente(app, opcoesDosAgentes);
     registrarServidorMcp(app, { ...opcoesDosAgentes, anexos: servicosDosAnexos });

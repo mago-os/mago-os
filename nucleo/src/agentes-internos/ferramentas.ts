@@ -239,8 +239,8 @@ export async function executarFerramenta(
         const tarefa = await tarefaDeQuemPediu(c, tarefaId, "editar", true);
         const alvo = await c.query<{ id: string }>(
           `select id from agentes where id = $1 and empresa_id = empresa_ativa() and tipo = 'interno'
-              and papel = 'especialista' and situacao = 'ativo'`,
-          [alvoId],
+              and papel = 'especialista' and situacao = 'ativo' and responde_a_id = $2`,
+          [alvoId, ctx.agente.id],
         );
         if (!alvo.rows[0])
           throw new RecusaDaFerramenta(

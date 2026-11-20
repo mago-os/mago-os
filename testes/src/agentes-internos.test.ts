@@ -11,6 +11,7 @@ import {
   type OpcoesDoMotor,
   registrarRotasDaConversa,
   rodarExecucao,
+  verificarExecucoesEsquecidas,
 } from "@mago-os/nucleo/agentes-internos";
 import { type BancoTemporario, criarBancoTemporario } from "@mago-os/nucleo/banco-temporario";
 import {
@@ -37,7 +38,10 @@ const CHAVE_RESERVA = "sk-ant-api03-chave-do-reserva-Rs01";
 function ultimoResultado(p: PedidoAoModelo): Record<string, unknown> {
   const r = [...p.partes].reverse().find((x) => x.papel === "resultado");
   if (r?.papel !== "resultado") throw new Error("sem resultado");
-  return JSON.parse(r.conteudo) as Record<string, unknown>;
+  // Todo resultado chega ao modelo marcado como conteúdo externo.
+  const dentro = /^<conteudo_externo>\n([\s\S]*)\n<\/conteudo_externo>$/.exec(r.conteudo)?.[1];
+  if (!dentro) throw new Error("resultado sem a marcação de conteúdo externo");
+  return JSON.parse(dentro) as Record<string, unknown>;
 }
 
 describe.skipIf(!bancoDisponivel)("agentes internos", () => {
@@ -462,6 +466,63 @@ describe.skipIf(!bancoDisponivel)("agentes internos", () => {
       passou_ao_reserva_porque: "O provedor está com problema (erro 529).",
     });
     expect(modelos.acessos.at(-1)?.chave).toBe(CHAVE_RESERVA);
+  });
+
+  it("execução esquecida: a da fila volta para a fila; a que rodava há tempo demais é encerrada e avisada", async () => {
+    const velha = await dono.query<{ id: string }>(
+      `insert into execucoes_de_agente (empresa_id, agente_id, pedido_por, origem, conversa_id, criada_em)
+       values ($1, $2, $3, 'conversa', $4, now() - interval '5 minutes') returning id`,
+      [empresaId, ids.coordenador, ids.ana, ids.conversa],
+    );
+    const presa = await dono.query<{ id: string }>(
+      `insert into execucoes_de_agente (empresa_id, agente_id, pedido_por, origem, conversa_id, situacao, criada_em,
+         iniciada_em)
+       values ($1, $2, $3, 'conversa', $4, 'rodando', now() - interval '1 hour', now() - interval '1 hour')
+       returning id`,
+      [empresaId, ids.coordenador, ids.ana, ids.conversa],
+    );
+    fila.length = 0;
+    expect(await verificarExecucoesEsquecidas(motor)).toBe(2);
+    expect(fila.map((f) => f.execucaoId)).toEqual([velha.rows[0]?.id]);
+    const e = await dono.query<{ situacao: string }>(
+      "select situacao from execucoes_de_agente where id = $1",
+      [presa.rows[0]?.id],
+    );
+    expect(e.rows[0]?.situacao).toBe("falhou");
+    // A da fila roda agora (o roteiro vazio responde "Pronto.") e a conversa recebe o aviso da presa.
+    roteiro = [];
+    await rodarFila();
+    const ana = await como("ana@teste.invalid");
+    const conversa = (await pedir("GET", `/conversas/${ids.conversa}`, ana)).json() as {
+      mensagens: { texto: string }[];
+      emAndamento: number;
+    };
+    expect(conversa.emAndamento).toBe(0);
+    expect(conversa.mensagens.some((m) => m.texto.includes("parou no meio"))).toBe(true);
+  });
+
+  it("delegação com a tarefa pegada por outra pessoa não roda (e não gasta modelo)", async () => {
+    await dono.query(
+      "update tarefas set status = 'em_andamento', travada_por_pessoa_id = $2, travada_em = now(), responsavel_agente_id = $3 where id = $1",
+      [ids.tarefa, ids.ana, ids.gerente],
+    );
+    const e = await dono.query<{ id: string }>(
+      `insert into execucoes_de_agente (empresa_id, agente_id, pedido_por, origem, tarefa_id, execucao_mae_id)
+       select $1, $2, $3, 'delegacao', $4, id from execucoes_de_agente where conversa_id = $5 limit 1 returning id`,
+      [empresaId, ids.gerente, ids.ana, ids.tarefa, ids.conversa],
+    );
+    const antes = modelos.pedidos.length;
+    await rodarExecucao(motor, empresaId, e.rows[0]?.id as string);
+    expect(modelos.pedidos.length).toBe(antes);
+    const r = await dono.query<{ situacao: string }>(
+      "select situacao from execucoes_de_agente where id = $1",
+      [e.rows[0]?.id],
+    );
+    expect(r.rows[0]?.situacao).toBe("parada");
+    await dono.query(
+      "update tarefas set status = 'a_fazer', travada_por_pessoa_id = null, travada_em = null where id = $1",
+      [ids.tarefa],
+    );
   });
 
   it("uma empresa não vê a conversa nem as execuções da outra", async () => {

@@ -86,8 +86,14 @@ export function registrarRotasDaConversa(app: FastifyInstance, o: OpcoesDaConver
       const agente = a.rows[0];
       if (!agente) return { erro: "sem_coordenador" as const };
       if (agente.situacao !== "ativo") return { erro: "pausado" as const, nome: agente.nome };
-      // Uma execução de cada vez por conversa: a pessoa espera a resposta antes de mandar outra.
-      if (conversa && (await execucoesEmAndamento(c, conversa.id)) > 0) return { erro: "ocupado" as const };
+      // Uma execução de cada vez por conversa: a pessoa espera a resposta antes de mandar outra. A linha da conversa
+      // fica travada até o fim da transação, para dois envios ao mesmo tempo não criarem duas execuções.
+      if (conversa) {
+        await c.query("select 1 from conversas where id = $1 and empresa_id = empresa_ativa() for update", [
+          conversa.id,
+        ]);
+        if ((await execucoesEmAndamento(c, conversa.id)) > 0) return { erro: "ocupado" as const };
+      }
       conversa ??= await criarConversa(c, sessao.pessoa.id, agente.id, r.valor.texto);
       const mensagem = await gravarMensagem(
         c,
