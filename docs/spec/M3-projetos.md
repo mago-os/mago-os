@@ -1,6 +1,6 @@
 # Spec da Fase 1: M3 Projetos e tarefas completos
 
-Parte da [spec da Fase 1](README.md). Estado em 19/11/2026: **aprovado** pelo Sandro, com todas as recomendações (inclusive a M3-11 e os eventos da agenda simples no M5). Em construção: M3-01 a M3-07 prontas em 19/11/2026.
+Parte da [spec da Fase 1](README.md). Estado em 19/11/2026: **aprovado** pelo Sandro, com todas as recomendações (inclusive a M3-11 e os eventos da agenda simples no M5). Em construção: M3-01 a M3-07 prontas em 19/11/2026 e M3-08 em 20/11/2026.
 
 **Pronto quando:** a Nolask organiza um projeto real no Mago OS (sugestão: a própria construção do Mago OS, com as tarefas do M4), com espaço, projeto, diretor e gerente, listas, subtarefas, prazos e etiquetas, e acompanha pelo Kanban, pela lista e pelo calendário. Uma menção a uma pessoa chega no sino e no celular, um anexo passa pelo antivírus antes de abrir, a central de prioridades mostra o que vence hoje e o Ctrl+K acha a tarefa pelo nome. Os testes provam que uma empresa não vê projetos, anexos, notificações nem resultados de busca da outra.
 
@@ -132,16 +132,17 @@ Pronto quando: o Sandro abre o Mago OS de manhã no celular e vê, em ordem, a t
 Precisa da aprovação do Sandro (segurança e container novo na VPS02). Decisão do Sandro em 19/11/2026: os anexos vão para o Backblaze B2, o mesmo serviço do backup e da auditoria, e não para o Cloudflare R2 (a decisão 0002 tinha deixado essa escolha para o M3).
 
 - [x] Criar com o Sandro o bucket do B2 (um por ambiente: `mago-os-anexos-teste` criado em 19/11/2026 e, no M6, o de produção), privado, com criptografia, só a última versão de cada arquivo, chave só daquele bucket no Infisical (`B2_ANEXOS_*`) e CORS só para o endereço do app. Sem mudança de DNS
-- [ ] No ambiente local e nos testes, armazenamento compatível com S3 em container (Garage, o mesmo que o plano prevê para a edição instalável)
-- [ ] Envio direto do navegador para o B2 por link temporário, numa área de quarentena; o núcleo só autoriza depois de conferir permissão, tipo e tamanho (decisão 14: até 25 MB por arquivo, tipos perigosos como .exe, .bat, .js e .msi bloqueados)
-- [ ] ClamAV num container próprio na VPS02, com atualização automática das assinaturas, sem porta para fora e sem tocar na Ratoeira; a fila pg-boss passa cada arquivo da quarentena pelo antivírus e só o limpo fica disponível. Infectado é apagado, o envio aparece como "bloqueado pelo antivírus" e o administrador é avisado
-- [ ] Baixar e ver por link temporário de 5 minutos, gerado depois da checagem de permissão; imagens e PDFs com prévia na tela
-- [ ] Tabela `anexos` (com `empresa_id`, RLS e marcas), caminho no bucket separado por empresa, e o arquivo some do bucket quando a tarefa é excluída
-- [ ] Anexos na tarefa e nos comentários, pelo botão e arrastando; no celular, tirar foto direto
-- [ ] Agente pelo MCP: vê a lista de anexos em `ver_tarefa` e baixa por link temporário (ferramenta `baixar_anexo`); enviar anexo pelo agente fica para a Fase 2
-- [ ] Eventos de auditoria: `anexo.enviou`, `anexo.bloqueou`, `anexo.baixou`, `anexo.excluiu`
-- [ ] Testes: o arquivo de teste EICAR é bloqueado, uma empresa não baixa anexo da outra mesmo com o caminho, e o link expira
-- [ ] Nota de decisão em `docs/decisoes` sobre armazenamento e antivírus, e manual em `docs/operacao`
+- [x] No ambiente local e nos testes, armazenamento compatível com S3 em container (Garage, o mesmo que o plano prevê para a edição instalável). Ajuste na codificação: no Mac e nos testes, uma pasta do computador servida pela própria API, com links assinados; o Garage fica para a edição instalável
+- [x] Envio direto do navegador para o B2 por link temporário, numa área de quarentena; o núcleo só autoriza depois de conferir permissão, tipo e tamanho (decisão 14: até 25 MB por arquivo, tipos perigosos como .exe, .bat, .js e .msi bloqueados)
+- [x] ClamAV num container próprio na VPS02, com atualização automática das assinaturas, sem porta para fora e sem tocar na Ratoeira; a fila pg-boss passa cada arquivo da quarentena pelo antivírus e só o limpo fica disponível. Infectado é apagado, o envio aparece como "bloqueado pelo antivírus" e o administrador é avisado (e quem enviou, pelo aviso novo `anexo_bloqueado`). O lugar definitivo recebe os bytes que o antivírus conferiu, nunca uma cópia da quarentena
+- [x] Baixar e ver por link temporário de 5 minutos, gerado depois da checagem de permissão; imagens e PDFs com prévia na tela
+- [x] Tabela `anexos` (com `empresa_id`, RLS e marcas), caminho no bucket separado por empresa, e o arquivo some do bucket quando a tarefa é excluída (e quando o anexo ou o comentário é excluído; envio parado há mais de uma hora também some)
+- [x] Anexos na tarefa e nos comentários, pelo botão e arrastando; no celular, tirar foto direto
+- [x] Agente pelo MCP: vê a lista de anexos em `ver_tarefa` e baixa por link temporário (ferramenta `baixar_anexo`); enviar anexo pelo agente fica para a Fase 2. O agente só vê e baixa anexos das tarefas dele, e nunca os de nota interna
+- [x] Eventos de auditoria: `anexo.enviou`, `anexo.bloqueou`, `anexo.baixou`, `anexo.excluiu`
+- [x] Testes: o arquivo de teste EICAR é bloqueado, uma empresa não baixa anexo da outra mesmo com o caminho, e o link expira
+- [x] Nota de decisão em `docs/decisoes` sobre armazenamento e antivírus (0020), e manual em `docs/operacao` (anexos.md)
+- [x] Espaço (combinado com o Sandro, conta gratuita do Backblaze): exclusão imediata, uso por empresa na administração e registro de alerta acima de 5 GB no total
 
 Pronto quando: o Sandro anexa um PDF pelo celular e ele abre com prévia depois do antivírus, e o arquivo EICAR é bloqueado com o aviso na tela.
 
