@@ -90,73 +90,93 @@ export function registrarRotasDosDadosDaEmpresa(
     "/empresa/dados",
     { preHandler: verificador.exigir("empresa", "editar") },
     async (pedido, resposta) => {
-      // Quem vê o CPF mascarado e salva sem mexer nele manda o mascarado de volta: vale o que já estava.
-      const corpo = { ...((pedido.body ?? {}) as Record<string, unknown>) };
-      if (typeof corpo.documento === "string" && corpo.documento.includes("*")) {
-        const { sessao } = acessoDo(pedido);
-        const atual = await comPessoa(poolApp, sessao.pessoa.id, sessao.empresaId, async (c) => {
-          const l = await c.query<{ documento: string | null }>(
-            "select documento from empresas where id = empresa_ativa()",
-          );
-          return l.rows[0]?.documento ?? null;
-        });
-        if (!atual || corpo.documento !== mascararDocumento(atual)) {
-          return resposta
-            .code(400)
-            .send({ code: "DOCUMENTO_INVALIDO", message: "Informe o documento completo." });
-        }
-        corpo.documento = atual;
-      }
-      const r = conferirPedidoDeDadosDaEmpresa(corpo);
-      if (!r.ok) return resposta.code(400).send({ code: "PEDIDO_INVALIDO", problemas: r.problemas });
-      if (!fusoValido(r.valor.fusoHorario)) {
-        return resposta
-          .code(400)
-          .send({ code: "FUSO_INVALIDO", message: "Escolha um fuso horário da lista." });
-      }
       const { sessao, verSensiveis } = acessoDo(pedido);
-      const feito = await comPessoa(poolApp, sessao.pessoa.id, sessao.empresaId, async (c) => {
-        const antes = (
-          await c.query<Linha>(`select ${COLUNAS} from empresas where id = empresa_ativa() for update`)
-        ).rows[0] as Linha;
-        const mudou = camposQueMudaram(antes, r.valor);
-        if (mudou.length === 0) return { mudou, linha: antes };
-        // Trocar o documento é ação perigosa: pede o segundo fator recente.
-        if (
-          (mudou.includes("documento") || mudou.includes("tipo")) &&
-          !podeFazerAcaoPerigosa(sessao.estado.dois, sessao.estado.confirmadoEm, sessao.metodo)
-        )
-          return null;
-        const d = await c.query<Linha>(
-          `update empresas set nome = $1, tipo = $2, documento = $3, nome_legal = $4, fuso_horario = $5, idioma = $6,
-                telefone = $7, atualizada_em = now()
-          where id = empresa_ativa() returning ${COLUNAS}`,
-          [
-            r.valor.nome.trim(),
-            r.valor.tipo,
-            r.valor.documento,
-            r.valor.nomeLegal?.trim() ?? null,
-            r.valor.fusoHorario,
-            r.valor.idioma,
-            r.valor.telefone,
-          ],
+      type Resultado =
+        | { erro: number; code: string; message: string }
+        | { mudou: (keyof PedidoDeDadosDaEmpresa)[]; linha: Linha; valor: PedidoDeDadosDaEmpresa };
+      let feito: Resultado;
+      try {
+        feito = await comPessoa(
+          poolApp,
+          sessao.pessoa.id,
+          sessao.empresaId,
+          async (c): Promise<Resultado> => {
+            // Tudo numa transação só, com a linha travada: duas pessoas salvando ao mesmo tempo não se atropelam.
+            const antes = (
+              await c.query<Linha>(`select ${COLUNAS} from empresas where id = empresa_ativa() for update`)
+            ).rows[0] as Linha;
+            // Quem vê o CPF mascarado e salva sem mexer nele manda o mascarado de volta: vale o que já estava.
+            const corpo = { ...((pedido.body ?? {}) as Record<string, unknown>) };
+            if (typeof corpo.documento === "string" && corpo.documento.includes("*")) {
+              if (!antes.documento || corpo.documento !== mascararDocumento(antes.documento))
+                return { erro: 400, code: "DOCUMENTO_INVALIDO", message: "Informe o documento completo." };
+              corpo.documento = antes.documento;
+            }
+            const r = conferirPedidoDeDadosDaEmpresa(corpo);
+            if (!r.ok) {
+              const p = r.problemas[0];
+              return {
+                erro: 400,
+                code: "PEDIDO_INVALIDO",
+                message: p ? `Confira: ${p.mensagem}.` : "Confira os campos e tente de novo.",
+              };
+            }
+            if (!fusoValido(r.valor.fusoHorario))
+              return { erro: 400, code: "FUSO_INVALIDO", message: "Escolha um fuso horário da lista." };
+            const mudou = camposQueMudaram(antes, r.valor);
+            if (mudou.length === 0) return { mudou, linha: antes, valor: r.valor };
+            // Trocar o documento é ação perigosa: pede o segundo fator recente.
+            if (
+              (mudou.includes("documento") || mudou.includes("tipo")) &&
+              !podeFazerAcaoPerigosa(sessao.estado.dois, sessao.estado.confirmadoEm, sessao.metodo)
+            )
+              return {
+                erro: 403,
+                code: "CONFIRMACAO_NECESSARIA",
+                message:
+                  "Por segurança, confirme com o código do app ou com a passkey antes de mudar o documento.",
+              };
+            const d = await c.query<Linha>(
+              `update empresas set nome = $1, tipo = $2, documento = $3, nome_legal = $4, fuso_horario = $5, idioma = $6,
+                  telefone = $7, atualizada_em = now()
+            where id = empresa_ativa() returning ${COLUNAS}`,
+              [
+                r.valor.nome.trim(),
+                r.valor.tipo,
+                r.valor.documento,
+                r.valor.nomeLegal?.trim() ?? null,
+                r.valor.fusoHorario,
+                r.valor.idioma,
+                r.valor.telefone,
+              ],
+            );
+            return { mudou, linha: d.rows[0] as Linha, valor: r.valor };
+          },
         );
-        return { mudou, linha: d.rows[0] as Linha };
-      });
-      if (!feito) {
-        return resposta.code(403).send({
-          code: "CONFIRMACAO_NECESSARIA",
-          message: "Por segurança, confirme com o código do app ou com a passkey antes de mudar o documento.",
-        });
+      } catch (erro) {
+        if ((erro as { code?: string }).code === "23505") {
+          return resposta.code(409).send({
+            code: "DOCUMENTO_JA_USADO",
+            message: "Esse documento já está em outra conta do Mago OS.",
+          });
+        }
+        throw erro;
       }
+      if ("erro" in feito)
+        return resposta.code(feito.erro).send({ code: feito.code, message: feito.message });
       if (feito.mudou.length > 0) {
         // Os valores novos só dos campos sem dado pessoal; do documento, do nome legal e do telefone fica só que
         // mudaram (para conta de pessoa física, são dados da pessoa).
-        const SEM_DADO_PESSOAL = new Set(["nome", "tipo", "fusoHorario", "idioma"]);
+        // Na conta de pessoa física, o nome de exibição costuma ser o da própria pessoa: também fica só "mudou".
+        const SEM_DADO_PESSOAL = new Set(
+          feito.valor.tipo === "pf"
+            ? ["tipo", "fusoHorario", "idioma"]
+            : ["nome", "tipo", "fusoHorario", "idioma"],
+        );
         const novos = Object.fromEntries(
           feito.mudou
             .filter((k) => SEM_DADO_PESSOAL.has(k))
-            .map((k) => [k, (r.valor as Record<string, unknown>)[k] ?? null]),
+            .map((k) => [k, (feito.valor as Record<string, unknown>)[k] ?? null]),
         );
         await auditar(
           poolApp,

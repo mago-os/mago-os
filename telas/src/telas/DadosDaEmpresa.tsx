@@ -48,13 +48,18 @@ export function DadosDaEmpresa() {
     if (!form) return;
     const corpo: PedidoDeDadosDaEmpresa = {
       ...form,
-      documento: form.documento ? normalizarDocumento(form.documento) : null,
+      // O CPF mascarado (de quem não vê dados sensíveis) volta como veio: o servidor entende que não mudou.
+      documento: form.documento
+        ? form.documento.includes("*")
+          ? form.documento
+          : normalizarDocumento(form.documento)
+        : null,
       nomeLegal: form.nomeLegal?.trim() || null,
       telefone: form.telefone?.trim() || null,
     };
     const r = await pedir<Dados & { code?: string }>("POST", "/empresa/dados", corpo);
     if (!r.ok) {
-      if (r.mensagem?.includes("confirme")) return setConfirmar(true);
+      if (r.codigo === "CONFIRMACAO_NECESSARIA") return setConfirmar(true);
       return setMensagem({ tipo: "erro", texto: r.mensagem || "Confira os campos e tente de novo." });
     }
     setMensagem({ tipo: "ok", texto: "Dados da empresa salvos." });

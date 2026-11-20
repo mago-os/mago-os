@@ -207,7 +207,7 @@ export function App() {
       ? [{ caminho: "/pessoas", nome: "Pessoas", icone: Users }]
       : []),
     ...(pode("agentes", "ver") ? [{ caminho: "/agentes", nome: "Agentes", icone: Bot }] : []),
-    ...(pode("empresa", "editar")
+    ...(pode("empresa", "ver")
       ? [{ caminho: "/dados-da-empresa", nome: "Dados da empresa", icone: Landmark }]
       : []),
     ...(pode("seguranca", "ver") || dono

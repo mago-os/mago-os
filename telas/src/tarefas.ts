@@ -24,6 +24,8 @@ export interface Resposta<T> {
   ok: boolean;
   dados?: T;
   mensagem?: string;
+  /** O código do erro que a API mandou (ex.: CONFIRMACAO_NECESSARIA). */
+  codigo?: string;
 }
 
 const SEM_CONEXAO = "Sem conexão com o Mago OS. Confira a internet e tente de novo.";
@@ -42,11 +44,12 @@ export async function pedir<T>(
         ? {}
         : { headers: { "content-type": "application/json" }, body: JSON.stringify(corpo) }),
     });
-    const dados = (await r.json().catch(() => null)) as (T & { message?: string }) | null;
+    const dados = (await r.json().catch(() => null)) as (T & { message?: string; code?: string }) | null;
     if (r.ok) return { ok: true, dados: dados as T };
+    const codigo = typeof dados?.code === "string" ? { codigo: dados.code } : {};
     if (r.status === 400 && !dados?.message)
-      return { ok: false, mensagem: "Confira os campos e tente de novo." };
-    return { ok: false, mensagem: dados?.message ?? PADRAO };
+      return { ok: false, mensagem: "Confira os campos e tente de novo.", ...codigo };
+    return { ok: false, mensagem: dados?.message ?? PADRAO, ...codigo };
   } catch {
     return { ok: false, mensagem: SEM_CONEXAO };
   }

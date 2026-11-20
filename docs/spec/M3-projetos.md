@@ -1,6 +1,6 @@
 # Spec da Fase 1: M3 Projetos e tarefas completos
 
-Parte da [spec da Fase 1](README.md). Estado em 19/11/2026: **aprovado** pelo Sandro, com todas as recomendações (inclusive a M3-11 e os eventos da agenda simples no M5). Em construção: M3-01 a M3-07 prontas em 19/11/2026 e M3-08 a M3-10 em 20/11/2026.
+Parte da [spec da Fase 1](README.md). Estado em 19/11/2026: **aprovado** pelo Sandro, com todas as recomendações (inclusive a M3-11 e os eventos da agenda simples no M5). Em construção: M3-01 a M3-07 prontas em 19/11/2026 e M3-08 a M3-11 em 20/11/2026: M3 concluída.
 
 **Pronto quando:** a Nolask organiza um projeto real no Mago OS (sugestão: a própria construção do Mago OS, com as tarefas do M4), com espaço, projeto, diretor e gerente, listas, subtarefas, prazos e etiquetas, e acompanha pelo Kanban, pela lista e pelo calendário. Uma menção a uma pessoa chega no sino e no celular, um anexo passa pelo antivírus antes de abrir, a central de prioridades mostra o que vence hoje e o Ctrl+K acha a tarefa pelo nome. Os testes provam que uma empresa não vê projetos, anexos, notificações nem resultados de busca da outra.
 
@@ -173,9 +173,9 @@ Pronto quando: o Sandro monta no computador as tarefas do projeto ao lado da cen
 
 Entrou no M3 com a aprovação do Sandro em 19/11/2026 (decisão 11).
 
-- [ ] Tela para o administrador ver e mudar os dados da conta: nome, nome legal, tipo e documento (CNPJ ou CPF), telefone, fuso e idioma; o fuso passa a valer para a recorrência e os prazos (M3-03)
-- [ ] Mudar o documento pede o segundo fator de novo, como as outras ações perigosas, e o CPF continua mascarado para quem não é administrador nem Dono
-- [ ] Evento de auditoria: `empresa.editou`, com os campos que mudaram e sem o documento nos detalhes
+- [x] Tela para o administrador ver e mudar os dados da conta: nome, nome legal, tipo e documento (CNPJ ou CPF), telefone, fuso e idioma; o fuso passa a valer para a recorrência e os prazos (M3-03)
+- [x] Mudar o documento pede o segundo fator de novo, como as outras ações perigosas, e o CPF continua mascarado para quem não é administrador nem Dono
+- [x] Evento de auditoria: `empresa.editou`, com os campos que mudaram e sem o documento nos detalhes. Ajuste na codificação (aprovado pelo Sandro): usa o evento que já existia, `empresa.alterou`; documento, nome legal e telefone (e o nome, na conta de pessoa física) entram só como "mudou". Todos da empresa veem a tela; muda quem tem a permissão nova "Dados da empresa: editar" (padrão: o administrador)
 
 Pronto quando: o Sandro muda o fuso da Nolask pela tela, e a mudança aparece na auditoria.
 

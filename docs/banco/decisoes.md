@@ -231,3 +231,8 @@ O login (`mago_acesso`) não lê papéis nem as regras da plataforma direto. As 
 - `layouts_de_tela` é pessoal, como as visões salvas: a política usa `empresa_ativa()` e `pessoa_ativa()`, e a pessoa precisa ter vínculo com a empresa (o layout some com o vínculo). Nome único por pessoa e aparelho, sem diferença de maiúsculas.
 - A estrutura fica em jsonb (até cerca de 64 KB), conferida pelo contrato `EstruturaDoLayout` na API: só painéis declarados, e a divisão do dockview só pode citar esses painéis.
 - `usado_em` marca o último aberto em cada aparelho, que abre sozinho da próxima vez.
+
+## 31. Dados da empresa (20/11/2026, M3-11)
+
+- Nenhuma mudança de estrutura: a tela muda as colunas que `empresas` já tinha (nome, tipo, documento, nome legal, fuso, idioma e telefone), pela política de sempre (só a empresa ativa). A troca é feita numa transação com a linha travada, e o documento continua único entre as contas.
+- O fuso novo vale para os prazos e recorrências marcados depois: cada prazo guarda o fuso em que foi marcado (seção 23) e não muda de hora.
