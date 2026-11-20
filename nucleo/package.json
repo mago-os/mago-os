@@ -48,6 +48,7 @@
     "api:documentar": "node src/documentar-api.ts"
   },
   "dependencies": {
+    "@anthropic-ai/claude-agent-sdk": "catalog:",
     "@better-auth/passkey": "catalog:",
     "@fastify/otel": "catalog:",
     "@fastify/websocket": "catalog:",

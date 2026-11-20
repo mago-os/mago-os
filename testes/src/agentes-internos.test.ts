@@ -33,6 +33,7 @@ const SENHA = "uma frase longa e boa para entrar";
 const OUTRA = "00000000-0000-7000-8000-0000000000d4";
 const CHAVE = "sk-ant-api03-chave-dos-agentes-Ag01";
 const CHAVE_RESERVA = "sk-ant-api03-chave-do-reserva-Rs01";
+const TOKEN_DO_PLANO = "sk-ant-oat01-token-do-plano-Pl01";
 
 /** O id da tarefa no último resultado de ferramenta que o modelo recebeu. */
 function ultimoResultado(p: PedidoAoModelo): Record<string, unknown> {
@@ -57,6 +58,11 @@ describe.skipIf(!bancoDisponivel)("agentes internos", () => {
   let roteiro: Parameters<typeof modelosFalsos>[0] = [];
   const modelos = modelosFalsos([]);
   let motor: OpcoesDoMotor;
+  const pedidosAoClaudeCode: { token: string; modelo: string; prompt: string; ferramentas: string[] }[] = [];
+  let roteiroDoClaudeCode: NonNullable<OpcoesDoMotor["claudeCode"]> = async () => ({
+    texto: "Pronto.",
+    tokens: { entrada: 0, saida: 0, cache: 0 },
+  });
 
   async function criarPessoa(nome: string, email: string, perfil: string, empresa = empresaId) {
     const p = await dono.query<{ id: string }>(
@@ -161,7 +167,11 @@ describe.skipIf(!bancoDisponivel)("agentes internos", () => {
       verificador,
       poolApp,
       cofre,
-      provedores: provedoresFalsos({ [CHAVE]: ["modelo-bom"], [CHAVE_RESERVA]: ["modelo-reserva"] }),
+      provedores: provedoresFalsos({
+        [CHAVE]: ["modelo-bom"],
+        [CHAVE_RESERVA]: ["modelo-reserva"],
+        [TOKEN_DO_PLANO]: ["modelo-do-plano"],
+      }),
       ambiente: "teste",
     });
     const acordar = (empresa: string, execucaoId: string) => fila.push({ empresaId: empresa, execucaoId });
@@ -192,6 +202,16 @@ describe.skipIf(!bancoDisponivel)("agentes internos", () => {
       },
       log: { error: () => {}, warn: () => {} },
       acordar,
+      // Claude Code falso: segue o roteiro do teste (chama as ferramentas do Mago OS como o de verdade).
+      claudeCode: async (p) => {
+        pedidosAoClaudeCode.push({
+          token: p.token,
+          modelo: p.modelo,
+          prompt: p.prompt,
+          ferramentas: p.ferramentas.map((f) => f.nome),
+        });
+        return roteiroDoClaudeCode(p);
+      },
     };
     await app.ready();
   });
@@ -543,6 +563,54 @@ describe.skipIf(!bancoDisponivel)("agentes internos", () => {
       await c.query("rollback");
       c.release();
     }
+  });
+
+  it("plano de assinatura da Anthropic: a execução roda pelo Claude Code, com as ferramentas do Mago OS", async () => {
+    const ana = await como("ana@teste.invalid");
+    const conta = await pedir("POST", "/ia/contas", ana, {
+      nome: "Claude Max",
+      provedor: "anthropic",
+      credencial: "assinatura",
+      chave: TOKEN_DO_PLANO,
+      aceitoOsTermos: true,
+    });
+    expect(conta.statusCode).toBe(201);
+    ids.plano = conta.json().id;
+    await pedir("POST", `/ia/contas/${ids.plano}/modelos`, ana, {
+      modelos: [{ modelo: "modelo-do-plano", liberado: true }],
+    });
+    await pedir("POST", `/agentes/${ids.coordenador}/modelos`, ana, {
+      modelos: { principal: { contaId: ids.plano, modelo: "modelo-do-plano" }, reserva: null },
+    });
+    roteiroDoClaudeCode = async (p) => {
+      const criada = await p.executar("criar_tarefa", { titulo: "Revisar o contrato" });
+      expect(criada.erro).toBe(false);
+      await p.executar("responder", { texto: "Criei a tarefa pelo Claude Code." });
+      // Depois do fim, mais nenhuma ferramenta roda.
+      expect((await p.executar("criar_tarefa", { titulo: "Outra" })).erro).toBe(true);
+      return { texto: null, tokens: { entrada: 5, saida: 3, cache: 0 } };
+    };
+    const antes = modelos.pedidos.length;
+    const r = await pedir("POST", "/conversas/mensagens", ana, {
+      texto: "cria uma tarefa para revisar o contrato",
+    });
+    expect(r.statusCode).toBe(201);
+    await rodarFila();
+    expect(modelos.pedidos.length).toBe(antes);
+    expect(pedidosAoClaudeCode.at(-1)).toMatchObject({ token: TOKEN_DO_PLANO, modelo: "modelo-do-plano" });
+    expect(pedidosAoClaudeCode.at(-1)?.ferramentas).toContain("criar_tarefa");
+    const e = await dono.query<{ situacao: string; modelo: string }>(
+      "select situacao, modelo from execucoes_de_agente where id = $1",
+      [r.json().execucaoId],
+    );
+    expect(e.rows[0]).toEqual({ situacao: "concluida", modelo: "modelo-do-plano" });
+    const t = await dono.query("select 1 from tarefas where titulo = 'Revisar o contrato'");
+    expect(t.rowCount).toBe(1);
+    expect((await dono.query("select 1 from tarefas where titulo = 'Outra'")).rowCount).toBe(0);
+    const conversa = (await pedir("GET", `/conversas/${r.json().conversa.id}`, ana)).json() as {
+      mensagens: { texto: string }[];
+    };
+    expect(conversa.mensagens.at(-1)?.texto).toBe("Criei a tarefa pelo Claude Code.");
   });
 
   it("coordenador desligado por engano: nasce um novo, pausado, e o Gerente passa a responder a ele", async () => {

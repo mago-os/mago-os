@@ -266,10 +266,12 @@ export function modelosDaResposta(corpo: unknown): string[] {
 export function provedoresDeVerdade(
   ambiente: "local" | "teste" | "producao",
   resolver: Resolver = resolverDoSistema,
+  /** Conversa mínima pelo Claude Code (plano da Anthropic): devolve o erro, ou null se respondeu. */
+  conversaPeloClaudeCode?: (token: string, modelo: string) => Promise<string | null>,
 ): Provedores {
   return {
     async testar(a) {
-      if (a.credencial === "assinatura") return testarAssinatura(a);
+      if (a.credencial === "assinatura") return testarAssinatura(a, conversaPeloClaudeCode);
       if (a.provedor === "compativel_openai" && !(await enderecoSeguro(a.endereco ?? "", ambiente, resolver)))
         return { ok: false, erro: "O endereço aponta para uma rede interna ou não existe." };
       const pedido =
@@ -302,7 +304,10 @@ function limiteDoPlano(pedido: Extract<RespostaJson, { ok: false }>): ResultadoD
  * modelos. ChatGPT: o login do Codex é renovado (o que testa o token de renovação), e o login novo volta ao cofre.
  * Cumprir os termos do provedor é responsabilidade do administrador, que aceitou o aviso ao conectar.
  */
-async function testarAssinatura(a: AcessoAoProvedor): Promise<ResultadoDoTeste> {
+async function testarAssinatura(
+  a: AcessoAoProvedor,
+  conversaPeloClaudeCode?: (token: string, modelo: string) => Promise<string | null>,
+): Promise<ResultadoDoTeste> {
   if (a.provedor === "anthropic") {
     const pedido = await pedirJson(`${ENDERECO_DA_ANTHROPIC}/models?limit=1000`, {
       authorization: `Bearer ${a.chave}`,
@@ -310,7 +315,15 @@ async function testarAssinatura(a: AcessoAoProvedor): Promise<ResultadoDoTeste> 
       "anthropic-beta": "oauth-2025-04-20",
     });
     if (!pedido.ok) return limiteDoPlano(pedido) ?? { ok: false, erro: pedido.erro };
-    return { ok: true, modelos: modelosDaResposta(pedido.corpo) };
+    const modelos = modelosDaResposta(pedido.corpo);
+    // Listar modelos a Anthropic deixa; conversar com o plano, só pelo Claude Code: o teste faz uma conversa
+    // mínima por ele, com o modelo mais leve, para a conta não aparecer "Funcionando" sem funcionar.
+    if (conversaPeloClaudeCode && modelos.length > 0) {
+      const leve = modelos.find((m) => m.includes("haiku")) ?? (modelos[0] as string);
+      const erro = await conversaPeloClaudeCode(a.chave, leve);
+      if (erro) return { ok: false, erro: erro.slice(0, 300) };
+    }
+    return { ok: true, modelos };
   }
   if (a.provedor === "chatgpt") {
     const login = lerLoginDoCodex(a.chave);

@@ -29,6 +29,7 @@ import { registrarRotaDaBusca } from "./busca/index.ts";
 import { ErroDeConfig, lerConfig } from "./config.ts";
 import { registrarRotasDaConta } from "./conta/rotas.ts";
 import { registrarRotasDasContas } from "./contas/rotas.ts";
+import { rodarPeloClaudeCode, testarPeloClaudeCode } from "./contas-de-ia/claude-code.ts";
 import { criarCofre } from "./contas-de-ia/cofre.ts";
 import { modelosDeVerdade } from "./contas-de-ia/conversa.ts";
 import { provedoresDeVerdade } from "./contas-de-ia/provedores.ts";
@@ -120,7 +121,9 @@ async function iniciar(): Promise<void> {
       verificador,
       poolApp: banco.pool,
       cofre,
-      provedores: provedoresDeVerdade(config.ambiente),
+      provedores: provedoresDeVerdade(config.ambiente, undefined, (token, modelo) =>
+        testarPeloClaudeCode(rodarPeloClaudeCode, token, modelo),
+      ),
       ambiente: config.ambiente,
     });
     // Agentes internos (M4-02): a mensagem da pessoa e a delegação viram trabalho na fila; o motor roda cada um.
@@ -135,6 +138,7 @@ async function iniciar(): Promise<void> {
       poolApp: banco.pool,
       cofre,
       modelos: modelosDeVerdade(config.ambiente),
+      claudeCode: rodarPeloClaudeCode,
       catalogo: verificador.catalogo,
       opcoesMcp: {
         poolApp: banco.pool,

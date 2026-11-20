@@ -11,6 +11,7 @@ import type { DeclaracaoDeModulo, ModeloEscolhido, PapelDeAgente } from "@mago-o
 import type pg from "pg";
 import type { OpcoesDaChave } from "../agentes/chaves.ts";
 import { auditar } from "../auditoria/registrar.ts";
+import type { RodarClaudeCode } from "../contas-de-ia/claude-code.ts";
 import type { Cofre } from "../contas-de-ia/cofre.ts";
 import { ErroDoModelo, type Modelos, type ParteDaConversa } from "../contas-de-ia/conversa.ts";
 import { comReserva, finalDaCredencial } from "../contas-de-ia/provedores.ts";
@@ -63,6 +64,8 @@ export interface OpcoesDoMotor {
   };
   /** Põe a execução na fila (a delegação cria execuções novas). */
   acordar(empresaId: string, execucaoId: string): void;
+  /** Roda pelo Claude Code oficial (plano de assinatura da Anthropic). Sem ele, esse plano não funciona. */
+  claudeCode?: RodarClaudeCode;
   /** Limites por execução (padrão: 30 rodadas e 10 minutos; ajuste por agente na M4-08). */
   limites?: { rodadas: number; tempoMs: number };
 }
@@ -95,6 +98,16 @@ com prazos coerentes com o prazo da tarefa. Atribua as subtarefas (atribuir) só
 quando for claro quem cuida. Comente na tarefa o plano, se ajudar. No fim, responda com um resumo do plano.
 
 ${REGRAS_FIXAS}`;
+}
+
+/** A conversa em texto, para o Claude Code (que recebe um pedido só, sem as partes separadas). */
+export function textoDasPartes(partes: ParteDaConversa[]): string {
+  const falas = partes.filter((p) => p.papel !== "resultado");
+  if (falas.length === 1 && falas[0]?.papel === "usuario") return falas[0].texto;
+  const linhas = falas.map((p) =>
+    p.papel === "usuario" ? `Pessoa: ${p.texto}` : p.papel === "assistente" ? `Você: ${p.texto ?? ""}` : "",
+  );
+  return `A conversa até agora:\n\n${linhas.join("\n\n")}\n\nResponda à última mensagem da pessoa.`;
 }
 
 const externo = (dado: unknown) => `<conteudo_externo>\n${JSON.stringify(dado)}\n</conteudo_externo>`;
@@ -267,7 +280,7 @@ async function rodar(o: OpcoesDoMotor, empresaId: string, execucaoId: string): P
   }
   const agente: AgenteQueRoda = { id: agenteBruto.id, nome: agenteBruto.nome, papel: agenteBruto.papel };
   const cofre = o.cofre;
-  const modelosDoAgenteAtual = preparo.modelos;
+  let modelosDoAgenteAtual = preparo.modelos;
 
   const permissoes = await permissoesNaEmpresa(o.poolApp, execucao.pedidoPor, empresaId, o.catalogo);
   if (!permissoes) {
@@ -312,6 +325,67 @@ async function rodar(o: OpcoesDoMotor, empresaId: string, execucaoId: string): P
     let modeloUsado: ModeloEscolhido | null = null;
     let reserva: string | null = null;
 
+    // Plano de assinatura da Anthropic: a execução inteira roda dentro do Claude Code oficial (decisão 0024), que
+    // cuida das rodadas e chama as ferramentas do Mago OS. Se falhar antes de qualquer ferramenta, entra o reserva.
+    const pelaAssinatura = (m: ModeloEscolhido) =>
+      naEmpresa(async (c) => {
+        const conta = await buscarConta(c, m.contaId);
+        return conta?.provedor === "anthropic" && conta.credencial === "assinatura";
+      });
+    let ferramentasUsadas = 0;
+    const rodarNoClaudeCode = async (m: ModeloEscolhido, rodarCc: RodarClaudeCode) => {
+      const acesso = await naEmpresa(async (c) => {
+        const cifrada = await chaveCifradaDaConta(c, m.contaId);
+        if (!cifrada) throw new ErroDoModelo("A conta de IA não existe mais.");
+        return { chave: await cofre.abrirChaveDeIa(c, empresaId, m.contaId, cifrada) };
+      });
+      let fim: { tipo: "responder" | "perguntar"; texto: string; tarefas: string[] } | null = null;
+      const r = await rodarCc({
+        token: acesso.chave,
+        modelo: m.modelo,
+        sistema,
+        prompt: textoDasPartes(partes),
+        ferramentas,
+        maximoDeRodadas: limites.rodadas,
+        tempoMaximoMs: limites.tempoMs,
+        executar: async (nome, entrada) => {
+          if (fim) return { texto: "A execução já terminou. Não chame mais ferramentas.", erro: true };
+          ferramentasUsadas += 1;
+          try {
+            const feito = await executarFerramenta(ctx, nome, entrada);
+            if (feito.fim) {
+              fim = feito.fim;
+              return { texto: "Feito. Encerre agora, sem chamar mais ferramentas.", erro: false };
+            }
+            return { texto: externo(feito.conteudo).slice(0, 60_000), erro: false };
+          } catch (erro) {
+            if (erro instanceof RecusaDaFerramenta) return { texto: erro.message, erro: true };
+            o.log.error({ erro, execucaoId, ferramenta: nome }, "Agente interno: erro na ferramenta");
+            return { texto: "Não foi possível concluir a ferramenta agora.", erro: true };
+          }
+        },
+      });
+      const final = fim ?? { tipo: "responder" as const, texto: r.texto ?? "Pronto.", tarefas: [] };
+      await finalizar(o, empresaId, ctx, final, avisarNaConversa);
+      await encerrar("concluida", final.texto.slice(0, 2000), { modelo: m, reserva });
+    };
+    if (o.claudeCode && (await pelaAssinatura(modelosDoAgenteAtual.principal))) {
+      try {
+        await rodarNoClaudeCode(modelosDoAgenteAtual.principal, o.claudeCode);
+        return;
+      } catch (erro) {
+        const reservaM = modelosDoAgenteAtual.reserva;
+        // Depois de alguma ferramenta, repetir no reserva poderia duplicar o trabalho: aí a execução falha.
+        if (!reservaM || ferramentasUsadas > 0 || !(erro instanceof ErroDoModelo)) throw erro;
+        reserva = erro.message;
+        if (await pelaAssinatura(reservaM)) {
+          await rodarNoClaudeCode(reservaM, o.claudeCode);
+          return;
+        }
+        modelosDoAgenteAtual = { principal: reservaM, reserva: null };
+      }
+    }
+
     for (let rodada = 0; rodada < limites.rodadas; rodada++) {
       if (Date.now() - inicio > limites.tempoMs)
         throw new LimiteDaExecucao("Passou do tempo máximo da execução.");
@@ -330,6 +404,11 @@ async function rodar(o: OpcoesDoMotor, empresaId: string, execucaoId: string): P
             const conta = await buscarConta(c, m.contaId);
             const cifrada = await chaveCifradaDaConta(c, m.contaId);
             if (!conta || !cifrada) throw new ErroDoModelo("A conta de IA não existe mais.");
+            // O plano da Anthropic só funciona pelo Claude Code (acima), não pela API direto.
+            if (conta.provedor === "anthropic" && conta.credencial === "assinatura")
+              throw new ErroDoModelo(
+                "O plano de assinatura da Anthropic roda pelo Claude Code: use-o como principal.",
+              );
             return { conta, cifrada, chave: await cofre.abrirChaveDeIa(c, empresaId, m.contaId, cifrada) };
           });
           try {
