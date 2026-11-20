@@ -6,6 +6,7 @@ import {
   esperaPedida,
   finalDaCredencial,
   modelosDaResposta,
+  motivoDoProvedor,
   provedoresFalsos,
 } from "./provedores.ts";
 
@@ -96,6 +97,27 @@ describe("assinatura", () => {
       "abcd",
     );
     expect(finalDaCredencial("anthropic", "sk-ant-oat01-fimX")).toBe("fimX");
+  });
+});
+
+describe("motivo do provedor", () => {
+  it("mostra o motivo que o provedor deu, sem chave nem token", () => {
+    expect(
+      motivoDoProvedor(
+        JSON.stringify({
+          type: "error",
+          error: { type: "rate_limit_error", message: "This request would exceed your rate limit." },
+        }),
+      ),
+    ).toBe("rate_limit_error: This request would exceed your rate limit.");
+    expect(
+      motivoDoProvedor(
+        JSON.stringify({ error: { message: "Invalid key sk-ant-oat01-ABCDEFGHIJ0123456789xyz" } }),
+      ),
+    ).toBe("Invalid key [chave]");
+    expect(motivoDoProvedor(`token ${"a".repeat(40)} recusado`)).toBe("token [omitido] recusado");
+    expect(motivoDoProvedor("")).toBeNull();
+    expect(motivoDoProvedor(JSON.stringify({ ok: false }))).toBeNull();
   });
 });
 

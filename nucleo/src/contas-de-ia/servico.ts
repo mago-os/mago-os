@@ -310,7 +310,12 @@ export async function marcarLimiteDoPlano(c: pg.PoolClient, id: string, ate: Dat
 }
 
 /** Por que um modelo não pode ser usado agora (null: pode). O teto de gasto entra na M4-06. */
-export async function modeloIndisponivel(c: pg.PoolClient, m: ModeloEscolhido): Promise<string | null> {
+export async function modeloIndisponivel(
+  c: pg.PoolClient,
+  m: ModeloEscolhido,
+  /** Para escolher o modelo do agente: estados passageiros (conta com erro, limite do plano) não impedem. */
+  paraEscolher = false,
+): Promise<string | null> {
   const r = await c.query<{ situacao: string; liberado: boolean; sumiu: boolean; no_limite: boolean }>(
     `select ct.situacao, mo.liberado, mo.sumiu, coalesce(ct.limite_do_plano_ate > now(), false) as no_limite
        from modelos_de_conta_de_ia mo join contas_de_ia ct on ct.id = mo.conta_id
@@ -319,8 +324,8 @@ export async function modeloIndisponivel(c: pg.PoolClient, m: ModeloEscolhido): 
   );
   const l = r.rows[0];
   if (!l) return "o modelo não existe mais na conta";
-  if (l.situacao !== "ativa") return "a conta de IA está com erro";
-  if (l.no_limite) return "o limite do plano de assinatura acabou por enquanto";
+  if (!paraEscolher && l.situacao !== "ativa") return "a conta de IA está com erro";
+  if (!paraEscolher && l.no_limite) return "o limite do plano de assinatura acabou por enquanto";
   if (!l.liberado) return "o modelo foi desligado";
   if (l.sumiu) return "o provedor não oferece mais o modelo";
   return null;

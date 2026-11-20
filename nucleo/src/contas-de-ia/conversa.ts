@@ -13,6 +13,8 @@ import {
   enderecoSeguro,
   erroPeloCodigo,
   esperaPedida,
+  lerPouco,
+  motivoDoProvedor,
   pedirJson,
   RENOVAR_LOGIN_DO_CHATGPT,
   type Resolver,
@@ -76,7 +78,7 @@ const TEMPO_DO_MODELO_MS = 120_000;
 function falha(r: Extract<RespostaJson, { ok: false }>, assinatura: boolean): never {
   if (r.status === 429 && assinatura)
     throw new ErroDoModelo(
-      "O limite do plano de assinatura acabou por enquanto.",
+      `O limite do plano de assinatura acabou por enquanto.${r.motivo ? ` Motivo do provedor: ${r.motivo}` : ""}`,
       new Date(Date.now() + (r.esperarSegundos ?? 3600) * 1000),
     );
   throw new ErroDoModelo(r.erro);
@@ -348,12 +350,15 @@ async function chamarCodex(
     throw new ErroDoModelo("Não foi possível conectar ao ChatGPT.");
   }
   if (!resposta.ok) {
-    await resposta.body?.cancel();
+    const motivo = motivoDoProvedor(await lerPouco(resposta));
     falha(
       {
         ok: false,
-        erro: erroPeloCodigo(resposta.status),
+        erro: motivo
+          ? `${erroPeloCodigo(resposta.status)} Motivo: ${motivo}`
+          : erroPeloCodigo(resposta.status),
         status: resposta.status,
+        ...(motivo ? { motivo } : {}),
         ...(esperaPedida(resposta.headers.get("retry-after")) !== undefined
           ? { esperarSegundos: esperaPedida(resposta.headers.get("retry-after")) as number }
           : {}),

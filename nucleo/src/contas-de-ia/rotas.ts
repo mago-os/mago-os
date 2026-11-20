@@ -511,7 +511,7 @@ export function registrarRotasDasContasDeIa(app: FastifyInstance, o: OpcoesDasCo
           return "nao_encontrado";
         if (agente.situacao === "desligado") return "desligado";
         for (const m of modelos ? [modelos.principal, ...(modelos.reserva ? [modelos.reserva] : [])] : []) {
-          const motivo = await modeloIndisponivel(c, m);
+          const motivo = await modeloIndisponivel(c, m, true);
           if (motivo) return `O modelo ${m.modelo} não pode ser usado: ${motivo}.`;
         }
         await escolherModelos(c, id, modelos);

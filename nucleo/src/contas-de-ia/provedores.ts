@@ -145,7 +145,53 @@ export function erroPeloCodigo(codigo: number): string {
 
 export type RespostaJson =
   | { ok: true; corpo: unknown }
-  | { ok: false; erro: string; status?: number; esperarSegundos?: number };
+  | { ok: false; erro: string; status?: number; esperarSegundos?: number; motivo?: string };
+
+/** Lê só o começo do corpo de uma resposta de erro (até 8 KB) e solta o resto. */
+export async function lerPouco(r: Response): Promise<string> {
+  if (!r.body) return "";
+  const partes: Uint8Array[] = [];
+  let tamanho = 0;
+  try {
+    for await (const parte of r.body) {
+      partes.push(parte);
+      tamanho += parte.byteLength;
+      if (tamanho >= 8192) break;
+    }
+  } catch {
+    // corpo interrompido: fica o que veio
+  }
+  await r.body.cancel().catch(() => {});
+  return Buffer.concat(partes).toString("utf8").slice(0, 8192);
+}
+
+/**
+ * O motivo que o provedor deu para o erro, em texto curto (até 200 caracteres), para o administrador entender o que
+ * houve (limite de verdade, token recusado, modelo errado). Tira qualquer coisa parecida com chave ou token.
+ */
+export function motivoDoProvedor(corpo: string): string | null {
+  let texto: unknown = null;
+  try {
+    const j = JSON.parse(corpo) as { error?: unknown; message?: unknown; detail?: unknown };
+    const e = j.error as { message?: unknown; type?: unknown } | string | undefined;
+    texto =
+      typeof e === "string"
+        ? e
+        : typeof e?.message === "string"
+          ? `${typeof e.type === "string" ? `${e.type}: ` : ""}${e.message}`
+          : (j.message ?? j.detail ?? null);
+  } catch {
+    texto = corpo;
+  }
+  if (typeof texto !== "string") return null;
+  const limpo = texto
+    .replace(/sk-[A-Za-z0-9_-]{6,}/g, "[chave]")
+    .replace(/[A-Za-z0-9_\-.]{32,}/g, "[omitido]")
+    .replace(/[<>]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+  return limpo ? limpo.slice(0, 200) : null;
+}
 
 /** Segundos de espera que o provedor pediu (retry-after em segundos ou em data), se pediu. */
 export function esperaPedida(valor: string | null, agora = Date.now()): number | undefined {
@@ -175,12 +221,13 @@ export async function pedirJson(
       signal: AbortSignal.timeout(tempoMaximoMs),
     });
     if (!r.ok) {
-      await r.body?.cancel();
       const espera = esperaPedida(r.headers.get("retry-after"));
+      const motivo = motivoDoProvedor(await lerPouco(r));
       return {
         ok: false,
-        erro: erroPeloCodigo(r.status),
+        erro: motivo ? `${erroPeloCodigo(r.status)} Motivo: ${motivo}` : erroPeloCodigo(r.status),
         status: r.status,
+        ...(motivo ? { motivo } : {}),
         ...(espera !== undefined ? { esperarSegundos: espera } : {}),
       };
     }
@@ -245,7 +292,7 @@ function limiteDoPlano(pedido: Extract<RespostaJson, { ok: false }>): ResultadoD
   if (pedido.status !== 429) return null;
   return {
     ok: false,
-    erro: "O limite do plano de assinatura acabou por enquanto.",
+    erro: `O limite do plano de assinatura acabou por enquanto.${pedido.motivo ? ` Motivo do provedor: ${pedido.motivo}` : ""}`,
     limiteAte: new Date(Date.now() + (pedido.esperarSegundos ?? 3600) * 1000),
   };
 }
