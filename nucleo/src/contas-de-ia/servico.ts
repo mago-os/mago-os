@@ -39,6 +39,11 @@ function paraConta(l: LinhaDaConta): ContaDeIa {
     nome: l.nome,
     provedor: l.provedor,
     endereco: l.endereco,
+    // Até a migração da M4-10, toda conta é por chave de API.
+    credencial: "chave_de_api",
+    termosAceitosPor: null,
+    termosAceitosEm: null,
+    limiteDoPlanoAte: null,
     finalDaChave: l.final_da_chave,
     situacao: l.situacao,
     ultimoErro: l.ultimo_erro,

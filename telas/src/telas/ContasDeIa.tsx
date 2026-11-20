@@ -20,6 +20,7 @@ type ContaNaLista = ContaDeIaNaLista;
 const NOME_DO_PROVEDOR: Record<ProvedorDeIa, string> = {
   anthropic: "Anthropic",
   compativel_openai: "Compatível com OpenAI",
+  chatgpt: "ChatGPT (assinatura)",
 };
 
 const dolares = (centavos: number) =>

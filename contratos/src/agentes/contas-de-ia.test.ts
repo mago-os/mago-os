@@ -4,8 +4,10 @@ import {
   ContaDeIa,
   conferirContaDeIa,
   conferirModelosDoAgente,
+  conferirPedidoDeContaDeIa,
   PedidoDeContaDeIa,
   PedidoDeEditarContaDeIa,
+  problemasDaTrocaDeChave,
 } from "./contas-de-ia.ts";
 
 const ID = "0193a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5b";
@@ -17,11 +19,15 @@ const conta = {
   empresaId: ID,
   nome: "Anthropic da Nolask",
   provedor: "anthropic",
+  credencial: "chave_de_api",
   endereco: null,
   finalDaChave: "x9Qa",
   situacao: "ativa",
   ultimoErro: null,
   tetoMensal: 5000,
+  termosAceitosPor: null,
+  termosAceitosEm: null,
+  limiteDoPlanoAte: null,
   testadaEm: AGORA,
   criadaPor: ID,
   criadaEm: AGORA,
@@ -53,7 +59,7 @@ describe("conta de IA", () => {
   it("o pedido de conectar leva a chave; editar pede pelo menos um campo", () => {
     const pedido = { nome: "Anthropic", provedor: "anthropic", chave: "sk-ant-api03-abcdefgh" };
     expect(conferir(PedidoDeContaDeIa, pedido).ok).toBe(true);
-    expect(conferir(PedidoDeContaDeIa, { ...pedido, chave: "com espaço no meio" }).ok).toBe(false);
+    expect(conferirPedidoDeContaDeIa({ ...pedido, chave: "com espaço no meio" }).ok).toBe(false);
     expect(conferir(PedidoDeEditarContaDeIa, {}).ok).toBe(false);
     expect(conferir(PedidoDeEditarContaDeIa, { tetoMensal: 2000 }).ok).toBe(true);
     expect(conferir(PedidoDeEditarContaDeIa, { tetoMensal: -1 }).ok).toBe(false);
@@ -80,5 +86,76 @@ describe("modelos do agente", () => {
 
   it("recusa o reserva igual ao principal", () => {
     expect(conferirModelosDoAgente({ principal, reserva: { ...principal } }).ok).toBe(false);
+  });
+});
+
+describe("assinatura (M4-10)", () => {
+  const assinatura = {
+    ...conta,
+    nome: "Claude Max do Sandro",
+    credencial: "assinatura",
+    tetoMensal: null,
+    termosAceitosPor: ID,
+    termosAceitosEm: AGORA,
+  };
+
+  it("a conta por assinatura precisa do aceite dos termos e não tem teto em dólar", () => {
+    expect(conferirContaDeIa(assinatura).ok).toBe(true);
+    expect(conferirContaDeIa({ ...assinatura, termosAceitosEm: null }).ok).toBe(false);
+    expect(conferirContaDeIa({ ...assinatura, tetoMensal: 2000 }).ok).toBe(false);
+    expect(conferirContaDeIa({ ...assinatura, limiteDoPlanoAte: AGORA }).ok).toBe(true);
+    // A chave de API não tem aceite nem limite do plano.
+    expect(conferirContaDeIa({ ...conta, termosAceitosPor: ID, termosAceitosEm: AGORA }).ok).toBe(false);
+    expect(conferirContaDeIa({ ...conta, limiteDoPlanoAte: AGORA }).ok).toBe(false);
+  });
+
+  it("cada provedor aceita só os tipos dele", () => {
+    expect(conferirContaDeIa({ ...assinatura, provedor: "chatgpt" }).ok).toBe(true);
+    expect(conferirContaDeIa({ ...conta, provedor: "chatgpt" }).ok).toBe(false);
+    expect(
+      conferirContaDeIa({
+        ...assinatura,
+        provedor: "compativel_openai",
+        endereco: "https://openrouter.ai/api/v1",
+      }).ok,
+    ).toBe(false);
+  });
+
+  it("o pedido de assinatura exige o aceite e confere o formato do login", () => {
+    const pedido = {
+      nome: "Claude Max",
+      provedor: "anthropic",
+      credencial: "assinatura",
+      chave: "sk-ant-oat01-token-de-teste-do-plano",
+      aceitoOsTermos: true,
+    };
+    expect(conferirPedidoDeContaDeIa(pedido).ok).toBe(true);
+    expect(conferirPedidoDeContaDeIa({ ...pedido, aceitoOsTermos: undefined }).ok).toBe(false);
+    expect(conferirPedidoDeContaDeIa({ ...pedido, aceitoOsTermos: false }).ok).toBe(false);
+    expect(conferirPedidoDeContaDeIa({ ...pedido, tetoMensal: 2000 }).ok).toBe(false);
+    // O auth.json do Codex vem formatado, com espaços e quebras de linha.
+    const codex = JSON.stringify(
+      { tokens: { access_token: "a", refresh_token: "r", account_id: "c" } },
+      null,
+      2,
+    );
+    expect(conferirPedidoDeContaDeIa({ ...pedido, provedor: "chatgpt", chave: codex }).ok).toBe(true);
+    expect(
+      conferirPedidoDeContaDeIa({ ...pedido, provedor: "chatgpt", chave: "token-solto-sem-json" }).ok,
+    ).toBe(false);
+    // Sem "credencial", é chave de API: curta e sem espaço.
+    expect(conferirPedidoDeContaDeIa({ nome: "API", provedor: "anthropic", chave: codex }).ok).toBe(false);
+    expect(
+      conferirPedidoDeContaDeIa({ nome: "API", provedor: "chatgpt", chave: "sk-chave-de-api-1" }).ok,
+    ).toBe(false);
+  });
+
+  it("a troca de chave segue o tipo da conta", () => {
+    expect(
+      problemasDaTrocaDeChave({ credencial: "chave_de_api", provedor: "anthropic" }, "sk-ant-nova-chave"),
+    ).toEqual([]);
+    expect(
+      problemasDaTrocaDeChave({ credencial: "assinatura", provedor: "chatgpt" }, "sk-solta"),
+    ).not.toEqual([]);
   });
 });
