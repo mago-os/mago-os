@@ -613,6 +613,36 @@ describe.skipIf(!bancoDisponivel)("agentes internos", () => {
     expect(conversa.mensagens.at(-1)?.texto).toBe("Criei a tarefa pelo Claude Code.");
   });
 
+  it("principal pela API e reserva pelo plano: a API falha e o reserva roda pelo Claude Code", async () => {
+    const ana = await como("ana@teste.invalid");
+    await pedir("POST", `/agentes/${ids.coordenador}/modelos`, ana, {
+      modelos: {
+        principal: { contaId: ids.Principal, modelo: "modelo-bom" },
+        reserva: { contaId: ids.plano, modelo: "modelo-do-plano" },
+      },
+    });
+    roteiro = [
+      () => {
+        throw new ErroDoModelo("O provedor está com problema (erro 529).");
+      },
+    ];
+    roteiroDoClaudeCode = async (p) => {
+      await p.executar("responder", { texto: "Respondi pelo plano." });
+      return { texto: null, tokens: { entrada: 1, saida: 1, cache: 0 } };
+    };
+    const r = await pedir("POST", "/conversas/mensagens", ana, { texto: "oi de novo" });
+    await rodarFila();
+    const e = await dono.query<{ situacao: string; modelo: string; passou_ao_reserva_porque: string }>(
+      "select situacao, modelo, passou_ao_reserva_porque from execucoes_de_agente where id = $1",
+      [r.json().execucaoId],
+    );
+    expect(e.rows[0]).toEqual({
+      situacao: "concluida",
+      modelo: "modelo-do-plano",
+      passou_ao_reserva_porque: "O provedor está com problema (erro 529).",
+    });
+  });
+
   it("coordenador desligado por engano: nasce um novo, pausado, e o Gerente passa a responder a ele", async () => {
     const ana = await como("ana@teste.invalid");
     expect((await pedir("POST", `/agentes/${ids.coordenador}/desligar`, ana, {})).statusCode).toBe(200);

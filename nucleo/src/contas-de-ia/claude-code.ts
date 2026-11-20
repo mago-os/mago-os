@@ -61,7 +61,7 @@ function servidorDasFerramentas(p: PedidoAoClaudeCode): McpServer {
 /** O motivo de uma execução que terminou com erro, em texto curto (sem token). */
 function motivoDoResultado(m: { subtype?: string; errors?: unknown; result?: unknown }): string {
   const detalhe = Array.isArray(m.errors)
-    ? m.errors.join("; ")
+    ? m.errors.map((e) => (typeof e === "string" ? e : JSON.stringify(e))).join("; ")
     : typeof m.result === "string"
       ? m.result
       : "";
@@ -72,6 +72,12 @@ function motivoDoResultado(m: { subtype?: string; errors?: unknown; result?: unk
     .slice(0, 200);
   if (m.subtype === "error_max_turns") return "Passou do limite de rodadas da execução.";
   return limpo ? `O Claude Code não concluiu: ${limpo}` : "O Claude Code não concluiu.";
+}
+
+/** O limite do plano (429 ou "rate limit") marca a conta por uma hora, para os agentes irem ao reserva. */
+function erroDoClaudeCode(texto: string): ErroDoModelo {
+  const limite = /\b429\b|rate[_ ]limit|usage limit|limit reached/i.test(texto);
+  return new ErroDoModelo(texto, limite ? new Date(Date.now() + 3600_000) : null);
 }
 
 export const rodarPeloClaudeCode: RodarClaudeCode = async (p) => {
@@ -125,7 +131,7 @@ export const rodarPeloClaudeCode: RodarClaudeCode = async (p) => {
       if (m.subtype === "success" && !(m as { is_error?: boolean }).is_error) {
         texto = typeof m.result === "string" && m.result.trim() ? m.result.trim() : null;
       } else {
-        throw new ErroDoModelo(motivoDoResultado(m as never));
+        throw erroDoClaudeCode(motivoDoResultado(m as never));
       }
     }
     return { texto, tokens };
@@ -133,7 +139,7 @@ export const rodarPeloClaudeCode: RodarClaudeCode = async (p) => {
     if (erro instanceof ErroDoModelo) throw erro;
     if (parar.signal.aborted) throw new ErroDoModelo("Passou do tempo máximo da execução.");
     const mensagem = erro instanceof Error ? erro.message.replace(/sk-[A-Za-z0-9_-]{6,}/g, "[chave]") : "";
-    throw new ErroDoModelo(`O Claude Code não concluiu: ${mensagem.slice(0, 200) || "erro desconhecido"}`);
+    throw erroDoClaudeCode(`O Claude Code não concluiu: ${mensagem.slice(0, 200) || "erro desconhecido"}`);
   } finally {
     clearTimeout(relogio);
     await rm(pasta, { recursive: true, force: true }).catch(() => {});
@@ -155,7 +161,7 @@ export async function testarPeloClaudeCode(
       ferramentas: [],
       executar: async () => ({ texto: "", erro: true }),
       maximoDeRodadas: 1,
-      tempoMaximoMs: 60_000,
+      tempoMaximoMs: 45_000,
     });
     return null;
   } catch (erro) {
