@@ -23,13 +23,13 @@ interface Comando {
 }
 
 /** Comandos rápidos (só os que a pessoa pode usar aparecem). */
-function comandos(podeAgentes: boolean): Comando[] {
+function comandos(p: Permissoes): Comando[] {
   return [
-    { nome: "Nova tarefa", link: "/tarefas?nova=1" },
-    { nome: "Novo projeto", link: "/projetos?novo=1" },
+    ...(p.podeCriarTarefa ? [{ nome: "Nova tarefa", link: "/tarefas?nova=1" }] : []),
+    ...(p.podeCriarProjeto ? [{ nome: "Novo projeto", link: "/projetos?novo=1" }] : []),
     { nome: "Minhas tarefas", link: "/tarefas" },
     { nome: "Abrir central de prioridades", link: "/prioridades" },
-    ...(podeAgentes ? [{ nome: "Abrir agentes", link: "/agentes" }] : []),
+    ...(p.podeAgentes ? [{ nome: "Abrir agentes", link: "/agentes" }] : []),
   ];
 }
 
@@ -37,7 +37,13 @@ const semAcento = (t: string) => t.normalize("NFD").replace(/[̀-ͯ]/g, "").toLo
 
 type Item = { tipo: "comando"; c: Comando } | { tipo: "resultado"; r: ResultadoDaBusca };
 
-export function Busca({ podeAgentes }: { podeAgentes: boolean }) {
+interface Permissoes {
+  podeAgentes: boolean;
+  podeCriarTarefa: boolean;
+  podeCriarProjeto: boolean;
+}
+
+export function Busca(permissoes: Permissoes) {
   const [aberta, setAberta] = useState(false);
   const [texto, setTexto] = useState("");
   const [resultados, setResultados] = useState<ResultadoDaBusca[]>([]);
@@ -70,11 +76,13 @@ export function Busca({ podeAgentes }: { podeAgentes: boolean }) {
   // Busca depois de uma pausa na digitação; resposta atrasada de um texto antigo não sobrescreve a nova.
   useEffect(() => {
     const q = texto.trim();
+    // Texto novo: a resposta de um texto antigo, se chegar, não vale mais; a seleção volta para o primeiro.
+    const numero = ++ultimo.current;
+    setEscolhido(0);
     if (q.length < 2) {
       setResultados([]);
       return;
     }
-    const numero = ++ultimo.current;
     const espera = setTimeout(async () => {
       setBuscando(true);
       const r = await pedir<{ resultados: ResultadoDaBusca[] }>(
@@ -90,7 +98,7 @@ export function Busca({ podeAgentes }: { podeAgentes: boolean }) {
   }, [texto]);
 
   const q = semAcento(texto.trim());
-  const cmds = comandos(podeAgentes).filter((c) => q === "" || semAcento(c.nome).includes(q));
+  const cmds = comandos(permissoes).filter((c) => q === "" || semAcento(c.nome).includes(q));
   const itens: Item[] = [
     ...resultados.map((r) => ({ tipo: "resultado" as const, r })),
     ...cmds.map((c) => ({ tipo: "comando" as const, c })),

@@ -304,7 +304,15 @@ export function App() {
       aoSair={() => void aoSair()}
       instalar={instalar ? () => void instalar.prompt() : null}
       sino={temEmpresaAtiva ? <Sino /> : null}
-      busca={temEmpresaAtiva ? <Busca podeAgentes={pode("agentes", "ver")} /> : null}
+      busca={
+        temEmpresaAtiva ? (
+          <Busca
+            podeAgentes={pode("agentes", "ver")}
+            podeCriarTarefa={pode("tarefas", "criar")}
+            podeCriarProjeto={pode("projetos", "criar")}
+          />
+        ) : null
+      }
     >
       <AvisosDeAcesso avisos={avisos} aoResponder={() => void carregarAvisos()} />
       {temEmpresaAtiva && <AvisosDoMago />}

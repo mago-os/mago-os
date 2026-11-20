@@ -123,7 +123,16 @@ export function Tarefas({
   euId: string;
 }) {
   // Vindo do comando rápido "nova tarefa" (Ctrl+K): /tarefas?nova=1 já abre o formulário.
-  const [criando, setCriando] = useState(() => new URLSearchParams(window.location.search).has("nova"));
+  const [criando, setCriando] = useState(false);
+  // Vindo do comando rápido "nova tarefa" (Ctrl+K): /tarefas?nova=1 abre o formulário assim que a permissão de
+  // criar chega, e o "?nova=1" sai do endereço (recarregar não abre de novo).
+  const pediuNova = useRef(new URLSearchParams(window.location.search).has("nova"));
+  useEffect(() => {
+    if (!pediuNova.current || !podeCriar) return;
+    pediuNova.current = false;
+    setCriando(true);
+    window.history.replaceState(null, "", "/tarefas");
+  }, [podeCriar]);
   return (
     <main className="mx-auto grid max-w-5xl gap-4 px-4 py-5 md:py-8">
       <div className="flex items-center justify-between gap-3">

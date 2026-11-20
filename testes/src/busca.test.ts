@@ -171,6 +171,9 @@ describe.skipIf(!bancoDisponivel)("busca", () => {
     const peloTexto = await buscar("ana@teste.invalid", "orcamento");
     expect(peloTexto[0]?.trecho).toContain("orçamento");
     expect((await pedir("GET", "/busca?texto=a", ana)).statusCode).toBe(400);
+    // % e _ são texto, não curinga.
+    expect(await buscar("ana@teste.invalid", "%_")).toEqual([]);
+    expect((await pedir("GET", "/busca?texto=backup&tipos=tarefa&tipos=projeto", ana)).statusCode).toBe(200);
   });
 
   it("o funcionário só acha o que vê; pessoa vem sem e-mail; outra empresa não acha nada", async () => {

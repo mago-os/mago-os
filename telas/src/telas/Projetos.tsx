@@ -88,9 +88,16 @@ export function Projetos({
   const [lista, setLista] = useState<ListaDeProjetos | null>(null);
   const [erro, setErro] = useState<string | null>(null);
   // Vindo do comando rápido "novo projeto" (Ctrl+K): /projetos?novo=1 já abre o formulário.
-  const [criando, setCriando] = useState<"espaco" | "projeto" | null>(() =>
-    new URLSearchParams(window.location.search).has("novo") ? "projeto" : null,
-  );
+  const [criando, setCriando] = useState<"espaco" | "projeto" | null>(null);
+  // Vindo do comando rápido "novo projeto" (Ctrl+K): /projetos?novo=1 abre o formulário quando a permissão e os
+  // espaços chegam, e o "?novo=1" sai do endereço.
+  const pediuNovo = useRef(new URLSearchParams(window.location.search).has("novo"));
+  useEffect(() => {
+    if (!pediuNovo.current || !podeCriarProjeto || !espacos) return;
+    pediuNovo.current = false;
+    window.history.replaceState(null, "", "/projetos");
+    if (espacos.some((e) => e.situacao === "ativo")) setCriando("projeto");
+  }, [podeCriarProjeto, espacos]);
 
   const ultimoPedido = useRef(0);
   const carregar = useCallback(async () => {

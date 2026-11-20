@@ -57,10 +57,14 @@ export async function buscar(
   const q = paraBusca(texto.trim());
   if (q.length < 2) return [];
   await c.query(`select set_config('pg_trgm.word_similarity_threshold', '${PARECIDO}', true)`);
-  // $1 é sempre o texto; "acha" diz se o campo tem o texto ou uma palavra parecida.
-  const acha = (campo: string) =>
-    `(para_busca(${campo}) like '%' || $1 || '%' or $1 <% para_busca(${campo}))`;
-  const nota = (campo: string) => `word_similarity($1, para_busca(${campo}))`;
+  // $1 é sempre o texto, normalizado no próprio banco (o mesmo para_busca dos campos). No "contém", os caracteres
+  // especiais do LIKE (%, _ e a barra) valem como texto, não como curinga. "acha": o campo tem o texto ou uma
+  // palavra parecida.
+  const Q = "para_busca($1::text)";
+  const CONTEM = `('%' || replace(replace(replace(${Q}, '\\', '\\\\'), '%', '\\%'), '_', '\\_') || '%')`;
+  const acha = (campo: string) => `(para_busca(${campo}) like ${CONTEM} or ${Q} <% para_busca(${campo}))`;
+  const nota = (campo: string) => `word_similarity(${Q}, para_busca(${campo}))`;
+  const bruto = texto.trim();
   const quer = (t: TipoDeResultado) => tipos.includes(t);
   const resultados: ResultadoDaBusca[] = [];
 
@@ -69,11 +73,11 @@ export async function buscar(
     const r = await c.query<{ id: string; titulo: string; descricao: string | null }>(
       `select t.id, t.titulo, t.descricao from tarefas t
         where t.empresa_id = empresa_ativa() and ${alcance.sql}
-          and (${acha("t.titulo")} or para_busca(coalesce(t.descricao, '')) like '%' || $1 || '%')
-        order by greatest(${nota("t.titulo")}, case when para_busca(t.titulo) like '%' || $1 || '%' then 1 else 0 end) desc,
+          and (${acha("t.titulo")} or para_busca(t.descricao) like ${CONTEM})
+        order by greatest(${nota("t.titulo")}, case when para_busca(t.titulo) like ${CONTEM} then 1 else 0 end) desc,
                  t.atualizada_em desc
         limit ${RESULTADOS_POR_TIPO}`,
-      [q, ...alcance.valores],
+      [bruto, ...alcance.valores],
     );
     for (const t of r.rows) {
       const naDescricao =
@@ -96,7 +100,7 @@ export async function buscar(
         where cm.empresa_id = empresa_ativa() and cm.apagado_em is null and ${alcance.sql} and ${acha("cm.texto")}
         order by ${nota("cm.texto")} desc, cm.criado_em desc
         limit ${RESULTADOS_POR_TIPO}`,
-      [q, ...alcance.valores],
+      [bruto, ...alcance.valores],
     );
     for (const cm of r.rows) {
       resultados.push({
@@ -116,7 +120,7 @@ export async function buscar(
       `select p.id, p.nome from projetos p
         where p.empresa_id = empresa_ativa() and p.situacao = 'ativo' and ${condicao} and ${acha("p.nome")}
         order by ${nota("p.nome")} desc, lower(p.nome) limit ${RESULTADOS_POR_TIPO}`,
-      [q, pessoaId],
+      [bruto, pessoaId],
     );
     for (const p of r.rows)
       resultados.push({ tipo: "projeto", id: p.id, titulo: p.nome, trecho: null, link: `/projetos/${p.id}` });
@@ -127,7 +131,7 @@ export async function buscar(
       `select e.id, e.nome from espacos e
         where e.empresa_id = empresa_ativa() and e.situacao = 'ativo' and ${acha("e.nome")}
         order by ${nota("e.nome")} desc, lower(e.nome) limit ${RESULTADOS_POR_TIPO}`,
-      [q],
+      [bruto],
     );
     for (const e of r.rows)
       resultados.push({
@@ -151,7 +155,7 @@ export async function buscar(
       `select p.id, p.nome, v.area from vinculos v join pessoas p on p.id = v.pessoa_id
         where v.empresa_id = empresa_ativa() and v.situacao = 'ativo' and ${condicao} and ${acha("p.nome")}
         order by ${nota("p.nome")} desc, p.nome limit ${RESULTADOS_POR_TIPO}`,
-      f.tipo === "equipe" ? [q, pessoaId, f.area] : [q, pessoaId],
+      f.tipo === "equipe" ? [bruto, pessoaId, f.area] : [bruto, pessoaId],
     );
     // Só o nome e a área: o e-mail nunca aparece na busca.
     for (const p of r.rows)
@@ -163,7 +167,7 @@ export async function buscar(
       `select g.id, g.nome from agentes g
         where g.empresa_id = empresa_ativa() and g.situacao <> 'desligado' and ${acha("g.nome")}
         order by ${nota("g.nome")} desc, g.nome limit ${RESULTADOS_POR_TIPO}`,
-      [q],
+      [bruto],
     );
     for (const g of r.rows)
       resultados.push({ tipo: "agente", id: g.id, titulo: g.nome, trecho: null, link: `/agentes/${g.id}` });
@@ -202,10 +206,11 @@ export function ondeBuscar(pedido: FastifyRequest): OndeBuscar {
 
 export function registrarRotaDaBusca(app: FastifyInstance, verificador: Verificador, poolApp: pg.Pool): void {
   app.get("/busca", { preHandler: verificador.exigir("tarefas", "ver") }, async (pedido, resposta) => {
-    const q = pedido.query as { texto?: string; tipos?: string };
+    const q = pedido.query as { texto?: string; tipos?: string | string[] };
     const r = conferir(PedidoDeBusca, {
       texto: q.texto ?? "",
-      ...(q.tipos ? { tipos: q.tipos.split(",") } : {}),
+      // "tipos=a,b" ou "tipos=a&tipos=b".
+      ...(q.tipos ? { tipos: ([] as string[]).concat(q.tipos).flatMap((t) => t.split(",")) } : {}),
     });
     if (!r.ok) return resposta.code(400).send({ code: "PEDIDO_INVALIDO", problemas: r.problemas });
     const { sessao } = acessoDo(pedido);
