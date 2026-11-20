@@ -209,6 +209,30 @@ export const PedidoDeContaDeIa = Type.Object(
 );
 export type PedidoDeContaDeIa = Static<typeof PedidoDeContaDeIa>;
 
+/** O login do Codex (auth.json), só com o que o Mago OS usa. O resto do arquivo é guardado como veio. */
+export interface LoginDoCodex {
+  tokens: { access_token?: string; refresh_token: string; id_token?: string; account_id?: string };
+  last_refresh?: string;
+  [outro: string]: unknown;
+}
+
+const TEXTO_CURTO = (v: unknown) => typeof v === "string" && /^[\x21-\x7e]{1,10000}$/.test(v);
+
+/** Lê e confere o login do Codex (um único lugar para o formato). Nulo se não for um auth.json válido. */
+export function lerLoginDoCodex(texto: string): LoginDoCodex | null {
+  let login: unknown;
+  try {
+    login = JSON.parse(texto);
+  } catch {
+    return null;
+  }
+  const tokens = (login as { tokens?: Record<string, unknown> } | null)?.tokens;
+  if (!tokens || typeof tokens !== "object" || !TEXTO_CURTO(tokens.refresh_token)) return null;
+  for (const campo of ["access_token", "id_token", "account_id"])
+    if (tokens[campo] !== undefined && tokens[campo] !== null && !TEXTO_CURTO(tokens[campo])) return null;
+  return login as LoginDoCodex;
+}
+
 /** A chave de API tem o formato curto; o login do plano pode ser um token ou o JSON do Codex. */
 function problemasDaCredencial(
   credencial: TipoDeCredencial,
@@ -219,15 +243,10 @@ function problemasDaCredencial(
     return /^[\x21-\x7e]{8,400}$/.test(chave)
       ? []
       : [{ caminho: "/chave", mensagem: "chave de API com até 400 caracteres e sem espaços" }];
-  if (provedor === "chatgpt") {
-    try {
-      const login = JSON.parse(chave) as { tokens?: { refresh_token?: unknown } };
-      if (typeof login?.tokens?.refresh_token === "string") return [];
-    } catch {
-      // cai no problema abaixo
-    }
-    return [{ caminho: "/chave", mensagem: "cole o conteúdo do arquivo de login do Codex (auth.json)" }];
-  }
+  if (provedor === "chatgpt")
+    return lerLoginDoCodex(chave)
+      ? []
+      : [{ caminho: "/chave", mensagem: "cole o conteúdo do arquivo de login do Codex (auth.json)" }];
   return /^[\x21-\x7e]{8,2000}$/.test(chave)
     ? []
     : [{ caminho: "/chave", mensagem: "cole o token do plano, sem espaços" }];

@@ -13,6 +13,7 @@ import type {
   TesteDaContaDeIa,
   TipoDeCredencial,
 } from "@mago-os/contratos";
+import { type LoginDoCodex, lerLoginDoCodex } from "@mago-os/contratos";
 
 export const ENDERECO_DA_ANTHROPIC = "https://api.anthropic.com/v1";
 const VERSAO_DA_API_ANTHROPIC = "2023-06-01";
@@ -47,13 +48,6 @@ export interface Provedores {
  */
 export const MODELOS_DO_CHATGPT = ["gpt-5.1", "gpt-5.1-codex", "gpt-5.1-codex-mini", "gpt-5"] as const;
 
-/** O login do Codex (auth.json): só o que o núcleo usa. */
-interface LoginDoCodex {
-  tokens: { access_token?: string; refresh_token: string; id_token?: string; account_id?: string };
-  last_refresh?: string;
-  [outro: string]: unknown;
-}
-
 /** Endereço e cliente públicos do login do Codex (os mesmos que o Codex usa para renovar o acesso). */
 const RENOVAR_LOGIN_DO_CHATGPT = "https://auth.openai.com/oauth/token";
 const CLIENTE_DO_CODEX = "app_EMoamEEZ73f0CkXaXp7hrann";
@@ -61,14 +55,9 @@ const CLIENTE_DO_CODEX = "app_EMoamEEZ73f0CkXaXp7hrann";
 /** Os 4 caracteres que identificam a credencial na tela (no JSON do Codex, o fim da conta ou do token). */
 export function finalDaCredencial(provedor: ProvedorDeIa, chave: string): string {
   if (provedor === "chatgpt") {
-    try {
-      const login = JSON.parse(chave) as LoginDoCodex;
-      const base = login.tokens.account_id ?? login.tokens.refresh_token;
-      if (/^[\x21-\x7e]{4,}$/.test(base)) return base.slice(-4);
-    } catch {
-      // cai no padrão
-    }
-    return "json";
+    const login = lerLoginDoCodex(chave);
+    const base = login?.tokens.account_id ?? login?.tokens.refresh_token ?? "";
+    return base.length >= 4 ? base.slice(-4) : "json";
   }
   return chave.slice(-4);
 }
@@ -158,10 +147,13 @@ type RespostaJson =
   | { ok: true; corpo: unknown }
   | { ok: false; erro: string; status?: number; esperarSegundos?: number };
 
-/** Segundos de espera que o provedor pediu (cabeçalho retry-after), se pediu. */
-function esperaPedida(r: Response): number | undefined {
-  const valor = Number(r.headers.get("retry-after"));
-  return Number.isFinite(valor) && valor > 0 ? Math.min(valor, 7 * 24 * 3600) : undefined;
+/** Segundos de espera que o provedor pediu (retry-after em segundos ou em data), se pediu. */
+export function esperaPedida(valor: string | null, agora = Date.now()): number | undefined {
+  if (valor === null || valor.trim() === "") return undefined;
+  const segundos = /^\d+$/.test(valor.trim()) ? Number(valor) : (Date.parse(valor) - agora) / 1000;
+  return Number.isFinite(segundos) && segundos >= 0
+    ? Math.min(Math.ceil(segundos), 7 * 24 * 3600)
+    : undefined;
 }
 
 async function pedirJson(
@@ -183,7 +175,7 @@ async function pedirJson(
     });
     if (!r.ok) {
       await r.body?.cancel();
-      const espera = esperaPedida(r);
+      const espera = esperaPedida(r.headers.get("retry-after"));
       return {
         ok: false,
         erro: erroPeloCodigo(r.status),
@@ -273,13 +265,8 @@ async function testarAssinatura(a: AcessoAoProvedor): Promise<ResultadoDoTeste> 
     return { ok: true, modelos: modelosDaResposta(pedido.corpo) };
   }
   if (a.provedor === "chatgpt") {
-    let login: LoginDoCodex;
-    try {
-      login = JSON.parse(a.chave) as LoginDoCodex;
-      if (typeof login?.tokens?.refresh_token !== "string") throw new Error("sem token");
-    } catch {
-      return { ok: false, erro: "O login do Codex não está no formato do auth.json." };
-    }
+    const login = lerLoginDoCodex(a.chave);
+    if (!login) return { ok: false, erro: "O login do Codex não está no formato do auth.json." };
     const pedido = await pedirJson(
       RENOVAR_LOGIN_DO_CHATGPT,
       {},
@@ -290,16 +277,15 @@ async function testarAssinatura(a: AcessoAoProvedor): Promise<ResultadoDoTeste> 
         scope: "openid profile email",
       },
     );
+    // Aqui o 429 é do serviço de login, não do plano: vira erro comum, sem marcar o limite do plano.
     if (!pedido.ok)
-      return (
-        limiteDoPlano(pedido) ?? {
-          ok: false,
-          erro:
-            pedido.status === 400 || pedido.status === 401
-              ? "O ChatGPT recusou o login. Entre de novo no Codex e cole o auth.json novo."
-              : pedido.erro,
-        }
-      );
+      return {
+        ok: false,
+        erro:
+          pedido.status === 400 || pedido.status === 401
+            ? "O ChatGPT recusou o login. Entre de novo no Codex e cole o auth.json novo."
+            : pedido.erro,
+      };
     const novo = pedido.corpo as { access_token?: unknown; refresh_token?: unknown; id_token?: unknown };
     if (typeof novo?.access_token !== "string")
       return { ok: false, erro: "O ChatGPT não devolveu o acesso." };

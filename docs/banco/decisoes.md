@@ -249,4 +249,4 @@ O login (`mago_acesso`) não lê papéis nem as regras da plataforma direto. As 
 - `contas_de_ia.credencial` diz se a conta é por chave de API ou por assinatura ([decisão 0022](../decisoes/0022-assinatura-nas-contas-de-ia.md)). Uma regra no banco amarra o provedor ao tipo: `chatgpt` só por assinatura, `compativel_openai` só por chave, Anthropic pelos dois.
 - A assinatura guarda o aceite do aviso dos termos (quem, quando e a versão) e não tem teto em dólar; a chave de API não tem aceite nem limite do plano. Quem aceitou precisa ter vínculo com a empresa.
 - `limite_do_plano_ate` marca até quando o plano está sem uso (o provedor avisou que acabou).
-- O texto cifrado aceita até cerca de 20 KB, para caber o arquivo de login do Codex.
+- O texto cifrado aceita o arquivo de login do Codex (até 20 mil caracteres no pedido, com folga para caracteres de vários bytes).

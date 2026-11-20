@@ -318,69 +318,99 @@ export function registrarRotasDasContasDeIa(app: FastifyInstance, o: OpcoesDasCo
       const cofre = cofreOu(resposta);
       if (!cofre) return resposta;
       const { id } = pedido.params as { id: string };
-      const { sessao } = acessoDo(pedido);
-      // A chave é aberta numa transação curta e o pedido ao provedor acontece fora dela.
-      const aberta = await naEmpresa(pedido, async (c) => {
-        const conta = await buscarConta(c, id);
-        const cifrada = conta ? await chaveCifradaDaConta(c, id) : null;
-        if (!conta || !cifrada) return null;
-        try {
-          return { conta, chave: await cofre.abrirChaveDeIa(c, sessao.empresaId, id, cifrada) };
-        } catch (erro) {
-          if (!(erro instanceof ErroDoCofre)) throw erro;
-          pedido.log.error(
-            { evento: "cofre.falhou", contaId: id, motivo: erro.message },
-            "O cofre não abriu",
-          );
-          return { conta, chave: null };
-        }
-      });
-      if (!aberta) return naoEncontrada(resposta);
-      const teste: ResultadoDoTeste =
-        aberta.chave === null
-          ? { ok: false, erro: "Não foi possível abrir a chave guardada. Troque a chave desta conta." }
-          : await provedores.testar({
-              provedor: aberta.conta.provedor,
-              credencial: aberta.conta.credencial,
-              endereco: aberta.conta.endereco,
-              chave: aberta.chave,
-            });
-      // Limite do plano não é chave errada: a conta continua ativa, só fica sem uso até a hora que o provedor disse.
-      const noLimite = !teste.ok && teste.limiteAte !== undefined;
-      const feito = await naEmpresa(pedido, async (c) => {
-        if (!(await buscarConta(c, id, true))) return null;
-        if (teste.credencialNova)
-          await guardarCredencialRenovada(
-            c,
-            id,
-            await cofre.guardarChaveDeIa(c, sessao.empresaId, id, teste.credencialNova),
-          );
-        await marcarTeste(c, id, teste.ok || noLimite ? null : teste.erro);
-        if (aberta.conta.credencial === "assinatura")
-          await marcarLimiteDoPlano(c, id, noLimite ? (teste.limiteAte ?? null) : null);
-        const novos = teste.ok ? await acertarModelos(c, id, teste.modelos) : 0;
-        return { conta: (await buscarConta(c, id)) as ContaDeIa, novos };
-      });
-      if (!feito) return naoEncontrada(resposta);
-      if (noLimite)
-        await registrar(
-          pedido,
-          "ia.chegou_no_limite_do_plano",
-          { tipo: "conta_de_ia", id },
-          { ate: feito.conta.limiteDoPlanoAte },
+      // Um teste por conta de cada vez: o login do ChatGPT troca o token de renovação, e dois testes juntos usariam o
+      // mesmo token (o segundo seria recusado e poderia derrubar o login). A trava é do PostgreSQL, então vale também
+      // com mais de uma cópia da API.
+      const trava = await poolApp.connect();
+      try {
+        const r = await trava.query<{ livre: boolean }>(
+          "select pg_try_advisory_lock(hashtextextended($1, 0)) as livre",
+          [`conta-de-ia:${id}`],
         );
-      await registrar(
-        pedido,
-        "ia.testou",
-        { tipo: "conta_de_ia", id },
-        {
-          ok: teste.ok,
-          ...(teste.ok ? { modelos: teste.modelos.length, novos: feito.novos } : {}),
-        },
-      );
-      return { ...feito.conta, modelosNovos: feito.novos };
+        if (!r.rows[0]?.livre)
+          return resposta.code(409).send({
+            code: "TESTE_EM_ANDAMENTO",
+            message: "Esta conta já está sendo testada. Tente de novo.",
+          });
+        try {
+          return await testarConta(pedido, resposta, cofre, id);
+        } finally {
+          await trava.query("select pg_advisory_unlock(hashtextextended($1, 0))", [`conta-de-ia:${id}`]);
+        }
+      } finally {
+        trava.release();
+      }
     },
   );
+
+  async function testarConta(pedido: FastifyRequest, resposta: FastifyReply, cofre: Cofre, id: string) {
+    const { sessao } = acessoDo(pedido);
+    // A chave é aberta numa transação curta e o pedido ao provedor acontece fora dela.
+    const aberta = await naEmpresa(pedido, async (c) => {
+      const conta = await buscarConta(c, id);
+      const cifrada = conta ? await chaveCifradaDaConta(c, id) : null;
+      if (!conta || !cifrada) return null;
+      try {
+        return { conta, cifrada, chave: await cofre.abrirChaveDeIa(c, sessao.empresaId, id, cifrada) };
+      } catch (erro) {
+        if (!(erro instanceof ErroDoCofre)) throw erro;
+        pedido.log.error({ evento: "cofre.falhou", contaId: id, motivo: erro.message }, "O cofre não abriu");
+        return { conta, cifrada, chave: null };
+      }
+    });
+    if (!aberta) return naoEncontrada(resposta);
+    const teste: ResultadoDoTeste =
+      aberta.chave === null
+        ? { ok: false, erro: "Não foi possível abrir a chave guardada. Troque a chave desta conta." }
+        : await provedores.testar({
+            provedor: aberta.conta.provedor,
+            credencial: aberta.conta.credencial,
+            endereco: aberta.conta.endereco,
+            chave: aberta.chave,
+          });
+    // Limite do plano não é chave errada: a conta continua ativa, só fica sem uso até a hora que o provedor disse.
+    const noLimite = !teste.ok && teste.limiteAte !== undefined;
+    const feito = await naEmpresa(pedido, async (c) => {
+      if (!(await buscarConta(c, id, true))) return null;
+      // Se a chave foi trocada durante o teste, vale a troca: a renovação do login antigo é descartada e o
+      // resultado deste teste não marca a conta.
+      if (teste.credencialNova) {
+        const guardou = await guardarCredencialRenovada(
+          c,
+          id,
+          aberta.cifrada,
+          await cofre.guardarChaveDeIa(c, sessao.empresaId, id, teste.credencialNova),
+          finalDaCredencial(aberta.conta.provedor, teste.credencialNova),
+        );
+        if (!guardou) return { conta: (await buscarConta(c, id)) as ContaDeIa, novos: 0 };
+      } else if (!(await chaveCifradaDaConta(c, id))?.equals(aberta.cifrada)) {
+        return { conta: (await buscarConta(c, id)) as ContaDeIa, novos: 0 };
+      }
+      await marcarTeste(c, id, teste.ok || noLimite ? null : teste.erro);
+      if (aberta.conta.credencial === "assinatura")
+        await marcarLimiteDoPlano(c, id, noLimite ? (teste.limiteAte ?? null) : null);
+      const novos = teste.ok ? await acertarModelos(c, id, teste.modelos) : 0;
+      return { conta: (await buscarConta(c, id)) as ContaDeIa, novos };
+    });
+    if (!feito) return naoEncontrada(resposta);
+    if (noLimite)
+      await registrar(
+        pedido,
+        "ia.chegou_no_limite_do_plano",
+        { tipo: "conta_de_ia", id },
+        { ate: feito.conta.limiteDoPlanoAte },
+      );
+    await registrar(
+      pedido,
+      "ia.testou",
+      { tipo: "conta_de_ia", id },
+      {
+        ok: teste.ok,
+        ...(teste.ok ? { modelos: teste.modelos.length, novos: feito.novos } : {}),
+      },
+    );
+    return { ...feito.conta, modelosNovos: feito.novos };
+  }
 
   app.post(
     "/ia/contas/:id/modelos",

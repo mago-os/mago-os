@@ -165,16 +165,23 @@ export async function mudarConta(
   return paraConta(r.rows[0] as LinhaDaConta);
 }
 
-/** Guarda o login renovado do plano (o ChatGPT troca o token de renovação a cada uso). */
+/**
+ * Guarda o login renovado do plano (o ChatGPT troca o token de renovação a cada uso), só se o guardado ainda for o
+ * que foi lido: uma troca de chave feita no meio do teste vale, e a renovação do login antigo é descartada.
+ */
 export async function guardarCredencialRenovada(
   c: pg.PoolClient,
   id: string,
-  cifrada: Buffer,
-): Promise<void> {
-  await c.query(
-    "update contas_de_ia set chave_cifrada = $2, atualizada_em = now() where id = $1 and empresa_id = empresa_ativa()",
-    [id, cifrada],
+  lida: Buffer,
+  nova: Buffer,
+  finalDaChave: string,
+): Promise<boolean> {
+  const r = await c.query(
+    `update contas_de_ia set chave_cifrada = $3, final_da_chave = $4, atualizada_em = now()
+      where id = $1 and empresa_id = empresa_ativa() and chave_cifrada = $2`,
+    [id, lida, nova, finalDaChave],
   );
+  return (r.rowCount ?? 0) > 0;
 }
 
 export async function marcarTeste(c: pg.PoolClient, id: string, erro: string | null): Promise<ContaDeIa> {
@@ -293,7 +300,6 @@ export async function modelosDoAgente(c: pg.PoolClient, agenteId: string): Promi
   };
 }
 
-/** Por que um modelo não pode ser usado agora (null: pode). O teto de gasto entra na M4-06. */
 /** O provedor avisou que o limite do plano acabou: a conta fica sem uso até a hora indicada. */
 export async function marcarLimiteDoPlano(c: pg.PoolClient, id: string, ate: Date | null): Promise<void> {
   await c.query(
@@ -303,6 +309,7 @@ export async function marcarLimiteDoPlano(c: pg.PoolClient, id: string, ate: Dat
   );
 }
 
+/** Por que um modelo não pode ser usado agora (null: pode). O teto de gasto entra na M4-06. */
 export async function modeloIndisponivel(c: pg.PoolClient, m: ModeloEscolhido): Promise<string | null> {
   const r = await c.query<{ situacao: string; liberado: boolean; sumiu: boolean; no_limite: boolean }>(
     `select ct.situacao, mo.liberado, mo.sumiu, coalesce(ct.limite_do_plano_ate > now(), false) as no_limite

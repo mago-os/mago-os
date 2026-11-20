@@ -177,6 +177,10 @@ function CampoDaCredencial({
           className="rounded-md border border-linha bg-cartao px-3 py-2 font-mono text-xs"
           placeholder="Rode codex login no seu computador e cole aqui o conteúdo do auth.json"
         />
+        <p className="text-xs text-texto-2">
+          O Mago OS renova este login ao testar. Depois disso, o Codex do seu computador pede para entrar de
+          novo.
+        </p>
       </div>
     );
   return (
