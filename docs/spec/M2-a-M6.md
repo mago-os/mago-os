@@ -29,6 +29,7 @@ Pronto quando: o coordenador recebe um pedido, passa ao especialista e pede apro
 | M4-07 | Ver cada execução do agente passo a passo |
 | M4-08 | Limite de passos por tarefa e detecção de agente andando em círculo |
 | M4-09 | Botão "Parar todos os agentes", com 2FA, motivo e retomada |
+| M4-10 | Conta de IA por plano de assinatura, por conta e risco do administrador (entrou em 20/11/2026) |
 
 ## M5 Telegram e rotinas
 
