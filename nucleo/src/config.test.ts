@@ -19,7 +19,26 @@ describe("configuração", () => {
       versao: "local",
       acesso: null,
       anexos: { deposito: { tipo: "disco" }, clamav: null },
+      cofre: { atual: { versao: 1, chave: expect.any(Buffer) }, anteriores: [], deTeste: true },
     });
+  });
+
+  it("cofre: chave mestra de 32 bytes; fora do Mac, sem ela, as contas de IA ficam desligadas", () => {
+    const mestra = Buffer.alloc(32, 7).toString("base64");
+    expect(lerConfig({ DATABASE_URL: URL, AMBIENTE: "teste", ...ACESSO }).cofre).toBeNull();
+    const c = lerConfig({ DATABASE_URL: URL, AMBIENTE: "teste", ...ACESSO, MAGO_COFRE_CHAVE_MESTRA: mestra });
+    expect(c.cofre?.deTeste).toBe(false);
+    expect(c.cofre?.atual.versao).toBe(1);
+    expect(() =>
+      lerConfig({ DATABASE_URL: URL, MAGO_COFRE_CHAVE_MESTRA: Buffer.alloc(16).toString("base64") }),
+    ).toThrow(/MAGO_COFRE_CHAVE_MESTRA/);
+    const troca = lerConfig({
+      DATABASE_URL: URL,
+      MAGO_COFRE_CHAVE_MESTRA: mestra,
+      MAGO_COFRE_VERSAO: "2",
+      MAGO_COFRE_CHAVE_ANTERIOR: Buffer.alloc(32, 1).toString("base64"),
+    });
+    expect(troca.cofre?.anteriores.map((a) => a.versao)).toEqual([1]);
   });
 
   it("anexos: as quatro variáveis do depósito juntas, e o ClamAV obrigatório fora do Mac", () => {

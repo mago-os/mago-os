@@ -22,7 +22,23 @@ export interface Config {
   acesso: ConfigDoAcesso | null;
   /** Anexos (M3-08). Nulo fora do Mac quando o depósito não foi configurado: os anexos ficam desligados. */
   anexos: ConfigDosAnexos | null;
+  /**
+   * Cofre das contas de IA (M4-01, decisão 0021). Variável MAGO_COFRE_CHAVE_MESTRA (32 bytes em base64) e
+   * MAGO_COFRE_VERSAO (padrão 1); na troca da mestra, a anterior em MAGO_COFRE_CHAVE_ANTERIOR. Sem a chave fora do
+   * Mac, as contas de IA ficam desligadas. No Mac, sem ela, uma chave fixa só para dados falsos.
+   */
+  cofre: ConfigDoCofre | null;
 }
+
+export interface ConfigDoCofre {
+  atual: { versao: number; chave: Buffer };
+  anteriores: { versao: number; chave: Buffer }[];
+  /** A chave fixa do Mac (só dados falsos). */
+  deTeste: boolean;
+}
+
+/** Chave fixa do Mac: só para dados falsos, nunca vale fora do ambiente local. */
+const CHAVE_MESTRA_DO_MAC = Buffer.alloc(32, "mago-os-so-no-mac");
 
 export interface ConfigDosAnexos {
   /**
@@ -91,6 +107,7 @@ export function lerConfig(env: Record<string, string | undefined> = process.env)
 
   const acesso = lerAcesso(env, ambiente, problemas);
   const anexos = lerAnexos(env, ambiente, problemas);
+  const cofre = lerCofre(env, ambiente, problemas);
 
   if (problemas.length > 0) {
     throw new ErroDeConfig(`Configuração inválida:\n- ${problemas.join("\n- ")}`);
@@ -105,7 +122,42 @@ export function lerConfig(env: Record<string, string | undefined> = process.env)
     versao: env.MAGO_VERSAO ?? "local",
     acesso,
     anexos,
+    cofre,
   };
+}
+
+function lerCofre(
+  env: Record<string, string | undefined>,
+  ambiente: Config["ambiente"],
+  problemas: string[],
+): ConfigDoCofre | null {
+  const texto = env.MAGO_COFRE_CHAVE_MESTRA?.trim() ?? "";
+  const versao = Number(env.MAGO_COFRE_VERSAO ?? "1");
+  if (!Number.isInteger(versao) || versao < 1) {
+    problemas.push("MAGO_COFRE_VERSAO precisa ser um número inteiro a partir de 1");
+    return null;
+  }
+  if (texto === "") {
+    return ambiente === "local"
+      ? { atual: { versao: 1, chave: CHAVE_MESTRA_DO_MAC }, anteriores: [], deTeste: true }
+      : null;
+  }
+  const chave = Buffer.from(texto, "base64");
+  if (chave.length !== 32) {
+    problemas.push("MAGO_COFRE_CHAVE_MESTRA precisa ter 32 bytes em base64 (openssl rand -base64 32)");
+    return null;
+  }
+  const anteriores: ConfigDoCofre["anteriores"] = [];
+  const anterior = env.MAGO_COFRE_CHAVE_ANTERIOR?.trim() ?? "";
+  if (anterior !== "") {
+    const chaveAnterior = Buffer.from(anterior, "base64");
+    if (chaveAnterior.length !== 32 || versao < 2)
+      problemas.push(
+        "MAGO_COFRE_CHAVE_ANTERIOR precisa ter 32 bytes em base64, com MAGO_COFRE_VERSAO 2 ou mais",
+      );
+    else anteriores.push({ versao: versao - 1, chave: chaveAnterior });
+  }
+  return { atual: { versao, chave }, anteriores, deTeste: false };
 }
 
 function lerAnexos(

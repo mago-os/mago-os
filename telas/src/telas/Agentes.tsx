@@ -3,7 +3,7 @@
  * do agente. Todo mundo vê; só o administrador cadastra, edita, pausa, retoma e desliga (a API confere de novo).
  */
 import { type ChaveDeAgente, MINUTOS_SEM_SINAL_PADRAO, type SituacaoAgente } from "@mago-os/contratos";
-import { ArrowLeft, Bot, Plus } from "lucide-react";
+import { ArrowLeft, Bot, KeyRound, Plus } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { listarPessoas, type PessoaDaEmpresa } from "@/acesso";
 import {
@@ -63,7 +63,15 @@ function usePessoasAtivas() {
   return pessoas;
 }
 
-export function Agentes({ podeCadastrar, euId }: { podeCadastrar: boolean; euId: string }) {
+export function Agentes({
+  podeCadastrar,
+  podeContasDeIa = false,
+  euId,
+}: {
+  podeCadastrar: boolean;
+  podeContasDeIa?: boolean;
+  euId: string;
+}) {
   const [agentes, setAgentes] = useState<AgenteNaLista[] | null>(null);
   const [cadastrando, setCadastrando] = useState(false);
   const carregar = useCallback(async () => {
@@ -84,11 +92,21 @@ export function Agentes({ podeCadastrar, euId }: { podeCadastrar: boolean; euId:
           <h1 className="text-2xl font-bold tracking-tight">Agentes</h1>
           <p className="text-sm text-texto-2">Os agentes de IA que trabalham nesta empresa.</p>
         </div>
-        {podeCadastrar && !cadastrando && (
-          <Button onClick={() => setCadastrando(true)}>
-            <Plus /> Cadastrar
-          </Button>
-        )}
+        <div className="flex flex-wrap justify-end gap-2">
+          {podeContasDeIa && (
+            <a
+              href="/agentes/contas-de-ia"
+              className="inline-flex h-10 items-center gap-1.5 rounded-md border border-linha px-3 text-sm font-medium hover:bg-suave"
+            >
+              <KeyRound className="size-4" /> Contas de IA
+            </a>
+          )}
+          {podeCadastrar && !cadastrando && (
+            <Button onClick={() => setCadastrando(true)}>
+              <Plus /> Cadastrar
+            </Button>
+          )}
+        </div>
       </div>
       {cadastrando && (
         <FormularioDoAgente

@@ -31,6 +31,10 @@ erDiagram
     timestamp_with_time_zone criado_em
     timestamp_with_time_zone atualizado_em
     timestamp_with_time_zone desligado_em
+    uuid modelo_principal_conta_id
+    text modelo_principal
+    uuid modelo_reserva_conta_id
+    text modelo_reserva
   }
   ajustes_de_permissao {
     uuid id PK
@@ -101,6 +105,13 @@ erDiagram
     timestamp_with_time_zone revogada_em
     uuid revogada_por
   }
+  chaves_de_dados {
+    uuid empresa_id PK
+    integer versao_da_mestra
+    bytea chave_cifrada
+    timestamp_with_time_zone criada_em
+    timestamp_with_time_zone atualizada_em
+  }
   comentarios_de_tarefa {
     uuid id PK
     uuid empresa_id FK
@@ -120,6 +131,22 @@ erDiagram
     text janela
     timestamp_with_time_zone inicio
     integer valor
+  }
+  contas_de_ia {
+    uuid id PK
+    uuid empresa_id FK
+    text nome
+    text provedor
+    text endereco
+    bytea chave_cifrada
+    text final_da_chave
+    text situacao
+    text ultimo_erro
+    integer teto_mensal
+    timestamp_with_time_zone testada_em
+    uuid criada_por
+    timestamp_with_time_zone criada_em
+    timestamp_with_time_zone atualizada_em
   }
   empresas {
     uuid id PK
@@ -212,6 +239,14 @@ erDiagram
     uuid tarefa_id
     uuid pessoa_id
     uuid agente_id
+  }
+  modelos_de_conta_de_ia {
+    uuid empresa_id FK
+    uuid conta_id PK
+    text modelo PK
+    boolean liberado
+    boolean sumiu
+    timestamp_with_time_zone descoberto_em
   }
   papeis_plataforma {
     uuid pessoa_id PK
@@ -476,8 +511,10 @@ erDiagram
   acesso_aparelhos ||--o{ assinaturas_de_push : "aparelho_id"
   empresas ||--o{ avisos : "empresa_id"
   empresas ||--o{ chaves_de_agente : "empresa_id"
+  empresas ||--o{ chaves_de_dados : "empresa_id"
   empresas ||--o{ comentarios_de_tarefa : "empresa_id"
   empresas ||--o{ contadores_de_agente : "empresa_id"
+  empresas ||--o{ contas_de_ia : "empresa_id"
   empresas ||--o{ espacos : "empresa_id"
   empresas ||--o{ estados_de_prioridade : "empresa_id"
   empresas ||--o{ etiquetas : "empresa_id"
@@ -488,6 +525,7 @@ erDiagram
   empresas ||--o{ membros_de_projeto : "empresa_id"
   empresas ||--o{ mencoes_de_comentario : "empresa_id"
   comentarios_de_tarefa ||--o{ mencoes_de_comentario : "comentario_id"
+  empresas ||--o{ modelos_de_conta_de_ia : "empresa_id"
   pessoas ||--o{ papeis_plataforma : "pessoa_id"
   empresas ||--o{ preferencias_de_notificacao : "empresa_id"
   empresas ||--o{ projetos : "empresa_id"
@@ -564,6 +602,10 @@ Isolamento por empresa (Row Level Security): ligado e forçado.
 | criado_em | timestamp with time zone | sim | `now()` | sistema | Quando o agente foi cadastrado. |
 | atualizado_em | timestamp with time zone | sim | `now()` | sistema | Última mudança no cadastro. |
 | desligado_em | timestamp with time zone | não |  | sistema | Quando o agente foi desligado. |
+| modelo_principal_conta_id | uuid | não |  | empresa | Conta de IA do modelo principal (agentes internos, M4). |
+| modelo_principal | text | não |  | empresa | Modelo principal do agente. |
+| modelo_reserva_conta_id | uuid | não |  | empresa | Conta de IA do modelo reserva (entra se o principal falhar ou chegar no teto). |
+| modelo_reserva | text | não |  | empresa | Modelo reserva do agente. |
 
 ### ajustes_de_permissao
 
@@ -676,6 +718,20 @@ Isolamento por empresa (Row Level Security): ligado e forçado.
 | revogada_em | timestamp with time zone | não |  | sistema | Quando a chave foi revogada (deixa de valer no pedido seguinte). |
 | revogada_por | uuid | não |  | sistema | Pessoa que revogou a chave. |
 
+### chaves_de_dados
+
+Chave de cifra de cada empresa (envelope do cofre), cifrada pela chave mestra que fica fora do banco.
+
+Isolamento por empresa (Row Level Security): ligado e forçado.
+
+| Coluna | Tipo | Obrigatória | Padrão | Marca | Descrição |
+| --- | --- | --- | --- | --- | --- |
+| empresa_id | uuid | sim |  | sistema | Empresa dona da chave. Chave primária. |
+| versao_da_mestra | integer | sim |  | sistema | Versão da chave mestra que cifrou (para a troca da mestra). |
+| chave_cifrada | bytea | sim |  | sensivel | A chave de dados cifrada (número aleatório, texto cifrado e etiqueta do AES-256-GCM). |
+| criada_em | timestamp with time zone | sim | `now()` | sistema | Quando a chave foi criada. |
+| atualizada_em | timestamp with time zone | sim | `now()` | sistema | Última vez que foi cifrada de novo (troca da mestra). |
+
 ### comentarios_de_tarefa
 
 Comentários e notas internas das tarefas. Quem escreveu edita em até 15 minutos; apagado fica sem texto.
@@ -709,6 +765,29 @@ Isolamento por empresa (Row Level Security): ligado e forçado.
 | janela | text | sim |  | sistema | pedidos_minuto ou leituras_hora. |
 | inicio | timestamp with time zone | sim |  | sistema | Começo da janela (minuto ou hora cheios). |
 | valor | integer | sim | `0` | sistema | Quantos pedidos ou registros lidos na janela. |
+
+### contas_de_ia
+
+Contas de IA da empresa (Anthropic, OpenAI e compatíveis). A chave fica só cifrada e nunca sai pela API.
+
+Isolamento por empresa (Row Level Security): ligado e forçado.
+
+| Coluna | Tipo | Obrigatória | Padrão | Marca | Descrição |
+| --- | --- | --- | --- | --- | --- |
+| id | uuid | sim | `uuidv7()` | sistema | Identificador da conta (UUID v7). Chave primária. |
+| empresa_id | uuid | sim |  | sistema | Empresa da conta. Aponta para empresas.id. |
+| nome | text | sim |  | empresa | Nome da conta nas telas (ex.: Anthropic da Nolask). |
+| provedor | text | sim |  | empresa | anthropic ou compativel_openai. |
+| endereco | text | não |  | empresa | Endereço da API, só para compativel_openai. |
+| chave_cifrada | bytea | sim |  | sensivel | A chave do provedor cifrada com a chave de dados da empresa (AES-256-GCM). |
+| final_da_chave | text | sim |  | empresa | Os 4 últimos caracteres da chave, para reconhecer a conta. |
+| situacao | text | sim | `'ativa'::text` | sistema | ativa ou com_erro (o último teste ou chamada falhou). |
+| ultimo_erro | text | não |  | sistema | O que deu errado, em texto curto e sem a chave. |
+| teto_mensal | integer | não |  | empresa | Teto de gasto por mês em centavos de dólar (conferido na M4-06). |
+| testada_em | timestamp with time zone | não |  | sistema | Último teste da chave. |
+| criada_por | uuid | sim |  | sistema | Quem conectou a conta. |
+| criada_em | timestamp with time zone | sim | `now()` | sistema | Quando a conta foi conectada. |
+| atualizada_em | timestamp with time zone | sim | `now()` | sistema | Última mudança na conta. |
 
 ### empresas
 
@@ -871,6 +950,21 @@ Isolamento por empresa (Row Level Security): ligado e forçado.
 | tarefa_id | uuid | sim |  | sistema | Tarefa do comentário. |
 | pessoa_id | uuid | não |  | sistema | Pessoa mencionada. |
 | agente_id | uuid | não |  | sistema | Agente mencionado. |
+
+### modelos_de_conta_de_ia
+
+Modelos que o provedor oferece em cada conta. Chegam desligados; só modelo liberado vai para um agente.
+
+Isolamento por empresa (Row Level Security): ligado e forçado.
+
+| Coluna | Tipo | Obrigatória | Padrão | Marca | Descrição |
+| --- | --- | --- | --- | --- | --- |
+| empresa_id | uuid | sim |  | sistema | Empresa da conta. Aponta para empresas.id. |
+| conta_id | uuid | sim |  | sistema | Conta de IA. Chave primária. |
+| modelo | text | sim |  | empresa | Nome do modelo no provedor (ex.: claude-sonnet-5-5). Chave primária. |
+| liberado | boolean | sim | `false` | empresa | O administrador liberou o modelo para os agentes. |
+| sumiu | boolean | sim | `false` | sistema | Saiu da lista do provedor no último teste. |
+| descoberto_em | timestamp with time zone | sim | `now()` | sistema | Quando o modelo apareceu pela primeira vez. |
 
 ### papeis_plataforma
 

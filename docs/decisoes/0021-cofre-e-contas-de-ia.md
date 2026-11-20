@@ -1,7 +1,7 @@
 # 0021 Cofre interno e contas de IA da empresa
 
 - **Data:** 20/11/2026
-- **Situação:** proposta (aguarda o "aprovado" do Sandro)
+- **Situação:** aceita (aprovada pelo Sandro no chat em 20/11/2026)
 - **Tarefa:** M4-01
 
 ## Contexto
