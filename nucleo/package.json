@@ -24,6 +24,10 @@
     "./tempo-real": "./src/tempo-real/index.ts",
     "./avisos": "./src/avisos/index.ts",
     "./avisos/notificacoes": "./src/avisos/notificacoes.ts",
+    "./anexos": "./src/anexos/index.ts",
+    "./anexos/servico": "./src/anexos/servico.ts",
+    "./anexos/deposito": "./src/anexos/deposito.ts",
+    "./anexos/antivirus": "./src/anexos/antivirus.ts",
     "./mcp": "./src/mcp/index.ts",
     "./documentar-api": "./src/documentar-api.ts"
   },

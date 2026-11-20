@@ -226,7 +226,7 @@ export function registrarRotasDosAnexos(app: FastifyInstance, o: OpcoesDosAnexos
 }
 
 /**
- * Só no Mac e nos testes: a API faz o papel do depósito, servindo os links assinados (/deposito-local/<token>).
+ * Só no Mac e nos testes: a API faz o papel do depósito, servindo os links assinados (/deposito-local?t=<token>).
  * Fica num escopo próprio, porque aceita o corpo do pedido como arquivo (até 25 MB).
  */
 export async function registrarDepositoLocal(app: FastifyInstance, deposito: DepositoEmDisco): Promise<void> {
@@ -234,8 +234,8 @@ export async function registrarDepositoLocal(app: FastifyInstance, deposito: Dep
     escopo.addContentTypeParser("*", { parseAs: "buffer", bodyLimit: 26 * 1024 * 1024 }, (_p, corpo, feito) =>
       feito(null, corpo),
     );
-    escopo.put("/deposito-local/:token", async (pedido, resposta) => {
-      const { token } = pedido.params as { token: string };
+    escopo.put("/deposito-local", async (pedido, resposta) => {
+      const token = String((pedido.query as { t?: string }).t ?? "");
       const link = deposito.conferirLink(token);
       const corpo = pedido.body as Buffer | undefined;
       if (
@@ -250,8 +250,8 @@ export async function registrarDepositoLocal(app: FastifyInstance, deposito: Dep
       await deposito.gravar(link.caminho, corpo);
       return resposta.code(200).send();
     });
-    escopo.get("/deposito-local/:token", async (pedido, resposta) => {
-      const { token } = pedido.params as { token: string };
+    escopo.get("/deposito-local", async (pedido, resposta) => {
+      const token = String((pedido.query as { t?: string }).t ?? "");
       const link = deposito.conferirLink(token);
       if (link?.metodo !== "GET") return resposta.code(403).send({ code: "LINK_INVALIDO" });
       const info = await deposito.info(link.caminho);

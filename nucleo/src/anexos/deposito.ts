@@ -200,7 +200,7 @@ export interface DepositoEmDisco extends Deposito {
 }
 
 /**
- * Pasta do computador como depósito. Os links apontam para a própria API (/api/deposito-local/<token>), assinados com
+ * Pasta do computador como depósito. Os links apontam para a própria API (/api/deposito-local?t=<token>), assinados com
  * um segredo sorteado ao ligar: valem só enquanto a API estiver no ar, o que basta no Mac e nos testes.
  */
 export function criarDepositoEmDisco(
@@ -218,7 +218,7 @@ export function criarDepositoEmDisco(
     const expiraEm = new Date(agora().getTime() + segundos * 1000);
     const corpo = Buffer.from(JSON.stringify({ ...dados, ate: expiraEm.getTime() })).toString("base64url");
     const marca = createHmac("sha256", segredo).update(corpo).digest("base64url");
-    return { url: `${urlPublica}/api/deposito-local/${corpo}.${marca}`, expiraEm };
+    return { url: `${urlPublica}/api/deposito-local?t=${corpo}.${marca}`, expiraEm };
   }
   return {
     linkDeEnvio: (caminho, tipo, tamanho, segundos) =>

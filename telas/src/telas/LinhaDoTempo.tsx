@@ -5,6 +5,7 @@
  */
 import {
   type AcontecimentoDaTarefa,
+  type Anexo,
   type ComentarioDeTarefa,
   NOMES_PRIORIDADE,
   NOMES_STATUS_TAREFA,
@@ -20,6 +21,7 @@ import { Button } from "@/componentes/ui/button";
 import { cn } from "@/lib/utils";
 import { apagarComentario, comentarTarefa, editarComentario } from "@/tarefas";
 import { Aviso } from "./Acesso";
+import { BotoesDeAnexar, enviarArquivos, ListaDeAnexos } from "./Anexos";
 import { MarcaDeAgente, nomeDe, quando } from "./Tarefas";
 
 type Mensagem = { texto: string; tipo: "erro" | "ok" } | null;
@@ -136,6 +138,8 @@ export function LinhaDoTempo({
   podeApagarTodos,
   destaques,
   aoMudar,
+  anexos = [],
+  aoMudarAnexos = () => {},
 }: {
   tarefaId: string;
   comentarios: ComentarioDeTarefa[];
@@ -148,6 +152,9 @@ export function LinhaDoTempo({
   podeApagarTodos: boolean;
   destaques: Set<string>;
   aoMudar: () => void;
+  /** Anexos da tarefa (M3-08): os de cada comentário aparecem nele. */
+  anexos?: Anexo[];
+  aoMudarAnexos?: () => void;
 }) {
   const [mensagem, setMensagem] = useState<Mensagem>(null);
   const [editando, setEditando] = useState<string | null>(null);
@@ -242,12 +249,28 @@ export function LinhaDoTempo({
               ) : (
                 <TextoComFormatacao texto={c.texto ?? ""} />
               )}
+              {!c.apagadoEm && (
+                <ListaDeAnexos
+                  anexos={anexos.filter((a) => a.comentarioId === c.id)}
+                  euId={euId}
+                  podeExcluirTodos={podeApagarTodos}
+                  aoMudar={aoMudarAnexos}
+                />
+              )}
             </li>
           );
         })}
       </ul>
       {mensagem && <Aviso {...mensagem} />}
-      <NovoComentario tarefaId={tarefaId} pessoas={pessoas} agentes={agentes} aoComentar={aoMudar} />
+      <NovoComentario
+        tarefaId={tarefaId}
+        pessoas={pessoas}
+        agentes={agentes}
+        aoComentar={() => {
+          aoMudar();
+          aoMudarAnexos();
+        }}
+      />
     </section>
   );
 }
@@ -308,6 +331,7 @@ function NovoComentario({
   const [mencoes, setMencoes] = useState<Mencionavel[]>([]);
   const [busca, setBusca] = useState<string | null>(null);
   const [mensagem, setMensagem] = useState<Mensagem>(null);
+  const [arquivos, setArquivos] = useState<File[]>([]);
   const caixa = useRef<HTMLTextAreaElement>(null);
   const todos: Mencionavel[] = [
     ...pessoas.map((p) => ({ quem: { tipo: "pessoa" as const, pessoaId: p.id }, nome: p.nome })),
@@ -341,6 +365,12 @@ function NovoComentario({
     const r = await comentarTarefa(tarefaId, texto.trim(), { interna, mencoes: valendo });
     if (!r.ok) return setMensagem({ tipo: "erro", texto: r.mensagem ?? "" });
     setMensagem(null);
+    // Os arquivos escolhidos vão como anexos do comentário que acabou de nascer (M3-08).
+    if (arquivos.length > 0 && r.dados) {
+      const envio = await enviarArquivos(tarefaId, arquivos, r.dados.id);
+      setArquivos([]);
+      if (envio?.tipo === "erro") setMensagem(envio);
+    }
     // O tempo real pode mostrar o comentário antes da resposta chegar: o que a pessoa já começou a escrever depois
     // não se perde.
     const agora = caixa.current?.value ?? enviado;
@@ -397,7 +427,16 @@ function NovoComentario({
         </ul>
       )}
       {mensagem && <Aviso {...mensagem} />}
+      {arquivos.length > 0 && (
+        <p className="text-sm text-texto-2">
+          Vai junto: {arquivos.map((a) => a.name).join(", ")}{" "}
+          <button type="button" className="underline" onClick={() => setArquivos([])}>
+            tirar
+          </button>
+        </p>
+      )}
       <div className="flex flex-wrap items-center gap-3">
+        <BotoesDeAnexar aoEscolher={(novos) => setArquivos((l) => [...l, ...novos])} />
         <Button type="submit" variant="contorno">
           {interna ? "Salvar nota interna" : "Comentar"}
         </Button>

@@ -57,6 +57,10 @@ docker run -d --name "mago-os-api-$cor" --restart unless-stopped \
   --network "$REDE_BORDA" -p "127.0.0.1:$porta:3000" --env-file "$BASE/api.env" \
   --memory 768m --cpus 1 --log-opt max-size=10m --log-opt max-file=3 "$alvo" >/dev/null
 docker network connect "$REDE_BANCO" "mago-os-api-$cor"
+# Antivírus dos anexos (M3-08), quando o container existir.
+if docker network inspect mago-os_mago_antivirus >/dev/null 2>&1; then
+  docker network connect mago-os_mago_antivirus "mago-os-api-$cor"
+fi
 
 desistir() {
   log "FALHOU: $1. A versão anterior continua no ar."
