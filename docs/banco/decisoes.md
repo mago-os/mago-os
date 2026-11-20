@@ -236,3 +236,10 @@ O login (`mago_acesso`) não lê papéis nem as regras da plataforma direto. As 
 
 - Nenhuma mudança de estrutura: a tela muda as colunas que `empresas` já tinha (nome, tipo, documento, nome legal, fuso, idioma e telefone), pela política de sempre (só a empresa ativa). A troca é feita numa transação com a linha travada, e o documento continua único entre as contas.
 - O fuso novo vale para os prazos e recorrências marcados depois: cada prazo guarda o fuso em que foi marcado (seção 23) e não muda de hora.
+
+## 32. Contas de IA e cofre (20/11/2026, M4-01)
+
+- O cofre usa envelope ([decisão 0021](../decisoes/0021-cofre-e-contas-de-ia.md)): `chaves_de_dados` guarda uma chave por empresa, cifrada pela chave mestra (que fica no Infisical, nunca no banco), com a versão da mestra para a troca. `contas_de_ia.chave_cifrada` é a chave do provedor cifrada com a chave da empresa. As duas colunas são `[sensivel]`, e nenhuma rota as devolve.
+- O texto cifrado leva a empresa e a conta como dado autenticado: copiado para outra linha, ele não decifra.
+- `modelos_de_conta_de_ia` repete a `empresa_id` para a política de sempre e para a chave estrangeira dos agentes. Os modelos chegam desligados.
+- `agentes` ganha o modelo principal e o reserva como pares (conta, modelo) que apontam para um modelo da mesma empresa. Apagar a conta apaga os modelos, e a escolha do agente fica vazia (`ON DELETE SET NULL` só nas duas colunas do par).

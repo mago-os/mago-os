@@ -364,6 +364,15 @@ Todas com o prefixo `/api` no site, menos `/mcp`, que fica em `https://teste.osm
 | GET | `/agentes/:id/chaves` | agentes.editar | Lista as chaves (só o começo de cada uma). |
 | POST | `/agentes/:id/chaves` | agentes.editar | Cria uma chave; a chave inteira vem só nesta resposta. |
 | POST | `/agentes/:id/chaves/:chaveId/revogar` | agentes.editar | Revoga a chave (vale no pedido seguinte). |
+| GET | `/agentes/:id/modelos` | agentes.ver | O modelo principal e o reserva do agente (M4-01), ou null. |
+| POST | `/agentes/:id/modelos` | agentes.editar | Escolhe o principal e o reserva ({ modelos: ... } ou { modelos: null }). Só modelos liberados. |
+| GET | `/ia/contas` | contas_de_ia.ver | As contas de IA da empresa (sem a chave, só os 4 últimos caracteres) e se o cofre está ligado. |
+| POST | `/ia/contas` | contas_de_ia.criar | Conecta uma conta: testa a chave no provedor antes de gravar. Pede o segundo fator recente. |
+| POST | `/ia/contas/:id` | contas_de_ia.editar | Muda o nome, o teto ou troca a chave (testada antes; pede o segundo fator recente). |
+| POST | `/ia/contas/:id/testar` | contas_de_ia.editar | Testa a chave guardada e atualiza a lista de modelos (os novos chegam desligados). |
+| GET | `/ia/contas/:id/modelos` | contas_de_ia.ver | Os modelos da conta, liberados ou não. |
+| POST | `/ia/contas/:id/modelos` | contas_de_ia.editar | Libera ou desliga modelos (não desliga um modelo que algum agente usa). |
+| DELETE | `/ia/contas/:id` | contas_de_ia.excluir | Apaga a conta e a chave; os agentes que a usavam ficam sem modelo. |
 | GET | `/avisos` | tarefas.ver | Avisos não lidos da própria pessoa. |
 | POST | `/avisos/:id/lido` | tarefas.ver | Marca o aviso como lido. |
 | POST | `/agente/estou-vivo` | chave do agente | Sinal de vida do agente (Authorization: Bearer mago_ag_...). |
@@ -596,3 +605,34 @@ Recebe:
 
 - `nome` (string, obrigatório): Para que serve a chave.
 - `validaAte` (data e hora ou null)
+
+### POST `/agentes/:id/modelos`
+
+Recebe:
+
+- `principal` (objeto, obrigatório)
+- `reserva` (objeto ou null, obrigatório)
+
+### POST `/ia/contas`
+
+Recebe:
+
+- `nome` (string, obrigatório): Nome da conta como aparece nas telas (ex.: Anthropic da Nolask).
+- `provedor` ("anthropic" | "compativel_openai", obrigatório): anthropic ou compativel_openai (OpenAI, OpenRouter, DeepSeek, Groq, Ollama e parecidos).
+- `endereco` (string ou null)
+- `chave` (string, obrigatório): Chave do provedor. Só entra: nunca é devolvida pela API.
+- `tetoMensal` (integer ou null)
+
+### POST `/ia/contas/:id`
+
+Recebe:
+
+- `nome` (string): Nome da conta como aparece nas telas (ex.: Anthropic da Nolask).
+- `tetoMensal` (integer ou null)
+- `chave` (string): Chave do provedor. Só entra: nunca é devolvida pela API.
+
+### POST `/ia/contas/:id/modelos`
+
+Recebe:
+
+- `modelos` (lista de objeto, obrigatório)

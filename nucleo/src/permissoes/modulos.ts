@@ -41,6 +41,14 @@ export const MODULOS_DO_NUCLEO: readonly DeclaracaoDeModulo[] = [
     temDadosSensiveis: false,
     area: null,
   },
+  // Contas de IA (M4-01): as chaves dos provedores de IA da empresa. Padrão: só o administrador (ninguém lê a chave).
+  {
+    id: "contas_de_ia",
+    nome: "Contas de IA",
+    acoes: ["ver", "criar", "editar", "excluir"],
+    temDadosSensiveis: true,
+    area: null,
+  },
   // Espaços (M3-01): todos veem; só o administrador cria, edita e arquiva.
   {
     id: "espacos",

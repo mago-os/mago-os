@@ -23,6 +23,9 @@ import { registrarRotaDaBusca } from "./busca/index.ts";
 import { ErroDeConfig, lerConfig } from "./config.ts";
 import { registrarRotasDaConta } from "./conta/rotas.ts";
 import { registrarRotasDasContas } from "./contas/rotas.ts";
+import { criarCofre } from "./contas-de-ia/cofre.ts";
+import { provedoresDeVerdade } from "./contas-de-ia/provedores.ts";
+import { registrarRotasDasContasDeIa } from "./contas-de-ia/rotas.ts";
 import { registrarRotasDosConvites } from "./convites/rotas.ts";
 import { registrarRotasDosDadosDaEmpresa } from "./dados-da-empresa/index.ts";
 import { criarFila } from "./fila.ts";
@@ -99,6 +102,16 @@ async function iniciar(): Promise<void> {
       urlPublica: config.acesso.urlPublica,
     };
     registrarRotasDosAgentes(app, opcoesDosAgentes);
+    // Contas de IA (M4-01): sem a chave mestra fora do Mac, ficam desligadas.
+    if (!config.cofre) app.log.warn("Contas de IA desligadas: MAGO_COFRE_CHAVE_MESTRA não foi informada");
+    else if (config.cofre.deTeste) app.log.warn("Cofre com a chave fixa do Mac: só para dados falsos");
+    registrarRotasDasContasDeIa(app, {
+      verificador,
+      poolApp: banco.pool,
+      cofre: config.cofre ? criarCofre(config.cofre) : null,
+      provedores: provedoresDeVerdade(config.ambiente),
+      ambiente: config.ambiente,
+    });
     registrarRotasDoAgente(app, opcoesDosAgentes);
     registrarServidorMcp(app, { ...opcoesDosAgentes, anexos: servicosDosAnexos });
     registrarRotasDosAnexos(app, {

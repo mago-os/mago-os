@@ -83,6 +83,8 @@ export async function lerEstrutura(
               join pg_namespace rn on rn.oid = r.relnamespace
               join pg_attribute ra on ra.attrelid = k.confrelid and ra.attnum = k.confkey[1]
              where k.conrelid = c.oid and k.contype = 'f' and k.conkey[1] = a.attnum
+             -- A chave simples (ex.: empresa_id -> empresas.id) vale antes das compostas que começam pela coluna.
+             order by array_length(k.conkey, 1), k.conname
              limit 1) as referencia
       from pg_class c
       join pg_namespace n on n.oid = c.relnamespace

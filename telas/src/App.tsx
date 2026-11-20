@@ -27,6 +27,7 @@ import { Auditoria, Pessoas, Seguranca } from "./telas/Administrador";
 import { Agentes, PaginaDoAgente } from "./telas/Agentes";
 import { AvisosDeAcesso, MeusAparelhos } from "./telas/Aparelhos";
 import { AvisosDoMago } from "./telas/Avisos";
+import { ContasDeIa } from "./telas/ContasDeIa";
 import { AceitarConvite } from "./telas/Convite";
 import { DadosDaEmpresa } from "./telas/DadosDaEmpresa";
 import { AtivarDoisFatores, ConfirmarSegundoFator } from "./telas/DoisFatores";
@@ -223,7 +224,21 @@ export function App() {
   const projetoAberto = /^\/projetos\/([0-9a-f-]{36})$/i.exec(caminho)?.[1];
   if (caminho === "/perfil") conteudo = <MeuPerfil />;
   else if (caminho === "/agentes" && pode("agentes", "ver"))
-    conteudo = <Agentes podeCadastrar={pode("agentes", "criar")} euId={sessao.pessoa.id} />;
+    conteudo = (
+      <Agentes
+        podeCadastrar={pode("agentes", "criar")}
+        podeContasDeIa={pode("contas_de_ia", "ver")}
+        euId={sessao.pessoa.id}
+      />
+    );
+  else if (caminho === "/agentes/contas-de-ia" && pode("contas_de_ia", "ver"))
+    conteudo = (
+      <ContasDeIa
+        podeCriar={pode("contas_de_ia", "criar")}
+        podeEditar={pode("contas_de_ia", "editar")}
+        podeExcluir={pode("contas_de_ia", "excluir")}
+      />
+    );
   else if (agenteAberto && pode("agentes", "ver"))
     conteudo = (
       <PaginaDoAgente
