@@ -320,6 +320,7 @@ Todas com o prefixo `/api` no site, menos `/mcp`, que fica em `https://teste.osm
 | GET | `/tarefas/:id/anexos/:anexoId/link` | tarefas.ver | Link de 5 minutos para baixar ou ver um anexo liberado pelo antivírus. |
 | DELETE | `/tarefas/:id/anexos/:anexoId` | tarefas.ver (quem enviou) ou tarefas.excluir (tudo) | Exclui o anexo (o arquivo sai do depósito pela fila). |
 | GET | `/empresa/espaco-dos-anexos` | seguranca.ver | Quanto os anexos da empresa ocupam no depósito. |
+| GET | `/busca` | tarefas.ver (cada tipo pela própria permissão) | Busca Ctrl+K: tarefas, comentários, projetos, espaços, pessoas e agentes, sem acento e tolerante a erro de digitação. |
 | GET | `/prioridades` | tarefas.ver | Central de prioridades de quem pede, na ordem fixa (atrasadas, hoje, ajuda, menções, avisos). |
 | POST | `/prioridades/adiar` | tarefas.ver | Adia um item da central até um dia (só para quem pede). |
 | POST | `/prioridades/resolver` | tarefas.ver | Marca um item da central como resolvido (aviso de agente fica lido). |

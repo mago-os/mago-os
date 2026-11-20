@@ -225,6 +225,13 @@ export const ROTAS: Rota[] = [
   },
   {
     metodo: "GET",
+    caminho: "/busca",
+    permissao: "tarefas.ver (cada tipo pela própria permissão)",
+    oQueFaz:
+      "Busca Ctrl+K: tarefas, comentários, projetos, espaços, pessoas e agentes, sem acento e tolerante a erro de digitação.",
+  },
+  {
+    metodo: "GET",
     caminho: "/prioridades",
     permissao: "tarefas.ver",
     oQueFaz: "Central de prioridades de quem pede, na ordem fixa (atrasadas, hoje, ajuda, menções, avisos).",

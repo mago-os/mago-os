@@ -15,6 +15,7 @@ import {
   sair,
   trocarEmpresa,
 } from "./acesso";
+import { Busca } from "./componentes/Busca";
 import { BotaoDoTema, Casca, type ItemDoMenu, Logo } from "./componentes/Casca";
 import { EstadoDoSistema } from "./componentes/EstadoDoSistema";
 import { Mago } from "./componentes/Mago";
@@ -303,6 +304,15 @@ export function App() {
       aoSair={() => void aoSair()}
       instalar={instalar ? () => void instalar.prompt() : null}
       sino={temEmpresaAtiva ? <Sino /> : null}
+      busca={
+        temEmpresaAtiva ? (
+          <Busca
+            podeAgentes={pode("agentes", "ver")}
+            podeCriarTarefa={pode("tarefas", "criar")}
+            podeCriarProjeto={pode("projetos", "criar")}
+          />
+        ) : null
+      }
     >
       <AvisosDeAcesso avisos={avisos} aoResponder={() => void carregarAvisos()} />
       {temEmpresaAtiva && <AvisosDoMago />}

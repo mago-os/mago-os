@@ -19,6 +19,7 @@ import { cuidarDosAnexos, espacoTotal, type ServicosDosAnexos } from "./anexos/s
 import { registrarRotasDosAvisos } from "./avisos/index.ts";
 import { enviadorWebPush, enviarPushPendentes, verificarPrazos } from "./avisos/notificacoes.ts";
 import { criarBanco } from "./banco.ts";
+import { registrarRotaDaBusca } from "./busca/index.ts";
 import { ErroDeConfig, lerConfig } from "./config.ts";
 import { registrarRotasDaConta } from "./conta/rotas.ts";
 import { registrarRotasDasContas } from "./contas/rotas.ts";
@@ -79,6 +80,7 @@ async function iniciar(): Promise<void> {
     registrarRotasDePermissoes(app, verificador, banco.pool);
     registrarRotasDasTarefas(app, verificador, banco.pool);
     registrarRotasDosProjetos(app, verificador, banco.pool);
+    registrarRotaDaBusca(app, verificador, banco.pool);
     await registrarTempoReal(app, {
       login,
       poolAcesso: poolDoLogin,

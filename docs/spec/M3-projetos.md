@@ -1,6 +1,6 @@
 # Spec da Fase 1: M3 Projetos e tarefas completos
 
-Parte da [spec da Fase 1](README.md). Estado em 19/11/2026: **aprovado** pelo Sandro, com todas as recomendações (inclusive a M3-11 e os eventos da agenda simples no M5). Em construção: M3-01 a M3-07 prontas em 19/11/2026 e M3-08 em 20/11/2026.
+Parte da [spec da Fase 1](README.md). Estado em 19/11/2026: **aprovado** pelo Sandro, com todas as recomendações (inclusive a M3-11 e os eventos da agenda simples no M5). Em construção: M3-01 a M3-07 prontas em 19/11/2026 e M3-08 e M3-09 em 20/11/2026.
 
 **Pronto quando:** a Nolask organiza um projeto real no Mago OS (sugestão: a própria construção do Mago OS, com as tarefas do M4), com espaço, projeto, diretor e gerente, listas, subtarefas, prazos e etiquetas, e acompanha pelo Kanban, pela lista e pelo calendário. Uma menção a uma pessoa chega no sino e no celular, um anexo passa pelo antivírus antes de abrir, a central de prioridades mostra o que vence hoje e o Ctrl+K acha a tarefa pelo nome. Os testes provam que uma empresa não vê projetos, anexos, notificações nem resultados de busca da outra.
 
@@ -148,11 +148,11 @@ Pronto quando: o Sandro anexa um PDF pelo celular e ele abre com prévia depois 
 
 ### M3-09 Busca Ctrl+K
 
-- [ ] Busca de texto do PostgreSQL em português, sem acento e tolerante a erro de digitação (pg_trgm), em tarefas, comentários, projetos, espaços, pessoas e agentes; a busca por significado (pgvector) entra junto com a memória da empresa, na Fase 2 (decisão 15)
-- [ ] Sempre com a permissão de quem busca: a mesma regra das listas, testada com o funcionário
-- [ ] Atalho Ctrl+K (Cmd+K no Mac) no computador e lupa no celular; resultados agrupados por tipo, navegação só pelo teclado
-- [ ] Comandos rápidos na mesma caixa: "nova tarefa", "novo projeto", "abrir agentes", "abrir central de prioridades", "minhas tarefas"
-- [ ] Teste de vazamento: a busca de uma empresa não acha nada da outra, nem pelo título exato
+- [x] Busca de texto do PostgreSQL em português, sem acento e tolerante a erro de digitação (pg_trgm), em tarefas, comentários, projetos, espaços, pessoas e agentes; a busca por significado (pgvector) entra junto com a memória da empresa, na Fase 2 (decisão 15)
+- [x] Sempre com a permissão de quem busca: a mesma regra das listas, testada com o funcionário
+- [x] Atalho Ctrl+K (Cmd+K no Mac) no computador e lupa no celular; resultados agrupados por tipo, navegação só pelo teclado
+- [x] Comandos rápidos na mesma caixa: "nova tarefa", "novo projeto", "abrir agentes", "abrir central de prioridades", "minhas tarefas". Ajuste na codificação: só aparecem os comandos que a pessoa pode usar, e cada tipo de resultado só para quem pode vê-lo (pessoas pela permissão de pessoas, só nome e área; agentes pela de agentes); buscar não entra na auditoria
+- [x] Teste de vazamento: a busca de uma empresa não acha nada da outra, nem pelo título exato
 
 Pronto quando: o Sandro aperta Ctrl+K, digita "bakup" e acha a tarefa "Conferir o backup".
 
