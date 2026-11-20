@@ -29,6 +29,7 @@ import {
   PedidoDeItemDeChecklist,
   PedidoDeLiberarModelos,
   PedidoDeLista,
+  PedidoDeMensagem,
   PedidoDeMudarLista,
   PedidoDeMudarProjeto,
   PedidoDeMudarStatus,
@@ -519,6 +520,38 @@ export const ROTAS: Rota[] = [
     permissao: "agentes.editar",
     oQueFaz: "Escolhe o principal e o reserva ({ modelos: ... } ou { modelos: null }). Só modelos liberados.",
     recebe: ModelosDoAgente,
+  },
+  {
+    metodo: "GET",
+    caminho: "/ia/modelos",
+    permissao: "agentes.editar",
+    oQueFaz: "Os modelos liberados de todas as contas de IA, para escolher o do agente.",
+  },
+  {
+    metodo: "GET",
+    caminho: "/conversas",
+    permissao: "agentes.ver",
+    oQueFaz: "O coordenador da empresa e as conversas da própria pessoa com ele (M4-02).",
+  },
+  {
+    metodo: "GET",
+    caminho: "/conversas/:id",
+    permissao: "agentes.ver",
+    oQueFaz: "As mensagens de uma conversa da própria pessoa e quantas execuções ainda rodam.",
+  },
+  {
+    metodo: "POST",
+    caminho: "/conversas/mensagens",
+    permissao: "agentes.ver",
+    oQueFaz:
+      "Manda uma mensagem ao coordenador (sem conversaId, começa uma conversa); vira trabalho na fila.",
+    recebe: PedidoDeMensagem,
+  },
+  {
+    metodo: "DELETE",
+    caminho: "/conversas/:id",
+    permissao: "agentes.ver",
+    oQueFaz: "Apaga uma conversa da própria pessoa (as tarefas criadas continuam).",
   },
   {
     metodo: "GET",

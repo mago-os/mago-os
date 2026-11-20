@@ -32,6 +32,7 @@ import {
   cadastrarAgente,
   devolverTarefasPegadas,
   editarAgente,
+  garantirAgentesDeNascenca,
   listarAgentes,
   mudarSituacao,
   passarTarefasAoResponsavel,
@@ -89,7 +90,11 @@ export function registrarRotasDosAgentes(app: FastifyInstance, o: OpcoesDosAgent
   }
 
   app.get("/agentes", { preHandler: verificador.exigir("agentes", "ver") }, async (pedido) =>
-    naEmpresa(pedido, (c) => listarAgentes(c)),
+    naEmpresa(pedido, async (c) => {
+      // Empresa nova ganha o Coordenador e o Gerente de projetos no primeiro uso (M4-02).
+      await garantirAgentesDeNascenca(c);
+      return listarAgentes(c);
+    }),
   );
 
   app.get("/agentes/:id", { preHandler: verificador.exigir("agentes", "ver") }, async (pedido, resposta) => {
@@ -165,9 +170,22 @@ export function registrarRotasDosAgentes(app: FastifyInstance, o: OpcoesDosAgent
         const atual = await agenteAlcancado(c, pedido, id);
         if (!atual) return null;
         if (atual.situacao !== de) return atual.situacao;
+        // O agente interno só liga com um modelo de IA escolhido (M4-02).
+        if (para === "ativo" && atual.tipo === "interno") {
+          const m = await c.query(
+            "select 1 from agentes where id = $1 and empresa_id = empresa_ativa() and modelo_principal is not null",
+            [id],
+          );
+          if ((m.rowCount ?? 0) === 0) return "sem_modelo" as const;
+        }
         return mudarSituacao(c, id, para);
       });
       if (!feito) return naoEncontrado(resposta);
+      if (feito === "sem_modelo")
+        return resposta.code(409).send({
+          code: "SEM_MODELO",
+          message: "Escolha o modelo de IA do agente antes de ligar.",
+        });
       if (typeof feito === "string") {
         return resposta.code(409).send({
           code: "SITUACAO_INVALIDA",

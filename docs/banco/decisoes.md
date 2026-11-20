@@ -250,3 +250,10 @@ O login (`mago_acesso`) não lê papéis nem as regras da plataforma direto. As 
 - A assinatura guarda o aceite do aviso dos termos (quem, quando e a versão) e não tem teto em dólar; a chave de API não tem aceite nem limite do plano. Quem aceitou precisa ter vínculo com a empresa.
 - `limite_do_plano_ate` marca até quando o plano está sem uso (o provedor avisou que acabou).
 - O texto cifrado aceita o arquivo de login do Codex (até 20 mil caracteres no pedido, com folga para caracteres de vários bytes).
+
+## 34. Agentes internos, conversas e execuções (20/11/2026, M4-02)
+
+- `agentes` ganha o tipo `interno`, o papel (coordenador ou especialista), a especialidade e a quem responde ([decisão 0023](../decisoes/0023-motor-dos-agentes-internos.md)). Uma regra no banco amarra o papel ao tipo, e índices garantem um coordenador e um especialista de cada área por empresa (fora os desligados).
+- `conversas` e `mensagens_de_conversa` são de uma pessoa: a política usa `empresa_ativa()` e, quando há pessoa no pedido, `pessoa_ativa()`. O motor dos agentes roda como trabalho do sistema (sem pessoa) e responde em qualquer conversa da empresa. A mensagem repete a dona da conversa para a política não precisar de junção.
+- `execucoes_de_agente` registra cada execução com quem pediu (vínculo na empresa), a origem e o modelo que rodou. A regra das horas (início e fim) bate com a situação.
+- As empresas que já existiam ganharam o Coordenador e o Gerente de projetos na migração, pausados e com o administrador mais antigo como responsável; as novas ganham no primeiro uso, pelo núcleo.

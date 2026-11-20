@@ -24,6 +24,7 @@ import { cn } from "@/lib/utils";
 import { useTempoReal } from "@/tempo-real";
 import { Aviso } from "./Acesso";
 import { useAoVoltar } from "./Administrador";
+import { ModeloDoAgente } from "./ModeloDoAgente";
 
 type Mensagem = { texto: string; tipo: "erro" | "ok" } | null;
 
@@ -337,19 +338,38 @@ export function PaginaDoAgente({
       ) : (
         <Card className="gap-2 text-sm">
           <Linha rotulo="Responsável" valor={agente.responsavelNome} />
-          <Linha rotulo="Onde roda" valor={agente.ondeRoda ?? "Não informado"} />
-          <Linha rotulo="Tipo" valor="Externo (entra pelo MCP)" />
+          {agente.tipo === "externo" ? (
+            <>
+              <Linha rotulo="Onde roda" valor={agente.ondeRoda ?? "Não informado"} />
+              <Linha rotulo="Tipo" valor="Externo (entra pelo MCP)" />
+            </>
+          ) : (
+            <Linha
+              rotulo="Tipo"
+              valor={agente.papel === "coordenador" ? "Interno: coordenador" : "Interno: Gerente de projetos"}
+            />
+          )}
           <Linha
             rotulo="Tarefas abertas"
             valor={agente.tarefasAbertas === 1 ? "1" : String(agente.tarefasAbertas)}
           />
-          <Linha rotulo="Sem sinal por" valor={`${agente.minutosSemSinal} min, a tarefa volta para a fila`} />
+          {agente.tipo === "externo" && (
+            <Linha
+              rotulo="Sem sinal por"
+              valor={`${agente.minutosSemSinal} min, a tarefa volta para a fila`}
+            />
+          )}
           {agente.desligadoEm && (
             <Linha rotulo="Desligado em" valor={new Date(agente.desligadoEm).toLocaleString("pt-BR")} />
           )}
         </Card>
       )}
-      {podeEditar && <ChavesDoAgente agenteId={agente.id} desligado={desligado} />}
+      {podeEditar && agente.tipo === "interno" && !desligado && (
+        <ModeloDoAgente agenteId={agente.id} aoMudar={() => void carregar()} />
+      )}
+      {podeEditar && agente.tipo === "externo" && (
+        <ChavesDoAgente agenteId={agente.id} desligado={desligado} />
+      )}
       {!desligado && !editando && (podeEditar || podeDesligar) && (
         <div className="flex flex-wrap gap-2">
           {podeEditar && (

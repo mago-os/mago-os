@@ -64,6 +64,18 @@ export async function criarPessoaDeTeste(
       const c = new pg.Client({ connectionString: BANCO_DONO });
       await c.connect();
       await c.query("delete from acesso.travas where email = $1", [email]);
+      // Os agentes internos que a empresa ganhou no primeiro uso (M4-02) têm a pessoa como responsável.
+      const pessoa = await c.query<{ id: string }>("select id from pessoas where email = $1", [email]);
+      const pessoaId = pessoa.rows[0]?.id;
+      if (pessoaId) {
+        await c.query("delete from conversas where pessoa_id = $1", [pessoaId]);
+        await c.query("delete from execucoes_de_agente where pedido_por = $1", [pessoaId]);
+        await c.query(
+          "delete from agentes where responsavel_id = $1 and tipo = 'interno' and papel = 'especialista'",
+          [pessoaId],
+        );
+        await c.query("delete from agentes where responsavel_id = $1 and tipo = 'interno'", [pessoaId]);
+      }
       await c.query("delete from pessoas where email = $1", [email]);
       // A empresa de teste fica (suspensa): a auditoria guarda os eventos dela e não deixa apagar.
       if (empresaId && criouEmpresa) {

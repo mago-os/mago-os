@@ -3,14 +3,16 @@
  *
  * No M2 só existe o agente externo: ele roda fora do Mago OS (ex.: Claude no Mac, Hermes na VPS01) e
  * entra pelo MCP com uma chave própria. A chave tem contrato próprio na M2-04 (é segurança, aprovação
- * à parte). Agentes internos, chaves de IA e teto de gasto vêm no M4.
+ * à parte). M4-02: o agente interno roda dentro do Mago OS (coordenador ou especialista), com papel, especialidade e
+ * a quem responde (contrato em internos.ts).
  */
 import { type Static, Type } from "typebox";
 import { conferir, DataHora, Id, OuNulo, type Problema, type Regra, Texto } from "../comum.ts";
+import { Especialidade, PapelDeAgente } from "./internos.ts";
 
-export const TIPOS_AGENTE = ["externo"] as const;
+export const TIPOS_AGENTE = ["externo", "interno"] as const;
 export const TipoAgente = Type.Enum(TIPOS_AGENTE, {
-  description: "externo: roda fora do Mago OS e entra pelo MCP. Os internos vêm no M4.",
+  description: "externo: roda fora do Mago OS e entra pelo MCP. interno: roda dentro do Mago OS (M4-02).",
 });
 export type TipoAgente = Static<typeof TipoAgente>;
 
@@ -46,6 +48,10 @@ export const Agente = Type.Object(
     ondeRoda: OuNulo(OndeRoda),
     /** Pessoa da empresa que responde pelo agente e recebe os avisos dele. Obrigatória. */
     responsavelId: Id,
+    /** Só do agente interno: coordenador ou especialista, a especialidade e a quem ele responde. */
+    papel: OuNulo(PapelDeAgente),
+    especialidade: OuNulo(Especialidade),
+    respondeAId: OuNulo(Id),
     situacao: SituacaoAgente,
     minutosSemSinal: MinutosSemSinal,
     ultimoSinalEm: OuNulo(DataHora),
@@ -58,6 +64,27 @@ export const Agente = Type.Object(
 export type Agente = Static<typeof Agente>;
 
 export const regrasDoAgente: Regra<Agente>[] = [
+  (a): Problema[] => {
+    if (a.tipo === "externo")
+      return a.papel !== null || a.especialidade !== null || a.respondeAId !== null
+        ? [{ caminho: "/papel", mensagem: "agente externo não tem papel nem hierarquia" }]
+        : [];
+    if (a.papel === null) return [{ caminho: "/papel", mensagem: "agente interno precisa do papel" }];
+    if (a.papel === "coordenador" && (a.especialidade !== null || a.respondeAId !== null))
+      return [
+        { caminho: "/papel", mensagem: "o coordenador não tem especialidade nem responde a outro agente" },
+      ];
+    if (a.papel === "especialista" && (a.especialidade === null || a.respondeAId === null))
+      return [
+        {
+          caminho: "/especialidade",
+          mensagem: "o especialista tem especialidade e responde a um coordenador",
+        },
+      ];
+    if (a.respondeAId === a.id)
+      return [{ caminho: "/respondeAId", mensagem: "o agente não responde a si mesmo" }];
+    return [];
+  },
   (a): Problema[] => {
     if (a.situacao === "desligado" && a.desligadoEm === null) {
       return [{ caminho: "/desligadoEm", mensagem: "agente desligado precisa da data" }];

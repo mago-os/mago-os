@@ -366,6 +366,11 @@ Todas com o prefixo `/api` no site, menos `/mcp`, que fica em `https://teste.osm
 | POST | `/agentes/:id/chaves/:chaveId/revogar` | agentes.editar | Revoga a chave (vale no pedido seguinte). |
 | GET | `/agentes/:id/modelos` | agentes.ver | O modelo principal e o reserva do agente (M4-01), ou null. |
 | POST | `/agentes/:id/modelos` | agentes.editar | Escolhe o principal e o reserva ({ modelos: ... } ou { modelos: null }). Só modelos liberados. |
+| GET | `/ia/modelos` | agentes.editar | Os modelos liberados de todas as contas de IA, para escolher o do agente. |
+| GET | `/conversas` | agentes.ver | O coordenador da empresa e as conversas da própria pessoa com ele (M4-02). |
+| GET | `/conversas/:id` | agentes.ver | As mensagens de uma conversa da própria pessoa e quantas execuções ainda rodam. |
+| POST | `/conversas/mensagens` | agentes.ver | Manda uma mensagem ao coordenador (sem conversaId, começa uma conversa); vira trabalho na fila. |
+| DELETE | `/conversas/:id` | agentes.ver | Apaga uma conversa da própria pessoa (as tarefas criadas continuam). |
 | GET | `/ia/contas` | contas_de_ia.ver | As contas de IA da empresa (sem a chave, só os 4 últimos caracteres) e se o cofre está ligado. |
 | POST | `/ia/contas` | contas_de_ia.criar | Conecta uma conta: testa a chave no provedor antes de gravar. Pede o segundo fator recente. |
 | POST | `/ia/contas/:id` | contas_de_ia.editar | Muda o nome, o teto ou troca a chave (testada antes; pede o segundo fator recente). |
@@ -612,6 +617,13 @@ Recebe:
 
 - `principal` (objeto, obrigatório)
 - `reserva` (objeto ou null, obrigatório)
+
+### POST `/conversas/mensagens`
+
+Recebe:
+
+- `conversaId` (id): Identificador (UUID).
+- `texto` (string, obrigatório): O pedido ou a resposta da pessoa.
 
 ### POST `/ia/contas`
 
