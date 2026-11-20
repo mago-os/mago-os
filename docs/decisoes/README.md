@@ -26,3 +26,4 @@ Uma nota curta por decisão importante: o que foi decidido, por quê e o que foi
 | [0017](0017-chave-do-agente.md) | Chave do agente: só o resumo no banco, várias por agente, limites no banco e tarefa devolvida após 15 min sem sinal | Aceita |
 | [0018](0018-tempo-real.md) | Tempo real: avisos por gatilho no PostgreSQL (LISTEN/NOTIFY) e WebSocket autenticado pela sessão | Aceita |
 | [0019](0019-servidor-mcp.md) | Servidor MCP no núcleo: HTTP sem sessão, chave do agente, oito ferramentas de tarefas com descrição congelada e documentação gerada | Aceita |
+| [0020](0020-anexos.md) | Anexos no Backblaze B2, com envio direto pela quarentena e antivírus ClamAV | Aceita |

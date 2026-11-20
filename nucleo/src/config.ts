@@ -20,6 +20,20 @@ export interface Config {
   versao: string;
   /** Login (M1-03). Obrigatório em teste e produção; no Mac, só liga se DATABASE_URL_ACESSO for informada. */
   acesso: ConfigDoAcesso | null;
+  /** Anexos (M3-08). Nulo fora do Mac quando o depósito não foi configurado: os anexos ficam desligados. */
+  anexos: ConfigDosAnexos | null;
+}
+
+export interface ConfigDosAnexos {
+  /**
+   * Bucket compatível com S3 (Backblaze B2). Variáveis MAGO_ANEXOS_ENDPOINT, MAGO_ANEXOS_BUCKET,
+   * MAGO_ANEXOS_CHAVE_ID e MAGO_ANEXOS_CHAVE_SEGREDO, as quatro ou nenhuma. Sem elas, no Mac, uma pasta do computador.
+   */
+  deposito:
+    | { tipo: "s3"; endpoint: string; bucket: string; chaveId: string; chaveSegredo: string }
+    | { tipo: "disco" };
+  /** O ClamAV ("host:porta"). Variável MAGO_CLAMAV; obrigatória fora do Mac. No Mac, sem ela, o conferente de teste. */
+  clamav: string | null;
 }
 
 export interface ConfigDoAcesso {
@@ -76,6 +90,7 @@ export function lerConfig(env: Record<string, string | undefined> = process.env)
   }
 
   const acesso = lerAcesso(env, ambiente, problemas);
+  const anexos = lerAnexos(env, ambiente, problemas);
 
   if (problemas.length > 0) {
     throw new ErroDeConfig(`Configuração inválida:\n- ${problemas.join("\n- ")}`);
@@ -89,6 +104,46 @@ export function lerConfig(env: Record<string, string | undefined> = process.env)
     ambiente,
     versao: env.MAGO_VERSAO ?? "local",
     acesso,
+    anexos,
+  };
+}
+
+function lerAnexos(
+  env: Record<string, string | undefined>,
+  ambiente: Config["ambiente"],
+  problemas: string[],
+): ConfigDosAnexos | null {
+  const v = (n: string) => env[n]?.trim() ?? "";
+  const nomes = [
+    "MAGO_ANEXOS_ENDPOINT",
+    "MAGO_ANEXOS_BUCKET",
+    "MAGO_ANEXOS_CHAVE_ID",
+    "MAGO_ANEXOS_CHAVE_SEGREDO",
+  ];
+  const informados = nomes.filter((n) => v(n) !== "");
+  const clamav = v("MAGO_CLAMAV") || null;
+  if (clamav && !/^[a-zA-Z0-9.-]+:\d{1,5}$/.test(clamav))
+    problemas.push('MAGO_CLAMAV precisa ser "host:porta"');
+  if (informados.length > 0 && informados.length < nomes.length) {
+    problemas.push(`Anexos: informe ${nomes.join(", ")} juntas`);
+    return null;
+  }
+  if (informados.length === 0) return ambiente === "local" ? { deposito: { tipo: "disco" }, clamav } : null;
+  // O endpoint pode vir sem o https:// (como o Backblaze mostra).
+  const endpoint = /^https?:\/\//.test(v("MAGO_ANEXOS_ENDPOINT"))
+    ? v("MAGO_ANEXOS_ENDPOINT")
+    : `https://${v("MAGO_ANEXOS_ENDPOINT")}`;
+  if (!clamav && ambiente !== "local")
+    problemas.push("MAGO_CLAMAV é obrigatória com os anexos ligados fora do Mac");
+  return {
+    deposito: {
+      tipo: "s3",
+      endpoint,
+      bucket: v("MAGO_ANEXOS_BUCKET"),
+      chaveId: v("MAGO_ANEXOS_CHAVE_ID"),
+      chaveSegredo: v("MAGO_ANEXOS_CHAVE_SEGREDO"),
+    },
+    clamav,
   };
 }
 

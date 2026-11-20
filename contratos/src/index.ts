@@ -23,6 +23,7 @@ export * from "./mcp/ferramentas.ts";
 export * from "./permissoes.ts";
 export * from "./projetos/lista.ts";
 export * from "./projetos/projeto.ts";
+export * from "./tarefas/anexos.ts";
 export * from "./tarefas/checklist.ts";
 export * from "./tarefas/prazos.ts";
 export * from "./tarefas/prioridades.ts";

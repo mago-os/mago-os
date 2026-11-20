@@ -20,5 +20,5 @@ Usar o **Backblaze B2**: grátis até 10 GB sem cartão e, depois, US$ 6,95 por 
 ## Consequências
 
 - O pgBackRest fala com o B2 pela interface compatível com S3, então trocar de fornecedor depois é só mudar as variáveis no Infisical.
-- Os anexos do M3-05 continuam previstos no R2; a escolha do depósito dos anexos fica para quando o M3 for detalhado.
+- Os anexos do M3-05 continuam previstos no R2; a escolha do depósito dos anexos fica para quando o M3 for detalhado. (Atualização de 19/11/2026: os anexos também foram para o B2; ver a [decisão 0020](0020-anexos.md).)
 - Detalhes da instalação: `infra/vps02/` e a página `backup.md` da Wiki do cliente.

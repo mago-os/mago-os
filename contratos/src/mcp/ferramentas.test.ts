@@ -9,7 +9,7 @@ import { FERRAMENTAS_MCP } from "./ferramentas.ts";
 
 const ASSINATURAS: Record<string, string> = {
   minhas_tarefas: "6efe7b459b843e3d",
-  ver_tarefa: "ee92c1040f99536e",
+  ver_tarefa: "67594070b14aed9b",
   pegar_tarefa: "71a249660a993115",
   soltar_tarefa: "480ec264ab6227fd",
   comentar: "1df5a94d7000fc2f",
@@ -17,6 +17,7 @@ const ASSINATURAS: Record<string, string> = {
   entregar_resultado: "f29c89924dccdbe2",
   criar_subtarefa: "c421a7c07d989e15",
   marcar_checklist: "34c74f6ba4126e63",
+  baixar_anexo: "341caa9771ef5b13",
   estou_vivo: "e1ad16ca48cd4c7a",
 };
 
@@ -26,7 +27,7 @@ function assinatura(f: (typeof FERRAMENTAS_MCP)[number]): string {
 }
 
 describe("ferramentas do MCP", () => {
-  it("são as dez da spec (oito do M2 e duas da M3-02), com nomes únicos e descrição", () => {
+  it("são as onze da spec (oito do M2, duas da M3-02 e uma da M3-08), com nomes únicos e descrição", () => {
     expect(FERRAMENTAS_MCP.map((f) => f.nome)).toEqual([
       "minhas_tarefas",
       "ver_tarefa",
@@ -37,6 +38,7 @@ describe("ferramentas do MCP", () => {
       "entregar_resultado",
       "criar_subtarefa",
       "marcar_checklist",
+      "baixar_anexo",
       "estou_vivo",
     ]);
     for (const f of FERRAMENTAS_MCP) expect(f.descricao.length).toBeGreaterThan(20);

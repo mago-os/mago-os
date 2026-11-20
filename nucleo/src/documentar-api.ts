@@ -188,6 +188,43 @@ export const ROTAS: Rota[] = [
   },
   {
     metodo: "GET",
+    caminho: "/tarefas/:id/anexos",
+    permissao: "tarefas.ver",
+    oQueFaz: "Anexos da tarefa (os que já chegaram), com a situação do antivírus.",
+  },
+  {
+    metodo: "POST",
+    caminho: "/tarefas/:id/anexos",
+    permissao: "tarefas.editar (ou ver, no próprio comentário)",
+    oQueFaz:
+      "Pede o link de 5 minutos para enviar um arquivo (até 25 MB, sem tipos que rodam programa) para a quarentena.",
+  },
+  {
+    metodo: "POST",
+    caminho: "/tarefas/:id/anexos/:anexoId/enviado",
+    permissao: "tarefas.ver (quem enviou)",
+    oQueFaz: "Avisa que o arquivo chegou inteiro e o manda para o antivírus.",
+  },
+  {
+    metodo: "GET",
+    caminho: "/tarefas/:id/anexos/:anexoId/link",
+    permissao: "tarefas.ver",
+    oQueFaz: "Link de 5 minutos para baixar ou ver um anexo liberado pelo antivírus.",
+  },
+  {
+    metodo: "DELETE",
+    caminho: "/tarefas/:id/anexos/:anexoId",
+    permissao: "tarefas.ver (quem enviou) ou tarefas.excluir (tudo)",
+    oQueFaz: "Exclui o anexo (o arquivo sai do depósito pela fila).",
+  },
+  {
+    metodo: "GET",
+    caminho: "/empresa/espaco-dos-anexos",
+    permissao: "seguranca.ver",
+    oQueFaz: "Quanto os anexos da empresa ocupam no depósito.",
+  },
+  {
+    metodo: "GET",
     caminho: "/prioridades",
     permissao: "tarefas.ver",
     oQueFaz: "Central de prioridades de quem pede, na ordem fixa (atrasadas, hoje, ajuda, menções, avisos).",

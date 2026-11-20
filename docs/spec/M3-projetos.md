@@ -1,6 +1,6 @@
 # Spec da Fase 1: M3 Projetos e tarefas completos
 
-Parte da [spec da Fase 1](README.md). Estado em 19/11/2026: **aprovado** pelo Sandro, com todas as recomendações (inclusive a M3-11 e os eventos da agenda simples no M5). Em construção: M3-01 a M3-07 prontas em 19/11/2026.
+Parte da [spec da Fase 1](README.md). Estado em 19/11/2026: **aprovado** pelo Sandro, com todas as recomendações (inclusive a M3-11 e os eventos da agenda simples no M5). Em construção: M3-01 a M3-07 prontas em 19/11/2026 e M3-08 em 20/11/2026.
 
 **Pronto quando:** a Nolask organiza um projeto real no Mago OS (sugestão: a própria construção do Mago OS, com as tarefas do M4), com espaço, projeto, diretor e gerente, listas, subtarefas, prazos e etiquetas, e acompanha pelo Kanban, pela lista e pelo calendário. Uma menção a uma pessoa chega no sino e no celular, um anexo passa pelo antivírus antes de abrir, a central de prioridades mostra o que vence hoje e o Ctrl+K acha a tarefa pelo nome. Os testes provam que uma empresa não vê projetos, anexos, notificações nem resultados de busca da outra.
 
@@ -13,14 +13,14 @@ Parte da [spec da Fase 1](README.md). Estado em 19/11/2026: **aprovado** pelo Sa
 | M3-05 | Linha do tempo: comentários, notas internas e menções | M3-01 | M |
 | M3-06 | Notificações: sino, push e e-mail de aparelho novo | M3-05 | M |
 | M3-07 | Central de prioridades básica | M3-03, M3-06 | M |
-| M3-08 | Anexos no R2, com antivírus ClamAV | M3-05 | M |
+| M3-08 | Anexos no Backblaze B2, com antivírus ClamAV | M3-05 | M |
 | M3-09 | Busca Ctrl+K | M3-02 | M |
 | M3-10 | Painéis encaixáveis com layout salvo por usuário | M3-04, M3-07 | M |
 | M3-11 | Tela "Dados da empresa" (entrou no M3, decisão 11) | M1 | P |
 
-A ordem da tabela é a ordem de construção. A M3-02 da tabela original ("Listas, subtarefas, checklist, prioridade, prazo, etiquetas e recorrência") era grande demais e virou duas (M3-02 e M3-03), e por isso os números seguintes andaram uma casa em relação a [M2-a-M6.md](M2-a-M6.md). A M3-08 (anexos) não depende das visões e pode ser feita em paralelo depois da M3-05, assim que o bucket do R2 estiver criado com o Sandro. A M3-11 pode entrar a qualquer momento.
+A ordem da tabela é a ordem de construção. A M3-02 da tabela original ("Listas, subtarefas, checklist, prioridade, prazo, etiquetas e recorrência") era grande demais e virou duas (M3-02 e M3-03), e por isso os números seguintes andaram uma casa em relação a [M2-a-M6.md](M2-a-M6.md). A M3-08 (anexos) não depende das visões e pode ser feita em paralelo depois da M3-05, assim que o bucket estiver criado com o Sandro (no B2, decisão de 19/11/2026). A M3-11 pode entrar a qualquer momento.
 
-**O que não entra no M3** (como já está no plano): Gantt, carga de trabalho, horas, dependências entre tarefas, campos personalizados, modelos de projeto, portal do cliente e tarefa por e-mail (Fase 2); o gerente agente que planeja e acompanha sozinho (precisa dos agentes internos do M4); aprovações pedidas por agentes (a central já nasce com o lugar delas, mas elas vêm na M4-03); prioridades por WhatsApp e Telegram (M5 e Fase 2); compartilhar visões e layouts com a equipe e layouts por perfil (Fase 2).
+**O que não entra no M3** (como já está no plano): Gantt, carga de trabalho, horas, dependências entre tarefas, campos personalizados, modelos de projeto, portal do cliente e tarefa por e-mail (Fase 2); o gerente agente que planeja e acompanha sozinho (precisa dos agentes internos do M4); aprovações pedidas por agentes (a central já nasce com o lugar delas, mas elas vêm na M4-03); prioridades por WhatsApp e Telegram (M5 e Fase 2); colar na tarefa o link de um arquivo do Google Drive da empresa (o arquivo fica no Drive; decidido pelo Sandro em 19/11/2026, Fase 2); compartilhar visões e layouts com a equipe e layouts por perfil (Fase 2).
 
 **Pendências do M2 que continuam pendentes:** os três passos do Hermes "quando estiver em produção" (cadastrar, guardar a chave e configurar o MCP) seguem fora dos critérios do M3 e entram no dia em que o Hermes estiver pronto, sem esperar marco.
 
@@ -127,21 +127,22 @@ Pronto quando: o Sandro é mencionado numa tarefa pelo computador e o celular de
 
 Pronto quando: o Sandro abre o Mago OS de manhã no celular e vê, em ordem, a tarefa atrasada, a que vence hoje e a menção de ontem, adia uma e resolve outra sem sair da lista.
 
-### M3-08 Anexos no R2, com antivírus ClamAV
+### M3-08 Anexos no Backblaze B2, com antivírus ClamAV
 
-Precisa da aprovação do Sandro (segurança, conta nova no Cloudflare R2 e container novo na VPS02).
+Precisa da aprovação do Sandro (segurança e container novo na VPS02). Decisão do Sandro em 19/11/2026: os anexos vão para o Backblaze B2, o mesmo serviço do backup e da auditoria, e não para o Cloudflare R2 (a decisão 0002 tinha deixado essa escolha para o M3).
 
-- [ ] Criar com o Sandro o bucket do R2 (um por ambiente: teste e, no M6, produção), com chave só daquele bucket no Infisical e CORS só para o endereço do app. Sem mudança de DNS
-- [ ] No ambiente local e nos testes, armazenamento compatível com S3 em container (Garage, o mesmo que o plano prevê para a edição instalável)
-- [ ] Envio direto do navegador para o R2 por link temporário, numa área de quarentena; o núcleo só autoriza depois de conferir permissão, tipo e tamanho (decisão 14: até 25 MB por arquivo, tipos perigosos como .exe, .bat, .js e .msi bloqueados)
-- [ ] ClamAV num container próprio na VPS02, com atualização automática das assinaturas, sem porta para fora e sem tocar na Ratoeira; a fila pg-boss passa cada arquivo da quarentena pelo antivírus e só o limpo fica disponível. Infectado é apagado, o envio aparece como "bloqueado pelo antivírus" e o administrador é avisado
-- [ ] Baixar e ver por link temporário de 5 minutos, gerado depois da checagem de permissão; imagens e PDFs com prévia na tela
-- [ ] Tabela `anexos` (com `empresa_id`, RLS e marcas), caminho no bucket separado por empresa, e o arquivo some do bucket quando a tarefa é excluída
-- [ ] Anexos na tarefa e nos comentários, pelo botão e arrastando; no celular, tirar foto direto
-- [ ] Agente pelo MCP: vê a lista de anexos em `ver_tarefa` e baixa por link temporário (ferramenta `baixar_anexo`); enviar anexo pelo agente fica para a Fase 2
-- [ ] Eventos de auditoria: `anexo.enviou`, `anexo.bloqueou`, `anexo.baixou`, `anexo.excluiu`
-- [ ] Testes: o arquivo de teste EICAR é bloqueado, uma empresa não baixa anexo da outra mesmo com o caminho, e o link expira
-- [ ] Nota de decisão em `docs/decisoes` sobre armazenamento e antivírus, e manual em `docs/operacao`
+- [x] Criar com o Sandro o bucket do B2 (um por ambiente: `mago-os-anexos-teste` criado em 19/11/2026 e, no M6, o de produção), privado, com criptografia, só a última versão de cada arquivo, chave só daquele bucket no Infisical (`B2_ANEXOS_*`) e CORS só para o endereço do app. Sem mudança de DNS
+- [x] No ambiente local e nos testes, armazenamento compatível com S3 em container (Garage, o mesmo que o plano prevê para a edição instalável). Ajuste na codificação: no Mac e nos testes, uma pasta do computador servida pela própria API, com links assinados; o Garage fica para a edição instalável
+- [x] Envio direto do navegador para o B2 por link temporário, numa área de quarentena; o núcleo só autoriza depois de conferir permissão, tipo e tamanho (decisão 14: até 25 MB por arquivo, tipos perigosos como .exe, .bat, .js e .msi bloqueados)
+- [x] ClamAV num container próprio na VPS02, com atualização automática das assinaturas, sem porta para fora e sem tocar na Ratoeira; a fila pg-boss passa cada arquivo da quarentena pelo antivírus e só o limpo fica disponível. Infectado é apagado, o envio aparece como "bloqueado pelo antivírus" e o administrador é avisado (e quem enviou, pelo aviso novo `anexo_bloqueado`). O lugar definitivo recebe os bytes que o antivírus conferiu, nunca uma cópia da quarentena
+- [x] Baixar e ver por link temporário de 5 minutos, gerado depois da checagem de permissão; imagens e PDFs com prévia na tela
+- [x] Tabela `anexos` (com `empresa_id`, RLS e marcas), caminho no bucket separado por empresa, e o arquivo some do bucket quando a tarefa é excluída (e quando o anexo ou o comentário é excluído; envio parado há mais de uma hora também some)
+- [x] Anexos na tarefa e nos comentários, pelo botão e arrastando; no celular, tirar foto direto
+- [x] Agente pelo MCP: vê a lista de anexos em `ver_tarefa` e baixa por link temporário (ferramenta `baixar_anexo`); enviar anexo pelo agente fica para a Fase 2. O agente só vê e baixa anexos das tarefas dele, e nunca os de nota interna
+- [x] Eventos de auditoria: `anexo.enviou`, `anexo.bloqueou`, `anexo.baixou`, `anexo.excluiu`
+- [x] Testes: o arquivo de teste EICAR é bloqueado, uma empresa não baixa anexo da outra mesmo com o caminho, e o link expira
+- [x] Nota de decisão em `docs/decisoes` sobre armazenamento e antivírus (0020), e manual em `docs/operacao` (anexos.md)
+- [x] Espaço (combinado com o Sandro, conta gratuita do Backblaze): exclusão imediata, uso por empresa na administração e registro de alerta acima de 5 GB no total
 
 Pronto quando: o Sandro anexa um PDF pelo celular e ele abre com prévia depois do antivírus, e o arquivo EICAR é bloqueado com o aviso na tela.
 

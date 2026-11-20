@@ -52,6 +52,13 @@ arquivos = {
         # Push (M3-06), opcional: sem as duas chaves VAPID, o push fica desligado.
         **{k: s[k] for k in ("MAGO_GOOGLE_ID", "MAGO_GOOGLE_SEGREDO", "MAGO_RESEND_CHAVE", "MAGO_VAPID_PUBLICA",
                              "MAGO_VAPID_PRIVADA") if s.get(k)},
+        # Anexos (M3-08), opcionais: o bucket só dos anexos no Backblaze e o ClamAV do compose (rede interna).
+        **({
+            "MAGO_ANEXOS_ENDPOINT": s["B2_ANEXOS_ENDPOINT"], "MAGO_ANEXOS_BUCKET": s["B2_ANEXOS_BUCKET"],
+            "MAGO_ANEXOS_CHAVE_ID": s["B2_ANEXOS_KEY_ID"], "MAGO_ANEXOS_CHAVE_SEGREDO": s["B2_ANEXOS_APPLICATION_KEY"],
+            "MAGO_CLAMAV": "clamav:3310",
+        } if all(s.get(k) for k in ("B2_ANEXOS_ENDPOINT", "B2_ANEXOS_BUCKET", "B2_ANEXOS_KEY_ID",
+                                     "B2_ANEXOS_APPLICATION_KEY")) else {}),
     },
     "campainha.env": {"MAGO_CAMPAINHA_SEGREDO": s["MAGO_CAMPAINHA_SEGREDO"]},
     # Cópia travada da auditoria (M1-09), opcional até o depósito existir. Mesma região do backup.

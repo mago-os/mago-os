@@ -7,6 +7,7 @@
  * - contarLeituras: o limite de registros lidos por hora, para o MCP (M2-05).
  * - verificarAgentesVivos: a cada minuto, devolve para A fazer as tarefas de agentes sem sinal.
  */
+
 import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
 import {
   type ChaveDeAgente,
@@ -16,6 +17,7 @@ import {
 } from "@mago-os/contratos";
 import type pg from "pg";
 import type { Carteiro } from "../acesso/login.ts";
+import type { ServicosDosAnexos } from "../anexos/servico.ts";
 import { auditar, type DadosDoEvento } from "../auditoria/registrar.ts";
 import { avisarResponsavel } from "../avisos/index.ts";
 import { comEmpresa } from "../empresa.ts";
@@ -128,6 +130,8 @@ export interface OpcoesDaChave {
   rastreio?: string | null;
   /** Limites (os testes usam valores pequenos). */
   limites?: { pedidosPorMinuto: number; leiturasPorHora: number };
+  /** Anexos (M3-08), para o MCP: nulo quando estão desligados. */
+  anexos?: ServicosDosAnexos | null;
 }
 
 /** Pausa o agente que passou do limite, avisa o responsável e registra. Roda na transação da empresa. */

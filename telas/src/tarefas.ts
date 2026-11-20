@@ -3,11 +3,14 @@
  */
 import type {
   AcontecimentoDaTarefa,
+  Anexo,
   ComentarioDeTarefa,
   Etiqueta,
   FiltroDeTarefas,
   ItemDeChecklist,
   ItemDePrioridade,
+  LinkDeEnvioDeAnexo,
+  LinkDoAnexo,
   PedidoDePlanejamento,
   PedidoDeVisaoSalva,
   Responsavel,
@@ -206,3 +209,57 @@ export const listarPrioridades = () =>
 export const adiarPrioridade = (chave: string, ate: string) =>
   pedir<null>("POST", "/prioridades/adiar", { chave, ate });
 export const resolverPrioridade = (chave: string) => pedir<null>("POST", "/prioridades/resolver", { chave });
+
+/** Anexos (M3-08). */
+export const listarAnexos = (tarefaId: string) =>
+  pedir<{ anexos: Anexo[]; ligados: boolean }>("GET", `/tarefas/${encodeURIComponent(tarefaId)}/anexos`);
+export const linkDoAnexo = (tarefaId: string, anexoId: string) =>
+  pedir<LinkDoAnexo>(
+    "GET",
+    `/tarefas/${encodeURIComponent(tarefaId)}/anexos/${encodeURIComponent(anexoId)}/link`,
+  );
+export const excluirAnexo = (tarefaId: string, anexoId: string) =>
+  pedir<null>("DELETE", `/tarefas/${encodeURIComponent(tarefaId)}/anexos/${encodeURIComponent(anexoId)}`);
+
+/** O tipo do arquivo como o contrato pede (o navegador às vezes não sabe: vai como arquivo genérico). */
+function tipoDoArquivo(arquivo: File): string {
+  const t = arquivo.type.toLowerCase();
+  return /^[a-z0-9.+-]+\/[a-z0-9.+-]+$/.test(t) ? t : "application/octet-stream";
+}
+
+/**
+ * Envia um arquivo: pede o link (o núcleo confere permissão, tipo e tamanho), manda direto para o depósito e avisa
+ * que chegou, para o antivírus conferir.
+ */
+export async function enviarAnexo(
+  tarefaId: string,
+  arquivo: File,
+  comentarioId?: string,
+): Promise<Resposta<Anexo>> {
+  const tipo = tipoDoArquivo(arquivo);
+  const pedido = await pedir<LinkDeEnvioDeAnexo>("POST", `/tarefas/${encodeURIComponent(tarefaId)}/anexos`, {
+    nome: arquivo.name.slice(0, 200) || "arquivo",
+    tipo,
+    tamanho: arquivo.size,
+    ...(comentarioId ? { comentarioId } : {}),
+  });
+  if (!pedido.ok || !pedido.dados) return { ok: false, mensagem: pedido.mensagem ?? "" };
+  try {
+    const envio = await fetch(pedido.dados.url, {
+      method: "PUT",
+      body: arquivo,
+      headers: { "content-type": tipo },
+    });
+    if (!envio.ok) return { ok: false, mensagem: "O arquivo não chegou ao depósito. Tente de novo." };
+  } catch {
+    return { ok: false, mensagem: "Sem conexão para enviar o arquivo. Confira a internet e tente de novo." };
+  }
+  const anexo = pedido.dados.anexo;
+  const chegou = await pedir<{ anexo: Anexo }>(
+    "POST",
+    `/tarefas/${encodeURIComponent(tarefaId)}/anexos/${encodeURIComponent(anexo.id)}/enviado`,
+  );
+  return chegou.ok
+    ? { ok: true, dados: chegou.dados?.anexo ?? anexo }
+    : { ok: false, mensagem: chegou.mensagem ?? "" };
+}

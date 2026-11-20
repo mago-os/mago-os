@@ -117,6 +117,8 @@ export const TIPOS_DE_AVISO = [
   "precisa_de_ajuda",
   "prazo_hoje",
   "prazo_vencido",
+  // M3-08: o antivírus bloqueou um anexo (vai para quem enviou e para os administradores).
+  "anexo_bloqueado",
 ] as const;
 export const TipoDeAviso = Type.Enum(TIPOS_DE_AVISO);
 export type TipoDeAviso = Static<typeof TipoDeAviso>;

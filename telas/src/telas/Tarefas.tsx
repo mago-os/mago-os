@@ -35,6 +35,7 @@ import {
 import { useTempoReal } from "@/tempo-real";
 import { Aviso } from "./Acesso";
 import { useAoVoltar } from "./Administrador";
+import { AnexosDaTarefa, useAnexos } from "./Anexos";
 import { LinhaDoTempo } from "./LinhaDoTempo";
 import { Checklist, Subtarefas } from "./PartesDaTarefa";
 import { PlanejamentoDaTarefa } from "./Planejamento";
@@ -364,6 +365,7 @@ export function PaginaDaTarefa({
   podeApagarComentarios?: boolean;
 }) {
   const [aberta, setAberta] = useState<Omit<TarefaAberta, "tarefas"> | null | undefined>(undefined);
+  const anexosDaTarefa = useAnexos(id);
   const [mensagem, setMensagem] = useState<Mensagem>(null);
   const [concluindo, setConcluindo] = useState(false);
   /** Status do projeto escolhido para concluir (M3-02); sem ele, o primeiro do tipo Concluída. */
@@ -765,7 +767,20 @@ export function PaginaDaTarefa({
         </Card>
       )}
 
+      <AnexosDaTarefa
+        tarefaId={tarefa.id}
+        anexos={anexosDaTarefa.anexos}
+        ligados={anexosDaTarefa.ligados}
+        podeAnexar={podeEditar}
+        euId={euId}
+        podeExcluirTodos={podeApagarComentarios}
+        aoMudar={() => void anexosDaTarefa.recarregar()}
+      />
+
       <LinhaDoTempo
+        anexos={anexosDaTarefa.anexos}
+        anexosLigados={anexosDaTarefa.ligados}
+        aoMudarAnexos={() => void anexosDaTarefa.recarregar()}
         tarefaId={tarefa.id}
         comentarios={comentarios}
         acontecimentos={aberta.acontecimentos}

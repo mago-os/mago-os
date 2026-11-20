@@ -31,10 +31,35 @@ services:
     logging:
       driver: json-file
       options: { max-size: "10m", max-file: "3" }
+  # Antivírus dos anexos (M3-08). Sem porta para fora: só a API alcança, pela rede mago_antivirus. A rede não é
+  # interna porque o freshclam baixa as assinaturas novas da internet sozinho.
+  clamav:
+    image: clamav/clamav:1.4
+    restart: unless-stopped
+    environment:
+      # O maior anexo é 25 MB; o padrão do clamd é exatamente 25 MB.
+      CLAMD_CONF_StreamMaxLength: 30M
+    volumes:
+      - clamav-db:/var/lib/clamav
+    networks: [mago_antivirus]
+    deploy:
+      resources:
+        limits: { memory: 1536M, cpus: "0.5" }
+    healthcheck:
+      test: ["CMD", "clamdcheck.sh"]
+      interval: 60s
+      timeout: 10s
+      start_period: 300s
+      retries: 3
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
 volumes:
   db-data:
   pgbackrest-log:
+  clamav-db:
 networks:
+  mago_antivirus: {}
   mago_db:
     internal: true
   mago_backup: {}

@@ -20,6 +20,7 @@ const NOMES: Record<TipoDeAviso, string> = {
   agente_sem_sinal: "Agente sem sinal",
   agente_passou_do_limite: "Agente passou do limite",
   agente_desligado: "Agente desligado",
+  anexo_bloqueado: "Anexo bloqueado pelo antivírus",
 };
 
 type Mensagem = { texto: string; tipo: "erro" | "ok" } | null;

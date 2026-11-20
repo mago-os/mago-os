@@ -211,3 +211,11 @@ O login (`mago_acesso`) não lê papéis nem as regras da plataforma direto. As 
 - A central é calculada na hora a partir das tarefas, menções e avisos, sem tabela própria. `estados_de_prioridade` guarda só o que a pessoa fez com cada item (adiou até um momento, ou resolveu), e é pessoal: a política usa `empresa_ativa()` e `pessoa_ativa()`, como as visões salvas.
 - A chave do item muda quando a situação muda: a tarefa atrasada e a que vence hoje levam o prazo na chave (com prefixos diferentes, para o "vence hoje" resolvido não esconder a tarefa quando ela atrasar), e o "precisa de ajuda" leva o momento em que a tarefa entrou nesse status. Mudar o prazo ou pedir ajuda de novo traz o item de volta.
 - Aviso lido (no sino ou na central) também avisa as telas da pessoa pelo tempo real (gatilho `avisos_lidos_avisam`), para o sino e a central ficarem iguais.
+
+## 28. Anexos (20/11/2026, M3-08)
+
+- `anexos` tem `empresa_id`, RLS forçado e a política de `empresa_ativa()`, com chaves compostas para a tarefa, o comentário (nova restrição única `comentarios_id_da_tarefa`), a pessoa e o agente da mesma empresa. O anexo some junto com a tarefa ou o comentário. A API só muda a situação, o caminho, a data da verificação e o achado do antivírus (permissão por coluna).
+- O caminho no depósito é separado por empresa: `quarentena/<empresa>/<sorteado>` até o antivírus, `empresas/<empresa>/anexos/<anexo>` depois.
+- `arquivos_para_apagar`: todo anexo que sai do banco, até em cascata, deixa o caminho ali (gatilho `anexos_deixam_arquivo`, dono), e a fila apaga do depósito. Assim nenhum arquivo fica perdido no bucket.
+- `empresas_com_anexos_para_cuidar()` e `espaco_total_dos_anexos()` (dono, só ids e números) acham o trabalho da fila e o espaço total para o aviso de 5 GB.
+- O aviso `anexo_bloqueado` entrou na lista de tipos de `avisos`. Anexo novo ou que mudou de situação avisa as telas da tarefa pelo tempo real.

@@ -42,6 +42,28 @@ erDiagram
     uuid feito_por FK
     timestamp_with_time_zone feito_em
   }
+  anexos {
+    uuid id PK
+    uuid empresa_id FK
+    uuid tarefa_id
+    uuid comentario_id
+    text nome
+    text tipo
+    bigint tamanho
+    text situacao
+    text caminho
+    uuid enviado_por_pessoa_id
+    uuid enviado_por_agente_id
+    timestamp_with_time_zone enviado_em
+    timestamp_with_time_zone verificado_em
+    text achado_do_antivirus
+  }
+  arquivos_para_apagar {
+    uuid id PK
+    uuid empresa_id FK
+    text caminho
+    timestamp_with_time_zone desde
+  }
   assinaturas_de_push {
     uuid id PK
     uuid empresa_id FK
@@ -438,6 +460,8 @@ erDiagram
   empresas ||--o{ ajustes_de_permissao : "empresa_id"
   vinculos ||--o{ ajustes_de_permissao : "vinculo_id"
   pessoas ||--o{ ajustes_de_permissao : "feito_por"
+  empresas ||--o{ anexos : "empresa_id"
+  empresas ||--o{ arquivos_para_apagar : "empresa_id"
   empresas ||--o{ assinaturas_de_push : "empresa_id"
   acesso_aparelhos ||--o{ assinaturas_de_push : "aparelho_id"
   empresas ||--o{ avisos : "empresa_id"
@@ -546,6 +570,42 @@ Isolamento por empresa (Row Level Security): ligado e forçado.
 | alcance | text | sim |  | empresa | Alcance dado: nada, meus (itens), equipe ou tudo. |
 | feito_por | uuid | sim |  | sistema | Pessoa que fez o ajuste. Aponta para pessoas.id. |
 | feito_em | timestamp with time zone | sim | `now()` | sistema | Quando o ajuste foi feito. |
+
+### anexos
+
+Arquivos anexados às tarefas e aos comentários. O arquivo fica no depósito; aqui ficam os dados e a situação.
+
+Isolamento por empresa (Row Level Security): ligado e forçado.
+
+| Coluna | Tipo | Obrigatória | Padrão | Marca | Descrição |
+| --- | --- | --- | --- | --- | --- |
+| id | uuid | sim | `uuidv7()` | sistema | Identificador do anexo (UUID v7). Chave primária. |
+| empresa_id | uuid | sim |  | sistema | Empresa do anexo. Aponta para empresas.id. |
+| tarefa_id | uuid | sim |  | sistema | Tarefa do anexo (o anexo some junto com ela). |
+| comentario_id | uuid | não |  | sistema | Comentário do anexo, quando é de um comentário (some junto com ele). |
+| nome | text | sim |  | empresa | Nome do arquivo, como veio do aparelho. |
+| tipo | text | sim |  | empresa | Tipo do arquivo (MIME). |
+| tamanho | bigint | sim |  | empresa | Tamanho em bytes (até 25 MB). |
+| situacao | text | sim | `'enviando'::text` | sistema | enviando, verificando (antivírus), disponivel ou bloqueado. |
+| caminho | text | sim |  | sistema | Caminho do arquivo no depósito (separado por empresa; na quarentena até o antivírus liberar). |
+| enviado_por_pessoa_id | uuid | não |  | sistema | Pessoa que enviou. |
+| enviado_por_agente_id | uuid | não |  | sistema | Agente que enviou (Fase 2). |
+| enviado_em | timestamp with time zone | sim | `now()` | sistema | Quando o envio começou. |
+| verificado_em | timestamp with time zone | não |  | sistema | Quando o antivírus terminou. |
+| achado_do_antivirus | text | não |  | sistema | O que o antivírus achou, quando bloqueou (nome da ameaça). |
+
+### arquivos_para_apagar
+
+Arquivos do depósito que precisam ser apagados (anexo excluído, ou junto com a tarefa ou o comentário). A fila apaga.
+
+Isolamento por empresa (Row Level Security): ligado e forçado.
+
+| Coluna | Tipo | Obrigatória | Padrão | Marca | Descrição |
+| --- | --- | --- | --- | --- | --- |
+| id | uuid | sim | `uuidv7()` | sistema | Identificador. Chave primária. |
+| empresa_id | uuid | sim |  | sistema | Empresa do arquivo. Aponta para empresas.id. |
+| caminho | text | sim |  | sistema | Caminho no depósito. |
+| desde | timestamp with time zone | sim | `now()` | sistema | Desde quando espera. |
 
 ### assinaturas_de_push
 
