@@ -14,7 +14,7 @@ Detalhado em [M3-projetos.md](M3-projetos.md) (aprovado em 19/11/2026). A M3-02 
 
 ## M4 Agentes internos e regras
 
-Detalhado em [M4-agentes.md](M4-agentes.md) (proposta de 20/11/2026).
+Detalhado em [M4-agentes.md](M4-agentes.md) (aprovado em 20/11/2026).
 
 Pronto quando: o coordenador recebe um pedido, passa ao especialista e pede aprovação quando a regra manda.
 
