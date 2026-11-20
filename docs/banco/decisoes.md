@@ -219,3 +219,9 @@ O login (`mago_acesso`) não lê papéis nem as regras da plataforma direto. As 
 - `arquivos_para_apagar`: todo anexo que sai do banco, até em cascata, deixa o caminho ali (gatilho `anexos_deixam_arquivo`, dono), e a fila apaga do depósito. Assim nenhum arquivo fica perdido no bucket.
 - `empresas_com_anexos_para_cuidar()` e `espaco_total_dos_anexos()` (dono, só ids e números) acham o trabalho da fila e o espaço total para o aviso de 5 GB.
 - O aviso `anexo_bloqueado` entrou na lista de tipos de `avisos`. Anexo novo ou que mudou de situação avisa as telas da tarefa pelo tempo real.
+
+## 29. Busca (20/11/2026, M3-09)
+
+- As extensões `unaccent` e `pg_trgm`, do próprio PostgreSQL, e a função imutável `para_busca` (minúsculas e sem acento) permitem buscar sem acento e com erro de digitação ("bakup" acha "backup", por semelhança de palavras a partir de 0,4).
+- Índices de trigramas em `para_busca` dos títulos e descrições das tarefas, do texto dos comentários e dos nomes de projetos, espaços, pessoas e agentes.
+- Nenhuma tabela nova: a busca usa as tabelas de sempre, com o RLS e o mesmo alcance das listas.

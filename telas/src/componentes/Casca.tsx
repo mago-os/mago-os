@@ -73,6 +73,8 @@ export function BotaoDoTema({ tema, aoTrocar }: { tema: Tema; aoTrocar: (t: Tema
 interface PropsDaCasca {
   /** O sino das notificações (M3-06), quando há empresa ativa. */
   sino?: React.ReactNode;
+  /** A busca Ctrl+K (M3-09), quando há empresa ativa. */
+  busca?: React.ReactNode;
   sessao: Sessao;
   empresas: EmpresaMinha[];
   caminho: string;
@@ -155,6 +157,7 @@ export function Casca(props: PropsDaCasca) {
                   Instalar app
                 </Button>
               )}
+              {props.busca}
               {props.sino}
               <BotaoDoTema tema={tema} aoTrocar={props.aoTrocarTema} />
               <a

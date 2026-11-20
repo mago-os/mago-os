@@ -87,7 +87,10 @@ export function Projetos({
   const [espacos, setEspacos] = useState<Espaco[] | null>(null);
   const [lista, setLista] = useState<ListaDeProjetos | null>(null);
   const [erro, setErro] = useState<string | null>(null);
-  const [criando, setCriando] = useState<"espaco" | "projeto" | null>(null);
+  // Vindo do comando rápido "novo projeto" (Ctrl+K): /projetos?novo=1 já abre o formulário.
+  const [criando, setCriando] = useState<"espaco" | "projeto" | null>(() =>
+    new URLSearchParams(window.location.search).has("novo") ? "projeto" : null,
+  );
 
   const ultimoPedido = useRef(0);
   const carregar = useCallback(async () => {
@@ -103,6 +106,11 @@ export function Projetos({
   useEffect(() => {
     void carregar();
   }, [carregar]);
+  // Vindo da busca (/projetos#espaco-<id>): rola até o espaço quando a lista chegar.
+  useEffect(() => {
+    if (espacos && window.location.hash.startsWith("#espaco-"))
+      document.getElementById(window.location.hash.slice(1))?.scrollIntoView();
+  }, [espacos]);
   useAoVoltar(carregar);
   useTempoReal((aviso) => {
     if (aviso.tipo === "reconectou" || aviso.tipo === "projeto" || aviso.tipo === "tarefa") void carregar();
@@ -174,7 +182,7 @@ export function Projetos({
         // Espaço arquivado só aparece com o filtro, ou quando ainda tem projeto ativo dentro.
         if (e.situacao === "arquivado" && !arquivados && doEspaco.length === 0) return null;
         return (
-          <section key={e.id} className="grid gap-2" aria-label={e.nome}>
+          <section key={e.id} id={`espaco-${e.id}`} className="grid scroll-mt-20 gap-2" aria-label={e.nome}>
             <div className="flex items-center gap-2">
               <Bolinha cor={e.cor} />
               <h2 className="text-lg font-semibold">{e.nome}</h2>

@@ -122,7 +122,8 @@ export function Tarefas({
   podeEditar: boolean;
   euId: string;
 }) {
-  const [criando, setCriando] = useState(false);
+  // Vindo do comando rápido "nova tarefa" (Ctrl+K): /tarefas?nova=1 já abre o formulário.
+  const [criando, setCriando] = useState(() => new URLSearchParams(window.location.search).has("nova"));
   return (
     <main className="mx-auto grid max-w-5xl gap-4 px-4 py-5 md:py-8">
       <div className="flex items-center justify-between gap-3">
