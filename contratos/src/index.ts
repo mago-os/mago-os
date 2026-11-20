@@ -12,6 +12,7 @@ export * from "./agentes/agente.ts";
 export * from "./agentes/chave.ts";
 export * from "./auditoria.ts";
 export * from "./avisos/notificacoes.ts";
+export * from "./busca/busca.ts";
 export * from "./comum.ts";
 export * from "./identidade/documento.ts";
 export * from "./identidade/empresa.ts";
