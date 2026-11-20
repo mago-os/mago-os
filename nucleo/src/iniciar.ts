@@ -25,6 +25,7 @@ import { registrarRotasDaConta } from "./conta/rotas.ts";
 import { registrarRotasDasContas } from "./contas/rotas.ts";
 import { registrarRotasDosConvites } from "./convites/rotas.ts";
 import { criarFila } from "./fila.ts";
+import { registrarRotasDosLayouts } from "./layouts/index.ts";
 import { registrarServidorMcp } from "./mcp/index.ts";
 import { catalogoDeModulos } from "./permissoes/modulos.ts";
 import {
@@ -81,6 +82,7 @@ async function iniciar(): Promise<void> {
     registrarRotasDasTarefas(app, verificador, banco.pool);
     registrarRotasDosProjetos(app, verificador, banco.pool);
     registrarRotaDaBusca(app, verificador, banco.pool);
+    registrarRotasDosLayouts(app, verificador, banco.pool);
     await registrarTempoReal(app, {
       login,
       poolAcesso: poolDoLogin,

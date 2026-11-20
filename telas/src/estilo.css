@@ -117,3 +117,27 @@ body {
   outline-offset: 2px;
   border-radius: 6px;
 }
+
+/* Painéis (M3-10): o dockview com as cores do Mago OS, no claro e no escuro. */
+.dockview-theme-mago {
+  --dv-group-view-background-color: var(--bg);
+  --dv-tabs-and-actions-container-background-color: var(--card);
+  --dv-activegroup-visiblepanel-tab-background-color: var(--bg);
+  --dv-activegroup-visiblepanel-tab-color: var(--ink);
+  --dv-activegroup-hiddenpanel-tab-background-color: var(--card);
+  --dv-activegroup-hiddenpanel-tab-color: var(--fg-2);
+  --dv-inactivegroup-visiblepanel-tab-background-color: var(--bg);
+  --dv-inactivegroup-visiblepanel-tab-color: var(--fg-2);
+  --dv-inactivegroup-hiddenpanel-tab-background-color: var(--card);
+  --dv-inactivegroup-hiddenpanel-tab-color: var(--fg-2);
+  --dv-tab-divider-color: var(--line);
+  --dv-separator-border: var(--line);
+  --dv-sash-color: transparent;
+  --dv-active-sash-color: var(--line);
+  --dv-paneview-active-outline-color: var(--ink);
+  --dv-drag-over-background-color: color-mix(in srgb, var(--ink) 15%, transparent);
+  --dv-drag-over-border-color: var(--ink);
+  --dv-icon-hover-background-color: var(--line);
+  --dv-tabs-and-actions-container-font-size: 13px;
+  --dv-tabs-and-actions-container-height: 36px;
+}

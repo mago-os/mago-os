@@ -232,6 +232,36 @@ export const ROTAS: Rota[] = [
   },
   {
     metodo: "GET",
+    caminho: "/layouts",
+    permissao: "tarefas.ver (só os da pessoa)",
+    oQueFaz: "Layouts de painéis da pessoa (do computador ou do celular), o último usado primeiro.",
+  },
+  {
+    metodo: "POST",
+    caminho: "/layouts",
+    permissao: "tarefas.ver",
+    oQueFaz: "Salva um layout de painéis novo (até 20 por aparelho).",
+  },
+  {
+    metodo: "POST",
+    caminho: "/layouts/:id",
+    permissao: "tarefas.ver (só os da pessoa)",
+    oQueFaz: "Salva por cima um layout da pessoa.",
+  },
+  {
+    metodo: "POST",
+    caminho: "/layouts/:id/usar",
+    permissao: "tarefas.ver (só os da pessoa)",
+    oQueFaz: "Troca para o layout (ele passa a abrir sozinho).",
+  },
+  {
+    metodo: "DELETE",
+    caminho: "/layouts/:id",
+    permissao: "tarefas.ver (só os da pessoa)",
+    oQueFaz: "Apaga um layout da pessoa.",
+  },
+  {
+    metodo: "GET",
     caminho: "/prioridades",
     permissao: "tarefas.ver",
     oQueFaz: "Central de prioridades de quem pede, na ordem fixa (atrasadas, hoje, ajuda, menções, avisos).",
