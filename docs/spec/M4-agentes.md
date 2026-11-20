@@ -7,6 +7,7 @@ Parte da [spec da Fase 1](README.md). Estado em 20/11/2026: **aprovado** pelo Sa
 | Número | Tarefa | Depende de | Tamanho |
 | --- | --- | --- | --- |
 | M4-01 | Contas de IA da empresa no cofre, com modelo por agente e modelo reserva | M3 | M |
+| M4-10 | Conta de IA por plano de assinatura (Claude Pro ou Max, ChatGPT), por conta e risco do administrador | M4-01 | M |
 | M4-02 | Coordenador e um especialista (o motor dos agentes internos e a conversa no app) | M4-01 | M |
 | M4-03 | Regras por ação: executa sozinho, pede aprovação ou bloqueado | M4-02 | M |
 | M4-04 | O agente age com a permissão de quem pediu; ações de alto risco só no app | M4-03 | M |
@@ -16,9 +17,9 @@ Parte da [spec da Fase 1](README.md). Estado em 20/11/2026: **aprovado** pelo Sa
 | M4-08 | Limite de passos por tarefa e detecção de agente andando em círculo | M4-07 | P |
 | M4-09 | Botão "Parar todos os agentes", com 2FA, motivo e retomada | M4-02 | M |
 
-A ordem da tabela é a ordem de construção. A M4-05 e a M4-09 não dependem das regras e podem ir antes delas, se for útil.
+A ordem da tabela é a ordem de construção (a M4-10 entrou em 20/11/2026, pedida pelo Sandro, e vem antes da M4-02 para o motor já nascer com os dois tipos de conta). A M4-05 e a M4-09 não dependem das regras e podem ir antes delas, se for útil.
 
-**O que não entra no M4** (como já está no plano): agentes de serviço (triagem, extração de memória, guardião, assistente de skills), memória da empresa e wiki viva (Fase 2), a camada de decisões com o Jev (no M4 as poucas decisões usam o próprio modelo da empresa), Telegram e rotinas (M5), cofres externos (1Password, Bitwarden, Vault), assinaturas pessoais conectadas no servidor, treinamento por arquivos e área de testes, importação de agentes externos, o leitor isolado da internet (no M4 nenhum agente interno acessa a internet), scripts dentro de skills, marketplace e modelos de agente.
+**O que não entra no M4** (como já está no plano): agentes de serviço (triagem, extração de memória, guardião, assistente de skills), memória da empresa e wiki viva (Fase 2), a camada de decisões com o Jev (no M4 as poucas decisões usam o próprio modelo da empresa), Telegram e rotinas (M5), cofres externos (1Password, Bitwarden, Vault), treinamento por arquivos e área de testes, importação de agentes externos, o leitor isolado da internet (no M4 nenhum agente interno acessa a internet), scripts dentro de skills, marketplace e modelos de agente.
 
 ### M4-01 Contas de IA da empresa no cofre, com modelo por agente e modelo reserva
 
@@ -35,6 +36,21 @@ Precisa da aprovação do Sandro (segurança: segredos de cada empresa).
 - [ ] Testes: a chave nunca sai pela API, a chave errada é recusada no teste, uma empresa não usa a conta da outra, e o reserva entra quando o principal falha (com um provedor falso nos testes)
 
 Pronto quando: o Sandro conecta a chave da Anthropic da Nolask, libera dois modelos e escolhe o principal e o reserva do coordenador.
+
+### M4-10 Conta de IA por plano de assinatura
+
+Entrou em 20/11/2026, por decisão do Sandro (escolheu o caminho 2 entre os três propostos): qualquer agente interno pode usar um plano de assinatura, e não só a chave de API. Serve para a empresa de uma pessoa só e para o autônomo com CPF. **Cumprir a política de cada provedor é responsabilidade do administrador**, não do sistema: cada provedor tem uma regra diferente, e o Mago OS não decide por ele. Precisa da aprovação do Sandro (contrato e segurança: segredos de cada empresa).
+
+- [ ] Contrato: a conta de IA ganha o tipo de credencial, "chave de API" (o de hoje) ou "assinatura". A assinatura guarda o login do plano (o token) no mesmo cofre e com as mesmas regras: só entra, nunca sai, ninguém lê de volta
+- [ ] Provedores da assinatura (decisão 13): Anthropic, com o token de longa duração que o Claude Code gera (`claude setup-token`), e ChatGPT, com o login do Codex (que se renova sozinho, e o núcleo guarda a renovação no cofre)
+- [ ] Ao conectar, a tela mostra um aviso curto: o uso do plano fora dos apps do provedor pode ir contra os termos dele, e quem conecta responde por isso. O administrador marca "Li os termos do provedor e assumo a responsabilidade", e o aceite vai para a auditoria (`ia.aceitou_termos`, com quem, quando e o provedor)
+- [ ] O sistema não bloqueia nenhum uso por causa da política do provedor. Só informa e registra
+- [ ] Teste ao conectar com uma chamada mínima ao modelo (a assinatura nem sempre lista modelos); os modelos conhecidos do plano entram desligados, como na chave de API
+- [ ] Custo: a execução pela assinatura é registrada com os tokens, mas com custo "assinatura" (US$ 0 nos tetos da M4-06). Quando o provedor avisa que o limite do plano acabou, a conta fica "no limite do plano" até a hora que ele indicar, e o agente passa para o modelo reserva
+- [ ] Modelo principal pela assinatura e reserva pela chave de API (ou o contrário) funcionam juntos
+- [ ] Testes com o provedor falso: o token nunca sai, o aceite fica na auditoria, o limite do plano leva ao reserva, e uma empresa não usa a assinatura da outra
+
+Pronto quando: o Sandro conecta o token do Claude Max dele numa conta de IA, aceita os termos, libera um modelo e testa a conta pela tela.
 
 ### M4-02 Coordenador e um especialista
 
@@ -152,3 +168,4 @@ Pronto quando: o Sandro aperta "Parar todos os agentes", o Claude no Mac recebe 
 10. **Tetos de gasto.** Recomendado: teto mensal por empresa, por agente e por conta de IA, com aviso aos 80% e parada aos 100%. Valores iniciais sugeridos para a Nolask: US$ 50 por mês na empresa e US$ 20 por agente, ajustáveis na tela.
 11. **Quanto tempo guardar o passo a passo.** Recomendado: 90 dias completos; depois fica só o resumo (custo, tempo e resultado). Alternativa: guardar tudo para sempre (mais espaço e mais dado pessoal guardado).
 12. **Teste com IA de verdade.** Os testes automáticos usam um provedor falso, sem custo. Para o critério de "pronto" de cada tarefa, o Sandro conecta a chave da Anthropic da Nolask pela tela (a chave não passa pelo chat), e o gasto fica sob os tetos acima.
+13. **Quais assinaturas na M4-10.** Recomendado: Anthropic (token do `claude setup-token`) e ChatGPT (login do Codex, com renovação). Outros planos entram depois, do mesmo jeito. Em todos, a responsabilidade pela política do provedor é do administrador (decisão do Sandro em 20/11/2026).
