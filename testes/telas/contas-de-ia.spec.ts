@@ -72,6 +72,18 @@ test.describe("contas de IA", () => {
     await page.getByRole("link", { name: "Contas de IA" }).click();
     await expect(page.getByText("Nenhuma conta de IA conectada.")).toBeVisible();
     await page.getByRole("button", { name: "Conectar" }).click();
+    // Assinatura (M4-10): o aviso dos termos aparece, o teto some, e sem marcar o aviso não conecta.
+    await page.getByLabel("Plano de assinatura (Claude Pro ou Max)").check();
+    await expect(page.getByText(/pode ir contra os termos dele/)).toBeVisible();
+    // Nada passa da largura da tela no celular (a lista de provedores já empurrou a página para o lado).
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+    await expect(page.getByLabel("Teto por mês em dólares (opcional)")).toHaveCount(0);
+    await page.getByLabel("Nome", { exact: true }).fill("Plano de teste");
+    const token = page.getByLabel("Token do plano (gerado por claude setup-token)");
+    await token.fill("sk-ant-oat01-falso-de-tela");
+    await page.getByRole("button", { name: "Testar e conectar" }).click();
+    await expect(page.getByText("Para conectar uma assinatura, marque o aviso dos termos.")).toBeVisible();
+    await page.getByLabel("Chave de API (cobrada por uso)").check();
     await page.getByLabel("Nome", { exact: true }).fill("Provedor de teste");
     await page.getByLabel("Provedor").selectOption("compativel_openai");
     await page.getByLabel("Endereço da API").fill(endereco);

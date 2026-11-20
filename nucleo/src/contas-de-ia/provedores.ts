@@ -6,7 +6,13 @@
  * repetir a chave) e sem a chave.
  */
 import { lookup } from "node:dns/promises";
-import type { ModeloEscolhido, ModelosDoAgente, ProvedorDeIa, TesteDaContaDeIa } from "@mago-os/contratos";
+import type {
+  ModeloEscolhido,
+  ModelosDoAgente,
+  ProvedorDeIa,
+  TesteDaContaDeIa,
+  TipoDeCredencial,
+} from "@mago-os/contratos";
 
 export const ENDERECO_DA_ANTHROPIC = "https://api.anthropic.com/v1";
 const VERSAO_DA_API_ANTHROPIC = "2023-06-01";
@@ -17,14 +23,54 @@ const MAXIMO_DA_RESPOSTA = 2_000_000;
 
 export interface AcessoAoProvedor {
   provedor: ProvedorDeIa;
+  /** Chave de API (padrão) ou o login de um plano de assinatura (M4-10). */
+  credencial?: TipoDeCredencial;
   /** Só para compativel_openai. */
   endereco: string | null;
   chave: string;
 }
 
+/**
+ * O teste e, na assinatura, o que mudou: o login renovado (o ChatGPT troca o token de renovação, e o novo precisa
+ * voltar ao cofre) e até quando o limite do plano acabou.
+ */
+export type ResultadoDoTeste = TesteDaContaDeIa & { credencialNova?: string; limiteAte?: Date };
+
 export interface Provedores {
-  /** Testa a chave e lista os modelos que ela alcança. */
-  testar(acesso: AcessoAoProvedor): Promise<TesteDaContaDeIa>;
+  /** Testa a chave (ou o login do plano) e lista os modelos que ela alcança. */
+  testar(acesso: AcessoAoProvedor): Promise<ResultadoDoTeste>;
+}
+
+/**
+ * Modelos conhecidos dos planos de assinatura do ChatGPT, que não têm uma lista pública: atualizada por nós, como a
+ * tabela de preços. Chegam desligados, e o administrador libera os que o plano dele tem.
+ */
+export const MODELOS_DO_CHATGPT = ["gpt-5.1", "gpt-5.1-codex", "gpt-5.1-codex-mini", "gpt-5"] as const;
+
+/** O login do Codex (auth.json): só o que o núcleo usa. */
+interface LoginDoCodex {
+  tokens: { access_token?: string; refresh_token: string; id_token?: string; account_id?: string };
+  last_refresh?: string;
+  [outro: string]: unknown;
+}
+
+/** Endereço e cliente públicos do login do Codex (os mesmos que o Codex usa para renovar o acesso). */
+const RENOVAR_LOGIN_DO_CHATGPT = "https://auth.openai.com/oauth/token";
+const CLIENTE_DO_CODEX = "app_EMoamEEZ73f0CkXaXp7hrann";
+
+/** Os 4 caracteres que identificam a credencial na tela (no JSON do Codex, o fim da conta ou do token). */
+export function finalDaCredencial(provedor: ProvedorDeIa, chave: string): string {
+  if (provedor === "chatgpt") {
+    try {
+      const login = JSON.parse(chave) as LoginDoCodex;
+      const base = login.tokens.account_id ?? login.tokens.refresh_token;
+      if (/^[\x21-\x7e]{4,}$/.test(base)) return base.slice(-4);
+    } catch {
+      // cai no padrão
+    }
+    return "json";
+  }
+  return chave.slice(-4);
 }
 
 const NOME_DE_MODELO = /^[A-Za-z0-9][A-Za-z0-9._:/@-]{0,119}$/;
@@ -108,19 +154,42 @@ function erroPeloCodigo(codigo: number): string {
   return `O provedor respondeu com erro ${codigo}.`;
 }
 
+type RespostaJson =
+  | { ok: true; corpo: unknown }
+  | { ok: false; erro: string; status?: number; esperarSegundos?: number };
+
+/** Segundos de espera que o provedor pediu (cabeçalho retry-after), se pediu. */
+function esperaPedida(r: Response): number | undefined {
+  const valor = Number(r.headers.get("retry-after"));
+  return Number.isFinite(valor) && valor > 0 ? Math.min(valor, 7 * 24 * 3600) : undefined;
+}
+
 async function pedirJson(
   url: string,
   cabecalhos: Record<string, string>,
-): Promise<{ ok: true; corpo: unknown } | { ok: false; erro: string }> {
+  corpo?: unknown,
+): Promise<RespostaJson> {
   try {
     const r = await fetch(url, {
-      headers: { accept: "application/json", ...cabecalhos },
+      method: corpo === undefined ? "GET" : "POST",
+      headers: {
+        accept: "application/json",
+        ...(corpo === undefined ? {} : { "content-type": "application/json" }),
+        ...cabecalhos,
+      },
+      ...(corpo === undefined ? {} : { body: JSON.stringify(corpo) }),
       redirect: "error",
       signal: AbortSignal.timeout(TEMPO_MAXIMO_MS),
     });
     if (!r.ok) {
       await r.body?.cancel();
-      return { ok: false, erro: erroPeloCodigo(r.status) };
+      const espera = esperaPedida(r);
+      return {
+        ok: false,
+        erro: erroPeloCodigo(r.status),
+        status: r.status,
+        ...(espera !== undefined ? { esperarSegundos: espera } : {}),
+      };
     }
     // Lê aos pedaços e para no limite: uma resposta enorme não enche a memória da API.
     const partes: Uint8Array[] = [];
@@ -160,6 +229,7 @@ export function provedoresDeVerdade(
 ): Provedores {
   return {
     async testar(a) {
+      if (a.credencial === "assinatura") return testarAssinatura(a);
       if (a.provedor === "compativel_openai" && !(await enderecoSeguro(a.endereco ?? "", ambiente, resolver)))
         return { ok: false, erro: "O endereço aponta para uma rede interna ou não existe." };
       const pedido =
@@ -177,16 +247,100 @@ export function provedoresDeVerdade(
   };
 }
 
+/** Limite do plano: 429 do provedor. Sem hora informada, uma hora. */
+function limiteDoPlano(pedido: Extract<RespostaJson, { ok: false }>): ResultadoDoTeste | null {
+  if (pedido.status !== 429) return null;
+  return {
+    ok: false,
+    erro: "O limite do plano de assinatura acabou por enquanto.",
+    limiteAte: new Date(Date.now() + (pedido.esperarSegundos ?? 3600) * 1000),
+  };
+}
+
+/**
+ * Assinatura (M4-10, decisão 0022). Anthropic: o token do `claude setup-token`, no cabeçalho Authorization, lista os
+ * modelos. ChatGPT: o login do Codex é renovado (o que testa o token de renovação), e o login novo volta ao cofre.
+ * Cumprir os termos do provedor é responsabilidade do administrador, que aceitou o aviso ao conectar.
+ */
+async function testarAssinatura(a: AcessoAoProvedor): Promise<ResultadoDoTeste> {
+  if (a.provedor === "anthropic") {
+    const pedido = await pedirJson(`${ENDERECO_DA_ANTHROPIC}/models?limit=1000`, {
+      authorization: `Bearer ${a.chave}`,
+      "anthropic-version": VERSAO_DA_API_ANTHROPIC,
+      "anthropic-beta": "oauth-2025-04-20",
+    });
+    if (!pedido.ok) return limiteDoPlano(pedido) ?? { ok: false, erro: pedido.erro };
+    return { ok: true, modelos: modelosDaResposta(pedido.corpo) };
+  }
+  if (a.provedor === "chatgpt") {
+    let login: LoginDoCodex;
+    try {
+      login = JSON.parse(a.chave) as LoginDoCodex;
+      if (typeof login?.tokens?.refresh_token !== "string") throw new Error("sem token");
+    } catch {
+      return { ok: false, erro: "O login do Codex não está no formato do auth.json." };
+    }
+    const pedido = await pedirJson(
+      RENOVAR_LOGIN_DO_CHATGPT,
+      {},
+      {
+        client_id: CLIENTE_DO_CODEX,
+        grant_type: "refresh_token",
+        refresh_token: login.tokens.refresh_token,
+        scope: "openid profile email",
+      },
+    );
+    if (!pedido.ok)
+      return (
+        limiteDoPlano(pedido) ?? {
+          ok: false,
+          erro:
+            pedido.status === 400 || pedido.status === 401
+              ? "O ChatGPT recusou o login. Entre de novo no Codex e cole o auth.json novo."
+              : pedido.erro,
+        }
+      );
+    const novo = pedido.corpo as { access_token?: unknown; refresh_token?: unknown; id_token?: unknown };
+    if (typeof novo?.access_token !== "string")
+      return { ok: false, erro: "O ChatGPT não devolveu o acesso." };
+    const renovado: LoginDoCodex = {
+      ...login,
+      tokens: {
+        ...login.tokens,
+        access_token: novo.access_token,
+        ...(typeof novo.refresh_token === "string" ? { refresh_token: novo.refresh_token } : {}),
+        ...(typeof novo.id_token === "string" ? { id_token: novo.id_token } : {}),
+      },
+      last_refresh: new Date().toISOString(),
+    };
+    return { ok: true, modelos: [...MODELOS_DO_CHATGPT], credencialNova: JSON.stringify(renovado) };
+  }
+  return { ok: false, erro: "Este provedor não aceita assinatura." };
+}
+
 /**
  * Provedor falso, para os testes (sem custo, sem rede): aceita só as chaves da lista e devolve os modelos dela.
  */
-export function provedoresFalsos(chaves: Record<string, string[]>): Provedores & { chamadas: number } {
+export function provedoresFalsos(
+  chaves: Record<string, string[]>,
+  opcoes: { noLimite?: Set<string>; renovar?: (chave: string) => string | undefined } = {},
+): Provedores & { chamadas: number; ultimoAcesso: AcessoAoProvedor | null } {
   const falso = {
     chamadas: 0,
-    async testar(a: AcessoAoProvedor): Promise<TesteDaContaDeIa> {
+    ultimoAcesso: null as AcessoAoProvedor | null,
+    async testar(a: AcessoAoProvedor): Promise<ResultadoDoTeste> {
       falso.chamadas += 1;
+      falso.ultimoAcesso = a;
+      if (opcoes.noLimite?.has(a.chave))
+        return {
+          ok: false,
+          erro: "O limite do plano de assinatura acabou por enquanto.",
+          limiteAte: new Date(Date.now() + 3600_000),
+        };
       const modelos = chaves[a.chave];
-      return modelos ? { ok: true, modelos } : { ok: false, erro: "O provedor recusou a chave." };
+      if (!modelos) return { ok: false, erro: "O provedor recusou a chave." };
+      const nova = a.credencial === "assinatura" ? opcoes.renovar?.(a.chave) : undefined;
+      return { ok: true, modelos, ...(nova ? { credencialNova: nova } : {}) };
     },
   };
   return falso;

@@ -2,7 +2,15 @@
  * Agentes › Contas de IA (M4-01): conectar, testar, trocar a chave, liberar modelos e apagar. Só o administrador
  * (a API confere de novo). A chave só entra: a tela nunca recebe a chave de volta, só os 4 últimos caracteres.
  */
-import type { ContaDeIa, ContaDeIaNaLista, ModeloDaConta, ProvedorDeIa } from "@mago-os/contratos";
+import {
+  AVISO_DA_ASSINATURA,
+  type ContaDeIa,
+  type ContaDeIaNaLista,
+  CREDENCIAIS_DO_PROVEDOR,
+  type ModeloDaConta,
+  type ProvedorDeIa,
+  type TipoDeCredencial,
+} from "@mago-os/contratos";
 import { ArrowLeft, KeyRound, Plus } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { Button } from "@/componentes/ui/button";
@@ -112,6 +120,7 @@ export function ContasDeIa({
                 <span className="flex flex-wrap items-center gap-2 text-xs text-texto-2">
                   <SituacaoDaConta conta={c} />
                   <span>{NOME_DO_PROVEDOR[c.provedor]}</span>
+                  <span>{c.credencial === "assinatura" ? "Assinatura" : "Chave de API"}</span>
                   <span className="font-mono">…{c.finalDaChave}</span>
                   <span>
                     {c.liberados} de {c.modelos} modelos liberados
@@ -140,6 +149,51 @@ function SituacaoDaConta({ conta }: { conta: ContaDeIa }) {
   );
 }
 
+function CampoDaCredencial({
+  id,
+  provedor,
+  credencial,
+  rotuloDaChave,
+}: {
+  id: string;
+  provedor: ProvedorDeIa;
+  credencial: TipoDeCredencial;
+  rotuloDaChave: string;
+}) {
+  if (provedor === "chatgpt")
+    return (
+      <div className="grid gap-1.5">
+        <label htmlFor={id} className="text-sm font-medium">
+          Login do Codex (conteúdo do arquivo ~/.codex/auth.json)
+        </label>
+        <textarea
+          id={id}
+          name="chave"
+          required
+          rows={5}
+          maxLength={20000}
+          spellCheck={false}
+          autoComplete="off"
+          className="rounded-md border border-linha bg-cartao px-3 py-2 font-mono text-xs"
+          placeholder="Rode codex login no seu computador e cole aqui o conteúdo do auth.json"
+        />
+      </div>
+    );
+  return (
+    <Campo
+      id={id}
+      name="chave"
+      type="password"
+      rotulo={credencial === "assinatura" ? "Token do plano (gerado por claude setup-token)" : rotuloDaChave}
+      required
+      minLength={8}
+      maxLength={credencial === "assinatura" ? 2000 : 400}
+      autoComplete="off"
+      spellCheck={false}
+    />
+  );
+}
+
 function FormularioDeConexao({
   aoCancelar,
   aoSalvar,
@@ -148,7 +202,13 @@ function FormularioDeConexao({
   aoSalvar: (id: string) => void;
 }) {
   const [provedor, setProvedor] = useState<ProvedorDeIa>("anthropic");
+  const [escolhida, setEscolhida] = useState<TipoDeCredencial>("chave_de_api");
+  const [aceito, setAceito] = useState(false);
   const [mensagem, setMensagem] = useState<Mensagem>(null);
+  // O provedor diz quais tipos aceita (ChatGPT só assinatura, compatível com OpenAI só chave).
+  const tipos = CREDENCIAIS_DO_PROVEDOR[provedor];
+  const credencial: TipoDeCredencial = tipos.includes(escolhida) ? escolhida : (tipos[0] as TipoDeCredencial);
+  const assinatura = credencial === "assinatura";
   const [enviando, setEnviando] = useState(false);
   const [confirmar, setConfirmar] = useState<Record<string, unknown> | null>(null);
 
@@ -165,15 +225,19 @@ function FormularioDeConexao({
   function aoEnviar(evento: React.FormEvent<HTMLFormElement>) {
     evento.preventDefault();
     const f = new FormData(evento.currentTarget);
-    const teto = tetoEmCentavos(String(f.get("teto") ?? ""));
+    const teto = assinatura ? null : tetoEmCentavos(String(f.get("teto") ?? ""));
     if (Number.isNaN(teto))
       return setMensagem({ tipo: "erro", texto: "Escreva o teto em dólares, ex.: 50." });
+    if (assinatura && !aceito)
+      return setMensagem({ tipo: "erro", texto: "Para conectar uma assinatura, marque o aviso dos termos." });
     void enviar({
       nome: String(f.get("nome")).trim(),
       provedor,
+      credencial,
       ...(provedor === "compativel_openai" ? { endereco: String(f.get("endereco")).trim() } : {}),
       chave: String(f.get("chave")).trim(),
       tetoMensal: teto,
+      ...(assinatura ? { aceitoOsTermos: true } : {}),
     });
   }
 
@@ -212,14 +276,36 @@ function FormularioDeConexao({
             id="provedor"
             value={provedor}
             onChange={(e) => setProvedor(e.target.value as ProvedorDeIa)}
-            className="h-11 rounded-md border border-linha bg-cartao px-3 text-base"
+            className="h-11 w-full min-w-0 rounded-md border border-linha bg-cartao px-3 text-base"
           >
             <option value="anthropic">Anthropic</option>
-            <option value="compativel_openai">
-              Compatível com OpenAI (OpenAI, OpenRouter, DeepSeek, Groq...)
-            </option>
+            <option value="compativel_openai">Compatível com OpenAI (OpenRouter, DeepSeek...)</option>
+            <option value="chatgpt">ChatGPT (plano de assinatura)</option>
           </select>
         </div>
+        {tipos.length > 1 && (
+          <fieldset className="grid gap-1.5">
+            <legend className="text-sm font-medium">Como entra</legend>
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="radio"
+                name="credencial"
+                checked={credencial === "chave_de_api"}
+                onChange={() => setEscolhida("chave_de_api")}
+              />
+              Chave de API (cobrada por uso)
+            </label>
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="radio"
+                name="credencial"
+                checked={credencial === "assinatura"}
+                onChange={() => setEscolhida("assinatura")}
+              />
+              Plano de assinatura (Claude Pro ou Max)
+            </label>
+          </fieldset>
+        )}
         {provedor === "compativel_openai" && (
           <Campo
             id="endereco"
@@ -230,24 +316,30 @@ function FormularioDeConexao({
             placeholder="Ex.: https://openrouter.ai/api/v1"
           />
         )}
-        <Campo
-          id="chave"
-          name="chave"
-          type="password"
-          rotulo="Chave"
-          required
-          minLength={8}
-          maxLength={400}
-          autoComplete="off"
-          spellCheck={false}
-        />
-        <Campo
-          id="teto"
-          name="teto"
-          inputMode="decimal"
-          rotulo="Teto por mês em dólares (opcional)"
-          placeholder="Ex.: 50"
-        />
+        <CampoDaCredencial id="chave" provedor={provedor} credencial={credencial} rotuloDaChave="Chave" />
+        {!assinatura && (
+          <Campo
+            id="teto"
+            name="teto"
+            inputMode="decimal"
+            rotulo="Teto por mês em dólares (opcional)"
+            placeholder="Ex.: 50"
+          />
+        )}
+        {assinatura && (
+          <div className="grid gap-2 rounded-md border border-alerta/40 bg-suave p-3">
+            <p className="text-sm">{AVISO_DA_ASSINATURA.texto}</p>
+            <label className="flex items-start gap-2 text-sm font-medium">
+              <input
+                type="checkbox"
+                className="mt-1"
+                checked={aceito}
+                onChange={(e) => setAceito(e.target.checked)}
+              />
+              Li os termos do provedor e assumo a responsabilidade
+            </label>
+          </div>
+        )}
         {mensagem && <Aviso {...mensagem} />}
         <div className="flex gap-2">
           <Button type="submit" disabled={enviando}>
@@ -371,11 +463,23 @@ function DetalheDaConta({
       <div className="flex flex-wrap items-center gap-2 text-sm text-texto-2">
         <SituacaoDaConta conta={conta} />
         <span>{NOME_DO_PROVEDOR[conta.provedor]}</span>
+        <span>{conta.credencial === "assinatura" ? "Assinatura" : "Chave de API"}</span>
         {conta.endereco && <span className="break-all">{conta.endereco}</span>}
         <span className="font-mono">Chave …{conta.finalDaChave}</span>
         {conta.tetoMensal !== null && <span>Teto {dolares(conta.tetoMensal)} por mês</span>}
       </div>
       {conta.situacao === "com_erro" && conta.ultimoErro && <Aviso tipo="erro" texto={conta.ultimoErro} />}
+      {conta.limiteDoPlanoAte && Date.parse(conta.limiteDoPlanoAte) > Date.now() && (
+        <Aviso
+          tipo="erro"
+          texto={`O limite do plano acabou. Volta em ${new Date(conta.limiteDoPlanoAte).toLocaleString("pt-BR")}; até lá, os agentes usam o modelo reserva.`}
+        />
+      )}
+      {conta.credencial === "assinatura" && conta.termosAceitosEm && (
+        <p className="text-xs text-texto-2">
+          Termos do provedor aceitos em {new Date(conta.termosAceitosEm).toLocaleString("pt-BR")}.
+        </p>
+      )}
       {mensagem && <Aviso {...mensagem} />}
       {(podeEditar || podeExcluir) && (
         <div className="flex flex-wrap gap-2">
@@ -405,14 +509,11 @@ function DetalheDaConta({
             void trocar(String(new FormData(e.currentTarget).get("chave")).trim());
           }}
         >
-          <Campo
+          <CampoDaCredencial
             id="chave-nova"
-            name="chave"
-            type="password"
-            rotulo="Chave nova"
-            required
-            minLength={8}
-            maxLength={400}
+            provedor={conta.provedor}
+            credencial={conta.credencial}
+            rotuloDaChave="Chave nova"
           />
           <div className="flex gap-2">
             <Button type="submit" size="pequeno" disabled={ocupado}>

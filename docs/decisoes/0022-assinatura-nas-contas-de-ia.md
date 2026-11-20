@@ -1,7 +1,7 @@
 # 0022 Plano de assinatura nas contas de IA
 
 - **Data:** 20/11/2026
-- **Situação:** proposta (aguarda o "aprovado" do Sandro nos contratos)
+- **Situação:** aceita (aprovada pelo Sandro no chat em 20/11/2026)
 - **Tarefa:** M4-10
 
 ## Contexto

@@ -243,3 +243,10 @@ O login (`mago_acesso`) não lê papéis nem as regras da plataforma direto. As 
 - O texto cifrado leva a empresa e a conta como dado autenticado: copiado para outra linha, ele não decifra.
 - `modelos_de_conta_de_ia` repete a `empresa_id` para a política de sempre e para a chave estrangeira dos agentes. Os modelos chegam desligados.
 - `agentes` ganha o modelo principal e o reserva como pares (conta, modelo) que apontam para um modelo da mesma empresa. Apagar a conta apaga os modelos, e a escolha do agente fica vazia (`ON DELETE SET NULL` só nas duas colunas do par).
+
+## 33. Plano de assinatura nas contas de IA (20/11/2026, M4-10)
+
+- `contas_de_ia.credencial` diz se a conta é por chave de API ou por assinatura ([decisão 0022](../decisoes/0022-assinatura-nas-contas-de-ia.md)). Uma regra no banco amarra o provedor ao tipo: `chatgpt` só por assinatura, `compativel_openai` só por chave, Anthropic pelos dois.
+- A assinatura guarda o aceite do aviso dos termos (quem, quando e a versão) e não tem teto em dólar; a chave de API não tem aceite nem limite do plano. Quem aceitou precisa ter vínculo com a empresa.
+- `limite_do_plano_ate` marca até quando o plano está sem uso (o provedor avisou que acabou).
+- O texto cifrado aceita até cerca de 20 KB, para caber o arquivo de login do Codex.
