@@ -12,6 +12,7 @@ import {
   Monitor,
   MonitorSmartphone,
   Moon,
+  PanelsTopLeft,
   Sun,
   UserRound,
 } from "lucide-react";
@@ -33,6 +34,7 @@ export const MENU_DA_PESSOA: ItemDoMenu[] = [
   { caminho: "/prioridades", nome: "Prioridades", icone: Flame },
   { caminho: "/tarefas", nome: "Tarefas", icone: ListChecks },
   { caminho: "/projetos", nome: "Projetos", icone: FolderKanban },
+  { caminho: "/paineis", nome: "Painéis", icone: PanelsTopLeft },
   { caminho: "/perfil", nome: "Meu perfil", icone: UserRound },
   { caminho: "/aparelhos", nome: "Meus aparelhos", icone: MonitorSmartphone },
 ];
@@ -214,7 +216,7 @@ export function Casca(props: PropsDaCasca) {
         </a>
         <ItemDeBaixo item={MENU_DA_PESSOA[3] as ItemDoMenu} aqui={caminho.startsWith("/projetos")} />
         <ItemDeBaixo
-          item={MENU_DA_PESSOA[4] as ItemDoMenu}
+          item={MENU_DA_PESSOA[5] as ItemDoMenu}
           aqui={caminho === "/perfil" || caminho === "/aparelhos"}
         />
       </nav>

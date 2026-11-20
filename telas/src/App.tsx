@@ -31,6 +31,7 @@ import { AceitarConvite } from "./telas/Convite";
 import { AtivarDoisFatores, ConfirmarSegundoFator } from "./telas/DoisFatores";
 import { Empresas } from "./telas/Empresas";
 import { NovaConta } from "./telas/NovaConta";
+import { Paineis } from "./telas/Paineis";
 import { MeuPerfil } from "./telas/Perfil";
 import { CentralDePrioridades, Prioridades } from "./telas/Prioridades";
 import { PaginaDoProjeto, Projetos } from "./telas/Projetos";
@@ -283,6 +284,18 @@ export function App() {
   else if (caminho === "/empresas" && dono) conteudo = <Empresas />;
   else if (caminho === "/aparelhos") conteudo = <MeusAparelhos />;
   else if (caminho === "/prioridades" && temEmpresaAtiva) conteudo = <Prioridades />;
+  else if (caminho === "/paineis" && temEmpresaAtiva)
+    conteudo = (
+      <Paineis
+        euId={sessao.pessoa.id}
+        podeCriarTarefa={pode("tarefas", "criar")}
+        podeEditarTarefa={pode("tarefas", "editar")}
+        podeVerAgentes={pode("agentes", "ver")}
+        podeCadastrarAgentes={pode("agentes", "criar")}
+        administraProjetos={permissoes?.modulos.projetos?.acoes.editar === "tudo"}
+        podeExcluirProjetos={pode("projetos", "excluir")}
+      />
+    );
   else
     conteudo = (
       <Inicio

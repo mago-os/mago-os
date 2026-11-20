@@ -17,6 +17,7 @@
     "@simplewebauthn/browser": "catalog:",
     "class-variance-authority": "catalog:",
     "clsx": "catalog:",
+    "dockview-react": "catalog:",
     "lucide-react": "catalog:",
     "qrcode": "catalog:",
     "radix-ui": "catalog:",

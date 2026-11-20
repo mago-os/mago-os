@@ -225,3 +225,9 @@ O login (`mago_acesso`) não lê papéis nem as regras da plataforma direto. As 
 - As extensões `unaccent` e `pg_trgm`, do próprio PostgreSQL, e a função imutável `para_busca` (minúsculas e sem acento) permitem buscar sem acento e com erro de digitação ("bakup" acha "backup", por semelhança de palavras a partir de 0,4).
 - Índices de trigramas em `para_busca` dos títulos e descrições das tarefas, do texto dos comentários e dos nomes de projetos, espaços, pessoas e agentes.
 - Nenhuma tabela nova: a busca usa as tabelas de sempre, com o RLS e o mesmo alcance das listas.
+
+## 30. Layouts de painéis (20/11/2026, M3-10)
+
+- `layouts_de_tela` é pessoal, como as visões salvas: a política usa `empresa_ativa()` e `pessoa_ativa()`, e a pessoa precisa ter vínculo com a empresa (o layout some com o vínculo). Nome único por pessoa e aparelho, sem diferença de maiúsculas.
+- A estrutura fica em jsonb (até cerca de 64 KB), conferida pelo contrato `EstruturaDoLayout` na API: só painéis declarados, e a divisão do dockview só pode citar esses painéis.
+- `usado_em` marca o último aberto em cada aparelho, que abre sozinho da próxima vez.

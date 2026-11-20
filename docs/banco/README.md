@@ -178,6 +178,16 @@ erDiagram
     timestamp_with_time_zone marcado_em
     timestamp_with_time_zone criado_em
   }
+  layouts_de_tela {
+    uuid id PK
+    uuid empresa_id FK
+    uuid pessoa_id
+    text nome
+    text aparelho
+    jsonb estrutura
+    timestamp_with_time_zone usado_em
+    timestamp_with_time_zone criado_em
+  }
   listas {
     uuid id PK
     uuid empresa_id FK
@@ -473,6 +483,7 @@ erDiagram
   empresas ||--o{ etiquetas : "empresa_id"
   empresas ||--o{ etiquetas_de_tarefa : "empresa_id"
   empresas ||--o{ itens_de_checklist : "empresa_id"
+  empresas ||--o{ layouts_de_tela : "empresa_id"
   empresas ||--o{ listas : "empresa_id"
   empresas ||--o{ membros_de_projeto : "empresa_id"
   empresas ||--o{ mencoes_de_comentario : "empresa_id"
@@ -797,6 +808,23 @@ Isolamento por empresa (Row Level Security): ligado e forçado.
 | marcado_por_agente_id | uuid | não |  | sistema | Agente que marcou. |
 | marcado_em | timestamp with time zone | não |  | sistema | Quando foi marcado. |
 | criado_em | timestamp with time zone | sim | `now()` | sistema | Quando o item foi criado. |
+
+### layouts_de_tela
+
+Layouts de painéis salvos por cada pessoa (computador e celular separados). Só a dona vê.
+
+Isolamento por empresa (Row Level Security): ligado e forçado.
+
+| Coluna | Tipo | Obrigatória | Padrão | Marca | Descrição |
+| --- | --- | --- | --- | --- | --- |
+| id | uuid | sim | `uuidv7()` | sistema | Identificador do layout (UUID v7). Chave primária. |
+| empresa_id | uuid | sim |  | sistema | Empresa do layout. Aponta para empresas.id. |
+| pessoa_id | uuid | sim |  | sistema | Pessoa dona do layout. |
+| nome | text | sim |  | pessoal | Nome que a pessoa deu (ex.: Meu dia). |
+| aparelho | text | sim |  | pessoal | computador ou celular. |
+| estrutura | jsonb | sim |  | pessoal | Os painéis e a divisão da tela (contrato EstruturaDoLayout). |
+| usado_em | timestamp with time zone | não |  | pessoal | Quando foi aberto pela última vez (o último abre sozinho). |
+| criado_em | timestamp with time zone | sim | `now()` | sistema | Quando foi salvo. |
 
 ### listas
 
