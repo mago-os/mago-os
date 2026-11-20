@@ -147,6 +147,11 @@ erDiagram
     uuid criada_por
     timestamp_with_time_zone criada_em
     timestamp_with_time_zone atualizada_em
+    text credencial
+    uuid termos_aceitos_por
+    timestamp_with_time_zone termos_aceitos_em
+    integer versao_do_aviso
+    timestamp_with_time_zone limite_do_plano_ate
   }
   empresas {
     uuid id PK
@@ -788,6 +793,11 @@ Isolamento por empresa (Row Level Security): ligado e forçado.
 | criada_por | uuid | sim |  | sistema | Quem conectou a conta. |
 | criada_em | timestamp with time zone | sim | `now()` | sistema | Quando a conta foi conectada. |
 | atualizada_em | timestamp with time zone | sim | `now()` | sistema | Última mudança na conta. |
+| credencial | text | sim | `'chave_de_api'::text` | empresa | chave_de_api (cobrada por uso) ou assinatura (o login de um plano, M4-10). |
+| termos_aceitos_por | uuid | não |  | sistema | Assinatura: quem aceitou o aviso dos termos do provedor. |
+| termos_aceitos_em | timestamp with time zone | não |  | sistema | Assinatura: quando o aviso foi aceito. |
+| versao_do_aviso | integer | não |  | sistema | Assinatura: a versão do aviso que foi aceita. |
+| limite_do_plano_ate | timestamp with time zone | não |  | sistema | Assinatura: o limite do plano acabou e volta nesta hora. |
 
 ### empresas
 

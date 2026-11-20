@@ -13,19 +13,24 @@ import type {
 import type pg from "pg";
 import { FORMATO_UUID } from "../comum.ts";
 
-const COLUNAS = `id, empresa_id, nome, provedor, endereco, final_da_chave, situacao, ultimo_erro, teto_mensal,
-  testada_em, criada_por, criada_em, atualizada_em`;
+const COLUNAS = `id, empresa_id, nome, provedor, credencial, endereco, final_da_chave, situacao, ultimo_erro,
+  teto_mensal, termos_aceitos_por, termos_aceitos_em, limite_do_plano_ate, testada_em, criada_por, criada_em,
+  atualizada_em`;
 
 interface LinhaDaConta {
   id: string;
   empresa_id: string;
   nome: string;
   provedor: ContaDeIa["provedor"];
+  credencial: ContaDeIa["credencial"];
   endereco: string | null;
   final_da_chave: string;
   situacao: ContaDeIa["situacao"];
   ultimo_erro: string | null;
   teto_mensal: number | null;
+  termos_aceitos_por: string | null;
+  termos_aceitos_em: Date | null;
+  limite_do_plano_ate: Date | null;
   testada_em: Date | null;
   criada_por: string;
   criada_em: Date;
@@ -39,6 +44,10 @@ function paraConta(l: LinhaDaConta): ContaDeIa {
     nome: l.nome,
     provedor: l.provedor,
     endereco: l.endereco,
+    credencial: l.credencial,
+    termosAceitosPor: l.termos_aceitos_por,
+    termosAceitosEm: l.termos_aceitos_em?.toISOString() ?? null,
+    limiteDoPlanoAte: l.limite_do_plano_ate?.toISOString() ?? null,
     finalDaChave: l.final_da_chave,
     situacao: l.situacao,
     ultimoErro: l.ultimo_erro,
@@ -94,8 +103,11 @@ export interface DadosDaNovaConta {
   id: string;
   nome: string;
   provedor: ContaDeIa["provedor"];
+  credencial: ContaDeIa["credencial"];
   endereco: string | null;
   chaveCifrada: Buffer;
+  /** Só na assinatura: quem aceitou o aviso e a versão dele. */
+  aceite: { pessoaId: string; versao: number } | null;
   finalDaChave: string;
   tetoMensal: number | null;
   criadaPor: string;
@@ -103,10 +115,23 @@ export interface DadosDaNovaConta {
 
 export async function gravarConta(c: pg.PoolClient, d: DadosDaNovaConta): Promise<ContaDeIa> {
   const r = await c.query<LinhaDaConta>(
-    `insert into contas_de_ia (id, empresa_id, nome, provedor, endereco, chave_cifrada, final_da_chave, teto_mensal,
-       testada_em, criada_por)
-     values ($1, empresa_ativa(), $2, $3, $4, $5, $6, $7, now(), $8) returning ${COLUNAS}`,
-    [d.id, d.nome.trim(), d.provedor, d.endereco, d.chaveCifrada, d.finalDaChave, d.tetoMensal, d.criadaPor],
+    `insert into contas_de_ia (id, empresa_id, nome, provedor, credencial, endereco, chave_cifrada, final_da_chave,
+       teto_mensal, termos_aceitos_por, termos_aceitos_em, versao_do_aviso, testada_em, criada_por)
+     values ($1, empresa_ativa(), $2, $3, $4, $5, $6, $7, $8, $9, case when $9::uuid is null then null else now() end,
+       $10, now(), $11) returning ${COLUNAS}`,
+    [
+      d.id,
+      d.nome.trim(),
+      d.provedor,
+      d.credencial,
+      d.endereco,
+      d.chaveCifrada,
+      d.finalDaChave,
+      d.tetoMensal,
+      d.aceite?.pessoaId ?? null,
+      d.aceite?.versao ?? null,
+      d.criadaPor,
+    ],
   );
   return paraConta(r.rows[0] as LinhaDaConta);
 }
@@ -125,6 +150,7 @@ export async function mudarConta(
         situacao = case when $5::bytea is null then situacao else 'ativa' end,
         ultimo_erro = case when $5::bytea is null then ultimo_erro else null end,
         testada_em = case when $5::bytea is null then testada_em else now() end,
+        limite_do_plano_ate = case when $5::bytea is null then limite_do_plano_ate else null end,
         atualizada_em = now()
       where id = $1 and empresa_id = empresa_ativa() returning ${COLUNAS}`,
     [
@@ -137,6 +163,25 @@ export async function mudarConta(
     ],
   );
   return paraConta(r.rows[0] as LinhaDaConta);
+}
+
+/**
+ * Guarda o login renovado do plano (o ChatGPT troca o token de renovação a cada uso), só se o guardado ainda for o
+ * que foi lido: uma troca de chave feita no meio do teste vale, e a renovação do login antigo é descartada.
+ */
+export async function guardarCredencialRenovada(
+  c: pg.PoolClient,
+  id: string,
+  lida: Buffer,
+  nova: Buffer,
+  finalDaChave: string,
+): Promise<boolean> {
+  const r = await c.query(
+    `update contas_de_ia set chave_cifrada = $3, final_da_chave = $4, atualizada_em = now()
+      where id = $1 and empresa_id = empresa_ativa() and chave_cifrada = $2`,
+    [id, lida, nova, finalDaChave],
+  );
+  return (r.rowCount ?? 0) > 0;
 }
 
 export async function marcarTeste(c: pg.PoolClient, id: string, erro: string | null): Promise<ContaDeIa> {
@@ -255,10 +300,19 @@ export async function modelosDoAgente(c: pg.PoolClient, agenteId: string): Promi
   };
 }
 
+/** O provedor avisou que o limite do plano acabou: a conta fica sem uso até a hora indicada. */
+export async function marcarLimiteDoPlano(c: pg.PoolClient, id: string, ate: Date | null): Promise<void> {
+  await c.query(
+    `update contas_de_ia set limite_do_plano_ate = $2, atualizada_em = now()
+      where id = $1 and empresa_id = empresa_ativa() and credencial = 'assinatura'`,
+    [id, ate],
+  );
+}
+
 /** Por que um modelo não pode ser usado agora (null: pode). O teto de gasto entra na M4-06. */
 export async function modeloIndisponivel(c: pg.PoolClient, m: ModeloEscolhido): Promise<string | null> {
-  const r = await c.query<{ situacao: string; liberado: boolean; sumiu: boolean }>(
-    `select ct.situacao, mo.liberado, mo.sumiu
+  const r = await c.query<{ situacao: string; liberado: boolean; sumiu: boolean; no_limite: boolean }>(
+    `select ct.situacao, mo.liberado, mo.sumiu, coalesce(ct.limite_do_plano_ate > now(), false) as no_limite
        from modelos_de_conta_de_ia mo join contas_de_ia ct on ct.id = mo.conta_id
       where mo.conta_id = $1 and mo.modelo = $2 and mo.empresa_id = empresa_ativa()`,
     [m.contaId, m.modelo],
@@ -266,6 +320,7 @@ export async function modeloIndisponivel(c: pg.PoolClient, m: ModeloEscolhido): 
   const l = r.rows[0];
   if (!l) return "o modelo não existe mais na conta";
   if (l.situacao !== "ativa") return "a conta de IA está com erro";
+  if (l.no_limite) return "o limite do plano de assinatura acabou por enquanto";
   if (!l.liberado) return "o modelo foi desligado";
   if (l.sumiu) return "o provedor não oferece mais o modelo";
   return null;

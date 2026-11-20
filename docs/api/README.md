@@ -618,10 +618,12 @@ Recebe:
 Recebe:
 
 - `nome` (string, obrigatório): Nome da conta como aparece nas telas (ex.: Anthropic da Nolask).
-- `provedor` ("anthropic" | "compativel_openai", obrigatório): anthropic ou compativel_openai (OpenAI, OpenRouter, DeepSeek, Groq, Ollama e parecidos).
+- `provedor` ("anthropic" | "compativel_openai" | "chatgpt", obrigatório): anthropic, compativel_openai (OpenAI, OpenRouter, DeepSeek, Groq, Ollama e parecidos) ou chatgpt (só assinatura).
+- `credencial` ("chave_de_api" | "assinatura"): chave_de_api (cobrada por uso) ou assinatura (o login de um plano, por conta e risco do administrador).
 - `endereco` (string ou null)
-- `chave` (string, obrigatório): Chave do provedor. Só entra: nunca é devolvida pela API.
+- `chave` (string, obrigatório): Chave de API ou login do plano. Só entra: nunca é devolvida pela API.
 - `tetoMensal` (integer ou null)
+- `aceitoOsTermos` (true)
 
 ### POST `/ia/contas/:id`
 
@@ -629,7 +631,7 @@ Recebe:
 
 - `nome` (string): Nome da conta como aparece nas telas (ex.: Anthropic da Nolask).
 - `tetoMensal` (integer ou null)
-- `chave` (string): Chave do provedor. Só entra: nunca é devolvida pela API.
+- `chave` (string): Chave de API ou login do plano. Só entra: nunca é devolvida pela API.
 
 ### POST `/ia/contas/:id/modelos`
 

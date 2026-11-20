@@ -18,6 +18,15 @@ const SENHA = "uma frase longa e boa para entrar";
 const OUTRA = "00000000-0000-7000-8000-0000000000c3";
 const CHAVE_BOA = "sk-ant-api03-chave-boa-de-teste-Xy9Q";
 const CHAVE_NOVA = "sk-ant-api03-chave-nova-de-teste-Zw2R";
+const TOKEN_DO_PLANO = "sk-ant-oat01-token-do-plano-de-teste-Pl4n";
+const LOGIN_DO_CODEX = JSON.stringify(
+  { tokens: { access_token: "acesso-velho", refresh_token: "renovacao-velha", account_id: "conta-Cdx1" } },
+  null,
+  2,
+);
+const LOGIN_RENOVADO = JSON.stringify({
+  tokens: { access_token: "acesso-novo", refresh_token: "renovacao-nova", account_id: "conta-Cdx1" },
+});
 
 describe.skipIf(!bancoDisponivel)("contas de IA", () => {
   let banco: BancoTemporario;
@@ -27,10 +36,17 @@ describe.skipIf(!bancoDisponivel)("contas de IA", () => {
   let app: FastifyInstance;
   let empresaId: string;
   let ip = 0;
-  const provedores = provedoresFalsos({
-    [CHAVE_BOA]: ["claude-sonnet-5-5", "claude-haiku-5-5"],
-    [CHAVE_NOVA]: ["claude-sonnet-5-5", "claude-opus-5-5"],
-  });
+  const noLimite = new Set<string>();
+  const provedores = provedoresFalsos(
+    {
+      [CHAVE_BOA]: ["claude-sonnet-5-5", "claude-haiku-5-5"],
+      [CHAVE_NOVA]: ["claude-sonnet-5-5", "claude-opus-5-5"],
+      [TOKEN_DO_PLANO]: ["claude-opus-5-5", "claude-sonnet-5-5"],
+      [LOGIN_DO_CODEX]: ["gpt-5.1"],
+      [LOGIN_RENOVADO]: ["gpt-5.1"],
+    },
+    { noLimite, renovar: (chave) => (chave === LOGIN_DO_CODEX ? LOGIN_RENOVADO : undefined) },
+  );
 
   async function criarPessoa(nome: string, email: string, perfil: string, empresa = empresaId) {
     const p = await dono.query<{ id: string }>(
@@ -340,12 +356,98 @@ describe.skipIf(!bancoDisponivel)("contas de IA", () => {
     }
   });
 
+  it("assinatura: sem o aceite dos termos não conecta; com ele, o aceite fica na conta e na auditoria", async () => {
+    const ana = await como("ana@teste.invalid");
+    const pedido = {
+      nome: "Claude Max",
+      provedor: "anthropic",
+      credencial: "assinatura",
+      chave: TOKEN_DO_PLANO,
+    };
+    expect((await pedir("POST", "/ia/contas", ana, pedido)).statusCode).toBe(400);
+    expect(
+      (await pedir("POST", "/ia/contas", ana, { ...pedido, aceitoOsTermos: true, tetoMensal: 2000 }))
+        .statusCode,
+    ).toBe(400);
+    const r = await pedir("POST", "/ia/contas", ana, { ...pedido, aceitoOsTermos: true });
+    expect(r.statusCode).toBe(201);
+    ids.plano = r.json().id;
+    expect(r.json()).toMatchObject({
+      credencial: "assinatura",
+      termosAceitosPor: ids.ana,
+      tetoMensal: null,
+      finalDaChave: "Pl4n",
+    });
+    expect(provedores.ultimoAcesso?.credencial).toBe("assinatura");
+    expect(r.body).not.toContain("token-do-plano");
+    const ev = await dono.query<{ detalhes: { versaoDoAviso: number; provedor: string } }>(
+      "select detalhes from auditoria.eventos where acao = 'ia.aceitou_termos' and empresa_id = $1",
+      [empresaId],
+    );
+    expect(ev.rows[0]?.detalhes).toMatchObject({ provedor: "anthropic", versaoDoAviso: 1 });
+    // A assinatura não tem teto em dólar.
+    const teto = await pedir("POST", `/ia/contas/${ids.plano}`, ana, { tetoMensal: 1000 });
+    expect(teto.statusCode).toBe(400);
+  });
+
+  it("limite do plano: a conta continua ativa, o modelo fica indisponível e volta no teste seguinte", async () => {
+    const ana = await como("ana@teste.invalid");
+    await pedir("POST", `/ia/contas/${ids.plano}/modelos`, ana, {
+      modelos: [{ modelo: "claude-opus-5-5", liberado: true }],
+    });
+    noLimite.add(TOKEN_DO_PLANO);
+    const r = await pedir("POST", `/ia/contas/${ids.plano}/testar`, ana, {});
+    expect(r.json().situacao).toBe("ativa");
+    expect(Date.parse(r.json().limiteDoPlanoAte)).toBeGreaterThan(Date.now());
+    const escolha = await pedir("POST", `/agentes/${ids.agente}/modelos`, ana, {
+      modelos: { principal: { contaId: ids.plano, modelo: "claude-opus-5-5" }, reserva: null },
+    });
+    expect(escolha.statusCode).toBe(400);
+    expect(escolha.json().message).toContain("limite do plano");
+    noLimite.delete(TOKEN_DO_PLANO);
+    const de_novo = await pedir("POST", `/ia/contas/${ids.plano}/testar`, ana, {});
+    expect(de_novo.json().limiteDoPlanoAte).toBeNull();
+    const ev = await dono.query(
+      "select 1 from auditoria.eventos where acao = 'ia.chegou_no_limite_do_plano' and empresa_id = $1",
+      [empresaId],
+    );
+    expect(ev.rowCount).toBe(1);
+  });
+
+  it("ChatGPT: só por assinatura, e o login renovado volta para o cofre", async () => {
+    const ana = await como("ana@teste.invalid");
+    expect(
+      (
+        await pedir("POST", "/ia/contas", ana, {
+          nome: "ChatGPT por chave",
+          provedor: "chatgpt",
+          chave: "sk-proj-chave-de-api",
+        })
+      ).statusCode,
+    ).toBe(400);
+    const r = await pedir("POST", "/ia/contas", ana, {
+      nome: "ChatGPT Plus",
+      provedor: "chatgpt",
+      credencial: "assinatura",
+      chave: LOGIN_DO_CODEX,
+      aceitoOsTermos: true,
+    });
+    expect(r.statusCode).toBe(201);
+    expect(r.json().finalDaChave).toBe("Cdx1");
+    expect(r.body).not.toContain("renovacao");
+    // O próximo teste abre o login renovado (o velho já não vale no provedor).
+    await pedir("POST", `/ia/contas/${r.json().id}/testar`, ana, {});
+    expect(provedores.ultimoAcesso?.chave).toBe(LOGIN_RENOVADO);
+    await pedir("DELETE", `/ia/contas/${r.json().id}`, ana);
+    await pedir("DELETE", `/ia/contas/${ids.plano}`, ana);
+  });
+
   it("apagar a conta limpa a escolha do agente e vira ia.apagou", async () => {
     const ana = await como("ana@teste.invalid");
     expect((await pedir("DELETE", `/ia/contas/${ids.conta}`, ana)).statusCode).toBe(204);
     expect((await pedir("GET", `/agentes/${ids.agente}/modelos`, ana)).json()).toEqual({ modelos: null });
     const ev = await dono.query(
-      "select 1 from auditoria.eventos where acao = 'ia.apagou' and empresa_id = $1",
+      "select 1 from auditoria.eventos where acao = 'ia.apagou' and empresa_id = $1 and detalhes->>'nome' = 'Anthropic principal'",
       [empresaId],
     );
     expect(ev.rowCount).toBe(1);

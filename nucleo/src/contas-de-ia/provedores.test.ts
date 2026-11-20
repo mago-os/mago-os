@@ -3,6 +3,8 @@ import {
   comReserva,
   enderecoPermitido,
   enderecoSeguro,
+  esperaPedida,
+  finalDaCredencial,
   modelosDaResposta,
   provedoresFalsos,
 } from "./provedores.ts";
@@ -70,6 +72,30 @@ describe("provedores", () => {
     expect((await p.testar({ provedor: "anthropic", endereco: null, chave: "sk-ruim-12345" })).ok).toBe(
       false,
     );
+  });
+});
+
+describe("assinatura", () => {
+  it("lê o retry-after em segundos ou em data", () => {
+    const agora = Date.parse("2026-11-20T12:00:00Z");
+    expect(esperaPedida("120", agora)).toBe(120);
+    expect(esperaPedida("Fri, 20 Nov 2026 17:00:00 GMT", agora)).toBe(5 * 3600);
+    expect(esperaPedida("0", agora)).toBe(0);
+    expect(esperaPedida(null, agora)).toBeUndefined();
+    expect(esperaPedida("amanhã", agora)).toBeUndefined();
+  });
+
+  it("o final do login do Codex vem da conta, ou do token quando não há conta", () => {
+    expect(
+      finalDaCredencial(
+        "chatgpt",
+        JSON.stringify({ tokens: { refresh_token: "r-abcd", account_id: "c-WXYZ" } }),
+      ),
+    ).toBe("WXYZ");
+    expect(finalDaCredencial("chatgpt", JSON.stringify({ tokens: { refresh_token: "r-abcd" } }))).toBe(
+      "abcd",
+    );
+    expect(finalDaCredencial("anthropic", "sk-ant-oat01-fimX")).toBe("fimX");
   });
 });
 
