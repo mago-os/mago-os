@@ -24,6 +24,7 @@ import { comEmpresa } from "../empresa.ts";
 import { type AcaoDeTarefa, executar, RecusaDaFerramenta } from "../mcp/index.ts";
 import { filtroDoAlcance } from "../permissoes/calcular.ts";
 import type { PermissoesNaEmpresa } from "../permissoes/verificar.ts";
+import { listarProjetos } from "../projetos/servico.ts";
 import { criarItem } from "../tarefas/checklist.ts";
 import { acontecimentoDaAcao, registrarAcontecimento } from "../tarefas/linha-do-tempo.ts";
 import { fusoDaEmpresa, planejar, recusaDoPlanejamento } from "../tarefas/planejamento.ts";
@@ -188,6 +189,22 @@ export async function executarFerramenta(
         },
       };
     }
+    case "procurar_projeto": {
+      const ver = ctx.permissoes.modulos.get("projetos")?.acoes.ver ?? "nada";
+      if (ver === "nada") throw new RecusaDaFerramenta("Quem pediu não vê projetos.");
+      const sem = (t: string) =>
+        t
+          .normalize("NFD")
+          .replace(/[\u0300-\u036f]/g, "")
+          .toLowerCase()
+          .trim();
+      const procurado = sem(entrada.nome as string);
+      const projetos = await naEmpresa((c) =>
+        listarProjetos(c, pessoaId, ver === "tudo" ? "todos" : "membro", { arquivados: false }),
+      );
+      const achados = projetos.filter((p) => sem(p.nome).includes(procurado)).slice(0, 10);
+      return { conteudo: { projetos: achados.map((p) => ({ id: p.id, nome: p.nome })) } };
+    }
     case "criar_tarefa": {
       const quem = quemPediu(ctx.permissoes, pessoaId, "criar");
       if (!quem) throw new RecusaDaFerramenta("Quem pediu não pode criar tarefas.");
@@ -195,9 +212,8 @@ export async function executarFerramenta(
       const feito = await naEmpresa(async (c) => {
         if (projetoId) {
           const p = await c.query(
-            `select 1 from projetos where id = $1 and empresa_id = empresa_ativa() and (
-               $2::boolean or exists (select 1 from membros_de_projeto m where m.projeto_id = projetos.id
-                                         and m.pessoa_id = $3))`,
+            `select 1 from projetos p where p.id = $1 and p.empresa_id = empresa_ativa() and p.situacao = 'ativo'
+                and ($2::boolean or membro_do_projeto(p.id, $3))`,
             [projetoId, (ctx.permissoes.modulos.get("projetos")?.acoes.ver ?? "nada") === "tudo", pessoaId],
           );
           if ((p.rowCount ?? 0) === 0)
@@ -209,11 +225,15 @@ export async function executarFerramenta(
         };
         const recusa = await recusaDoPlanejamento(c, null, planejamento);
         if (recusa) throw new RecusaDaFerramenta(recusa);
-        // A tarefa nasce com quem pediu como responsável; o coordenador pode delegar em seguida.
+        // Do coordenador, a tarefa nasce com quem pediu (ele delega em seguida); do especialista (conversa direta),
+        // nasce com ele, para ele planejar.
         let tarefa = await criarTarefa(c, agenteQuem, {
           titulo: entrada.titulo as string,
           descricao: (entrada.descricao as string | undefined) ?? null,
-          responsavel: { tipo: "pessoa", pessoaId },
+          responsavel:
+            ctx.agente.papel === "especialista"
+              ? { tipo: "agente", agenteId: ctx.agente.id }
+              : { tipo: "pessoa", pessoaId },
           projetoId: projetoId ?? null,
         });
         if (Object.keys(planejamento).length > 0) {
@@ -222,7 +242,9 @@ export async function executarFerramenta(
         }
         return tarefa;
       });
-      await registrar("tarefa.criou", feito.id, { responsavel: "pessoa" });
+      await registrar("tarefa.criou", feito.id, {
+        responsavel: ctx.agente.papel === "especialista" ? "agente" : "pessoa",
+      });
       await avisarDepois(
         ctx.poolApp,
         ctx.empresaId,

@@ -76,10 +76,14 @@ export const MensagemDeConversa = Type.Object(
 );
 export type MensagemDeConversa = Static<typeof MensagemDeConversa>;
 
-/** O que a pessoa manda ao coordenador. Sem conversaId, começa uma conversa nova. */
+/**
+ * O que a pessoa manda. Sem conversaId, começa uma conversa nova: com o coordenador ou, se ela puder (padrão:
+ * administrador e gestor), direto com um especialista (agenteId).
+ */
 export const PedidoDeMensagem = Type.Object(
   {
     conversaId: Type.Optional(Id),
+    agenteId: Type.Optional(Id),
     texto: Texto(4000, "O pedido ou a resposta da pessoa."),
   },
   { additionalProperties: false },
@@ -172,9 +176,19 @@ const SubtarefaPlanejada = Type.Object(
 
 export const FERRAMENTAS_INTERNAS = [
   {
+    nome: "procurar_projeto",
+    descricao:
+      "Procura os projetos da empresa pelo nome (sem diferença de acento ou maiúscula), entre os que quem pediu alcança. Use quando a pessoa citar um projeto, para pegar o id antes de criar a tarefa. Se vier mais de um ou nenhum, pergunte à pessoa.",
+    entrada: Type.Object(
+      { nome: Texto(120, "O nome do projeto, ou parte dele, como a pessoa disse.") },
+      { additionalProperties: false },
+    ),
+    papeis: ["coordenador", "especialista"],
+  },
+  {
     nome: "criar_tarefa",
     descricao:
-      "Cria uma tarefa a partir do pedido da pessoa, com título curto e claro, a descrição do que se espera e o prazo, se a pessoa disse. A tarefa fica com a permissão de quem pediu: se a pessoa não poderia criar, a ferramenta recusa.",
+      "Cria uma tarefa a partir do pedido da pessoa, com título curto e claro, a descrição do que se espera e o prazo, se a pessoa disse. A tarefa fica com a permissão de quem pediu: se a pessoa não poderia criar, a ferramenta recusa. Criada pelo coordenador, fica com quem pediu; criada por um especialista, fica com ele, para planejar em seguida.",
     entrada: Type.Object(
       {
         titulo: Texto(200, "O que precisa ser feito, numa linha."),
@@ -185,7 +199,7 @@ export const FERRAMENTAS_INTERNAS = [
       },
       { additionalProperties: false },
     ),
-    papeis: ["coordenador"],
+    papeis: ["coordenador", "especialista"],
   },
   {
     nome: "delegar",

@@ -623,6 +623,7 @@ Recebe:
 Recebe:
 
 - `conversaId` (id): Identificador (UUID).
+- `agenteId` (id): Identificador (UUID).
 - `texto` (string, obrigatório): O pedido ou a resposta da pessoa.
 
 ### POST `/ia/contas`
