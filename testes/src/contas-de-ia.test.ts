@@ -402,8 +402,9 @@ describe.skipIf(!bancoDisponivel)("contas de IA", () => {
     const escolha = await pedir("POST", `/agentes/${ids.agente}/modelos`, ana, {
       modelos: { principal: { contaId: ids.plano, modelo: "claude-opus-5-5" }, reserva: null },
     });
-    expect(escolha.statusCode).toBe(400);
-    expect(escolha.json().message).toContain("limite do plano");
+    // Escolher o modelo não é barrado pelo limite (é passageiro); quem respeita o limite é o motor, na hora de rodar.
+    expect(escolha.statusCode).toBe(200);
+    await pedir("POST", `/agentes/${ids.agente}/modelos`, ana, { modelos: null });
     noLimite.delete(TOKEN_DO_PLANO);
     const de_novo = await pedir("POST", `/ia/contas/${ids.plano}/testar`, ana, {});
     expect(de_novo.json().limiteDoPlanoAte).toBeNull();
