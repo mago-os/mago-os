@@ -93,3 +93,37 @@ export function conferirPedidoDeNovaEmpresa(valor: unknown) {
     },
   ]);
 }
+
+/**
+ * Dados da empresa (M3-11): o administrador vê e muda os dados da conta pela tela "Dados da empresa". São os mesmos
+ * campos e as mesmas regras do cadastro da conta nova (tipo e documento juntos, documento conferido pelos dígitos).
+ * Mudar o documento pede o segundo fator de novo, como as outras ações perigosas. O fuso passa a valer para a
+ * recorrência e os prazos.
+ */
+export const PedidoDeDadosDaEmpresa = PedidoDeNovaEmpresa;
+export type PedidoDeDadosDaEmpresa = PedidoDeNovaEmpresa;
+
+export function conferirPedidoDeDadosDaEmpresa(valor: unknown) {
+  return conferirPedidoDeNovaEmpresa(valor);
+}
+
+/**
+ * O que a tela mostra. Quem não é administrador vê o CPF mascarado (o CNPJ é público e aparece inteiro); só o
+ * administrador pode mudar.
+ */
+export const DadosDaEmpresa = Type.Object(
+  {
+    nome: Texto(200, "Nome de exibição no Mago OS."),
+    tipo: OuNulo(TipoDeConta),
+    documento: OuNulo(
+      Type.String({ maxLength: 20, description: "CNPJ, ou CPF (mascarado para quem não administra)." }),
+    ),
+    nomeLegal: OuNulo(Texto(200, "Razão social (CNPJ) ou nome completo (CPF).")),
+    fusoHorario: FusoHorario,
+    idioma: Idioma,
+    telefone: OuNulo(Telefone()),
+    podeEditar: Type.Boolean({ description: "Quem pede pode mudar os dados." }),
+  },
+  { additionalProperties: false },
+);
+export type DadosDaEmpresa = Static<typeof DadosDaEmpresa>;
