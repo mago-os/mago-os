@@ -176,6 +176,77 @@ const SubtarefaPlanejada = Type.Object(
 
 export const FERRAMENTAS_INTERNAS = [
   {
+    nome: "ver_tarefa",
+    descricao:
+      "Abre uma tarefa que quem pediu enxerga, com a descrição, os comentários (sem as notas internas), as subtarefas, o checklist e os nomes dos anexos. Use antes de responder sobre uma tarefa ou mexer nela.",
+    entrada: Type.Object({ tarefaId: Id }, { additionalProperties: false }),
+    papeis: ["coordenador", "especialista"],
+  },
+  {
+    nome: "comentar",
+    descricao:
+      "Comenta numa tarefa que quem pediu enxerga. O comentário fica marcado como seu (do agente) e quem segue a tarefa é avisado. Para mencionar alguém, use @ e o nome.",
+    entrada: Type.Object(
+      { tarefaId: Id, texto: Texto(4000, "O comentário.") },
+      { additionalProperties: false },
+    ),
+    papeis: ["coordenador", "especialista"],
+  },
+  {
+    nome: "procurar_pessoa",
+    descricao:
+      "Procura pessoas e agentes da empresa pelo nome (sem diferença de acento ou maiúscula), entre os que quem pediu enxerga. Devolve o tipo, o id, o nome e a área. Use para achar o id antes de atribuir uma tarefa a alguém. Se vier mais de um ou nenhum, pergunte.",
+    entrada: Type.Object(
+      { nome: Texto(120, "O nome, ou parte dele, como a pessoa disse.") },
+      { additionalProperties: false },
+    ),
+    papeis: ["coordenador", "especialista"],
+  },
+  {
+    nome: "mudar_prazo",
+    descricao:
+      "Muda o prazo e/ou a prioridade de uma tarefa existente. Mande só o que muda; null tira o prazo ou a prioridade. Pela regra da empresa, isso costuma pedir aprovação: avise a pessoa que o pedido foi enviado.",
+    entrada: Type.Object(
+      {
+        tarefaId: Id,
+        prazo: Type.Optional(OuNulo(PedidoDePrazo)),
+        prioridade: Type.Optional(OuNulo(Prioridade)),
+      },
+      { additionalProperties: false, minProperties: 2 },
+    ),
+    papeis: ["coordenador", "especialista"],
+  },
+  {
+    nome: "mudar_projeto",
+    descricao:
+      "Põe uma tarefa num projeto (use procurar_projeto para achar o id), ou tira do projeto com null. Subtarefa segue sempre a tarefa-mãe.",
+    entrada: Type.Object({ tarefaId: Id, projetoId: OuNulo(Id) }, { additionalProperties: false }),
+    papeis: ["coordenador", "especialista"],
+  },
+  {
+    nome: "acrescentar_checklist",
+    descricao: "Acrescenta itens ao checklist de uma tarefa que já existe, um passo curto por item.",
+    entrada: Type.Object(
+      { tarefaId: Id, itens: Type.Array(Texto(500, "Um passo curto."), { minItems: 1, maxItems: 30 }) },
+      { additionalProperties: false },
+    ),
+    papeis: ["coordenador", "especialista"],
+  },
+  {
+    nome: "minhas_prioridades",
+    descricao:
+      'A central de prioridades de quem pediu, na ordem do Mago OS: atrasadas, vencendo hoje, precisando de ajuda, menções e avisos. Use para responder "o que eu tenho para hoje?".',
+    entrada: Type.Object({}, { additionalProperties: false }),
+    papeis: ["coordenador", "especialista"],
+  },
+  {
+    nome: "buscar",
+    descricao:
+      'A mesma busca do Ctrl+K: procura o texto em tarefas, comentários, projetos, espaços, pessoas e agentes que quem pediu enxerga (sem diferença de acento e com tolerância a erro de digitação). Use para perguntas como "onde falamos do contrato?".',
+    entrada: Type.Object({ texto: Texto(120, "O que procurar.") }, { additionalProperties: false }),
+    papeis: ["coordenador", "especialista"],
+  },
+  {
     nome: "listar_tarefas",
     descricao:
       'Lista as tarefas que quem pediu enxerga, das mais recentes para as mais antigas, com título, status, prioridade, prazo, projeto e responsável. Filtros: minhas (as de quem pediu), status, projeto (id, ou "sem" para as sem projeto), prazo (atrasadas, hoje, semana, sem_prazo) e texto no título. Use para responder perguntas sobre as tarefas e para achar o id de uma tarefa citada.',
@@ -282,10 +353,11 @@ export const FERRAMENTAS_INTERNAS = [
 
 export type NomeDeFerramentaInterna = (typeof FERRAMENTAS_INTERNAS)[number]["nome"];
 
-/** Ferramentas do MCP de hoje que o especialista também usa (as mesmas regras e a mesma auditoria). */
+/**
+ * Ferramentas do MCP de hoje que o especialista também usa (as mesmas regras e a mesma auditoria). Ver tarefa e
+ * comentar têm versão própria dos agentes internos (com o alcance de quem pediu), em FERRAMENTAS_INTERNAS.
+ */
 export const FERRAMENTAS_DO_MCP_NO_ESPECIALISTA = [
-  "ver_tarefa",
-  "comentar",
   "mudar_status",
   "criar_subtarefa",
   "marcar_checklist",

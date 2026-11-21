@@ -26,6 +26,7 @@ import { Entrar, RecuperarSenha, RedefinirSenha } from "./telas/Acesso";
 import { Auditoria, Pessoas, Seguranca } from "./telas/Administrador";
 import { Agentes, PaginaDoAgente } from "./telas/Agentes";
 import { AvisosDeAcesso, MeusAparelhos } from "./telas/Aparelhos";
+import { ListaDeAprovacoes, PaginaDaAprovacao } from "./telas/Aprovacoes";
 import { AvisosDoMago } from "./telas/Avisos";
 import { ContasDeIa } from "./telas/ContasDeIa";
 import { Conversa } from "./telas/Conversa";
@@ -223,6 +224,7 @@ export function App() {
   const tarefaAberta = /^\/tarefas\/([0-9a-f-]{36})$/i.exec(caminho)?.[1];
   const agenteAberto = /^\/agentes\/([0-9a-f-]{36})$/i.exec(caminho)?.[1];
   const projetoAberto = /^\/projetos\/([0-9a-f-]{36})$/i.exec(caminho)?.[1];
+  const aprovacaoAberta = /^\/aprovacoes\/([0-9a-f-]{36})$/i.exec(caminho)?.[1];
   if (caminho === "/perfil") conteudo = <MeuPerfil />;
   else if (caminho === "/conversa" && temEmpresaAtiva) conteudo = <Conversa euId={sessao.pessoa.id} />;
   else if (caminho === "/agentes" && pode("agentes", "ver"))
@@ -250,6 +252,8 @@ export function App() {
         euId={sessao.pessoa.id}
       />
     );
+  else if (caminho === "/aprovacoes" && temEmpresaAtiva) conteudo = <ListaDeAprovacoes />;
+  else if (aprovacaoAberta && temEmpresaAtiva) conteudo = <PaginaDaAprovacao id={aprovacaoAberta} />;
   else if (caminho === "/tarefas" && temEmpresaAtiva)
     conteudo = (
       <Tarefas

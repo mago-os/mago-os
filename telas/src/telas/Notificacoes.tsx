@@ -21,6 +21,8 @@ const NOMES: Record<TipoDeAviso, string> = {
   agente_passou_do_limite: "Agente passou do limite",
   agente_desligado: "Agente desligado",
   anexo_bloqueado: "Anexo bloqueado pelo antivírus",
+  aprovacao_pedida: "Agente pediu a minha aprovação",
+  aprovacao_decidida: "Pedido de aprovação decidido",
 };
 
 type Mensagem = { texto: string; tipo: "erro" | "ok" } | null;

@@ -10,7 +10,9 @@ import { registrarRotasDoAgente, registrarRotasDosAgentes } from "./agentes/rota
 import {
   type OpcoesDoMotor,
   registrarRotasDaConversa,
+  registrarRotasDasAprovacoes,
   rodarExecucao,
+  verificarAprovacoesVencidas,
   verificarExecucoesEsquecidas,
 } from "./agentes-internos/index.ts";
 import { antivirusDeTeste, criarClamav } from "./anexos/antivirus.ts";
@@ -57,6 +59,7 @@ const FILA_NOTIFICACOES = "notificacoes";
 /** Execuções dos agentes internos (M4-02): uma por trabalho, chegam na hora em que a pessoa manda a mensagem. */
 const FILA_AGENTES_INTERNOS = "agentes-internos";
 const FILA_EXECUCOES_ESQUECIDAS = "agentes-internos-esquecidas";
+const FILA_APROVACOES_VENCIDAS = "aprovacoes-vencidas";
 /** Fila dos anexos (M3-08): antivírus, envios parados e arquivos para apagar. A cada minuto, e na hora do envio. */
 const FILA_ANEXOS = "anexos";
 /** Aviso de espaço dos anexos (conta gratuita do Backblaze): uma vez por dia. */
@@ -152,6 +155,14 @@ async function iniciar(): Promise<void> {
       acordar: acordarAgente,
     };
     registrarRotasDaConversa(app, { verificador, poolApp: banco.pool, acordar: acordarAgente });
+    // Regras por ação e aprovações (M4-03).
+    registrarRotasDasAprovacoes(app, {
+      verificador,
+      poolApp: banco.pool,
+      catalogo: verificador.catalogo,
+      opcoesMcp: opcoesDoMotor.opcoesMcp,
+      acordar: acordarAgente,
+    });
     trabalhos.push(async () => {
       await fila.createQueue(FILA_AGENTES_INTERNOS);
       await fila.work<{ empresaId: string; execucaoId: string }>(
@@ -161,6 +172,13 @@ async function iniciar(): Promise<void> {
           for (const t of trabalhos) await rodarExecucao(opcoesDoMotor, t.data.empresaId, t.data.execucaoId);
         },
       );
+      // A cada minuto: pedidos de aprovação de mais de 24 horas vencem (M4-03).
+      await fila.createQueue(FILA_APROVACOES_VENCIDAS);
+      await fila.schedule(FILA_APROVACOES_VENCIDAS, "* * * * *");
+      await fila.work(FILA_APROVACOES_VENCIDAS, async () => {
+        const n = await verificarAprovacoesVencidas(banco.pool, app.log);
+        if (n > 0) app.log.info({ evento: "aprovacoes.vencidas", n }, "Pedidos de aprovação vencidos");
+      });
       // A cada minuto: execuções esquecidas (reinício no meio, ou trabalho que não chegou à fila).
       await fila.createQueue(FILA_EXECUCOES_ESQUECIDAS);
       await fila.schedule(FILA_EXECUCOES_ESQUECIDAS, "* * * * *");

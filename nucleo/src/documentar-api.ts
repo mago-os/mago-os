@@ -16,6 +16,7 @@ import {
   PedidoDeChave,
   PedidoDeComentario,
   PedidoDeContaDeIa,
+  PedidoDeDecisao,
   PedidoDeDestravar,
   PedidoDeEditarAgente,
   PedidoDeEditarComentario,
@@ -32,6 +33,7 @@ import {
   PedidoDeMensagem,
   PedidoDeMudarLista,
   PedidoDeMudarProjeto,
+  PedidoDeMudarRegras,
   PedidoDeMudarStatus,
   PedidoDePlanejamento,
   PedidoDeProjeto,
@@ -552,6 +554,42 @@ export const ROTAS: Rota[] = [
     caminho: "/conversas/:id",
     permissao: "agentes.ver",
     oQueFaz: "Apaga uma conversa da própria pessoa (as tarefas criadas continuam).",
+  },
+  {
+    metodo: "GET",
+    caminho: "/agentes/:id/regras",
+    permissao: "agentes.ver",
+    oQueFaz:
+      "As regras por ação do agente (M4-03), com o padrão, o ajuste e as aprovações seguidas, e o que a pessoa pode mudar (tudo, restringir ou nada).",
+  },
+  {
+    metodo: "POST",
+    caminho: "/agentes/:id/regras",
+    permissao: "agentes.ver",
+    oQueFaz:
+      "Muda as regras ({ regras: [{ acao, modo }] }, modo null volta ao padrão). O administrador muda tudo; o responsável pelo agente só deixa mais restrito.",
+    recebe: PedidoDeMudarRegras,
+  },
+  {
+    metodo: "GET",
+    caminho: "/aprovacoes",
+    permissao: "tarefas.ver",
+    oQueFaz:
+      "Os pedidos de aprovação que a pessoa decide (quem pediu, o responsável pelo agente e o administrador). Query: situacao.",
+  },
+  {
+    metodo: "GET",
+    caminho: "/aprovacoes/:id",
+    permissao: "tarefas.ver",
+    oQueFaz: "Um pedido de aprovação, com os parâmetros exatos e a conferência.",
+  },
+  {
+    metodo: "POST",
+    caminho: "/aprovacoes/:id/decidir",
+    permissao: "tarefas.ver",
+    oQueFaz:
+      "Aprova (podendo editar os parâmetros) ou recusa com motivo. Manda a conferência que a pessoa viu; se o pedido mudou, 409.",
+    recebe: PedidoDeDecisao,
   },
   {
     metodo: "GET",

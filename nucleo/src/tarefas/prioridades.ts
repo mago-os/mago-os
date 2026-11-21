@@ -5,6 +5,7 @@
  */
 import { type ItemDePrioridade, TIPOS_DE_PRIORIDADE, type TipoDePrioridade } from "@mago-os/contratos";
 import type pg from "pg";
+import { listarAprovacoes } from "../agentes/regras.ts";
 import { condicaoDeAlcance, nomesCitados, type Quem } from "./servico.ts";
 
 /** Itens no máximo (a lista é para o dia, não um arquivo). */
@@ -185,6 +186,28 @@ export async function listarPrioridades(
       link: a.link,
       tarefaId: null,
       desde: a.criado_em.toISOString(),
+    });
+  }
+
+  // Pedidos de aprovação de agentes (M4-03) que a pessoa pode decidir: a mesma regra da lista de aprovações (pediu,
+  // é responsável pelo agente ou administra).
+  const admin = await c.query(
+    `select 1 from vinculos where empresa_id = empresa_ativa() and pessoa_id = $1 and perfil = 'administrador'
+        and situacao = 'ativo'`,
+    [eu],
+  );
+  const aprovacoes = (await listarAprovacoes(c, eu, (admin.rowCount ?? 0) > 0, "pendente"))
+    .filter((a) => Date.parse(a.venceEm) > agora.getTime())
+    .slice(0, 50);
+  for (const a of aprovacoes) {
+    itens.push({
+      chave: `aprovacao:${a.id}`,
+      tipo: "aprovacao",
+      titulo: a.resumo,
+      motivo: `${a.agenteNome.slice(0, 60)} pede aprovação ${haQuanto(new Date(a.criadaEm), agora)}`,
+      link: `/aprovacoes/${a.id}`,
+      tarefaId: a.tarefaId,
+      desde: a.criadaEm,
     });
   }
 
