@@ -18,9 +18,10 @@ Os agentes internos já guardam qual modelo rodou, mas não quanto custou. O tet
    - Aos **80%** de qualquer teto, um aviso uma vez por mês: o do agente vai ao responsável por ele; o da empresa e o da conta, aos administradores.
    - Aos **100%**, a execução não começa: na conversa, a pessoa lê que o agente parou no teto; numa tarefa, ela vai para "precisa de ajuda" com um comentário explicando; e o responsável recebe o aviso. Se só a conta do modelo principal estourou e há um reserva em outra conta, o agente segue pelo reserva.
    - Uma execução que já começou termina (no máximo 30 rodadas), então pode passar um pouco do teto. Conferir a cada rodada fica para a M4-08 (limites por execução).
-6. **Painel de custos** (Agentes › Custos, do administrador): o mês, com hoje em destaque, por agente, por conta e por dia; e os tetos editáveis ali mesmo.
-7. **Agentes externos** (o Claude no Mac, o Hermes) não usam as contas de IA do Mago OS: não entram no custo nem nos tetos.
-8. **Quem mexe:** ver o painel, mudar tetos e preços segue o módulo "Contas de IA" (administrador por padrão). Auditoria: `custos.mudou_teto`, `custos.mudou_preco` e `agente.parou_no_teto`.
+6. **Plano de assinatura** (pedido do Sandro em 21/11/2026): não tem teto em dólar, porque não cobra por uso. Tem um **limite de aviso em tokens por mês** na conta: aos 80% e aos 100%, o administrador é avisado, e nada é bloqueado. Quem para o agente é o próprio provedor, quando o limite do plano acaba (aí o agente passa ao reserva, como na M4-10).
+7. **Painel de custos** (Agentes › Custos, do administrador): o mês, com hoje em destaque, por agente, por conta e por dia; e os tetos editáveis ali mesmo.
+8. **Agentes externos** (o Claude no Mac, o Hermes) não usam as contas de IA do Mago OS: não entram no custo nem nos tetos.
+9. **Quem mexe:** ver o painel, mudar tetos e preços segue o módulo "Contas de IA" (administrador por padrão). Auditoria: `custos.mudou_teto`, `custos.mudou_aviso_de_tokens`, `custos.mudou_preco` e `agente.parou_no_teto`.
 
 ## Ponto para o Sandro decidir (item 3)
 
@@ -30,5 +31,5 @@ Os agentes internos já guardam qual modelo rodou, mas não quanto custou. O tet
 ## Consequências
 
 - Contrato novo em `contratos/src/agentes/custos.ts`; aviso novo `teto_de_gasto`.
-- Banco: `consumo_de_ia`, `tetos_de_gasto` (empresa e agente), o preço do administrador em `modelos_de_conta_de_ia`, e o registro dos avisos de 80% já mandados no mês.
+- Banco: `consumo_de_ia`, `tetos_de_gasto` (empresa e agente), o aviso em tokens em `contas_de_ia`, o preço do administrador em `modelos_de_conta_de_ia`, e o registro dos avisos já mandados no mês.
 - Pronto quando: o Sandro vê quanto o coordenador gastou hoje, e um teto baixo de teste para o especialista antes de ele começar.

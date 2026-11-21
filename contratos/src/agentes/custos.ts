@@ -83,6 +83,21 @@ export const TETO_PADRAO_DO_AGENTE = 2000;
 /** Percentual do teto em que o responsável é avisado (uma vez por mês). */
 export const PERCENTUAL_DE_AVISO = 80;
 
+/**
+ * Conta por assinatura: em vez de teto em dólar, um limite de aviso em tokens por mês. Aos 80% e aos 100%, o
+ * administrador é avisado; nada é bloqueado (o próprio plano tem o limite dele, e aí o agente passa ao reserva).
+ */
+export const AvisoDeTokens = Type.Integer({
+  minimum: 1000,
+  maximum: 100_000_000_000,
+  description: "Tokens por mês a partir dos quais o administrador é avisado (sem bloquear).",
+});
+export const PedidoDeAvisoDeTokens = Type.Object(
+  { tokens: OuNulo(AvisoDeTokens) },
+  { additionalProperties: false },
+);
+export type PedidoDeAvisoDeTokens = Static<typeof PedidoDeAvisoDeTokens>;
+
 /** Mudar um teto (null: sem teto). */
 export const PedidoDeTeto = Type.Object({ teto: OuNulo(TetoMensal) }, { additionalProperties: false });
 export type PedidoDeTeto = Static<typeof PedidoDeTeto>;
@@ -117,7 +132,14 @@ export const ResumoDeCustos = Type.Object(
     ),
     porConta: Type.Array(
       Type.Object(
-        { contaId: Id, nome: Type.String(), teto: OuNulo(TetoMensal), mes: Gasto },
+        {
+          contaId: Id,
+          nome: Type.String(),
+          /** Chave de API: teto em dólar. Assinatura: não tem teto; tem o aviso em tokens. */
+          teto: OuNulo(TetoMensal),
+          avisoDeTokens: OuNulo(AvisoDeTokens),
+          mes: Gasto,
+        },
         { additionalProperties: false },
       ),
     ),
@@ -134,4 +156,9 @@ export const ResumoDeCustos = Type.Object(
 export type ResumoDeCustos = Static<typeof ResumoDeCustos>;
 
 /** Ações de auditoria dos custos. */
-export const ACOES_CUSTOS = ["custos.mudou_teto", "custos.mudou_preco", "agente.parou_no_teto"] as const;
+export const ACOES_CUSTOS = [
+  "custos.mudou_teto",
+  "custos.mudou_aviso_de_tokens",
+  "custos.mudou_preco",
+  "agente.parou_no_teto",
+] as const;
