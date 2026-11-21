@@ -151,6 +151,8 @@ interface LinhaDaExecucao {
   modelo_conta_id: string | null;
   modelo: string | null;
   passou_ao_reserva_porque: string | null;
+  /** Coluna nova da M4-04 (até a migração dela, não vem). */
+  leu_texto_de_outros?: boolean;
   resumo: string | null;
   criada_em: Date;
   iniciada_em: Date | null;
@@ -169,6 +171,7 @@ const paraExecucao = (l: LinhaDaExecucao): ExecucaoComInstrucoes => ({
   tarefaId: l.tarefa_id,
   execucaoMaeId: l.execucao_mae_id,
   situacao: l.situacao,
+  leuTextoDeOutros: l.leu_texto_de_outros ?? false,
   modeloUsado: l.modelo_conta_id && l.modelo ? { contaId: l.modelo_conta_id, modelo: l.modelo } : null,
   passouAoReservaPorque: l.passou_ao_reserva_porque,
   resumo: l.resumo,

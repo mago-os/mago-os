@@ -224,6 +224,53 @@ export function padraoDaAcao(acao: string, tipo: "interno" | "externo"): ModoDeA
   return tipo === "interno" ? a.padraoInterno : a.padraoExterno;
 }
 
+/**
+ * Texto de outros (M4-04, decisão 0026): depois que a execução leu texto escrito por outra pessoa (que não quem pediu)
+ * ou por um agente externo, o que muda dados pede aprovação, mesmo que a regra diga executa. Ler e conversar com quem
+ * pediu continuam; bloqueado continua bloqueado.
+ */
+export function modoDepoisDeTextoDeOutros(acao: string, modo: ModoDeAcao): ModoDeAcao {
+  const a = CATALOGO_DE_ACOES.find((x) => x.acao === acao);
+  if (!a?.mudaDados) return modo;
+  return modo === "executa" || modo === "executa_nas_dele" ? "pede_aprovacao" : modo;
+}
+
+/**
+ * Alto risco (decisão 8 da spec do M4, decisão 0026): na Fase 1, nenhum agente faz, nem com aprovação. Essas ações não
+ * existem como ferramenta (o teste barra ferramenta nova com esse jeito); a lista vai no prompt dos agentes internos,
+ * que respondem que isso se faz no app, na tela indicada.
+ */
+export const ACOES_DE_ALTO_RISCO: readonly { assunto: string; ondeNoApp: string }[] = [
+  { assunto: "excluir tarefas", ondeNoApp: "na página da tarefa" },
+  { assunto: "excluir projetos e espaços", ondeNoApp: "em Projetos" },
+  { assunto: "convidar, mudar ou desligar pessoas", ondeNoApp: "em Pessoas" },
+  { assunto: "mudar permissões", ondeNoApp: "em Pessoas" },
+  { assunto: "segurança e login (2FA, aparelhos, sessões)", ondeNoApp: "em Segurança e em Meu perfil" },
+  {
+    assunto: "cadastrar, mudar, pausar ou desligar agentes e mexer nas regras deles",
+    ondeNoApp: "em Agentes",
+  },
+  { assunto: "contas de IA e o cofre", ondeNoApp: "em Agentes › Contas de IA" },
+  { assunto: "ver a auditoria", ondeNoApp: "em Auditoria" },
+  { assunto: "exportar dados", ondeNoApp: "pelo administrador, no app" },
+];
+
+/** Começos de nome que denunciam uma ferramenta de alto risco: nenhuma ferramenta de agente pode ter. */
+export const PREFIXOS_DE_ALTO_RISCO = [
+  "excluir",
+  "apagar",
+  "remover",
+  "desligar",
+  "exportar",
+  "convidar",
+  "permiss",
+  "auditoria",
+  "seguranca",
+  "mudar_regra",
+  "mudar_perfil",
+  "pausar",
+] as const;
+
 /** A regra de uma ação para um agente, como a tela mostra. */
 export const RegraDeAgente = Type.Object(
   {
@@ -295,6 +342,8 @@ export const Aprovacao = Type.Object(
     observacao: OuNulo(Texto(1000, "Motivo da recusa ou o erro.")),
     /** Quem aprovou mudou os parâmetros antes. */
     editada: Type.Boolean(),
+    /** Pedido porque o agente leu texto de outra pessoa antes (a regra dizia executa; M4-04). */
+    porTextoDeOutros: Type.Boolean(),
     criadaEm: DataHora,
     venceEm: DataHora,
   },

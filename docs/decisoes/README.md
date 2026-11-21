@@ -32,3 +32,4 @@ Uma nota curta por decisão importante: o que foi decidido, por quê e o que foi
 | [0023](0023-motor-dos-agentes-internos.md) | Motor dos agentes internos no núcleo (fila e ferramentas do próprio núcleo), coordenador e Gerente de projetos, conversa no app | Aceita |
 | [0024](0024-plano-anthropic-pelo-claude-code.md) | Plano de assinatura da Anthropic pelo Claude Code oficial (Claude Agent SDK), só com as ferramentas do Mago OS | Aceita |
 | [0025](0025-regras-e-aprovacoes.md) | Regras por ação dos agentes (executa, executa nas dele, pede aprovação, bloqueado) e aprovações com conferência dos parâmetros | Aceita |
+| [0026](0026-permissao-de-quem-pediu-e-alto-risco.md) | O agente age com a permissão de quem pediu e do responsável por ele; alto risco só no app; texto de outros pede aprovação | Proposta |

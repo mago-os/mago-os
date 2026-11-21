@@ -219,6 +219,8 @@ interface LinhaDaAprovacao {
   decidida_em: Date | null;
   observacao: string | null;
   editada: boolean;
+  /** Coluna nova da M4-04 (até a migração dela, não vem). */
+  por_texto_de_outros?: boolean;
   criada_em: Date;
   vence_em: Date;
 }
@@ -241,6 +243,7 @@ function paraAprovacao(l: LinhaDaAprovacao): Aprovacao {
     decididaEm: l.decidida_em?.toISOString() ?? null,
     observacao: l.observacao,
     editada: l.editada,
+    porTextoDeOutros: l.por_texto_de_outros ?? false,
     criadaEm: l.criada_em.toISOString(),
     venceEm: l.vence_em.toISOString(),
   };

@@ -108,7 +108,10 @@ export const ExecucaoDeAgente = Type.Object(
     id: Id,
     empresaId: Id,
     agenteId: Id,
-    /** Quem pediu: o agente age com a permissão dessa pessoa (a menor das duas, M4-04). */
+    /**
+     * Quem pediu: a pessoa da conversa, quem atribuiu a tarefa ao agente ou, sem pessoa, o responsável pelo agente.
+     * O agente só alcança o que essa pessoa e o responsável por ele alcançam (M4-04).
+     */
     pedidoPor: Id,
     origem: OrigemDaExecucao,
     conversaId: OuNulo(Id),
@@ -116,6 +119,11 @@ export const ExecucaoDeAgente = Type.Object(
     /** A execução que delegou esta (o coordenador que passou ao especialista). */
     execucaoMaeId: OuNulo(Id),
     situacao: SituacaoDaExecucao,
+    /**
+     * Leu texto de outra pessoa (que não quem pediu) ou de um agente externo: daí em diante, o que muda dados pede
+     * aprovação (M4-04, decisão 0026). A delegação herda a marca.
+     */
+    leuTextoDeOutros: Type.Boolean(),
     /** O modelo que rodou de verdade, e por que passou ao reserva (se passou). */
     modeloUsado: OuNulo(ModeloEscolhido),
     passouAoReservaPorque: OuNulo(Texto(300, "Por que o modelo reserva entrou.")),

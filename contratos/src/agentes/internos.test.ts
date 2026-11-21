@@ -99,6 +99,7 @@ describe("agentes internos", () => {
       tarefaId: null,
       execucaoMaeId: null,
       situacao: "rodando",
+      leuTextoDeOutros: false,
       modeloUsado: { contaId: ID, modelo: "claude-sonnet-5-5" },
       passouAoReservaPorque: null,
       resumo: null,

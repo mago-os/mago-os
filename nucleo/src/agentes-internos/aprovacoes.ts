@@ -104,6 +104,7 @@ export async function executarAprovado(
     execucaoMaeId: null,
     situacao: "concluida",
     modeloUsado: null,
+    leuTextoDeOutros: false,
     passouAoReservaPorque: null,
     resumo: null,
     criadaEm: aprovacao.criadaEm,

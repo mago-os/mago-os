@@ -89,9 +89,10 @@ Pronto quando: o especialista pede aprovação para atribuir uma subtarefa à An
 Precisa da aprovação do Sandro (segurança).
 
 - [ ] Toda execução guarda quem pediu (a pessoa da conversa, quem atribuiu a tarefa ou, numa rotina do M5, o dono dela). O agente só faz o que ele pode e a pessoa também pode: vale a menor das duas permissões
-- [ ] Tarefa atribuída direto a um agente, sem pessoa: vale a permissão do responsável humano do agente
+- [ ] Tarefa atribuída a um agente interno faz ele trabalhar: quem pediu é quem atribuiu; atribuída sem pessoa (recorrência, agente externo, sistema), vale a permissão do responsável humano do agente. O agente nunca alcança mais que o responsável por ele (decisão 0026)
 - [ ] Ações de alto risco ficam fora do alcance de qualquer agente na Fase 1, mesmo aprovadas (decisão 8): excluir tarefas e projetos, mexer em pessoas, permissões e segurança, desligar agentes, ver a auditoria e exportar dados. O agente responde que isso se faz no app
-- [ ] Ação que nasce de conteúdo externo (comentário de outra pessoa, anexo) e muda dados sempre pede aprovação, mesmo que a regra diga "executa"
+- [ ] Ação que nasce de conteúdo externo (comentário de outra pessoa, anexo) e muda dados sempre pede aprovação, mesmo que a regra diga "executa". Depois que a execução lê texto de outra pessoa ou de agente externo, o que muda dados pede aprovação (decisão 0026, item 4)
+- [ ] A tela Aprovações entra no menu (pedido do Sandro em 21/11/2026)
 - [ ] Testes: o funcionário pede ao coordenador uma tarefa de outra equipe e o agente não acha nem mexe; o administrador pede para excluir um projeto e o agente recusa
 
 Pronto quando: a Flora (funcionária) pede ao coordenador para mudar uma tarefa que não é dela e o coordenador responde que ela não tem acesso.
