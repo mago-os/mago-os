@@ -25,6 +25,7 @@ import { useTempoReal } from "@/tempo-real";
 import { Aviso } from "./Acesso";
 import { useAoVoltar } from "./Administrador";
 import { ModeloDoAgente } from "./ModeloDoAgente";
+import { RegrasDoAgente } from "./RegrasDoAgente";
 
 type Mensagem = { texto: string; tipo: "erro" | "ok" } | null;
 
@@ -374,6 +375,7 @@ export function PaginaDoAgente({
       {podeEditar && agente.tipo === "externo" && (
         <ChavesDoAgente agenteId={agente.id} desligado={desligado} />
       )}
+      {!desligado && !editando && <RegrasDoAgente agenteId={agente.id} />}
       {!desligado && !editando && (podeEditar || podeDesligar) && (
         <div className="flex flex-wrap gap-2">
           {podeEditar && (

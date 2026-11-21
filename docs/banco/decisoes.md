@@ -257,3 +257,11 @@ O login (`mago_acesso`) não lê papéis nem as regras da plataforma direto. As 
 - `conversas` e `mensagens_de_conversa` são de uma pessoa: a política usa `empresa_ativa()` e, quando há pessoa no pedido, `pessoa_ativa()`. O motor dos agentes roda como trabalho do sistema (sem pessoa) e responde em qualquer conversa da empresa. A mensagem repete a dona da conversa para a política não precisar de junção.
 - `execucoes_de_agente` registra cada execução com quem pediu (vínculo na empresa), a origem e o modelo que rodou. A regra das horas (início e fim) bate com a situação.
 - As empresas que já existiam ganharam o Coordenador e o Gerente de projetos na migração, pausados e com o administrador mais antigo como responsável; as novas ganham no primeiro uso, pelo núcleo.
+
+## 35. Regras por ação e aprovações (21/11/2026, M4-03)
+
+- `regras_de_agente` guarda só os ajustes ([decisão 0025](../decisoes/0025-regras-e-aprovacoes.md)): o padrão de cada ação vem do catálogo no código, e modo nulo quer dizer "vale o padrão". A linha também conta as aprovações seguidas sem edição, para a tela sugerir liberar aos 20. A chave é (agente, ação), e quem mudou precisa ter vínculo com a empresa.
+- `aprovacoes` guarda o pedido com os parâmetros exatos e a conferência (SHA-256 do JSON canônico), conferida de novo antes de executar. Quem pediu é um vínculo na empresa. A regra da decisão bate com a situação (pendente sem decisão; vencida sem quem decidiu; recusada sempre com motivo), e o pedido vence 24 horas depois de criado.
+- O app não apaga pedidos (`REVOKE DELETE`): eles ficam como histórico, como a auditoria. Apagar o agente apaga os pedidos dele.
+- `aprovacoes_vencidas()` roda como dona do banco, de todas as empresas, e devolve só ids, para a verificação a cada minuto marcar e avisar (dentro de cada empresa, pela política de sempre).
+- Os avisos ganham os tipos `aprovacao_pedida` e `aprovacao_decidida`.

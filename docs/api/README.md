@@ -371,6 +371,11 @@ Todas com o prefixo `/api` no site, menos `/mcp`, que fica em `https://teste.osm
 | GET | `/conversas/:id` | agentes.ver | As mensagens de uma conversa da própria pessoa e quantas execuções ainda rodam. |
 | POST | `/conversas/mensagens` | agentes.ver | Manda uma mensagem ao coordenador (sem conversaId, começa uma conversa); vira trabalho na fila. |
 | DELETE | `/conversas/:id` | agentes.ver | Apaga uma conversa da própria pessoa (as tarefas criadas continuam). |
+| GET | `/agentes/:id/regras` | agentes.ver | As regras por ação do agente (M4-03), com o padrão, o ajuste e as aprovações seguidas, e o que a pessoa pode mudar (tudo, restringir ou nada). |
+| POST | `/agentes/:id/regras` | agentes.ver | Muda as regras ({ regras: [{ acao, modo }] }, modo null volta ao padrão). O administrador muda tudo; o responsável pelo agente só deixa mais restrito. |
+| GET | `/aprovacoes` | tarefas.ver | Os pedidos de aprovação que a pessoa decide (quem pediu, o responsável pelo agente e o administrador). Query: situacao. |
+| GET | `/aprovacoes/:id` | tarefas.ver | Um pedido de aprovação, com os parâmetros exatos e a conferência. |
+| POST | `/aprovacoes/:id/decidir` | tarefas.ver | Aprova (podendo editar os parâmetros) ou recusa com motivo. Manda a conferência que a pessoa viu; se o pedido mudou, 409. |
 | GET | `/ia/contas` | contas_de_ia.ver | As contas de IA da empresa (sem a chave, só os 4 últimos caracteres) e se o cofre está ligado. |
 | POST | `/ia/contas` | contas_de_ia.criar | Conecta uma conta: testa a chave no provedor antes de gravar. Pede o segundo fator recente. |
 | POST | `/ia/contas/:id` | contas_de_ia.editar | Muda o nome, o teto ou troca a chave (testada antes; pede o segundo fator recente). |
@@ -625,6 +630,18 @@ Recebe:
 - `conversaId` (id): Identificador (UUID).
 - `agenteId` (id): Identificador (UUID).
 - `texto` (string, obrigatório): O pedido ou a resposta da pessoa.
+
+### POST `/agentes/:id/regras`
+
+Recebe:
+
+- `regras` (lista de objeto, obrigatório)
+
+### POST `/aprovacoes/:id/decidir`
+
+Recebe:
+
+- (nada)
 
 ### POST `/ia/contas`
 

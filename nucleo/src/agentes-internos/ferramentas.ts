@@ -16,6 +16,7 @@ import {
 } from "@mago-os/contratos";
 import type pg from "pg";
 import type { OpcoesDaChave } from "../agentes/chaves.ts";
+import { avaliarAcao, criarAprovacao } from "../agentes/regras.ts";
 import { agenteRecebeTarefas } from "../agentes/servico.ts";
 import { listarAnexos } from "../anexos/servico.ts";
 import { auditar } from "../auditoria/registrar.ts";
@@ -64,6 +65,8 @@ export interface ContextoDaFerramenta {
   log: { error(obj: unknown, msg?: string): void; warn(obj: unknown, msg?: string): void };
   /** Põe uma execução nova na fila (a delegação). */
   acordar(execucaoId: string): void;
+  /** Por que o agente está trabalhando (o pedido da pessoa ou as instruções): vai como motivo nas aprovações. */
+  motivoDoPedido?: string | null;
 }
 
 /** O que a ferramenta devolveu ao modelo e, se for o fim, o que dizer à pessoa. */
@@ -111,6 +114,8 @@ export async function executarFerramenta(
   ctx: ContextoDaFerramenta,
   nome: string,
   entradaBruta: unknown,
+  /** aprovada: a ação foi aprovada por uma pessoa (M4-03): a regra já foi cumprida. */
+  opcoes: { aprovada?: boolean } = {},
 ): Promise<ResultadoDaFerramenta> {
   const pode = ferramentasDoPapel(ctx.agente.papel).find((f) => f.nome === nome);
   if (!pode) throw new RecusaDaFerramenta(`A ferramenta ${nome} não existe para o seu papel.`);
@@ -176,6 +181,64 @@ export async function executarFerramenta(
       ctx.log,
     );
   };
+
+  // Regra por ação (M4-03): bloqueada, ou pede aprovação. A tarefa precisa estar ao alcance de quem pediu antes de
+  // virar pedido (o resumo do pedido mostra o título).
+  if (!opcoes.aprovada) {
+    const agenteDaRegra = { id: ctx.agente.id, tipo: "interno" as const };
+    const avaliacao = await naEmpresa((c) => avaliarAcao(c, agenteDaRegra, nome, entrada));
+    if (avaliacao === "bloqueado") {
+      await auditar(
+        ctx.poolApp,
+        {
+          empresaId: ctx.empresaId,
+          ator: { tipo: "agente", agenteId: ctx.agente.id },
+          acao: "agente.bloqueado",
+          alvo: { tipo: "agente", id: ctx.agente.id },
+          origem: ctx.opcoesMcp.origem,
+          rastreio: null,
+          detalhes: { acao: nome, execucaoId: ctx.execucao.id },
+        },
+        ctx.log,
+      );
+      throw new RecusaDaFerramenta(
+        "Essa ação está bloqueada pela regra da empresa para você. Diga à pessoa que ela pode fazer pela tela.",
+      );
+    }
+    if (avaliacao === "aprovacao") {
+      const pedido = await naEmpresa(async (c) => {
+        if (typeof entrada.tarefaId === "string") await tarefaDeQuemPediu(c, entrada.tarefaId, "ver");
+        return criarAprovacao(c, {
+          agenteId: ctx.agente.id,
+          execucaoId: ctx.execucao.id,
+          pedidoPor: pessoaId,
+          acao: nome,
+          parametros: entrada,
+          motivo: ctx.motivoDoPedido ?? null,
+        });
+      });
+      await auditar(
+        ctx.poolApp,
+        {
+          empresaId: ctx.empresaId,
+          ator: { tipo: "agente", agenteId: ctx.agente.id },
+          acao: "agente.pediu_aprovacao",
+          alvo: { tipo: "aprovacao", id: pedido.id },
+          origem: ctx.opcoesMcp.origem,
+          rastreio: null,
+          detalhes: { acao: nome, execucaoId: ctx.execucao.id, tarefaId: pedido.tarefaId },
+        },
+        ctx.log,
+      );
+      return {
+        conteudo: {
+          pedidoDeAprovacao: pedido.id,
+          situacao: "pendente",
+          mensagem: `Essa ação precisa de aprovação. O pedido foi enviado (${pedido.resumo}) e ela acontece quando alguém aprovar, em até 24 horas. Avise a pessoa e siga com o resto.`,
+        },
+      };
+    }
+  }
 
   // As ferramentas do MCP: a tarefa precisa estar ao alcance de quem pediu, e depois valem as regras do MCP
   // (o agente só mexe nas tarefas dele).
@@ -343,7 +406,7 @@ export async function executarFerramenta(
     }
     case "minhas_prioridades": {
       const quem = quemPediu(ctx.permissoes, pessoaId, "ver");
-      if (!quem || quem.tipo !== "pessoa") throw new RecusaDaFerramenta("Quem pediu não vê tarefas.");
+      if (quem?.tipo !== "pessoa") throw new RecusaDaFerramenta("Quem pediu não vê tarefas.");
       const itens = await naEmpresa((c) => listarPrioridades(c, quem));
       return {
         conteudo: {

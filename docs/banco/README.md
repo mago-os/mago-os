@@ -65,6 +65,27 @@ erDiagram
     timestamp_with_time_zone verificado_em
     text achado_do_antivirus
   }
+  aprovacoes {
+    uuid id PK
+    uuid empresa_id FK
+    uuid agente_id
+    uuid execucao_id
+    uuid pedido_por
+    text acao
+    uuid tarefa_id
+    jsonb parametros
+    text resumo
+    text motivo
+    text conferencia
+    text situacao
+    uuid decidida_por
+    timestamp_with_time_zone decidida_em
+    text observacao
+    jsonb resultado
+    boolean editada
+    timestamp_with_time_zone criada_em
+    timestamp_with_time_zone vence_em
+  }
   arquivos_para_apagar {
     uuid id PK
     uuid empresa_id FK
@@ -337,6 +358,15 @@ erDiagram
     timestamp_with_time_zone criado_em
     timestamp_with_time_zone atualizado_em
   }
+  regras_de_agente {
+    uuid empresa_id FK
+    uuid agente_id PK
+    text acao PK
+    text modo
+    integer aprovadas_sem_edicao
+    uuid mudada_por
+    timestamp_with_time_zone mudada_em
+  }
   seguidores_de_tarefa {
     uuid empresa_id FK
     uuid tarefa_id PK
@@ -554,6 +584,7 @@ erDiagram
   vinculos ||--o{ ajustes_de_permissao : "vinculo_id"
   pessoas ||--o{ ajustes_de_permissao : "feito_por"
   empresas ||--o{ anexos : "empresa_id"
+  empresas ||--o{ aprovacoes : "empresa_id"
   empresas ||--o{ arquivos_para_apagar : "empresa_id"
   empresas ||--o{ assinaturas_de_push : "empresa_id"
   acesso_aparelhos ||--o{ assinaturas_de_push : "aparelho_id"
@@ -580,6 +611,7 @@ erDiagram
   pessoas ||--o{ papeis_plataforma : "pessoa_id"
   empresas ||--o{ preferencias_de_notificacao : "empresa_id"
   empresas ||--o{ projetos : "empresa_id"
+  empresas ||--o{ regras_de_agente : "empresa_id"
   empresas ||--o{ seguidores_de_tarefa : "empresa_id"
   empresas ||--o{ status_de_projeto : "empresa_id"
   empresas ||--o{ tarefas : "empresa_id"
@@ -700,6 +732,34 @@ Isolamento por empresa (Row Level Security): ligado e forçado.
 | enviado_em | timestamp with time zone | sim | `now()` | sistema | Quando o envio começou. |
 | verificado_em | timestamp with time zone | não |  | sistema | Quando o antivírus terminou. |
 | achado_do_antivirus | text | não |  | sistema | O que o antivírus achou, quando bloqueou (nome da ameaça). |
+
+### aprovacoes
+
+Pedidos de aprovação de ações de agentes (M4-03). A ação só acontece se alguém aprovar.
+
+Isolamento por empresa (Row Level Security): ligado e forçado.
+
+| Coluna | Tipo | Obrigatória | Padrão | Marca | Descrição |
+| --- | --- | --- | --- | --- | --- |
+| id | uuid | sim | `uuidv7()` | sistema | Identificador do pedido (UUID v7). Chave primária. |
+| empresa_id | uuid | sim |  | sistema | Empresa do agente. Aponta para empresas.id. |
+| agente_id | uuid | sim |  | sistema | Agente que pediu. |
+| execucao_id | uuid | não |  | sistema | Execução do agente interno (os externos não têm). |
+| pedido_por | uuid | sim |  | sistema | Em nome de quem o agente agia. |
+| acao | text | sim |  | empresa | A ação (nome da ferramenta). |
+| tarefa_id | uuid | não |  | sistema | Tarefa da ação, se houver. |
+| parametros | jsonb | sim |  | empresa | Os parâmetros exatos que vão ser usados. |
+| resumo | text | sim |  | empresa | O que vai acontecer, numa frase montada pelo núcleo. |
+| motivo | text | não |  | empresa | Por que, nas palavras do agente (mostrado só como texto). |
+| conferencia | text | sim |  | sistema | Resumo SHA-256 dos parâmetros, conferido antes de executar. |
+| situacao | text | sim | `'pendente'::text` | sistema | pendente, aprovada, recusada, vencida ou falhou. |
+| decidida_por | uuid | não |  | sistema | Quem aprovou ou recusou. |
+| decidida_em | timestamp with time zone | não |  | sistema | Quando foi decidida (ou venceu). |
+| observacao | text | não |  | empresa | Motivo da recusa, ou o erro quando a ação aprovada falhou. |
+| resultado | jsonb | não |  | empresa | O que a ação aprovada devolveu. |
+| editada | boolean | sim | `false` | sistema | Quem aprovou mudou os parâmetros antes. |
+| criada_em | timestamp with time zone | sim | `now()` | sistema | Quando o agente pediu. |
+| vence_em | timestamp with time zone | sim | `(now() + '24:00:00'::interval)` | sistema | Depois disso, sem decisão, o pedido vence e a ação não acontece. |
 
 ### arquivos_para_apagar
 
@@ -1154,6 +1214,22 @@ Isolamento por empresa (Row Level Security): ligado e forçado.
 | fim | date | não |  | empresa | Dia de fim previsto, se houver. |
 | criado_em | timestamp with time zone | sim | `now()` | sistema | Quando o projeto foi criado. |
 | atualizado_em | timestamp with time zone | sim | `now()` | sistema | Última mudança no projeto (inclui membros). |
+
+### regras_de_agente
+
+Ajustes das regras por ação de cada agente (o padrão vem do catálogo) e o contador de aprovações seguidas.
+
+Isolamento por empresa (Row Level Security): ligado e forçado.
+
+| Coluna | Tipo | Obrigatória | Padrão | Marca | Descrição |
+| --- | --- | --- | --- | --- | --- |
+| empresa_id | uuid | sim |  | sistema | Empresa do agente. Aponta para empresas.id. |
+| agente_id | uuid | sim |  | sistema | Agente. Chave primária. |
+| acao | text | sim |  | empresa | A ação (nome da ferramenta). Chave primária. |
+| modo | text | não |  | empresa | executa, executa_nas_dele, pede_aprovacao ou bloqueado; nulo: o padrão. |
+| aprovadas_sem_edicao | integer | sim | `0` | sistema | Aprovações seguidas sem edição (aos 20, a tela sugere liberar). |
+| mudada_por | uuid | não |  | sistema | Quem mudou o modo por último. |
+| mudada_em | timestamp with time zone | não |  | sistema | Quando o modo mudou. |
 
 ### seguidores_de_tarefa
 

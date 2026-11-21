@@ -316,6 +316,11 @@ async function rodar(o: OpcoesDoMotor, empresaId: string, execucaoId: string): P
   let pegou = false;
   try {
     const partes = await montarPartes(o, empresaId, execucao, agente, ctx);
+    // O motivo dos pedidos de aprovação: as instruções de quem delegou, ou a última mensagem da pessoa.
+    const ultimaDaPessoa = [...partes].reverse().find((p) => p.papel === "usuario");
+    ctx.motivoDoPedido =
+      execucao.instrucoes ??
+      (ultimaDaPessoa?.papel === "usuario" ? `Pedido: ${ultimaDaPessoa.texto.slice(0, 900)}` : null);
     if (execucao.origem === "delegacao" && execucao.tarefaId) {
       pegou = await naEmpresa(
         async (c) =>

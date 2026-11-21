@@ -33,6 +33,7 @@ import {
   contarLeituras,
   type OpcoesDaChave,
 } from "../agentes/chaves.ts";
+import { avaliarAcao, criarAprovacao } from "../agentes/regras.ts";
 import { agenteRecebeTarefas } from "../agentes/servico.ts";
 import { buscarAnexo, listarAnexos, type ServicosDosAnexos, semCaminho } from "../anexos/servico.ts";
 import { auditar } from "../auditoria/registrar.ts";
@@ -171,6 +172,64 @@ function criarServidor(agente: AgenteDoPedido, o: OpcoesDaChave, pedido: Fastify
       );
     }
     try {
+      // Regra por ação (M4-03): para os externos, as ferramentas de hoje executam, mas o administrador pode mudar.
+      const regra = await comEmpresa(o.poolApp, agente.empresaId, async (c) => {
+        const params = entrada.valor as Record<string, unknown>;
+        const avaliacao = await avaliarAcao(
+          c,
+          { id: agente.agenteId, tipo: "externo" },
+          ferramenta.nome,
+          params,
+        );
+        if (avaliacao !== "aprovacao") return { avaliacao };
+        if (
+          typeof params.tarefaId === "string" &&
+          !(await buscarTarefa(
+            c,
+            { tipo: "agente", agenteId: agente.agenteId, comoGerente: true },
+            params.tarefaId,
+          ))
+        )
+          throw new RecusaDaFerramenta("Tarefa não encontrada entre as suas.");
+        const r = await c.query<{ responsavel_id: string }>(
+          "select responsavel_id from agentes where id = $1 and empresa_id = empresa_ativa()",
+          [agente.agenteId],
+        );
+        const aprovacao = await criarAprovacao(c, {
+          agenteId: agente.agenteId,
+          execucaoId: null,
+          pedidoPor: r.rows[0]?.responsavel_id as string,
+          acao: ferramenta.nome,
+          parametros: params,
+          motivo: null,
+        });
+        return { avaliacao, aprovacao };
+      });
+      if (regra.avaliacao !== "executa") {
+        await auditar(
+          o.poolApp,
+          {
+            empresaId: agente.empresaId,
+            ator: { tipo: "agente", agenteId: agente.agenteId },
+            acao: regra.avaliacao === "bloqueado" ? "agente.bloqueado" : "agente.pediu_aprovacao",
+            alvo:
+              "aprovacao" in regra && regra.aprovacao
+                ? { tipo: "aprovacao", id: regra.aprovacao.id }
+                : { tipo: "agente", id: agente.agenteId },
+            origem: o.origem,
+            rastreio: o.rastreio ?? null,
+            detalhes: { acao: ferramenta.nome },
+          },
+          pedido.log,
+        );
+        if (regra.avaliacao === "bloqueado")
+          return erro(
+            "Essa ação está bloqueada pela regra da empresa para este agente. Peça a uma pessoa pela tela.",
+          );
+        const texto = `Essa ação precisa de aprovação. O pedido foi enviado (${"aprovacao" in regra && regra.aprovacao ? regra.aprovacao.resumo : ferramenta.nome}) e ela acontece quando alguém aprovar, em até 24 horas.`;
+        // Sem o resultado da ferramenta (ela ainda não rodou): volta como recusa, com a explicação.
+        return erro(texto);
+      }
       const resultado = await executar(ferramenta.nome, entrada.valor as never, agente, o, pedido);
       return {
         content: [{ type: "text" as const, text: JSON.stringify(resultado) }],

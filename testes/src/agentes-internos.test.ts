@@ -10,7 +10,9 @@ import { registrarRotasDosAgentes } from "@mago-os/nucleo/agentes";
 import {
   type OpcoesDoMotor,
   registrarRotasDaConversa,
+  registrarRotasDasAprovacoes,
   rodarExecucao,
+  verificarAprovacoesVencidas,
   verificarExecucoesEsquecidas,
 } from "@mago-os/nucleo/agentes-internos";
 import { type BancoTemporario, criarBancoTemporario } from "@mago-os/nucleo/banco-temporario";
@@ -24,6 +26,7 @@ import {
 } from "@mago-os/nucleo/contas-de-ia";
 import { catalogoDeModulos, criarVerificador } from "@mago-os/nucleo/permissoes";
 import { registrarRotasDosProjetos } from "@mago-os/nucleo/projetos";
+import { registrarRotasDasTarefas } from "@mago-os/nucleo/tarefas";
 import Fastify, { type FastifyInstance } from "fastify";
 import pg from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -178,6 +181,7 @@ describe.skipIf(!bancoDisponivel)("agentes internos", () => {
     });
     const acordar = (empresa: string, execucaoId: string) => fila.push({ empresaId: empresa, execucaoId });
     registrarRotasDaConversa(app, { verificador, poolApp, acordar });
+    registrarRotasDasTarefas(app, verificador, poolApp);
     registrarRotasDosProjetos(app, verificador, poolApp);
     motor = {
       poolApp,
@@ -219,6 +223,13 @@ describe.skipIf(!bancoDisponivel)("agentes internos", () => {
         return roteiroDoClaudeCode(p);
       },
     };
+    registrarRotasDasAprovacoes(app, {
+      verificador,
+      poolApp,
+      catalogo: catalogoDeModulos(),
+      opcoesMcp: motor.opcoesMcp,
+      acordar,
+    });
     await app.ready();
   });
 
@@ -392,7 +403,8 @@ describe.skipIf(!bancoDisponivel)("agentes internos", () => {
       [ids.tarefa],
     );
     expect(subs.rows.map((s) => s.titulo)).toEqual(["Configurar o tema", "Exportar os posts"]);
-    expect(subs.rows.find((s) => s.titulo === "Exportar os posts")?.responsavel_pessoa_id).toBe(ids.flora);
+    // Atribuir a outra pessoa pede aprovação (M4-03): ainda não foi atribuída.
+    expect(subs.rows.find((s) => s.titulo === "Exportar os posts")?.responsavel_pessoa_id).toBeNull();
     expect(subs.rows.find((s) => s.titulo === "Configurar o tema")?.prioridade).toBe("alta");
     const itens = await dono.query("select 1 from itens_de_checklist where tarefa_id = $1", [ids.tarefa]);
     expect(itens.rowCount).toBe(2);
@@ -411,6 +423,56 @@ describe.skipIf(!bancoDisponivel)("agentes internos", () => {
     expect(conversa.mensagens[1]).toMatchObject({ texto: "Criei a tarefa e passei ao Gerente de projetos." });
     expect(conversa.mensagens[2]?.texto).toContain("Gerente de projetos: Plano pronto");
     expect(conversa.mensagens[1]?.tarefas).toContain(ids.tarefa);
+
+    // O pedido de aprovação: aparece para a Ana (quem pediu) na lista e na central de prioridades.
+    const pendentes = (await pedir("GET", "/aprovacoes?situacao=pendente", ana)).json() as {
+      id: string;
+      acao: string;
+      resumo: string;
+      motivo: string | null;
+      conferencia: string;
+    }[];
+    expect(pendentes).toHaveLength(1);
+    const pedido = pendentes[0] as (typeof pendentes)[number];
+    expect(pedido).toMatchObject({ acao: "atribuir", resumo: "Atribuir “Exportar os posts” a Flora Func" });
+    expect(pedido.motivo).toBe("Planeje em subtarefas e checklist.");
+    const prioridades = (
+      (await pedir("GET", "/prioridades", ana)).json() as { itens: { tipo: string; link: string }[] }
+    ).itens;
+    expect(prioridades.find((p) => p.tipo === "aprovacao")?.link).toBe(`/aprovacoes/${pedido.id}`);
+    // A Flora (funcionária, não pediu nem é responsável) não vê nem decide.
+    const flora = await como("flora@teste.invalid");
+    expect((await pedir("GET", `/aprovacoes/${pedido.id}`, flora)).statusCode).toBe(404);
+    // Conferência errada: recusa (o pedido mudou desde que abriu).
+    const errada = await pedir("POST", `/aprovacoes/${pedido.id}/decidir`, ana, {
+      decisao: "aprovar",
+      conferencia: "0".repeat(64),
+    });
+    expect(errada.statusCode).toBe(409);
+    const aprovada = await pedir("POST", `/aprovacoes/${pedido.id}/decidir`, ana, {
+      decisao: "aprovar",
+      conferencia: pedido.conferencia,
+    });
+    expect(aprovada.statusCode).toBe(200);
+    expect(aprovada.json()).toMatchObject({ situacao: "aprovada", decididaPor: ids.ana, editada: false });
+    const depois = await dono.query<{ responsavel_pessoa_id: string }>(
+      "select responsavel_pessoa_id from tarefas where tarefa_mae_id = $1 and titulo = 'Exportar os posts'",
+      [ids.tarefa],
+    );
+    expect(depois.rows[0]?.responsavel_pessoa_id).toBe(ids.flora);
+    const noticia = (await pedir("GET", `/conversas/${ids.conversa}`, ana)).json() as {
+      mensagens: { texto: string }[];
+    };
+    expect(noticia.mensagens.at(-1)?.texto).toContain("Ana Admin aprovou: Atribuir");
+    // Decidido não decide de novo.
+    expect(
+      (
+        await pedir("POST", `/aprovacoes/${pedido.id}/decidir`, ana, {
+          decisao: "aprovar",
+          conferencia: pedido.conferencia,
+        })
+      ).statusCode,
+    ).toBe(409);
 
     const execucoes = await dono.query<{
       situacao: string;
@@ -508,6 +570,14 @@ describe.skipIf(!bancoDisponivel)("agentes internos", () => {
 
   it("ferramentas de consulta e de ajuste: pessoa, tarefa, comentário, prazo, projeto, checklist, prioridades e busca", async () => {
     const ana = await como("ana@teste.invalid");
+    // A tarefa é do Gerente: para o Coordenador mexer nela, a Ana libera as duas ações (executa_nas_dele por padrão).
+    const regras = await pedir("POST", `/agentes/${ids.coordenador}/regras`, ana, {
+      regras: [
+        { acao: "mudar_projeto", modo: "executa" },
+        { acao: "acrescentar_checklist", modo: "executa" },
+      ],
+    });
+    expect(regras.statusCode).toBe(200);
     const resultados: Record<string, Record<string, unknown>> = {};
     const chamar = (id: string, nome: string, entrada: unknown) => () => ({
       chamadas: [{ id, nome, entrada }],
@@ -545,12 +615,13 @@ describe.skipIf(!bancoDisponivel)("agentes internos", () => {
     expect(resultados.pessoa?.encontrados).toEqual([
       { tipo: "pessoa", id: ids.flora, nome: "Flora Func", area: null },
     ]);
-    expect((resultados.tarefa?.tarefa as { titulo: string }).titulo).toBe(
+    expect((resultados.tarefa?.tarefa as { titulo: string } | undefined)?.titulo).toBe(
       "Migrar o blog para o WordPress novo",
     );
     expect(resultados.tarefa?.subtarefas).toHaveLength(2);
     expect(resultados.comentario?.comentarioId).toBeTruthy();
-    expect(resultados.prazo?.prioridade).toBe("urgente");
+    // Mudar prazo e prioridade pede aprovação (decisão 6): vira pedido, e nada muda ainda.
+    expect(resultados.prazo?.pedidoDeAprovacao).toBeTruthy();
     expect(resultados.projeto).toEqual({ ok: true, projetoId: ids.projeto });
     expect(resultados.checklist).toEqual({ acrescentados: 1 });
     expect(Array.isArray(resultados.prioridades?.itens)).toBe(true);
@@ -564,6 +635,151 @@ describe.skipIf(!bancoDisponivel)("agentes internos", () => {
     await pedir("POST", "/conversas/mensagens", flora, { texto: "quem é a Ana?" });
     await rodarFila();
     expect(resultados.daFlora?.encontrados).toEqual([]);
+  });
+
+  it("regras: bloquear, só o responsável restringe, recusar com motivo, editar antes de aprovar e vencer em 24 horas", async () => {
+    const ana = await como("ana@teste.invalid");
+    const flora = await como("flora@teste.invalid");
+    // A Flora não é responsável pelo agente: não muda regra nenhuma.
+    expect(
+      (
+        await pedir("POST", `/agentes/${ids.coordenador}/regras`, flora, {
+          regras: [{ acao: "comentar", modo: "bloqueado" }],
+        })
+      ).statusCode,
+    ).toBe(403);
+    // Ação que só lê não pede aprovação.
+    expect(
+      (
+        await pedir("POST", `/agentes/${ids.coordenador}/regras`, ana, {
+          regras: [{ acao: "buscar", modo: "pede_aprovacao" }],
+        })
+      ).statusCode,
+    ).toBe(400);
+    // Bloquear comentar: a ferramenta recusa, e fica na auditoria.
+    await pedir("POST", `/agentes/${ids.coordenador}/regras`, ana, {
+      regras: [{ acao: "comentar", modo: "bloqueado" }],
+    });
+    const lista = (await pedir("GET", `/agentes/${ids.coordenador}/regras`, ana)).json() as {
+      regras: { acao: string; modo: string; ajustada: boolean }[];
+      podeMudar: string;
+    };
+    expect(lista.podeMudar).toBe("tudo");
+    expect(lista.regras.find((r) => r.acao === "comentar")).toMatchObject({
+      modo: "bloqueado",
+      ajustada: true,
+    });
+    let recusa = "";
+    roteiro = [
+      () => ({ chamadas: [{ id: "r1", nome: "comentar", entrada: { tarefaId: ids.tarefa, texto: "oi" } }] }),
+      (p) => {
+        const r = [...p.partes].reverse().find((x) => x.papel === "resultado");
+        recusa = r?.papel === "resultado" && r.erro ? r.conteudo : "";
+        return { chamadas: [{ id: "r2", nome: "responder", entrada: { texto: "Não posso comentar." } }] };
+      },
+    ];
+    await pedir("POST", "/conversas/mensagens", ana, { texto: "comenta na tarefa" });
+    await rodarFila();
+    expect(recusa).toContain("bloqueada pela regra");
+    const bloqueio = await dono.query(
+      "select 1 from auditoria.eventos where acao = 'agente.bloqueado' and empresa_id = $1",
+      [empresaId],
+    );
+    expect(bloqueio.rowCount).toBeGreaterThan(0);
+    // Volta ao padrão (null).
+    await pedir("POST", `/agentes/${ids.coordenador}/regras`, ana, {
+      regras: [{ acao: "comentar", modo: null }],
+    });
+
+    // Três pedidos de mudar a prioridade: um recusado, um aprovado com edição, um vence.
+    roteiro = [0, 1, 2].flatMap((i) => [
+      () => ({
+        chamadas: [
+          { id: `m${i}`, nome: "mudar_prazo", entrada: { tarefaId: ids.tarefa, prioridade: "baixa" } },
+        ],
+      }),
+      () => ({ chamadas: [{ id: `n${i}`, nome: "responder", entrada: { texto: "Pedi aprovação." } }] }),
+    ]);
+    for (let i = 0; i < 3; i++) {
+      await pedir("POST", "/conversas/mensagens", ana, { texto: `muda a prioridade ${i}` });
+      await rodarFila();
+    }
+    const pedidos = (
+      (await pedir("GET", "/aprovacoes?situacao=pendente", ana)).json() as {
+        id: string;
+        conferencia: string;
+        acao: string;
+      }[]
+    )
+      .filter((p) => p.acao === "mudar_prazo")
+      .slice(0, 3);
+    expect(pedidos).toHaveLength(3);
+    const [p1, p2, p3] = pedidos as [
+      (typeof pedidos)[number],
+      (typeof pedidos)[number],
+      (typeof pedidos)[number],
+    ];
+    expect(
+      (
+        await pedir("POST", `/aprovacoes/${p1.id}/decidir`, ana, {
+          decisao: "recusar",
+          conferencia: p1.conferencia,
+        })
+      ).statusCode,
+    ).toBe(400);
+    const recusada = await pedir("POST", `/aprovacoes/${p1.id}/decidir`, ana, {
+      decisao: "recusar",
+      conferencia: p1.conferencia,
+      motivo: "A prioridade continua alta.",
+    });
+    expect(recusada.json()).toMatchObject({
+      situacao: "recusada",
+      observacao: "A prioridade continua alta.",
+    });
+    // Parâmetros fora do formato: recusa; dentro: aprova com edição e a ação usa os editados.
+    expect(
+      (
+        await pedir("POST", `/aprovacoes/${p2.id}/decidir`, ana, {
+          decisao: "aprovar",
+          conferencia: p2.conferencia,
+          parametros: { tarefaId: ids.tarefa, prioridade: "altíssima" },
+        })
+      ).statusCode,
+    ).toBe(400);
+    const editada = await pedir("POST", `/aprovacoes/${p2.id}/decidir`, ana, {
+      decisao: "aprovar",
+      conferencia: p2.conferencia,
+      parametros: { tarefaId: ids.tarefa, prioridade: "alta" },
+    });
+    expect(editada.json()).toMatchObject({ situacao: "aprovada", editada: true });
+    const prioridade = await dono.query<{ prioridade: string }>(
+      "select prioridade from tarefas where id = $1",
+      [ids.tarefa],
+    );
+    expect(prioridade.rows[0]?.prioridade).toBe("alta");
+    // Edição e recusa zeram o contador da sugestão de liberar.
+    const regra = (
+      (await pedir("GET", `/agentes/${ids.coordenador}/regras`, ana)).json() as {
+        regras: { acao: string; aprovadasSemEdicao: number }[];
+      }
+    ).regras.find((r) => r.acao === "mudar_prazo");
+    expect(regra?.aprovadasSemEdicao).toBe(0);
+    // O terceiro vence: a ação não acontece e o pedido fica "vencida".
+    await dono.query(
+      "update aprovacoes set vence_em = now() - interval '1 minute', criada_em = now() - interval '25 hours' where id = $1",
+      [p3.id],
+    );
+    expect(await verificarAprovacoesVencidas(poolApp, { error: () => {} })).toBe(1);
+    const vencida = (await pedir("GET", `/aprovacoes/${p3.id}`, ana)).json() as { situacao: string };
+    expect(vencida.situacao).toBe("vencida");
+    expect(
+      (
+        await pedir("POST", `/aprovacoes/${p3.id}/decidir`, ana, {
+          decisao: "aprovar",
+          conferencia: p3.conferencia,
+        })
+      ).statusCode,
+    ).toBe(409);
   });
 
   it("o agente age com a permissão de quem pediu: a funcionária não alcança a tarefa da Ana", async () => {
