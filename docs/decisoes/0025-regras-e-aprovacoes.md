@@ -1,7 +1,7 @@
 # 0025 Regras por ação e aprovações dos agentes
 
 - **Data:** 21/11/2026
-- **Situação:** proposta (aguarda o "aprovado" do Sandro nos contratos)
+- **Situação:** aceita (aprovada pelo Sandro no chat em 21/11/2026, com a proposta do item 10)
 - **Tarefa:** M4-03
 
 ## Contexto
@@ -19,7 +19,7 @@ Até aqui, um agente fazia tudo o que a ferramenta e a permissão de quem pediu 
 7. **Execução do aprovado:** o núcleo executa a ferramenta como o agente, com a permissão de quem pediu conferida de novo naquela hora. O resultado (ou o erro, "falhou") fica no pedido, e a conversa de origem recebe a notícia.
 8. **Vence em 24 horas** sem decisão (verificação a cada minuto, `aprovacao.venceu`); a ação não acontece.
 9. **Sugestão de liberar:** depois de 20 aprovações seguidas sem edição numa ação, a tela sugere passar para "executa". A mudança é sempre humana.
-10. **"Agente novo começa pedindo aprovação para tudo o que muda dados"** (spec): recomendo valer só para os agentes criados a partir de modelos ou importados (Fase 2). Os dois agentes de nascença são da plataforma e já testados, e um agente externo novo pedindo aprovação a cada mudança de status deixaria o Claude no Mac impraticável. Fica para o Sandro decidir.
+10. **"Agente novo começa pedindo aprovação para tudo o que muda dados"** (spec): recomendo valer só para os agentes criados a partir de modelos ou importados (Fase 2). Os dois agentes de nascença são da plataforma e já testados, e um agente externo novo pedindo aprovação a cada mudança de status deixaria o Claude no Mac impraticável. Decidido pelo Sandro em 21/11/2026: os dois de nascença começam no padrão do catálogo; agentes internos criados depois (Fase 2) começam pedindo aprovação para tudo o que muda dados.
 
 ## Consequências
 
