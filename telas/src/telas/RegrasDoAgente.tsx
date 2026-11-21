@@ -81,11 +81,13 @@ export function RegrasDoAgente({ agenteId }: { agenteId: string }) {
     <Card className="gap-3">
       <CardTitulo>Regras</CardTitulo>
       <CardDescricao>
-        O que o agente faz sozinho e o que pede aprovação. Os pedidos aparecem na central de prioridades e no
-        sino, e vencem em 24 horas sem resposta.{" "}
+        O que o agente faz sozinho e o que pede aprovação. Os pedidos de aprovação em aberto aparecem na
+        central de prioridades e no sino, e vencem em 24 horas sem resposta. Todos os pedidos também aparecem
+        na tela{" "}
         <a href="/aprovacoes" className="underline">
-          Ver os pedidos
+          Aprovações
         </a>
+        .
       </CardDescricao>
       {mensagem && <Aviso {...mensagem} />}
       {dados.podeMudar !== "nada" && (
