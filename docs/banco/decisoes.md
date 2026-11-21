@@ -273,3 +273,9 @@ O login (`mago_acesso`) não lê papéis nem as regras da plataforma direto. As 
 - `itens_de_checklist` ganha quem escreveu o texto (pessoa ou agente; os dois vazios, o sistema), trocado quando o texto muda. Os itens que já existiam ficaram com quem criou a tarefa, e a cópia da recorrente leva o autor junto.
 - `execucoes_esquecidas()` só acorda as execuções na fila de agentes ativos: a tarefa atribuída a um agente que foi pausado antes de rodar espera ele voltar.
 
+## 37. Instruções em camadas e skills (21/11/2026, M4-05)
+
+- `versoes_de_instrucoes` guarda cada versão das camadas da empresa, de um projeto ou de um agente ([decisão 0027](../decisoes/0027-instrucoes-em-camadas-e-skills.md)); a mais nova vale. A camada diz qual alvo pode ter (regra no banco), e a numeração é única por camada e alvo. O app só insere: não muda nem apaga versões (voltar cria uma versão nova igual à antiga). A camada da plataforma fica no código.
+- `skills` e `versoes_de_skills`: o nome é único na empresa; uma skill tem no máximo um rascunho (índice parcial), e os agentes recebem a versão publicada mais nova. O app não apaga versões. As skills da plataforma ficam no código.
+- `skills_do_agente` diz quais skills cada agente recebe: uma skill da empresa (chave estrangeira) ou o nome de uma da plataforma, nunca as duas. O Gerente de projetos que já existia ganhou a "planejar-tarefas" na migração; os novos ganham ao nascer.
+

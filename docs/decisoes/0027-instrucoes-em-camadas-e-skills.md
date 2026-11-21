@@ -1,7 +1,7 @@
 # 0027 Instruções em camadas (AGENTS.md) e biblioteca de skills
 
 - **Data:** 21/11/2026
-- **Situação:** proposta (esperando o aprovado do Sandro)
+- **Situação:** aceita (aprovada pelo Sandro no chat em 21/11/2026)
 - **Tarefa:** M4-05
 
 ## Contexto

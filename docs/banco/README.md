@@ -377,6 +377,21 @@ erDiagram
     uuid pessoa_id PK
     timestamp_with_time_zone desde
   }
+  skills {
+    uuid id PK
+    uuid empresa_id FK
+    text nome
+    timestamp_with_time_zone criada_em
+    timestamp_with_time_zone atualizada_em
+  }
+  skills_do_agente {
+    uuid empresa_id FK
+    uuid agente_id
+    uuid skill_id
+    text skill_da_plataforma
+    uuid atribuida_por
+    timestamp_with_time_zone atribuida_em
+  }
   status_de_projeto {
     uuid id PK
     uuid empresa_id FK
@@ -420,6 +435,29 @@ erDiagram
     uuid recorrente_de_id
     timestamp_with_time_zone avisou_prazo_hoje_em
     timestamp_with_time_zone avisou_prazo_vencido_em
+  }
+  versoes_de_instrucoes {
+    uuid id PK
+    uuid empresa_id FK
+    text camada
+    uuid projeto_id
+    uuid agente_id
+    integer versao
+    text texto
+    uuid autor_id
+    integer voltou_de
+    timestamp_with_time_zone criada_em
+  }
+  versoes_de_skills {
+    uuid empresa_id FK
+    uuid skill_id PK
+    integer versao PK
+    text situacao
+    text descricao
+    text texto
+    uuid autor_id
+    timestamp_with_time_zone criada_em
+    timestamp_with_time_zone publicada_em
   }
   vinculos {
     uuid id PK
@@ -617,8 +655,12 @@ erDiagram
   empresas ||--o{ projetos : "empresa_id"
   empresas ||--o{ regras_de_agente : "empresa_id"
   empresas ||--o{ seguidores_de_tarefa : "empresa_id"
+  empresas ||--o{ skills : "empresa_id"
+  empresas ||--o{ skills_do_agente : "empresa_id"
   empresas ||--o{ status_de_projeto : "empresa_id"
   empresas ||--o{ tarefas : "empresa_id"
+  empresas ||--o{ versoes_de_instrucoes : "empresa_id"
+  empresas ||--o{ versoes_de_skills : "empresa_id"
   empresas ||--o{ vinculos : "empresa_id"
   pessoas ||--o{ vinculos : "pessoa_id"
   empresas ||--o{ visoes_salvas : "empresa_id"
@@ -1252,6 +1294,35 @@ Isolamento por empresa (Row Level Security): ligado e forçado.
 | pessoa_id | uuid | sim |  | sistema | Pessoa que segue. Chave primária. |
 | desde | timestamp with time zone | sim | `now()` | sistema | Desde quando segue. |
 
+### skills
+
+Skills da empresa (as da plataforma ficam no código). O texto fica nas versões.
+
+Isolamento por empresa (Row Level Security): ligado e forçado.
+
+| Coluna | Tipo | Obrigatória | Padrão | Marca | Descrição |
+| --- | --- | --- | --- | --- | --- |
+| id | uuid | sim | `uuidv7()` | sistema | Identificador da skill (UUID v7). Chave primária. |
+| empresa_id | uuid | sim |  | sistema | Empresa. Aponta para empresas.id. |
+| nome | text | sim |  | empresa | Nome da skill (minúsculas, números e hífen). |
+| criada_em | timestamp with time zone | sim | `now()` | sistema | Quando foi criada. |
+| atualizada_em | timestamp with time zone | sim | `now()` | sistema | Última versão salva ou publicada. |
+
+### skills_do_agente
+
+Quais skills cada agente recebe (da empresa ou da plataforma).
+
+Isolamento por empresa (Row Level Security): ligado e forçado.
+
+| Coluna | Tipo | Obrigatória | Padrão | Marca | Descrição |
+| --- | --- | --- | --- | --- | --- |
+| empresa_id | uuid | sim |  | sistema | Empresa. Aponta para empresas.id. |
+| agente_id | uuid | sim |  | sistema | Agente. |
+| skill_id | uuid | não |  | sistema | Skill da empresa. |
+| skill_da_plataforma | text | não |  | sistema | Nome de uma skill da plataforma (no código). |
+| atribuida_por | uuid | não |  | sistema | Quem atribuiu (vazio: veio com o agente). |
+| atribuida_em | timestamp with time zone | sim | `now()` | sistema | Quando foi atribuída. |
+
 ### status_de_projeto
 
 Status de cada projeto, cada um ligado a um dos cinco tipos fixos. Todo projeto tem pelo menos um de cada tipo.
@@ -1309,6 +1380,43 @@ Isolamento por empresa (Row Level Security): ligado e forçado.
 | recorrente_de_id | uuid | não |  | sistema | A tarefa anterior da recorrência, que ao ser concluída criou esta. |
 | avisou_prazo_hoje_em | timestamp with time zone | não |  | sistema | Quando o aviso de "vence hoje" foi mandado (mudar o prazo apaga). |
 | avisou_prazo_vencido_em | timestamp with time zone | não |  | sistema | Quando o aviso de "venceu" foi mandado (mudar o prazo apaga). |
+
+### versoes_de_instrucoes
+
+Versões das instruções de cada camada (empresa, projeto, agente). A mais nova vale; nada é apagado.
+
+Isolamento por empresa (Row Level Security): ligado e forçado.
+
+| Coluna | Tipo | Obrigatória | Padrão | Marca | Descrição |
+| --- | --- | --- | --- | --- | --- |
+| id | uuid | sim | `uuidv7()` | sistema | Identificador da versão (UUID v7). Chave primária. |
+| empresa_id | uuid | sim |  | sistema | Empresa. Aponta para empresas.id. |
+| camada | text | sim |  | sistema | empresa, projeto ou agente. |
+| projeto_id | uuid | não |  | sistema | Projeto (camada projeto). |
+| agente_id | uuid | não |  | sistema | Agente (camada agente). |
+| versao | integer | sim |  | sistema | Número da versão, a partir de 1. |
+| texto | text | sim |  | empresa | As instruções (pode ser vazio). |
+| autor_id | uuid | não |  | sistema | Quem salvou. |
+| voltou_de | integer | não |  | sistema | A versão para a qual voltou, se foi uma volta. |
+| criada_em | timestamp with time zone | sim | `now()` | sistema | Quando foi salva. |
+
+### versoes_de_skills
+
+Versões de cada skill: um rascunho no máximo; os agentes recebem a publicada mais nova.
+
+Isolamento por empresa (Row Level Security): ligado e forçado.
+
+| Coluna | Tipo | Obrigatória | Padrão | Marca | Descrição |
+| --- | --- | --- | --- | --- | --- |
+| empresa_id | uuid | sim |  | sistema | Empresa. Aponta para empresas.id. |
+| skill_id | uuid | sim |  | sistema | Skill. Chave primária. |
+| versao | integer | sim |  | sistema | Número da versão, a partir de 1. Chave primária. |
+| situacao | text | sim | `'rascunho'::text` | sistema | rascunho ou publicada. |
+| descricao | text | sim |  | empresa | Quando usar a skill (o agente lê para decidir). |
+| texto | text | sim |  | empresa | O SKILL.md (só texto). |
+| autor_id | uuid | não |  | sistema | Quem escreveu a versão. |
+| criada_em | timestamp with time zone | sim | `now()` | sistema | Quando a versão foi criada. |
+| publicada_em | timestamp with time zone | não |  | sistema | Quando foi publicada. |
 
 ### vinculos
 

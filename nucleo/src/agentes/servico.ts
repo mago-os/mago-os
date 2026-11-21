@@ -281,7 +281,7 @@ export async function garantirAgentesDeNascenca(c: pg.PoolClient): Promise<void>
       );
     return;
   }
-  await c.query(
+  const novoGerente = await c.query<{ id: string }>(
     `insert into agentes (empresa_id, nome, descricao, tipo, responsavel_id, situacao, papel, especialidade,
        responde_a_id)
      select empresa_ativa(), 'Gerente de projetos',
@@ -289,7 +289,14 @@ export async function garantirAgentesDeNascenca(c: pg.PoolClient): Promise<void>
             'especialista', 'gerente_de_projetos', $2
       where not exists (select 1 from agentes where empresa_id = empresa_ativa()
                           and lower(nome) = 'gerente de projetos' and situacao <> 'desligado')
-     on conflict do nothing`,
+     on conflict do nothing returning id`,
     [responsavel, coordenadorId],
   );
+  // O Gerente nasce com a skill da plataforma "planejar-tarefas" (M4-05).
+  if (novoGerente.rows[0])
+    await c.query(
+      `insert into skills_do_agente (empresa_id, agente_id, skill_da_plataforma)
+       values (empresa_ativa(), $1, 'planejar-tarefas') on conflict do nothing`,
+      [novoGerente.rows[0].id],
+    );
 }
