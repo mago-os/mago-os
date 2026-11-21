@@ -84,16 +84,22 @@ export const TETO_PADRAO_DO_AGENTE = 2000;
 export const PERCENTUAL_DE_AVISO = 80;
 
 /**
- * Conta por assinatura: em vez de teto em dólar, um limite de aviso em tokens por mês. Aos 80% e aos 100%, o
- * administrador é avisado; nada é bloqueado (o próprio plano tem o limite dele, e aí o agente passa ao reserva).
+ * Conta por assinatura: em vez de teto em dólar, um limite em tokens por mês. O administrador escolhe o que acontece
+ * ao chegar nele: "avisar" (aos 80% e aos 100%, sem bloquear; o próprio plano tem o limite dele) ou "parar" (avisa aos
+ * 80% e, aos 100%, a conta deixa de ser usada no mês: o agente passa ao reserva ou não começa).
  */
 export const AvisoDeTokens = Type.Integer({
   minimum: 1000,
   maximum: 100_000_000_000,
   description: "Tokens por mês a partir dos quais o administrador é avisado (sem bloquear).",
 });
+export const AO_CHEGAR_NO_LIMITE = ["avisar", "parar"] as const;
+export const AoChegarNoLimite = Type.Enum(AO_CHEGAR_NO_LIMITE, {
+  description: "avisar: só avisa (padrão); parar: avisa aos 80% e para aos 100%.",
+});
+export type AoChegarNoLimite = Static<typeof AoChegarNoLimite>;
 export const PedidoDeAvisoDeTokens = Type.Object(
-  { tokens: OuNulo(AvisoDeTokens) },
+  { tokens: OuNulo(AvisoDeTokens), aoChegar: AoChegarNoLimite },
   { additionalProperties: false },
 );
 export type PedidoDeAvisoDeTokens = Static<typeof PedidoDeAvisoDeTokens>;
@@ -138,6 +144,7 @@ export const ResumoDeCustos = Type.Object(
           /** Chave de API: teto em dólar. Assinatura: não tem teto; tem o aviso em tokens. */
           teto: OuNulo(TetoMensal),
           avisoDeTokens: OuNulo(AvisoDeTokens),
+          aoChegar: AoChegarNoLimite,
           mes: Gasto,
         },
         { additionalProperties: false },
