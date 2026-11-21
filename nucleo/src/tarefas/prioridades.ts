@@ -5,6 +5,7 @@
  */
 import { type ItemDePrioridade, TIPOS_DE_PRIORIDADE, type TipoDePrioridade } from "@mago-os/contratos";
 import type pg from "pg";
+import { listarAprovacoes } from "../agentes/regras.ts";
 import { condicaoDeAlcance, nomesCitados, type Quem } from "./servico.ts";
 
 /** Itens no máximo (a lista é para o dia, não um arquivo). */
@@ -188,33 +189,25 @@ export async function listarPrioridades(
     });
   }
 
-  // Pedidos de aprovação de agentes (M4-03) que a pessoa pode decidir: pediu, é responsável pelo agente ou administra.
-  const aprovacoes = await c.query<{
-    id: string;
-    resumo: string;
-    agente: string;
-    tarefa_id: string | null;
-    criada_em: Date;
-    vence_em: Date;
-  }>(
-    `select a.id, a.resumo, g.nome as agente, a.tarefa_id, a.criada_em, a.vence_em
-       from aprovacoes a join agentes g on g.id = a.agente_id and g.empresa_id = a.empresa_id
-      where a.empresa_id = empresa_ativa() and a.situacao = 'pendente' and a.vence_em > $2::timestamptz
-        and (a.pedido_por = $1 or g.responsavel_id = $1
-             or exists (select 1 from vinculos v where v.empresa_id = a.empresa_id and v.pessoa_id = $1
-                          and v.perfil = 'administrador' and v.situacao = 'ativo'))
-      order by a.criada_em limit 50`,
-    [eu, agora.toISOString()],
+  // Pedidos de aprovação de agentes (M4-03) que a pessoa pode decidir: a mesma regra da lista de aprovações (pediu,
+  // é responsável pelo agente ou administra).
+  const admin = await c.query(
+    `select 1 from vinculos where empresa_id = empresa_ativa() and pessoa_id = $1 and perfil = 'administrador'
+        and situacao = 'ativo'`,
+    [eu],
   );
-  for (const a of aprovacoes.rows) {
+  const aprovacoes = (await listarAprovacoes(c, eu, (admin.rowCount ?? 0) > 0, "pendente"))
+    .filter((a) => Date.parse(a.venceEm) > agora.getTime())
+    .slice(0, 50);
+  for (const a of aprovacoes) {
     itens.push({
       chave: `aprovacao:${a.id}`,
       tipo: "aprovacao",
       titulo: a.resumo,
-      motivo: `${a.agente.slice(0, 60)} pede aprovação ${haQuanto(a.criada_em, agora)}`,
+      motivo: `${a.agenteNome.slice(0, 60)} pede aprovação ${haQuanto(new Date(a.criadaEm), agora)}`,
       link: `/aprovacoes/${a.id}`,
-      tarefaId: a.tarefa_id,
-      desde: a.criada_em.toISOString(),
+      tarefaId: a.tarefaId,
+      desde: a.criadaEm,
     });
   }
 

@@ -67,6 +67,8 @@ export interface ContextoDaFerramenta {
   acordar(execucaoId: string): void;
   /** Por que o agente está trabalhando (o pedido da pessoa ou as instruções): vai como motivo nas aprovações. */
   motivoDoPedido?: string | null;
+  /** Ação aprovada cuja execução de origem não existe mais: a execução do contexto não está no banco. */
+  semExecucao?: boolean;
 }
 
 /** O que a ferramenta devolveu ao modelo e, se for o fim, o que dizer à pessoa. */
@@ -128,6 +130,7 @@ export async function executarFerramenta(
     );
   const entrada = r.valor as Record<string, unknown>;
   const pessoaId = ctx.execucao.pedidoPor;
+  const execucaoId = ctx.semExecucao ? null : ctx.execucao.id;
   const agenteQuem: Quem = { tipo: "agente", agenteId: ctx.agente.id };
   const naEmpresa = <T>(trabalho: (c: pg.PoolClient) => Promise<T>) =>
     comEmpresa(ctx.poolApp, ctx.empresaId, trabalho);
@@ -176,7 +179,7 @@ export async function executarFerramenta(
         alvo: { tipo: "tarefa", id: tarefaId },
         origem: ctx.opcoesMcp.origem,
         rastreio: null,
-        detalhes: { ...detalhes, execucaoId: ctx.execucao.id, pedidoPor: pessoaId },
+        detalhes: { ...detalhes, execucaoId, pedidoPor: pessoaId },
       },
       ctx.log,
     );
@@ -197,7 +200,7 @@ export async function executarFerramenta(
           alvo: { tipo: "agente", id: ctx.agente.id },
           origem: ctx.opcoesMcp.origem,
           rastreio: null,
-          detalhes: { acao: nome, execucaoId: ctx.execucao.id },
+          detalhes: { acao: nome, execucaoId },
         },
         ctx.log,
       );
@@ -207,10 +210,17 @@ export async function executarFerramenta(
     }
     if (avaliacao === "aprovacao") {
       const pedido = await naEmpresa(async (c) => {
-        if (typeof entrada.tarefaId === "string") await tarefaDeQuemPediu(c, entrada.tarefaId, "ver");
+        // Quem pediu precisa poder fazer a ação na tarefa (ver para comentar, editar para mudar), senão o pedido
+        // nasceria para falhar.
+        if (typeof entrada.tarefaId === "string")
+          await tarefaDeQuemPediu(
+            c,
+            entrada.tarefaId,
+            nome === "comentar" || nome === "ver_tarefa" ? "ver" : "editar",
+          );
         return criarAprovacao(c, {
           agenteId: ctx.agente.id,
-          execucaoId: ctx.execucao.id,
+          execucaoId,
           pedidoPor: pessoaId,
           acao: nome,
           parametros: entrada,
@@ -226,7 +236,7 @@ export async function executarFerramenta(
           alvo: { tipo: "aprovacao", id: pedido.id },
           origem: ctx.opcoesMcp.origem,
           rastreio: null,
-          detalhes: { acao: nome, execucaoId: ctx.execucao.id, tarefaId: pedido.tarefaId },
+          detalhes: { acao: nome, execucaoId, tarefaId: pedido.tarefaId },
         },
         ctx.log,
       );
@@ -295,22 +305,21 @@ export async function executarFerramenta(
     }
     case "comentar": {
       const tarefaId = entrada.tarefaId as string;
-      const feito = await naEmpresa(async (c) => {
+      const { tarefa, comentario } = await naEmpresa(async (c) => {
         // Comentar pede só "ver", como na tela (M2-02).
-        await tarefaDeQuemPediu(c, tarefaId, "ver");
-        return comentar(c, { tipo: "agente", agenteId: ctx.agente.id }, tarefaId, entrada.texto as string);
+        const t = await tarefaDeQuemPediu(c, tarefaId, "ver");
+        const feito = await comentar(c, agenteQuem, tarefaId, entrada.texto as string);
+        return { tarefa: t, comentario: feito };
       });
-      await registrar("tarefa.comentou", tarefaId, { comentarioId: feito.id });
-      const tarefa = await naEmpresa((c) => tarefaDeQuemPediu(c, tarefaId, "ver"));
-      if (tarefa)
-        await avisarDepois(
-          ctx.poolApp,
-          ctx.empresaId,
-          { tipo: "agente", agenteId: ctx.agente.id },
-          { tipo: "comentou", tarefa, comentario: feito },
-          ctx.log,
-        );
-      return { conteudo: { comentarioId: feito.id } };
+      await registrar("tarefa.comentou", tarefaId, { comentarioId: comentario.id });
+      await avisarDepois(
+        ctx.poolApp,
+        ctx.empresaId,
+        agenteQuem,
+        { tipo: "comentou", tarefa, comentario },
+        ctx.log,
+      );
+      return { conteudo: { comentarioId: comentario.id } };
     }
     case "procurar_pessoa": {
       const sem = (t: string) =>
@@ -578,7 +587,7 @@ export async function executarFerramenta(
           pedidoPor: pessoaId,
           origem: "delegacao",
           tarefaId,
-          execucaoMaeId: ctx.execucao.id,
+          execucaoMaeId: execucaoId,
           instrucoes: entrada.instrucoes as string,
         });
         return { tarefa: passada, execucaoId: filha.id };
@@ -691,7 +700,7 @@ export async function comentarComoAgente(
       alvo: { tipo: "tarefa", id: tarefaId },
       origem: ctx.opcoesMcp.origem,
       rastreio: null,
-      detalhes: { comentarioId: comentario.id, execucaoId: ctx.execucao.id },
+      detalhes: { comentarioId: comentario.id, execucaoId: ctx.semExecucao ? null : ctx.execucao.id },
     },
     ctx.log,
   );

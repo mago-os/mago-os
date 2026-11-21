@@ -23,12 +23,15 @@ import { origemDoPedido } from "../acesso/rotas.ts";
 import type { OpcoesDaChave } from "../agentes/chaves.ts";
 import {
   buscarAprovacao,
+  concluirAprovacao,
   conferenciaDe,
   listarAprovacoes,
   listarRegras,
   mudarRegras,
   podeDecidir,
   registrarDecisao,
+  reservarAprovacao,
+  resumoDaAcao,
 } from "../agentes/regras.ts";
 import { buscarAgente } from "../agentes/servico.ts";
 import { auditar } from "../auditoria/registrar.ts";
@@ -85,10 +88,12 @@ export async function executarAprovado(
   if (!agente.papel) throw new RecusaDaFerramenta("O agente não é um agente interno.");
   const permissoes = await permissoesNaEmpresa(o.poolApp, aprovacao.pedidoPor, empresaId, o.catalogo);
   if (!permissoes) throw new RecusaDaFerramenta("Quem pediu não está mais ativo na empresa.");
-  // A execução de origem (se ainda existir) dá quem pediu e a conversa; sem ela, uma execução só de contexto.
-  const execucao: ExecucaoComInstrucoes = (aprovacao.execucaoId
+  // A execução de origem (se ainda existir) dá quem pediu e a conversa; sem ela, uma execução só de contexto, que
+  // não vai para o banco (semExecucao: a delegação e a auditoria não citam esse id).
+  const origem = aprovacao.execucaoId
     ? await comEmpresa(o.poolApp, empresaId, (c) => buscarExecucao(c, aprovacao.execucaoId as string))
-    : null) ?? {
+    : null;
+  const execucao: ExecucaoComInstrucoes = origem ?? {
     id: aprovacao.id,
     empresaId,
     agenteId: agente.id,
@@ -116,6 +121,7 @@ export async function executarAprovado(
       opcoesMcp: o.opcoesMcp,
       log,
       acordar: (id) => o.acordar(empresaId, id),
+      semExecucao: !origem,
     },
     aprovacao.acao,
     parametros,
@@ -274,68 +280,82 @@ export function registrarRotasDasAprovacoes(app: FastifyInstance, o: OpcoesDasAp
       if (!r.ok) return resposta.code(400).send({ code: "PEDIDO_INVALIDO", problemas: r.problemas });
       const { sessao } = acessoDo(pedido);
       const administrador = ehAdministrador(pedido);
-      // 1. Confere e trava o pedido (na transação curta).
-      const conferido = await naEmpresa(pedido, async (c) => {
-        const a = await buscarAprovacao(c, id, true);
-        if (!a || !(await podeDecidir(c, a, sessao.pessoa.id, administrador))) return { erro: 404 as const };
-        if (a.situacao !== "pendente" || Date.parse(a.venceEm) <= Date.now())
-          return { erro: 409 as const, message: "Este pedido já foi decidido ou venceu." };
-        if (r.valor.conferencia !== a.conferencia)
-          return {
-            erro: 409 as const,
-            message: "O pedido mudou desde que você abriu. Abra de novo e confira.",
-          };
-        const agente = await buscarAgente(c, a.agenteId);
-        return { aprovacao: a, tipo: agente?.tipo ?? "interno" };
-      });
-      if ("erro" in conferido) {
-        if (conferido.erro === 404) return naoEncontrado(resposta);
-        return resposta.code(409).send({ code: "PEDIDO_MUDOU", message: conferido.message });
-      }
-      const { aprovacao, tipo } = conferido;
       const nomeDe = await naEmpresa(pedido, async (c) => {
         const p = await c.query<{ nome: string }>("select nome from pessoas where id = $1", [
           sessao.pessoa.id,
         ]);
         return p.rows[0]?.nome ?? "Alguém";
       });
+      const jaDecidido = () =>
+        resposta.code(409).send({ code: "PEDIDO_MUDOU", message: "Este pedido já foi decidido ou venceu." });
 
-      if (r.valor.decisao === "recusar") {
-        const motivo = r.valor.motivo;
-        const feita = await naEmpresa(pedido, async (c) => {
-          const d = await registrarDecisao(c, aprovacao, {
+      // 1. Confere o pedido e, ao aprovar, os parâmetros editados; depois troca "pendente" pela decisão numa
+      // operação só, para dois cliques ao mesmo tempo não fazerem a ação duas vezes.
+      const conferido = await naEmpresa(pedido, async (c) => {
+        const a = await buscarAprovacao(c, id, true);
+        if (!a || !(await podeDecidir(c, a, sessao.pessoa.id, administrador))) return { erro: 404 as const };
+        if (a.situacao !== "pendente" || Date.parse(a.venceEm) <= Date.now()) return { erro: 409 as const };
+        if (r.valor.conferencia !== a.conferencia)
+          return {
+            erro: 409 as const,
+            message: "O pedido mudou desde que você abriu. Abra de novo e confira.",
+          };
+        if (r.valor.decisao === "recusar") {
+          const motivo = r.valor.motivo;
+          const d = await registrarDecisao(c, a, {
             situacao: "recusada",
             decididaPor: sessao.pessoa.id,
             observacao: motivo,
           });
-          await avisarNaConversa(c, aprovacao, `${nomeDe} recusou: ${aprovacao.resumo}. Motivo: ${motivo}`);
-          return d;
+          if (!d) return { erro: 409 as const };
+          await avisarNaConversa(c, a, `${nomeDe} recusou: ${a.resumo}. Motivo: ${motivo}`);
+          return { recusada: d };
+        }
+        const agente = await buscarAgente(c, a.agenteId);
+        const editados = r.valor.parametros;
+        let parametros = a.parametros;
+        let editada = false;
+        if (editados) {
+          const formato = entradaDa(a.acao, agente?.tipo ?? "interno");
+          if (!formato || !conferir(formato as never, editados).ok)
+            return { invalido: "Os parâmetros editados estão fora do formato da ação." };
+          // A tarefa não muda ao aprovar: o pedido, o resumo e a regra são daquela tarefa.
+          if (editados.tarefaId !== a.parametros.tarefaId)
+            return { invalido: "Não dá para trocar a tarefa ao aprovar. Recuse e peça de novo." };
+          editada = conferenciaDe(editados) !== a.conferencia;
+          parametros = editados;
+        }
+        const resumo = editada ? await resumoDaAcao(c, a.acao, parametros) : a.resumo;
+        const reservada = await reservarAprovacao(c, a, {
+          decididaPor: sessao.pessoa.id,
+          parametros,
+          editada,
+          resumo,
         });
-        await registrar(pedido, "aprovacao.recusou", { tipo: "aprovacao", id }, { acao: aprovacao.acao });
-        await avisarDecisao(aprovacao, sessao.pessoa.id, `${nomeDe} recusou: ${aprovacao.resumo}`);
-        return feita;
+        if (!reservada) return { erro: 409 as const };
+        return { aprovacao: reservada, tipo: agente?.tipo ?? "interno" };
+      });
+      if ("erro" in conferido) {
+        if (conferido.erro === 404) return naoEncontrado(resposta);
+        if ("message" in conferido)
+          return resposta.code(409).send({ code: "PEDIDO_MUDOU", message: conferido.message });
+        return jaDecidido();
+      }
+      if ("invalido" in conferido)
+        return resposta.code(400).send({ code: "PARAMETROS_INVALIDOS", message: conferido.invalido });
+      if ("recusada" in conferido) {
+        const d = conferido.recusada;
+        await registrar(pedido, "aprovacao.recusou", { tipo: "aprovacao", id }, { acao: d.acao });
+        await avisarDecisao(d, sessao.pessoa.id, `${nomeDe} recusou: ${d.resumo}`);
+        return d;
       }
 
-      // 2. Aprovar: os parâmetros editados são conferidos pelo formato da ferramenta.
-      const editados = r.valor.parametros;
-      let parametros = aprovacao.parametros;
-      let editada = false;
-      if (editados) {
-        const formato = entradaDa(aprovacao.acao, tipo);
-        const ok = formato ? conferir(formato as never, editados) : { ok: false as const, problemas: [] };
-        if (!ok.ok)
-          return resposta.code(400).send({
-            code: "PARAMETROS_INVALIDOS",
-            message: "Os parâmetros editados estão fora do formato da ação.",
-          });
-        editada = conferenciaDe(editados) !== aprovacao.conferencia;
-        parametros = editados;
-      }
-      // 3. Executa como o agente (fora da transação do pedido) e registra o resultado.
+      // 2. Executa como o agente (fora da transação do pedido) e registra o resultado.
+      const { aprovacao } = conferido;
       let resultado: unknown = null;
       let erro: string | null = null;
       try {
-        resultado = await executarAprovado(o, sessao.empresaId, aprovacao, parametros, pedido.log);
+        resultado = await executarAprovado(o, sessao.empresaId, aprovacao, aprovacao.parametros, pedido.log);
       } catch (e) {
         if (!(e instanceof RecusaDaFerramenta)) {
           pedido.log.error({ erro: e, aprovacaoId: id }, "Aprovação: a ação falhou");
@@ -343,14 +363,7 @@ export function registrarRotasDasAprovacoes(app: FastifyInstance, o: OpcoesDasAp
         } else erro = e.message;
       }
       const feita = await naEmpresa(pedido, async (c) => {
-        const d = await registrarDecisao(c, aprovacao, {
-          situacao: erro ? "falhou" : "aprovada",
-          decididaPor: sessao.pessoa.id,
-          observacao: erro,
-          parametros,
-          editada,
-          ...(erro ? {} : { resultado }),
-        });
+        const d = await concluirAprovacao(c, aprovacao, erro ? { erro } : { resultado });
         await avisarNaConversa(
           c,
           aprovacao,
@@ -364,7 +377,7 @@ export function registrarRotasDasAprovacoes(app: FastifyInstance, o: OpcoesDasAp
         pedido,
         erro ? "aprovacao.falhou" : "aprovacao.aprovou",
         { tipo: "aprovacao", id },
-        { acao: aprovacao.acao, editada },
+        { acao: aprovacao.acao, editada: aprovacao.editada },
       );
       await avisarDecisao(
         aprovacao,
@@ -407,7 +420,8 @@ export async function verificarAprovacoesVencidas(
       const vencida = await comEmpresa(poolApp, v.empresa_id, async (c) => {
         const a = await buscarAprovacao(c, v.aprovacao_id, true);
         if (a?.situacao !== "pendente") return null;
-        await registrarDecisao(c, a, { situacao: "vencida", decididaPor: null, observacao: null });
+        if (!(await registrarDecisao(c, a, { situacao: "vencida", decididaPor: null, observacao: null })))
+          return null;
         await avisarNaConversa(c, a, `O pedido venceu sem decisão (24 horas): ${a.resumo}. Nada foi feito.`);
         await criarAviso(c, {
           pessoaId: a.pedidoPor,

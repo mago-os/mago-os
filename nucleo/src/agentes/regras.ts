@@ -114,6 +114,8 @@ export async function mudarRegras(
   mudancas: { acao: string; modo: ModoDeAcao | null }[],
   quem: { pessoaId: string; administrador: boolean },
 ): Promise<{ problema: string } | { mudou: { acao: string; de: ModoDeAcao; para: ModoDeAcao }[] }> {
+  if (new Set(mudancas.map((m) => m.acao)).size !== mudancas.length)
+    return { problema: "A mesma ação apareceu mais de uma vez no pedido." };
   const atuais = new Map((await listarRegras(c, agente)).map((r) => [r.acao, r]));
   const mudou: { acao: string; de: ModoDeAcao; para: ModoDeAcao }[] = [];
   for (const m of mudancas) {
@@ -270,7 +272,7 @@ export async function criarAprovacao(
   const r = await c.query<LinhaDaAprovacao>(
     `insert into aprovacoes (empresa_id, agente_id, execucao_id, pedido_por, acao, tarefa_id, parametros, resumo,
        motivo, conferencia, vence_em)
-     values (empresa_ativa(), $1, $2, $3, $4, $5, $6, $7, $8, $9, now() + make_interval(hours => $10))
+     values (empresa_ativa(), $1, $2, $3, $4, $5, $6::jsonb, $7, $8, $9, now() + make_interval(hours => $10))
      returning ${COLUNAS_DA_APROVACAO}`,
     [
       d.agenteId,
@@ -278,7 +280,7 @@ export async function criarAprovacao(
       d.pedidoPor,
       d.acao,
       existe ? tarefaId : null,
-      d.parametros,
+      JSON.stringify(d.parametros),
       await resumoDaAcao(c, d.acao, d.parametros),
       d.motivo?.trim().slice(0, 1000) || null,
       conferenciaDe(d.parametros),
@@ -350,47 +352,75 @@ export async function listarAprovacoes(
   return r.rows.map((l) => ({ ...paraAprovacao(l), agenteNome: l.agente_nome }));
 }
 
-/** Registra a decisão (e, na aprovação, o resultado da ação). Conta as aprovações seguidas sem edição. */
+/**
+ * Recusa ou vence um pedido pendente. Devolve null se ele já não estava pendente (outra pessoa decidiu antes, ou
+ * venceu): quem chamou não deve avisar nada.
+ */
 export async function registrarDecisao(
   c: pg.PoolClient,
   aprovacao: Aprovacao,
-  d: {
-    situacao: "aprovada" | "recusada" | "falhou" | "vencida";
-    decididaPor: string | null;
-    observacao: string | null;
-    parametros?: Record<string, unknown>;
-    editada?: boolean;
-    resultado?: unknown;
-  },
-): Promise<Aprovacao> {
+  d: { situacao: "recusada" | "vencida"; decididaPor: string | null; observacao: string | null },
+): Promise<Aprovacao | null> {
   const r = await c.query<LinhaDaAprovacao>(
-    `update aprovacoes set situacao = $2, decidida_por = $3, decidida_em = now(), observacao = $4,
-            parametros = coalesce($5, parametros), editada = $6, resultado = $7
+    `update aprovacoes set situacao = $2, decidida_por = $3, decidida_em = now(), observacao = $4
       where id = $1 and empresa_id = empresa_ativa() and situacao = 'pendente'
+      returning ${COLUNAS_DA_APROVACAO}`,
+    [aprovacao.id, d.situacao, d.decididaPor, d.observacao?.slice(0, 1000) ?? null],
+  );
+  if (!r.rows[0]) return null;
+  if (d.situacao === "recusada") await contarAprovacao(c, aprovacao, false);
+  return paraAprovacao(r.rows[0]);
+}
+
+/**
+ * Aprovar, passo 1: marca o pedido como aprovado antes de executar, numa troca atômica de "pendente". Só uma
+ * aprovação ganha (dois cliques ao mesmo tempo, ou a verificação do vencimento, não fazem a ação duas vezes).
+ * Devolve null se o pedido já não estava pendente ou venceu.
+ */
+export async function reservarAprovacao(
+  c: pg.PoolClient,
+  aprovacao: Aprovacao,
+  d: { decididaPor: string; parametros: Record<string, unknown>; editada: boolean; resumo: string },
+): Promise<Aprovacao | null> {
+  const r = await c.query<LinhaDaAprovacao>(
+    `update aprovacoes set situacao = 'aprovada', decidida_por = $2, decidida_em = now(), parametros = $3::jsonb,
+            editada = $4, resumo = $5
+      where id = $1 and empresa_id = empresa_ativa() and situacao = 'pendente' and vence_em > now()
+      returning ${COLUNAS_DA_APROVACAO}`,
+    [aprovacao.id, d.decididaPor, JSON.stringify(d.parametros), d.editada, d.resumo.slice(0, 300)],
+  );
+  return r.rows[0] ? paraAprovacao(r.rows[0]) : null;
+}
+
+/** Aprovar, passo 2: grava o que a ação devolveu, ou o erro (o pedido passa a "falhou"). */
+export async function concluirAprovacao(
+  c: pg.PoolClient,
+  aprovacao: Aprovacao,
+  d: { erro: string } | { resultado: unknown },
+): Promise<Aprovacao> {
+  const resultado = "resultado" in d ? JSON.stringify(d.resultado ?? null) : null;
+  const r = await c.query<LinhaDaAprovacao>(
+    `update aprovacoes set situacao = $2, observacao = $3, resultado = $4::jsonb
+      where id = $1 and empresa_id = empresa_ativa() and situacao = 'aprovada'
       returning ${COLUNAS_DA_APROVACAO}`,
     [
       aprovacao.id,
-      d.situacao,
-      d.decididaPor,
-      d.observacao?.slice(0, 1000) ?? null,
-      d.parametros ?? null,
-      d.editada ?? false,
-      d.resultado === undefined
-        ? null
-        : JSON.stringify(d.resultado).length > 50_000
-          ? { grande: true }
-          : d.resultado,
+      "erro" in d ? "falhou" : "aprovada",
+      "erro" in d ? d.erro.slice(0, 1000) : null,
+      resultado && resultado.length > 50_000 ? JSON.stringify({ grande: true }) : resultado,
     ],
   );
-  const feita = r.rows[0] ? paraAprovacao(r.rows[0]) : aprovacao;
-  // Aprovações seguidas sem edição contam para a sugestão de liberar; recusa ou edição zeram.
-  if (d.situacao === "aprovada" || d.situacao === "recusada" || d.situacao === "falhou")
-    await c.query(
-      `insert into regras_de_agente (empresa_id, agente_id, acao, aprovadas_sem_edicao)
-       values (empresa_ativa(), $1, $2, $3)
-       on conflict (agente_id, acao) do update set aprovadas_sem_edicao =
-         case when $3 = 1 then regras_de_agente.aprovadas_sem_edicao + 1 else 0 end`,
-      [aprovacao.agenteId, aprovacao.acao, d.situacao === "aprovada" && !d.editada ? 1 : 0],
-    );
-  return feita;
+  await contarAprovacao(c, aprovacao, !("erro" in d) && !aprovacao.editada);
+  return r.rows[0] ? paraAprovacao(r.rows[0]) : aprovacao;
+}
+
+/** Aprovações seguidas sem edição contam para a sugestão de liberar; recusa, edição ou falha zeram. */
+async function contarAprovacao(c: pg.PoolClient, aprovacao: Aprovacao, conta: boolean): Promise<void> {
+  await c.query(
+    `insert into regras_de_agente (empresa_id, agente_id, acao, aprovadas_sem_edicao)
+     values (empresa_ativa(), $1, $2, $3)
+     on conflict (agente_id, acao) do update set aprovadas_sem_edicao =
+       case when $3 = 1 then regras_de_agente.aprovadas_sem_edicao + 1 else 0 end`,
+    [aprovacao.agenteId, aprovacao.acao, conta ? 1 : 0],
+  );
 }

@@ -172,7 +172,6 @@ async function iniciar(): Promise<void> {
           for (const t of trabalhos) await rodarExecucao(opcoesDoMotor, t.data.empresaId, t.data.execucaoId);
         },
       );
-      // A cada minuto: execuções esquecidas (reinício no meio, ou trabalho que não chegou à fila).
       // A cada minuto: pedidos de aprovação de mais de 24 horas vencem (M4-03).
       await fila.createQueue(FILA_APROVACOES_VENCIDAS);
       await fila.schedule(FILA_APROVACOES_VENCIDAS, "* * * * *");
@@ -180,6 +179,7 @@ async function iniciar(): Promise<void> {
         const n = await verificarAprovacoesVencidas(banco.pool, app.log);
         if (n > 0) app.log.info({ evento: "aprovacoes.vencidas", n }, "Pedidos de aprovação vencidos");
       });
+      // A cada minuto: execuções esquecidas (reinício no meio, ou trabalho que não chegou à fila).
       await fila.createQueue(FILA_EXECUCOES_ESQUECIDAS);
       await fila.schedule(FILA_EXECUCOES_ESQUECIDAS, "* * * * *");
       await fila.work(FILA_EXECUCOES_ESQUECIDAS, async () => {

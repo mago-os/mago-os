@@ -4,7 +4,7 @@
  * tarefa e na conversa. Os testes provam também: o agente age com a permissão de quem pediu, o reserva entra quando
  * o principal falha, o conteúdo de fora vai marcado como dado, e uma empresa não vê a conversa da outra.
  */
-import { randomBytes } from "node:crypto";
+import { randomBytes, randomUUID } from "node:crypto";
 import { criarLogin, criarPoolDoLogin, embaralharSenha, registrarRotasDoLogin } from "@mago-os/nucleo/acesso";
 import { registrarRotasDosAgentes } from "@mago-os/nucleo/agentes";
 import {
@@ -691,8 +691,21 @@ describe.skipIf(!bancoDisponivel)("agentes internos", () => {
       regras: [{ acao: "comentar", modo: null }],
     });
 
-    // Três pedidos de mudar a prioridade: um recusado, um aprovado com edição, um vence.
-    roteiro = [0, 1, 2].flatMap((i) => [
+    // A mesma ação duas vezes no mesmo pedido de mudança: recusa.
+    expect(
+      (
+        await pedir("POST", `/agentes/${ids.coordenador}/regras`, ana, {
+          regras: [
+            { acao: "atribuir", modo: "bloqueado" },
+            { acao: "atribuir", modo: null },
+          ],
+        })
+      ).statusCode,
+    ).toBe(400);
+
+    // Quatro pedidos de mudar a prioridade: um recusado, um aprovado com edição, um vence e um aprovado por duas
+    // pessoas ao mesmo tempo.
+    roteiro = [0, 1, 2, 3].flatMap((i) => [
       () => ({
         chamadas: [
           { id: `m${i}`, nome: "mudar_prazo", entrada: { tarefaId: ids.tarefa, prioridade: "baixa" } },
@@ -700,7 +713,7 @@ describe.skipIf(!bancoDisponivel)("agentes internos", () => {
       }),
       () => ({ chamadas: [{ id: `n${i}`, nome: "responder", entrada: { texto: "Pedi aprovação." } }] }),
     ]);
-    for (let i = 0; i < 3; i++) {
+    for (let i = 0; i < 4; i++) {
       await pedir("POST", "/conversas/mensagens", ana, { texto: `muda a prioridade ${i}` });
       await rodarFila();
     }
@@ -712,9 +725,10 @@ describe.skipIf(!bancoDisponivel)("agentes internos", () => {
       }[]
     )
       .filter((p) => p.acao === "mudar_prazo")
-      .slice(0, 3);
-    expect(pedidos).toHaveLength(3);
-    const [p1, p2, p3] = pedidos as [
+      .slice(0, 4);
+    expect(pedidos).toHaveLength(4);
+    const [p1, p2, p3, p4] = pedidos as [
+      (typeof pedidos)[number],
       (typeof pedidos)[number],
       (typeof pedidos)[number],
       (typeof pedidos)[number],
@@ -764,6 +778,37 @@ describe.skipIf(!bancoDisponivel)("agentes internos", () => {
       }
     ).regras.find((r) => r.acao === "mudar_prazo");
     expect(regra?.aprovadasSemEdicao).toBe(0);
+    // A tarefa não muda ao aprovar.
+    expect(
+      (
+        await pedir("POST", `/aprovacoes/${p4.id}/decidir`, ana, {
+          decisao: "aprovar",
+          conferencia: p4.conferencia,
+          parametros: { tarefaId: randomUUID(), prioridade: "baixa" },
+        })
+      ).statusCode,
+    ).toBe(400);
+    // Dois cliques ao mesmo tempo: só um aprova, e a ação acontece uma vez.
+    const duas = await Promise.all(
+      [0, 1].map(() =>
+        pedir("POST", `/aprovacoes/${p4.id}/decidir`, ana, {
+          decisao: "aprovar",
+          conferencia: p4.conferencia,
+        }),
+      ),
+    );
+    expect(duas.map((d) => d.statusCode).sort()).toEqual([200, 409]);
+    const aprovou = await dono.query(
+      "select 1 from auditoria.eventos where acao = 'aprovacao.aprovou' and alvo->>'id' = $1",
+      [p4.id],
+    );
+    expect(aprovou.rowCount).toBe(1);
+    const gravado = await dono.query<{ situacao: string; resultado: unknown }>(
+      "select situacao, resultado from aprovacoes where id = $1",
+      [p4.id],
+    );
+    expect(gravado.rows[0]?.situacao).toBe("aprovada");
+    expect(gravado.rows[0]?.resultado).toBeTruthy();
     // O terceiro vence: a ação não acontece e o pedido fica "vencida".
     await dono.query(
       "update aprovacoes set vence_em = now() - interval '1 minute', criada_em = now() - interval '25 hours' where id = $1",
