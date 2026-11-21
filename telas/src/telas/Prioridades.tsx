@@ -102,10 +102,12 @@ export function CentralDePrioridades({ compacta = false }: { compacta?: boolean 
       <div className="flex items-center justify-between gap-2">
         <CardTitulo>Prioridades</CardTitulo>
         <span className="flex flex-wrap justify-end gap-x-3 gap-y-1">
-          {/* No celular, as aprovações (M4-03) ficam a um toque daqui. */}
-          <a href="/aprovacoes" className="text-sm text-texto-2 hover:underline">
-            Aprovações
-          </a>
+          {/* No celular, as aprovações (M4-03) ficam a um toque daqui; no computador, estão no menu. */}
+          {compacta && (
+            <a href="/aprovacoes" className="text-sm text-texto-2 hover:underline md:hidden">
+              Aprovações
+            </a>
+          )}
           {compacta && (itens?.length ?? 0) > 5 && (
             <a href="/prioridades" className="text-sm text-texto-2 hover:underline">
               Ver todas ({itens?.length})

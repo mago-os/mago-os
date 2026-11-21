@@ -24,6 +24,13 @@ O que marca a execução é a escolha entre segurança e quantidade de aprovaç�
 - **Recomendado: qualquer texto de outra pessoa** (inclusive o título de uma tarefa numa lista). É o único jeito de a proteção não ser contornada: quem quiser esconder uma instrução escreve no título ou na descrição em vez de no comentário. Custo: quando a Flora pede "lista as minhas tarefas e conclui a do relatório", e a tarefa foi criada pelo gestor dela, concluir pede a aprovação da própria Flora (um toque). O que o próprio Sandro e os agentes internos escrevem não marca.
 - **Alternativa: só comentários e anexos de outras pessoas** (o texto literal da spec). Menos aprovações, mas uma instrução escondida no título ou na descrição passa.
 
+## Detalhes acertados na codificação (21/11/2026)
+
+- Na mesma conversa, a marca continua: a próxima execução começa marcada se uma resposta anterior veio de uma execução marcada (o que o agente disse depois de ler texto de outros fica na conversa). Uma conversa nova começa limpa.
+- Numa execução marcada, o resumo final também passa por aprovação antes de virar comentário na tarefa. Senão o texto de fora voltaria como comentário de agente interno, que não marca quem lê depois.
+- Agente interno que passa uma tarefa a outro agente interno (atribuir ou criar subtarefa) faz o outro trabalhar em nome da mesma pessoa, com a marca junto. Agente externo e recorrência: em nome do responsável pelo agente que recebe.
+- Os pedidos que saem pela marca dizem isso na tela, e não mexem no contador da sugestão de liberar a regra.
+
 ## Consequências
 
 - Contrato: `ACOES_DE_ALTO_RISCO` e `modoDepoisDeTextoDeOutros` em `contratos/src/agentes/regras.ts`; `Aprovacao.porTextoDeOutros`; `ExecucaoDeAgente.leuTextoDeOutros`.

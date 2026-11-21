@@ -72,13 +72,14 @@ export async function avaliarAcao(
   const modo = await modoDaAcao(c, agente, acao);
   if (modo === "bloqueado") return "bloqueado";
   if (modo === "pede_aprovacao") return "aprovacao";
-  if (opcoes.textoDeOutros && modoDepoisDeTextoDeOutros(acao, modo) === "pede_aprovacao")
-    return "aprovacao_por_texto";
-  if (modo === "executa") return "executa";
   // executa_nas_dele: sem tarefa na entrada (ex.: criar), executa; com tarefa, só se for do agente.
   const tarefaId = typeof entrada.tarefaId === "string" ? entrada.tarefaId : null;
-  if (!tarefaId) return "executa";
-  return (await tarefaEhDoAgente(c, agente.id, tarefaId)) ? "executa" : "aprovacao";
+  if (modo === "executa_nas_dele" && tarefaId && !(await tarefaEhDoAgente(c, agente.id, tarefaId)))
+    return "aprovacao";
+  // A regra deixaria executar: depois de texto de outros, o que muda dados pede aprovação (M4-04).
+  if (opcoes.textoDeOutros && modoDepoisDeTextoDeOutros(acao, modo) === "pede_aprovacao")
+    return "aprovacao_por_texto";
+  return "executa";
 }
 
 /** As regras do agente, como a tela mostra (só as ações que existem para o tipo dele). */

@@ -5,7 +5,8 @@
 -- 2. aprovacoes.por_texto_de_outros: o pedido saiu por causa dessa marca (não conta para a sugestão de liberar).
 -- 3. itens_de_checklist ganha quem escreveu o texto (para saber se é texto de outros). Os itens que já existiam ficam
 --    com quem criou a tarefa.
--- 4. execucoes_esquecidas() não acorda a fila de agente pausado: a tarefa atribuída espera ele voltar.
+-- 4. execucoes_esquecidas() não acorda a tarefa atribuída a um agente pausado: ela espera ele voltar. As outras
+--    execuções na fila continuam sendo acordadas (e o motor encerra e avisa, se o agente estiver pausado ou desligado).
 -- Explicado em docs/banco/decisoes.md, seção 36.
 
 -- Up Migration
@@ -41,7 +42,8 @@ CREATE OR REPLACE FUNCTION public.execucoes_esquecidas()
     SELECT e.empresa_id, e.id, e.situacao
       FROM public.execucoes_de_agente e
       JOIN public.agentes g ON g.id = e.agente_id AND g.empresa_id = e.empresa_id
-     WHERE (e.situacao = 'na_fila' AND e.criada_em < now() - interval '2 minutes' AND g.situacao = 'ativo')
+     WHERE (e.situacao = 'na_fila' AND e.criada_em < now() - interval '2 minutes'
+            AND NOT (e.origem = 'tarefa' AND g.situacao = 'pausado'))
         OR (e.situacao = 'rodando' AND e.iniciada_em < now() - interval '15 minutes')
      LIMIT 100
   $$;

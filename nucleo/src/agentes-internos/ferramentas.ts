@@ -36,6 +36,7 @@ import { listarPrioridades } from "../tarefas/prioridades.ts";
 import {
   buscarTarefa,
   comentar,
+  condicaoDeAlcance,
   criarTarefa,
   idsCitados,
   listarComentarios,
@@ -48,6 +49,7 @@ import {
   trocarResponsavel,
 } from "../tarefas/servico.ts";
 import { criarExecucao, type ExecucaoComInstrucoes } from "./dados.ts";
+import { entregarAoAgenteInterno } from "./tarefa-atribuida.ts";
 import {
   type FontesDeTexto,
   haTextoDeOutros,
@@ -199,9 +201,13 @@ export async function executarFerramenta(
   if (conteudo && typeof conteudo === "object" && "pedidoDeAprovacao" in conteudo) return feito;
   const fontes = fontesDaFerramenta(nome, (entradaBruta ?? {}) as Record<string, unknown>, feito.conteudo);
   if (!fontes) return feito;
+  // A ação já aconteceu: um erro aqui não pode parecer falha dela (o modelo repetiria). Sem saber, vale a marca.
   const marcou = await comEmpresa(ctx.poolApp, ctx.empresaId, async (c) => {
     if (!(await haTextoDeOutros(c, ctx.execucao.pedidoPor, fontes))) return false;
     await marcarTextoDeOutros(c, ctx.execucao.id);
+    return true;
+  }).catch((erro) => {
+    ctx.log.error({ erro, ferramenta: nome }, "Texto de outros: não conferiu; a execução fica marcada");
     return true;
   });
   if (marcou) ctx.execucao = { ...ctx.execucao, leuTextoDeOutros: true };
@@ -231,6 +237,17 @@ async function executarSemMarca(
     comEmpresa(ctx.poolApp, ctx.empresaId, trabalho);
 
   /** A tarefa precisa estar ao alcance de quem pediu (a permissão da pessoa vale para o agente). */
+  /** Tarefa passada a outro agente interno: vira trabalho dele, em nome de quem pediu e com a marca (M4-04). */
+  const entregarAoAgente = (tarefaId: string) =>
+    entregarAoAgenteInterno(
+      ctx.poolApp,
+      ctx.empresaId,
+      { tipo: "pessoa", pessoaId },
+      tarefaId,
+      (_empresa, id) => ctx.acordar(id),
+      { leuTextoDeOutros: ctx.execucao.leuTextoDeOutros },
+    ).catch((erro) => ctx.log.error({ erro, tarefaId }, "Tarefa do agente interno: não entrou na fila"));
+
   // A menor das duas permissões (M4-04): quem pediu e o responsável pelo agente (quando não é a mesma pessoa).
   const responsavel = ctx.responsavel ?? null;
   async function alcancaOResponsavel(c: pg.PoolClient, tarefaId: string, acao: "ver" | "editar") {
@@ -238,14 +255,22 @@ async function executarSemMarca(
     const q = quemPediu(responsavel.permissoes, responsavel.pessoaId, acao);
     return q !== null && (await buscarTarefa(c, q, tarefaId)) !== null;
   }
+  /** Só os itens cujas tarefas o responsável também vê (uma consulta só, com o alcance dele). */
   async function soAsDoResponsavel<T>(c: pg.PoolClient, itens: T[], tarefaDe: (x: T) => string | null) {
     if (!responsavel) return itens;
-    const ficam: T[] = [];
-    for (const x of itens) {
+    const q = quemPediu(responsavel.permissoes, responsavel.pessoaId, "ver");
+    const ids = [...new Set(itens.flatMap((x) => tarefaDe(x) ?? []))];
+    if (!q) return itens.filter((x) => !tarefaDe(x));
+    const alcance = condicaoDeAlcance(q, 1);
+    const r = await c.query<{ id: string }>(
+      `select t.id from tarefas t where t.empresa_id = empresa_ativa() and t.id = any($1::uuid[]) and ${alcance.sql}`,
+      [ids, ...alcance.valores],
+    );
+    const veem = new Set(r.rows.map((l) => l.id));
+    return itens.filter((x) => {
       const id = tarefaDe(x);
-      if (!id || (await alcancaOResponsavel(c, id, "ver"))) ficam.push(x);
-    }
-    return ficam;
+      return !id || veem.has(id);
+    });
   }
 
   async function tarefaDeQuemPediu(
@@ -384,6 +409,10 @@ async function executarSemMarca(
       ctx.opcoesMcp,
       { log: ctx.log as never },
     );
+    // Subtarefa criada para outro agente interno: vira trabalho dele, em nome de quem pediu (M4-04).
+    const criada = resultado as { id?: string; responsavel?: { tipo: string } | null };
+    if (nome === "criar_subtarefa" && criada.id && criada.responsavel?.tipo === "agente")
+      await entregarAoAgente(criada.id);
     return { conteudo: resultado };
   }
 
@@ -844,6 +873,7 @@ async function executarSemMarca(
         { tipo: "trocou_responsavel", tarefa: feito },
         ctx.log,
       );
+      if (responsavel.tipo === "agente") await entregarAoAgente(tarefaId);
       return { conteudo: { tarefa: { id: feito.id, titulo: feito.titulo, responsavel: feito.responsavel } } };
     }
   }

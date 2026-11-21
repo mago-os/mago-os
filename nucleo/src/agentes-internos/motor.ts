@@ -15,6 +15,7 @@ import {
 } from "@mago-os/contratos";
 import type pg from "pg";
 import type { OpcoesDaChave } from "../agentes/chaves.ts";
+import { criarAprovacao } from "../agentes/regras.ts";
 import { auditar } from "../auditoria/registrar.ts";
 import type { RodarClaudeCode } from "../contas-de-ia/claude-code.ts";
 import type { Cofre } from "../contas-de-ia/cofre.ts";
@@ -730,7 +731,23 @@ async function finalizar(
   void o;
   void empresaId;
   const e = ctx.execucao;
-  if (e.origem !== "conversa" && e.tarefaId) await comentarComoAgente(ctx, e.tarefaId, fim.texto);
+  if (e.origem !== "conversa" && e.tarefaId) {
+    // Depois de ler texto de outros, o resumo também passa por aprovação antes de virar comentário (M4-04): senão o
+    // texto de fora voltaria como comentário de agente interno, que não marca quem lê depois.
+    if (e.leuTextoDeOutros)
+      await comEmpresa(ctx.poolApp, ctx.empresaId, (c) =>
+        criarAprovacao(c, {
+          agenteId: ctx.agente.id,
+          execucaoId: e.id,
+          pedidoPor: e.pedidoPor,
+          acao: "comentar",
+          parametros: { tarefaId: e.tarefaId, texto: fim.texto.slice(0, 4000) },
+          motivo: "O resumo do trabalho, para virar comentário na tarefa.",
+          porTextoDeOutros: true,
+        }),
+      );
+    else await comentarComoAgente(ctx, e.tarefaId, fim.texto);
+  }
   await avisarNaConversa(
     e.origem === "conversa" ? fim.texto : `${ctx.agente.nome}: ${fim.texto}`,
     "agente",

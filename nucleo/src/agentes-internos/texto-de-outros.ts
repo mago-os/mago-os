@@ -5,6 +5,7 @@
  * (sem autor, como a cópia de uma tarefa recorrente) marca, porque veio de alguém.
  */
 import type pg from "pg";
+import { FORMATO_UUID } from "../comum.ts";
 
 /** Condição SQL: o autor (colunas de pessoa e de agente) não é quem pediu ($1) nem um agente interno da empresa. */
 function deOutros(pessoa: string, agente: string): string {
@@ -28,9 +29,10 @@ export async function haTextoDeOutros(
   pedidoPor: string,
   f: FontesDeTexto,
 ): Promise<boolean> {
-  const tarefas = [...new Set([...(f.tarefas ?? []), ...(f.tarefasInteiras ?? [])])];
-  const inteiras = [...new Set(f.tarefasInteiras ?? [])];
-  const comentarios = [...new Set(f.comentarios ?? [])];
+  const ids = (xs: string[] | undefined) => [...new Set((xs ?? []).filter((x) => FORMATO_UUID.test(x)))];
+  const tarefas = ids([...(f.tarefas ?? []), ...(f.tarefasInteiras ?? [])]);
+  const inteiras = ids(f.tarefasInteiras);
+  const comentarios = ids(f.comentarios);
   if (tarefas.length + comentarios.length === 0) return false;
   const r = await c.query<{ ha: boolean }>(
     `select exists (
