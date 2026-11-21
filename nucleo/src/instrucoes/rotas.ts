@@ -22,12 +22,14 @@ import { acessoDo, type Verificador } from "../permissoes/verificar.ts";
 import {
   criarSkill,
   definirSkillsDoAgente,
+  idsDasSkillsDoAgente,
   listarSkills,
   listarVersoes,
   montarInstrucoes,
   publicarSkill,
   salvarInstrucoes,
   salvarRascunho,
+  versaoDaCamada,
   versoesDaSkill,
 } from "./servico.ts";
 
@@ -133,9 +135,7 @@ export function registrarRotasDasInstrucoes(
       let voltouDe: number | null = null;
       if (voltar) {
         const versao = (r.valor as { versao: number }).versao;
-        const alvo = (await listarVersoes(c, conferida.camada, conferida.alvoId)).find(
-          (v) => v.versao === versao,
-        );
+        const alvo = await versaoDaCamada(c, conferida.camada, conferida.alvoId, versao);
         if (!alvo) return { erro: 404 as const };
         texto = alvo.texto;
         voltouDe = versao;
@@ -243,6 +243,7 @@ export function registrarRotasDasInstrucoes(
     async (pedido, resposta) => {
       const { id } = pedido.params as { id: string };
       const versao = await naEmpresa(pedido, (c) => publicarSkill(c, id));
+      if (versao === "nao_existe") return naoEncontrado(resposta, "Skill");
       if (!versao)
         return resposta
           .code(409)
@@ -258,7 +259,7 @@ export function registrarRotasDasInstrucoes(
     const feito = await naEmpresa(pedido, async (c) => {
       const a = await c.query("select 1 from agentes where id = $1 and empresa_id = empresa_ativa()", [id]);
       if ((a.rowCount ?? 0) === 0) return null;
-      return (await listarSkills(c)).filter((s) => s.agentes.includes(id)).map((s) => s.id);
+      return idsDasSkillsDoAgente(c, id);
     });
     return feito ?? naoEncontrado(resposta, "Agente");
   });

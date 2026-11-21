@@ -76,8 +76,8 @@ export async function salvarInstrucoes(
   voltouDe: number | null = null,
 ): Promise<VersaoDeInstrucoes> {
   const a = alvoDaCamada(camada, alvoId);
-  await c.query("select pg_advisory_xact_lock(hashtextextended($1, 0))", [
-    `instrucoes:${camada}:${alvoId ?? "empresa"}`,
+  await c.query("select pg_advisory_xact_lock(hashtextextended(empresa_ativa()::text || $1, 0))", [
+    `:instrucoes:${camada}:${alvoId ?? "empresa"}`,
   ]);
   const r = await c.query<LinhaDaVersao>(
     `insert into versoes_de_instrucoes (empresa_id, camada, projeto_id, agente_id, versao, texto, autor_id, voltou_de)
@@ -92,9 +92,26 @@ export async function salvarInstrucoes(
   return paraVersao(r.rows[0] as LinhaDaVersao);
 }
 
-async function textoAtual(c: pg.PoolClient, camada: CamadaDaEmpresa, alvoId: string | null) {
-  return (await listarVersoes(c, camada, alvoId))[0] ?? null;
+/** Uma versão da camada: a dada, ou a mais nova. */
+export async function versaoDaCamada(
+  c: pg.PoolClient,
+  camada: CamadaDaEmpresa,
+  alvoId: string | null,
+  versao: number | null = null,
+): Promise<VersaoDeInstrucoes | null> {
+  const a = alvoDaCamada(camada, alvoId);
+  const r = await c.query<LinhaDaVersao>(
+    `select * from versoes_de_instrucoes
+      where empresa_id = empresa_ativa() and camada = $1
+        and projeto_id is not distinct from $2 and agente_id is not distinct from $3
+        and ($4::integer is null or versao = $4)
+      order by versao desc limit 1`,
+    [camada, a.projeto, a.agente, versao],
+  );
+  return r.rows[0] ? paraVersao(r.rows[0]) : null;
 }
+const textoAtual = (c: pg.PoolClient, camada: CamadaDaEmpresa, alvoId: string | null) =>
+  versaoDaCamada(c, camada, alvoId);
 
 /**
  * O texto final que um agente recebe: plataforma, empresa, projeto (o da tarefa, se houver) e o do agente, nessa
@@ -216,7 +233,8 @@ export async function listarSkills(c: pg.PoolClient): Promise<Skill[]> {
   }>(
     `select s.id, s.nome, s.atualizada_em,
             (select max(v.versao) from versoes_de_skills v where v.skill_id = s.id and v.situacao = 'publicada') as publicada,
-            (select v.descricao from versoes_de_skills v where v.skill_id = s.id order by v.versao desc limit 1) as descricao,
+            (select v.descricao from versoes_de_skills v where v.skill_id = s.id
+              order by (v.situacao = 'publicada') desc, v.versao desc limit 1) as descricao,
             exists (select 1 from versoes_de_skills v where v.skill_id = s.id and v.situacao = 'rascunho') as rascunho
        from skills s where s.empresa_id = empresa_ativa() order by s.nome`,
   );
@@ -328,8 +346,15 @@ export async function salvarRascunho(
 }
 
 /** Publica o rascunho: daí em diante os agentes recebem essa versão. Sem rascunho: null. */
-export async function publicarSkill(c: pg.PoolClient, skillId: string): Promise<number | null> {
-  if (!FORMATO_UUID.test(skillId)) return null;
+export async function publicarSkill(
+  c: pg.PoolClient,
+  skillId: string,
+): Promise<number | "nao_existe" | null> {
+  if (!FORMATO_UUID.test(skillId)) return "nao_existe";
+  const existe = await c.query("select 1 from skills where id = $1 and empresa_id = empresa_ativa()", [
+    skillId,
+  ]);
+  if ((existe.rowCount ?? 0) === 0) return "nao_existe";
   const r = await c.query<{ versao: number }>(
     `update versoes_de_skills set situacao = 'publicada', publicada_em = now()
       where skill_id = $1 and empresa_id = empresa_ativa() and situacao = 'rascunho' returning versao`,
@@ -342,13 +367,27 @@ export async function publicarSkill(c: pg.PoolClient, skillId: string): Promise<
   return r.rows[0].versao;
 }
 
-/** As skills (publicadas) de um agente, com o texto. */
+/** As skills (publicadas) de um agente, com o texto: uma consulta só, com a versão publicada mais nova de cada uma. */
 export async function skillsDoAgente(
   c: pg.PoolClient,
   agenteId: string,
 ): Promise<{ id: string; nome: string; descricao: string; versao: number; texto: string }[]> {
-  const r = await c.query<{ skill_id: string | null; skill_da_plataforma: string | null }>(
-    "select skill_id, skill_da_plataforma from skills_do_agente where agente_id = $1 and empresa_id = empresa_ativa()",
+  const r = await c.query<{
+    skill_id: string | null;
+    skill_da_plataforma: string | null;
+    nome: string | null;
+    descricao: string | null;
+    versao: number | null;
+    texto: string | null;
+  }>(
+    `select a.skill_id, a.skill_da_plataforma, p.nome, p.descricao, p.versao, p.texto
+       from skills_do_agente a
+       left join lateral (
+         select s.nome, v.descricao, v.versao, v.texto from skills s
+           join versoes_de_skills v on v.skill_id = s.id and v.empresa_id = s.empresa_id and v.situacao = 'publicada'
+          where s.id = a.skill_id and s.empresa_id = a.empresa_id order by v.versao desc limit 1
+       ) p on true
+      where a.agente_id = $1 and a.empresa_id = empresa_ativa()`,
     [agenteId],
   );
   const lista: { id: string; nome: string; descricao: string; versao: number; texto: string }[] = [];
@@ -363,18 +402,26 @@ export async function skillsDoAgente(
           versao: 1,
           texto: s.texto,
         });
-      continue;
-    }
-    const v = await c.query<{ nome: string; descricao: string; versao: number; texto: string }>(
-      `select s.nome, v.descricao, v.versao, v.texto from skills s
-         join versoes_de_skills v on v.skill_id = s.id and v.situacao = 'publicada'
-        where s.id = $1 and s.empresa_id = empresa_ativa() order by v.versao desc limit 1`,
-      [a.skill_id],
-    );
-    const s = v.rows[0];
-    if (s) lista.push({ id: a.skill_id as string, ...s });
+    } else if (a.skill_id && a.nome && a.versao !== null)
+      lista.push({
+        id: a.skill_id,
+        nome: a.nome,
+        descricao: a.descricao ?? "",
+        versao: a.versao,
+        texto: a.texto ?? "",
+      });
   }
   return lista.sort((x, y) => x.nome.localeCompare(y.nome));
+}
+
+/** Os ids das skills atribuídas a um agente (publicadas ou não). */
+export async function idsDasSkillsDoAgente(c: pg.PoolClient, agenteId: string): Promise<string[]> {
+  const r = await c.query<{ id: string }>(
+    `select coalesce(skill_id::text, 'plataforma:' || skill_da_plataforma) as id from skills_do_agente
+      where agente_id = $1 and empresa_id = empresa_ativa() order by 1`,
+    [agenteId],
+  );
+  return r.rows.map((l) => l.id);
 }
 
 /** Troca a lista de skills de um agente. Uma skill que não existe: devolve o id dela, e nada muda. */

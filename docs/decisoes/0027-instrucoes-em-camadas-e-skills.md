@@ -27,6 +27,12 @@ Hoje as instruções dos agentes internos estão escritas no código, e os agent
 8. **Auditoria:** `instrucoes.editou`, `instrucoes.voltou_versao`, `skill.criou`, `skill.editou_rascunho`, `skill.publicou` e `skill.atribuiu`, sem o texto nos detalhes.
 9. **Telas:** Agentes › Instruções (as camadas, o texto final de cada agente, o histórico com comparação e voltar) e Agentes › Skills (biblioteca, rascunho, publicar e atribuir aos agentes).
 
+## Detalhes acertados na codificação (21/11/2026)
+
+- Os agentes não têm ferramenta para mudar instruções nem skills: mexer na configuração dos agentes é do app, por uma pessoa (está na lista de alto risco da M4-04). A leitura é pelas ferramentas `pegar_skill` (internos) e as três do MCP (externos), e as instruções já chegam a cada execução.
+- `pegar_skill` só lê as skills atribuídas ao próprio agente, que são configuração da empresa e não dado de pessoa; por isso não passa pelo alcance de quem pediu nem do responsável.
+- A biblioteca mostra a descrição da versão publicada (a que os agentes recebem); o rascunho aparece só ao abrir a skill.
+
 ## Consequências
 
 - Contrato novo em `contratos/src/agentes/instrucoes.ts`; três ferramentas novas no MCP e uma interna (`pegar_skill`).

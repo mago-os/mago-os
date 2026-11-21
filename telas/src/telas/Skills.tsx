@@ -79,13 +79,17 @@ function FormularioDaSkill({
 
 function DetalheDaSkill({
   skill,
+  todas,
   agentes,
   aoMudar,
 }: {
   skill: Skill;
+  /** A biblioteca inteira: dela sai a lista de skills de cada agente (sem ler de novo do servidor). */
+  todas: Skill[];
   agentes: AgenteNaLista[];
-  aoMudar: () => void;
+  aoMudar: () => Promise<void>;
 }) {
+  const [ocupado, setOcupado] = useState(false);
   const [versoes, setVersoes] = useState<VersaoDeSkill[]>([]);
   const [mensagem, setMensagem] = useState<Mensagem>(null);
   const carregar = useCallback(async () => {
@@ -110,7 +114,7 @@ function DetalheDaSkill({
         : { tipo: "erro", texto: r.mensagem ?? "" },
     );
     void carregar();
-    aoMudar();
+    void aoMudar();
   }
   async function publicar() {
     const r = await pedir<{ versao: number }>("POST", `/skills/${encodeURIComponent(skill.id)}/publicar`, {});
@@ -120,16 +124,18 @@ function DetalheDaSkill({
         : { tipo: "erro", texto: r.mensagem ?? "" },
     );
     void carregar();
-    aoMudar();
+    void aoMudar();
   }
+  /** Uma mudança de cada vez: a lista do agente sai da biblioteca já carregada, e a próxima espera esta terminar. */
   async function atribuir(agenteId: string, recebe: boolean) {
-    const atuais = await pedir<string[]>("GET", `/agentes/${encodeURIComponent(agenteId)}/skills`);
-    const lista = new Set(atuais.dados ?? []);
+    setOcupado(true);
+    const lista = new Set(todas.filter((s) => s.agentes.includes(agenteId)).map((s) => s.id));
     if (recebe) lista.add(skill.id);
     else lista.delete(skill.id);
     const r = await pedir("POST", `/agentes/${encodeURIComponent(agenteId)}/skills`, { skills: [...lista] });
     if (!r.ok) setMensagem({ tipo: "erro", texto: r.mensagem ?? "" });
-    aoMudar();
+    await aoMudar();
+    setOcupado(false);
   }
 
   return (
@@ -143,6 +149,7 @@ function DetalheDaSkill({
               <input
                 type="checkbox"
                 checked={skill.agentes.includes(a.id)}
+                disabled={ocupado}
                 onChange={(e) => void atribuir(a.id, e.target.checked)}
               />
               {a.nome}
@@ -260,7 +267,9 @@ export function Skills({ podeCriar }: { podeCriar: boolean }) {
               </span>
             </span>
           </button>
-          {aberta === s.id && <DetalheDaSkill skill={s} agentes={agentes} aoMudar={() => void carregar()} />}
+          {aberta === s.id && (
+            <DetalheDaSkill skill={s} todas={skills} agentes={agentes} aoMudar={carregar} />
+          )}
         </Card>
       ))}
     </main>

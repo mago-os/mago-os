@@ -238,6 +238,12 @@ describe.skipIf(!bancoDisponivel)("instruções e skills", () => {
     expect((await doRobo()).map((s) => s.nome)).toEqual(["planejar-tarefas"]);
     expect((await pedir("POST", `/skills/${id}/publicar`, ana, {})).json()).toEqual({ versao: 1 });
     expect((await pedir("POST", `/skills/${id}/publicar`, ana, {})).statusCode).toBe(409);
+    expect((await pedir("POST", "/skills/plataforma:planejar-tarefas/publicar", ana, {})).statusCode).toBe(
+      404,
+    );
+    expect((await pedir("GET", `/agentes/${ids.robo}/skills`, ana)).json()).toEqual(
+      [id, "plataforma:planejar-tarefas"].sort(),
+    );
     expect((await doRobo()).find((s) => s.id === id)?.texto).toBe("Seja cordial.");
     // Editar cria o rascunho da versão 2; o agente continua com a 1 até publicar.
     expect(

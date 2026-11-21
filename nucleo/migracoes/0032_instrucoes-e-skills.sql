@@ -136,7 +136,8 @@ CREATE POLICY skills_do_agente_da_empresa_ativa ON public.skills_do_agente
 -- O Gerente de projetos que já existe ganha a skill da plataforma "planejar-tarefas" (os novos ganham ao nascer).
 INSERT INTO public.skills_do_agente (empresa_id, agente_id, skill_da_plataforma)
 SELECT empresa_id, id, 'planejar-tarefas' FROM public.agentes
- WHERE tipo = 'interno' AND papel = 'especialista' AND situacao <> 'desligado';
+ WHERE tipo = 'interno' AND papel = 'especialista' AND especialidade = 'gerente_de_projetos'
+   AND situacao <> 'desligado';
 
 -- Down Migration
 

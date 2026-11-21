@@ -431,6 +431,8 @@ async function executarSemMarca(
       };
     }
     case "pegar_skill": {
+      // Só lê as skills atribuídas ao próprio agente (configuração da empresa, não dado de pessoa): o alcance de quem
+      // pediu e o do responsável não entram aqui.
       const skill = (await naEmpresa((c) => skillsDoAgente(c, ctx.agente.id))).find(
         (s) => s.id === entrada.skillId,
       );

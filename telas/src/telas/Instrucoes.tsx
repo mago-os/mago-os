@@ -61,7 +61,15 @@ const quando = (iso: string) =>
     minute: "2-digit",
   });
 
-function EditorDaCamada({ camada, alvoId }: { camada: CamadaDaEmpresa; alvoId: string | null }) {
+function EditorDaCamada({
+  camada,
+  alvoId,
+  aoSalvar,
+}: {
+  camada: CamadaDaEmpresa;
+  alvoId: string | null;
+  aoSalvar?: () => void;
+}) {
   const caminho = `/instrucoes/${camada}${alvoId ? `/${encodeURIComponent(alvoId)}` : ""}`;
   const [dados, setDados] = useState<{
     atual: VersaoDeInstrucoes | null;
@@ -92,6 +100,7 @@ function EditorDaCamada({ camada, alvoId }: { camada: CamadaDaEmpresa; alvoId: s
     const r = await pedir<VersaoDeInstrucoes>("POST", caminho, { texto });
     if (!r.ok) return setMensagem({ tipo: "erro", texto: r.mensagem ?? "" });
     setMensagem({ tipo: "ok", texto: `Salvo como versão ${r.dados?.versao}.` });
+    aoSalvar?.();
     void carregar();
   }
   async function voltar(versao: number) {
@@ -101,6 +110,7 @@ function EditorDaCamada({ camada, alvoId }: { camada: CamadaDaEmpresa; alvoId: s
       tipo: "ok",
       texto: `Voltou para a versão ${versao} (salva como versão ${r.dados?.versao}).`,
     });
+    aoSalvar?.();
     setComparando(null);
     void carregar();
   }
@@ -223,7 +233,11 @@ export function Instrucoes() {
   const [camada, setCamada] = useState<CamadaDaEmpresa>("empresa");
   const [agentes, setAgentes] = useState<AgenteNaLista[]>([]);
   const [projetos, setProjetos] = useState<{ id: string; nome: string }[]>([]);
-  const [alvo, setAlvo] = useState("");
+  // O escolhido em cada camada; sem escolha (ou se sumiu), o primeiro da lista. Assim a troca de aba nunca manda o
+  // id de um projeto para a camada de um agente.
+  const [escolhidos, setEscolhidos] = useState<Record<string, string>>({});
+  // Sobe a cada versão salva, para o texto final recarregar.
+  const [salvas, setSalvas] = useState(0);
   useEffect(() => {
     void listarAgentes().then((r) => setAgentes((r.dados ?? []).filter((a) => a.situacao !== "desligado")));
     void listarProjetos().then((r) =>
@@ -231,7 +245,8 @@ export function Instrucoes() {
     );
   }, []);
   const opcoes = camada === "agente" ? agentes : camada === "projeto" ? projetos : [];
-  useEffect(() => setAlvo(opcoes[0]?.id ?? ""), [camada, opcoes.length]);
+  const escolhido = escolhidos[camada];
+  const alvo = opcoes.some((o) => o.id === escolhido) ? (escolhido as string) : (opcoes[0]?.id ?? "");
 
   return (
     <main className="mx-auto grid w-full max-w-3xl gap-4 px-4 py-5 md:py-8">
@@ -281,7 +296,7 @@ export function Instrucoes() {
           <select
             aria-label={camada === "agente" ? "Agente" : "Projeto"}
             value={alvo}
-            onChange={(e) => setAlvo(e.target.value)}
+            onChange={(e) => setEscolhidos({ ...escolhidos, [camada]: e.target.value })}
             className="h-9 w-full min-w-0 rounded-md border border-linha bg-cartao px-2 text-sm sm:w-72"
           >
             {opcoes.map((o) => (
@@ -292,13 +307,18 @@ export function Instrucoes() {
           </select>
         )}
         {camada === "empresa" ? (
-          <EditorDaCamada camada="empresa" alvoId={null} />
+          <EditorDaCamada camada="empresa" alvoId={null} aoSalvar={() => setSalvas((n) => n + 1)} />
         ) : alvo ? (
-          <EditorDaCamada key={`${camada}:${alvo}`} camada={camada} alvoId={alvo} />
+          <EditorDaCamada
+            key={`${camada}:${alvo}`}
+            camada={camada}
+            alvoId={alvo}
+            aoSalvar={() => setSalvas((n) => n + 1)}
+          />
         ) : (
           <p className="text-sm text-texto-2">{camada === "agente" ? "Nenhum agente." : "Nenhum projeto."}</p>
         )}
-        {camada === "agente" && alvo && <TextoFinal key={alvo} agenteId={alvo} />}
+        {camada === "agente" && alvo && <TextoFinal key={`${alvo}:${salvas}`} agenteId={alvo} />}
       </Card>
     </main>
   );
