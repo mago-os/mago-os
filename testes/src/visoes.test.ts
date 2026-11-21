@@ -194,6 +194,24 @@ describe.skipIf(!bancoDisponivel)("visões e filtros", () => {
     expect(await titulos("/tarefas?de=2031-01-01&ate=2031-01-31")).toEqual([]);
   });
 
+  it("texto livre: título, descrição e comentários, sem acento e com erro de digitação", async () => {
+    const ana = await como("ana@teste.invalid");
+    await pedir("POST", "/tarefas", ana, { titulo: "Migração do WordPress" });
+    await pedir("POST", "/tarefas", ana, {
+      titulo: "Revisar contrato",
+      descricao: "Cláusula de reajuste anual",
+    });
+    const comentada = (await pedir("POST", "/tarefas", ana, { titulo: "Ligar para o cliente" })).json().id;
+    await pedir("POST", `/tarefas/${comentada}/comentarios`, ana, { texto: "Ele pediu orçamento novo" });
+    expect(await titulos("/tarefas?texto=migracao")).toEqual(["Migração do WordPress"]);
+    expect(await titulos("/tarefas?texto=wordpres")).toEqual(["Migração do WordPress"]);
+    expect(await titulos("/tarefas?texto=REAJUSTE")).toEqual(["Revisar contrato"]);
+    expect(await titulos("/tarefas?texto=orcamento")).toEqual(["Ligar para o cliente"]);
+    expect(await titulos("/tarefas?texto=100%25")).toEqual([]);
+    // O funcionário só acha nas tarefas que já vê.
+    expect(await titulos("/tarefas?texto=migracao", "fabio@teste.invalid")).toEqual([]);
+  });
+
   it("visões salvas são só de quem salvou, e uma empresa não vê as da outra", async () => {
     const ana = await como("ana@teste.invalid");
     const r = await pedir("POST", "/visoes", ana, {

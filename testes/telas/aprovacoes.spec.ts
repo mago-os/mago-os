@@ -35,6 +35,10 @@ test.describe("regras e aprovações", () => {
   });
 
   test.afterAll(async () => {
+    const c = new pg.Client({ connectionString: BANCO_DONO });
+    await c.connect();
+    await c.query("delete from tarefas where empresa_id = $1", [admin.empresaId]);
+    await c.end();
     await admin.limpar();
   });
 
@@ -57,6 +61,15 @@ test.describe("regras e aprovações", () => {
     await atribuir.selectOption("bloqueado");
     await expect(page.getByText("Regra salva.")).toBeVisible();
     await expect(page.getByText(/ajustada; padrão: Pede aprovação/)).toBeVisible();
+    // Todas de uma vez: as que só leem também aceitam "Bloqueado".
+    await page.getByLabel("Modo para todas as regras").selectOption("bloqueado");
+    await page.getByRole("button", { name: "Aplicar a todas" }).click();
+    await expect(page.getByText(/regras mudaram/)).toBeVisible();
+    await expect(page.getByLabel("Regra de Ver uma tarefa")).toHaveValue("bloqueado");
+    await page.getByLabel("Modo para todas as regras").selectOption("executa");
+    await page.getByRole("button", { name: "Aplicar a todas" }).click();
+    await expect(page.getByText(/ficaram como estavam/)).toBeVisible();
+    await expect(page.getByLabel("Regra de Ver uma tarefa")).toHaveValue("executa");
     // O que só lê não tem os modos de aprovação.
     await expect(page.getByLabel("Regra de Ver uma tarefa").locator("option")).toHaveCount(2);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
@@ -76,6 +89,16 @@ test.describe("regras e aprovações", () => {
     );
     await c.end();
     const id = r.rows[0]?.id as string;
+
+    // Procurar nas tarefas por texto livre (sem acento).
+    expect((await page.request.post("/api/tarefas", { data: { titulo: "Migração do site" } })).status()).toBe(
+      201,
+    );
+    await page.goto("/tarefas");
+    await page.getByLabel("Procurar nas tarefas").fill("migracao");
+    await expect(page.getByText("Migração do site").first()).toBeVisible();
+    await page.getByLabel("Procurar nas tarefas").fill("nada parecido aqui");
+    await expect(page.getByText("Migração do site")).toHaveCount(0);
 
     await page.goto("/aprovacoes");
     await page.getByRole("link", { name: /Mudar o prazo de "Post do blog"/ }).click();

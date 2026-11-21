@@ -294,7 +294,7 @@ Todas com o prefixo `/api` no site, menos `/mcp`, que fica em `https://teste.osm
 
 | Método | Caminho | Permissão | O que faz |
 | --- | --- | --- | --- |
-| GET | `/tarefas` | tarefas.ver | Lista as tarefas que a pessoa alcança (query: minhas=1, status=a,b, projeto=<id>|sem, espaco, responsaveis=p:<id>,a:<id>, agente=1, prioridades, etiquetas, prazo=atrasadas|hoje|semana|sem_prazo, de, ate, subtarefas=0). |
+| GET | `/tarefas` | tarefas.ver | Lista as tarefas que a pessoa alcança (query: minhas=1, status=a,b, projeto=<id>|sem, espaco, responsaveis=p:<id>,a:<id>, agente=1, prioridades, etiquetas, prazo=atrasadas|hoje|semana|sem_prazo, de, ate, subtarefas=0, texto: no título, na descrição ou nos comentários). |
 | POST | `/tarefas` | tarefas.criar | Cria uma tarefa, com ou sem projeto. Sem responsável, fica com quem criou; responsável nulo num projeto vai para o gerente, se o diretor quis. |
 | GET | `/tarefas/:id` | tarefas.ver | Mostra a tarefa com a linha do tempo (comentários, notas internas e acontecimentos), as subtarefas, o checklist, os status do projeto e os nomes citados. |
 | POST | `/tarefas/:id/status` | tarefas.editar | Muda o status (concluir pode trazer o resultado; em andamento é pegar). Concluir uma recorrente cria a próxima. |
@@ -404,6 +404,7 @@ Recebe:
 - `de` (string): Dia no formato AAAA-MM-DD.
 - `ate` (string): Dia no formato AAAA-MM-DD.
 - `subtarefas` (boolean)
+- `texto` (string)
 
 ### POST `/tarefas`
 

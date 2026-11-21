@@ -9,6 +9,7 @@ import {
   type RegraDeAgente,
 } from "@mago-os/contratos";
 import { useCallback, useEffect, useState } from "react";
+import { Button } from "@/componentes/ui/button";
 import { Card, CardDescricao, CardTitulo } from "@/componentes/ui/card";
 import { pedir } from "@/tarefas";
 import { Aviso } from "./Acesso";
@@ -45,6 +46,35 @@ export function RegrasDoAgente({ agenteId }: { agenteId: string }) {
     setMensagem({ tipo: "ok", texto: "Regra salva." });
   }
 
+  const [paraTodas, setParaTodas] = useState<ModoDeAcao>("pede_aprovacao");
+
+  /**
+   * Muda todas de uma vez para o mesmo modo, onde ele cabe: as que só leem ficam em executa ou bloqueado, e o
+   * responsável só deixa mais restrito. As que não cabem continuam como estão.
+   */
+  async function mudarTodas() {
+    if (!dados) return;
+    const ix = (m: ModoDeAcao) => MODOS_DE_ACAO.indexOf(m);
+    const cabe = (r: RegraDeAgente) =>
+      r.modo !== paraTodas &&
+      (r.mudaDados || paraTodas === "executa" || paraTodas === "bloqueado") &&
+      (dados.podeMudar === "tudo" || ix(paraTodas) >= ix(r.modo));
+    const mudancas = dados.regras
+      .filter(cabe)
+      .map((r) => ({ acao: r.acao, modo: paraTodas === r.padrao ? null : paraTodas }));
+    if (mudancas.length === 0) return setMensagem({ tipo: "ok", texto: "Nada a mudar." });
+    const r = await pedir<RegraDeAgente[]>("POST", base, { regras: mudancas });
+    if (!r.ok || !r.dados) return setMensagem({ tipo: "erro", texto: r.mensagem ?? "" });
+    setDados((d) => (d ? { ...d, regras: r.dados as RegraDeAgente[] } : d));
+    const ficaram = dados.regras.length - mudancas.length;
+    setMensagem({
+      tipo: "ok",
+      texto: `${mudancas.length} ${mudancas.length === 1 ? "regra mudou" : "regras mudaram"}.${
+        ficaram > 0 ? ` ${ficaram} ficaram como estavam (já estavam assim ou não aceitam esse modo).` : ""
+      }`,
+    });
+  }
+
   if (!dados) return null;
   const indice = (m: ModoDeAcao) => MODOS_DE_ACAO.indexOf(m);
   return (
@@ -58,6 +88,26 @@ export function RegrasDoAgente({ agenteId }: { agenteId: string }) {
         </a>
       </CardDescricao>
       {mensagem && <Aviso {...mensagem} />}
+      {dados.podeMudar !== "nada" && (
+        <div className="flex flex-wrap items-center gap-2 rounded-md bg-suave p-2 text-sm">
+          <span>Mudar todas para</span>
+          <select
+            aria-label="Modo para todas as regras"
+            value={paraTodas}
+            onChange={(e) => setParaTodas(e.target.value as ModoDeAcao)}
+            className="h-9 min-w-0 rounded-md border border-linha bg-cartao px-2 text-sm"
+          >
+            {MODOS_DE_ACAO.map((m) => (
+              <option key={m} value={m}>
+                {NOME_DO_MODO[m]}
+              </option>
+            ))}
+          </select>
+          <Button size="pequeno" variant="contorno" onClick={() => void mudarTodas()}>
+            Aplicar a todas
+          </Button>
+        </div>
+      )}
       <ul className="grid gap-1.5">
         {dados.regras.map((r) => {
           // O que só lê fica em executa ou bloqueado; o responsável só vai para os modos mais restritos.

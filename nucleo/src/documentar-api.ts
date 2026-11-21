@@ -62,7 +62,7 @@ export const ROTAS: Rota[] = [
     caminho: "/tarefas",
     permissao: "tarefas.ver",
     oQueFaz:
-      "Lista as tarefas que a pessoa alcança (query: minhas=1, status=a,b, projeto=<id>|sem, espaco, responsaveis=p:<id>,a:<id>, agente=1, prioridades, etiquetas, prazo=atrasadas|hoje|semana|sem_prazo, de, ate, subtarefas=0).",
+      "Lista as tarefas que a pessoa alcança (query: minhas=1, status=a,b, projeto=<id>|sem, espaco, responsaveis=p:<id>,a:<id>, agente=1, prioridades, etiquetas, prazo=atrasadas|hoje|semana|sem_prazo, de, ate, subtarefas=0, texto: no título, na descrição ou nos comentários).",
     recebe: FiltroDeTarefas,
   },
   {

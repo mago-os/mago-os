@@ -342,6 +342,8 @@ export const FiltroDeTarefas = Type.Object(
     ate: Type.Optional(Dia),
     /** Inclui as subtarefas na lista (padrão: sim). */
     subtarefas: Type.Optional(Type.Boolean()),
+    /** Texto livre: no título, na descrição ou nos comentários, sem acento e aceitando erro de digitação. */
+    texto: Type.Optional(Type.String({ minLength: 2, maxLength: 200 })),
   },
   { additionalProperties: false },
 );

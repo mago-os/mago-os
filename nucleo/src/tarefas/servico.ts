@@ -244,6 +244,16 @@ function filtrosDaM304(filtro: FiltroDaLista, valores: unknown[]): string[] {
     partes.push(`(t.prazo_em is not null and ${diaDoPrazo} between ${de} and ${ate})`);
   }
   if (filtro.subtarefas === false) partes.push("t.tarefa_mae_id is null");
+  // Texto livre: contém (sem acento e sem diferença de maiúsculas) ou uma palavra parecida no título; também na
+  // descrição e nos comentários. Os curingas do LIKE valem como texto.
+  if (filtro.texto) {
+    const Q = `para_busca(${v(filtro.texto)}::text)`;
+    const contem = `('%' || replace(replace(replace(${Q}, '\\', '\\\\'), '%', '\\%'), '_', '\\_') || '%')`;
+    partes.push(`(para_busca(t.titulo) like ${contem} or ${Q} <% para_busca(t.titulo)
+       or para_busca(coalesce(t.descricao, '')) like ${contem}
+       or exists (select 1 from comentarios_de_tarefa k where k.tarefa_id = t.id and k.empresa_id = t.empresa_id
+                    and k.apagado_em is null and para_busca(k.texto) like ${contem}))`);
+  }
   return partes;
 }
 

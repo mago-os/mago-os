@@ -60,6 +60,8 @@ interface Escolhas {
   prioridade: "" | Prioridade | "sem";
   responsavel: string;
   deAgente: boolean;
+  /** Texto livre (título, descrição e comentários). */
+  texto: string;
 }
 
 const ESCOLHAS_PADRAO: Escolhas = {
@@ -69,6 +71,7 @@ const ESCOLHAS_PADRAO: Escolhas = {
   prioridade: "",
   responsavel: "",
   deAgente: false,
+  texto: "",
 };
 
 function filtroDasEscolhas(e: Escolhas, escopo: { projetoId?: string }): FiltroDeTarefas {
@@ -80,6 +83,7 @@ function filtroDasEscolhas(e: Escolhas, escopo: { projetoId?: string }): FiltroD
     ...(e.prioridade ? { prioridades: [e.prioridade] } : {}),
     ...(responsavel ? { responsaveis: [responsavel] } : {}),
     ...(e.deAgente ? { deAgente: true } : {}),
+    ...(e.texto.trim().length >= 2 ? { texto: e.texto.trim() } : {}),
   };
 }
 
@@ -92,6 +96,7 @@ function escolhasDoFiltro(f: FiltroDeTarefas): Escolhas {
     prioridade: f.prioridades?.[0] ?? "",
     responsavel: r ? (r.tipo === "pessoa" ? r.pessoaId : `agente:${r.agenteId}`) : "",
     deAgente: f.deAgente === true,
+    texto: f.texto ?? "",
   };
 }
 
@@ -221,6 +226,16 @@ export function VisoesDeTarefas({
   }, [carregarSalvas]);
 
   const mudar = (m: Partial<Escolhas>) => setEscolhas((e) => ({ ...e, ...m }));
+  // O texto digitado vira filtro depois de uma pausa curta (não pede ao servidor a cada letra).
+  const [textoDigitado, setTextoDigitado] = useState("");
+  useEffect(() => setTextoDigitado(escolhas.texto), [escolhas.texto]);
+  useEffect(() => {
+    const espera = setTimeout(
+      () => setEscolhas((e) => (e.texto === textoDigitado ? e : { ...e, texto: textoDigitado })),
+      400,
+    );
+    return () => clearTimeout(espera);
+  }, [textoDigitado]);
 
   async function aoSalvarVisao() {
     const nome = window.prompt("Nome da visão (ex.: Atrasadas do Mago OS)")?.trim();
@@ -299,6 +314,15 @@ export function VisoesDeTarefas({
         </Button>
       </div>
 
+      <input
+        type="search"
+        aria-label="Procurar nas tarefas"
+        placeholder="Procurar no título, na descrição ou nos comentários"
+        value={textoDigitado}
+        onChange={(e) => setTextoDigitado(e.target.value)}
+        maxLength={200}
+        className="h-10 w-full min-w-0 rounded-md border border-linha bg-cartao px-3 text-sm"
+      />
       <fieldset className="flex flex-wrap items-center gap-2" aria-label="Filtros">
         {!escopo.projetoId && (
           <>
