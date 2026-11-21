@@ -24,6 +24,7 @@ import { auditar } from "../auditoria/registrar.ts";
 import { avisarDepois } from "../avisos/eventos.ts";
 import { buscar as buscarNoMago } from "../busca/index.ts";
 import type { FerramentaParaModelo } from "../contas-de-ia/conversa.ts";
+import { resumoDeCustos } from "../custos/servico.ts";
 import { comEmpresa } from "../empresa.ts";
 import { skillsDoAgente } from "../instrucoes/servico.ts";
 import { type AcaoDeTarefa, executar, RecusaDaFerramenta } from "../mcp/index.ts";
@@ -427,6 +428,33 @@ async function executarSemMarca(
           tipo: nome as "responder" | "perguntar",
           texto,
           tarefas: ((entrada.tarefas as string[] | undefined) ?? []).slice(0, 20),
+        },
+      };
+    }
+    case "ver_custos": {
+      // Quem vê as contas de IA vê tudo; os outros, só o gasto do próprio agente (M4-06).
+      const tudo = (ctx.permissoes.modulos.get("contas_de_ia")?.acoes.ver ?? "nada") !== "nada";
+      const r = await naEmpresa((c) => resumoDeCustos(c, null));
+      const usd = (micros: number) => `US$ ${(micros / 1_000_000).toFixed(4)}`;
+      const tetoUsd = (centavos: number | null) =>
+        centavos === null ? "sem teto" : `US$ ${(centavos / 100).toFixed(2)}`;
+      const agentes = r.porAgente
+        .filter((a) => tudo || a.agenteId === ctx.agente.id)
+        .map((a) => ({
+          agente: a.nome,
+          hoje: usd(a.hoje.custo),
+          mes: usd(a.mes.custo),
+          teto: tetoUsd(a.teto),
+        }));
+      return {
+        conteudo: {
+          mes: r.mes,
+          agentes,
+          ...(tudo
+            ? {
+                empresa: { hoje: usd(r.hoje.custo), mes: usd(r.total.custo), teto: tetoUsd(r.tetoDaEmpresa) },
+              }
+            : {}),
         },
       };
     }

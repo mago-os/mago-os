@@ -62,6 +62,8 @@ export class ErroDoModelo extends Error {
   readonly limiteAte: Date | null;
   /** ChatGPT: o login foi renovado antes da falha e precisa voltar ao cofre mesmo assim. */
   credencialNova?: string;
+  /** Os tokens que a chamada gastou antes de falhar (o consumo conta mesmo assim, M4-06). */
+  tokens?: { entrada: number; saida: number; cache: number };
   constructor(mensagem: string, limiteAte: Date | null = null) {
     super(mensagem);
     this.limiteAte = limiteAte;

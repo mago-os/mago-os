@@ -31,6 +31,7 @@ import { AvisosDoMago } from "./telas/Avisos";
 import { ContasDeIa } from "./telas/ContasDeIa";
 import { Conversa } from "./telas/Conversa";
 import { AceitarConvite } from "./telas/Convite";
+import { Custos } from "./telas/Custos";
 import { DadosDaEmpresa } from "./telas/DadosDaEmpresa";
 import { AtivarDoisFatores, ConfirmarSegundoFator } from "./telas/DoisFatores";
 import { Empresas } from "./telas/Empresas";
@@ -246,6 +247,8 @@ export function App() {
       />
     );
   else if (caminho === "/agentes/instrucoes" && pode("instrucoes", "ver")) conteudo = <Instrucoes />;
+  else if (caminho === "/agentes/custos" && pode("contas_de_ia", "ver"))
+    conteudo = <Custos podeEditar={pode("contas_de_ia", "editar")} />;
   else if (caminho === "/agentes/skills" && pode("instrucoes", "ver"))
     conteudo = <Skills podeCriar={pode("instrucoes", "criar")} />;
   else if (agenteAberto && pode("agentes", "ver"))

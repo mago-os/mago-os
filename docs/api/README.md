@@ -433,6 +433,11 @@ Todas com o prefixo `/api` no site, menos `/mcp`, que fica em `https://teste.osm
 | POST | `/skills/:id/publicar` | instrucoes.aprovar | Publica o rascunho: os agentes passam a receber essa versão. |
 | GET | `/agentes/:id/skills` | instrucoes.ver | Os ids das skills atribuídas ao agente. |
 | POST | `/agentes/:id/skills` | instrucoes.editar | Troca a lista de skills do agente. |
+| GET | `/custos` | contas_de_ia.ver | O painel de custos do mês (query: mes=AAAA-MM): total, hoje, por agente, por conta, por dia e os modelos sem preço (M4-06). |
+| POST | `/custos/tetos/empresa` | contas_de_ia.editar | Muda o teto de gasto da empresa por mês (null: sem teto). |
+| POST | `/custos/tetos/agente/:id` | contas_de_ia.editar | Muda o teto de gasto de um agente interno por mês (null: sem teto). |
+| POST | `/ia/contas/:id/limite-de-tokens` | contas_de_ia.editar | Conta por assinatura: o limite em tokens do mês e se só avisa ou para aos 100%. |
+| POST | `/ia/contas/:id/precos` | contas_de_ia.editar | O preço que o administrador dá a um modelo da conta (null: volta para o preço de referência). |
 | GET | `/ia/contas` | contas_de_ia.ver | As contas de IA da empresa (sem a chave, só os 4 últimos caracteres) e se o cofre está ligado. |
 | POST | `/ia/contas` | contas_de_ia.criar | Conecta uma conta: testa a chave no provedor antes de gravar. Pede o segundo fator recente. |
 | POST | `/ia/contas/:id` | contas_de_ia.editar | Muda o nome, o teto ou troca a chave (testada antes; pede o segundo fator recente). |
@@ -746,6 +751,32 @@ Recebe:
 Recebe:
 
 - `skills` (lista de string, obrigatório)
+
+### POST `/custos/tetos/empresa`
+
+Recebe:
+
+- `teto` (integer ou null, obrigatório)
+
+### POST `/custos/tetos/agente/:id`
+
+Recebe:
+
+- `teto` (integer ou null, obrigatório)
+
+### POST `/ia/contas/:id/limite-de-tokens`
+
+Recebe:
+
+- `tokens` (integer ou null, obrigatório)
+- `aoChegar` ("avisar" | "parar", obrigatório): avisar: só avisa (padrão); parar: avisa aos 80% e para aos 100%.
+
+### POST `/ia/contas/:id/precos`
+
+Recebe:
+
+- `modelo` (string, obrigatório): O modelo.
+- `preco` (objeto ou null, obrigatório)
 
 ### POST `/ia/contas`
 

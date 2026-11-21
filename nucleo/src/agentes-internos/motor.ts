@@ -29,6 +29,7 @@ import {
   modeloIndisponivel,
   modelosDoAgente,
 } from "../contas-de-ia/servico.ts";
+import { conferirTetos, registrarConsumo } from "../custos/servico.ts";
 import { comEmpresa } from "../empresa.ts";
 import { montarInstrucoes, skillsDoAgente } from "../instrucoes/servico.ts";
 import { RecusaDaFerramenta } from "../mcp/index.ts";
@@ -36,8 +37,10 @@ import { permissoesNaEmpresa } from "../permissoes/verificar.ts";
 import { listarChecklist } from "../tarefas/checklist.ts";
 import {
   buscarTarefa,
+  comentar,
   listarComentarios,
   listarSubtarefas,
+  mudarStatus,
   pegarTarefa,
   tirarTrava,
 } from "../tarefas/servico.ts";
@@ -336,6 +339,47 @@ async function rodar(o: OpcoesDoMotor, empresaId: string, execucaoId: string): P
     return;
   }
 
+  // Os tetos de gasto do mês (M4-06): empresa ou agente no teto, a execução não começa; só a conta principal parada,
+  // segue pelo reserva. Os avisos de 80% e 100% saem aqui, uma vez por mês.
+  const tetos = await naEmpresa((c) =>
+    conferirTetos(
+      c,
+      { id: agente.id, nome: agente.nome, responsavelId: agenteBruto.responsavel_id },
+      {
+        principal: modelosDoAgenteAtual.principal.contaId,
+        reserva: modelosDoAgenteAtual.reserva?.contaId ?? null,
+      },
+    ),
+  );
+  if (tetos.parar) {
+    const motivo = tetos.parar;
+    await encerrar("parada", `Não começou: ${motivo}.`);
+    await auditar(
+      o.poolApp,
+      {
+        empresaId,
+        ator: { tipo: "agente", agenteId: agente.id },
+        acao: "agente.parou_no_teto",
+        alvo: { tipo: "agente", id: agente.id },
+        origem: o.opcoesMcp.origem,
+        rastreio: null,
+        detalhes: { execucaoId },
+      },
+      o.log,
+    );
+    const texto = `${agente.nome} não começou: ${motivo}. O administrador pode subir o teto em Agentes › Custos.`;
+    await avisarNaConversa(texto, "sistema");
+    if (execucao.tarefaId && execucao.origem !== "conversa")
+      await pedirAjudaNaTarefa(o, empresaId, agente.id, execucao.tarefaId, texto);
+    return;
+  }
+  const reservaPorTeto = "usarReserva" in tetos ? tetos.usarReserva : null;
+  if (reservaPorTeto && modelosDoAgenteAtual.reserva)
+    modelosDoAgenteAtual = { principal: modelosDoAgenteAtual.reserva, reserva: null };
+  // A conta do reserva parou no teto: o agente roda sem reserva, para não cair nela no meio da execução.
+  else if ("semReserva" in tetos && tetos.semReserva && modelosDoAgenteAtual.reserva)
+    modelosDoAgenteAtual = { principal: modelosDoAgenteAtual.principal, reserva: null };
+
   const ctx: ContextoDaFerramenta = {
     poolApp: o.poolApp,
     empresaId,
@@ -347,6 +391,12 @@ async function rodar(o: OpcoesDoMotor, empresaId: string, execucaoId: string): P
     acordar: (id) => o.acordar(empresaId, id),
     responsavel,
   };
+
+  /** Cada chamada ao modelo vira um registro de consumo (M4-06). Uma falha aqui não derruba a execução. */
+  const guardarConsumo = (m: ModeloEscolhido, tokens: { entrada: number; saida: number; cache: number }) =>
+    naEmpresa((c) =>
+      registrarConsumo(c, { execucaoId, agenteId: agente.id, contaId: m.contaId, modelo: m.modelo, tokens }),
+    ).catch((erro) => o.log.error({ erro, execucaoId }, "Agente interno: o consumo não foi registrado"));
 
   // A tarefa da delegação: o especialista pega (para as ferramentas do MCP valerem) e solta no fim.
   let pegou = false;
@@ -398,7 +448,7 @@ async function rodar(o: OpcoesDoMotor, empresaId: string, execucaoId: string): P
     const ferramentas = ferramentasDoPapel(agente.papel);
     const inicio = Date.now();
     let modeloUsado: ModeloEscolhido | null = null;
-    let reserva: string | null = null;
+    let reserva: string | null = reservaPorTeto;
 
     // Plano de assinatura da Anthropic: a execução inteira roda dentro do Claude Code oficial (decisão 0024), que
     // cuida das rodadas e chama as ferramentas do Mago OS. Se falhar antes de qualquer ferramenta, entra o reserva.
@@ -466,7 +516,9 @@ async function rodar(o: OpcoesDoMotor, empresaId: string, execucaoId: string): P
           executar,
         });
         texto = r.texto;
+        await guardarConsumo(m, r.tokens);
       } catch (erro) {
+        if (erro instanceof ErroDoModelo && erro.tokens) await guardarConsumo(m, erro.tokens);
         // A resposta já foi dada (o Claude Code falhou só ao fechar): ela vale.
         if (!fim) {
           if (erro instanceof ErroDoModelo && erro.limiteAte)
@@ -544,6 +596,7 @@ async function rodar(o: OpcoesDoMotor, empresaId: string, execucaoId: string): P
                 },
                 { modelo: m.modelo, sistema, partes, ferramentas },
               );
+              await guardarConsumo(m, resposta.tokens);
               if (resposta.credencialNova) {
                 const nova = resposta.credencialNova;
                 await naEmpresa(async (c) =>
@@ -697,6 +750,36 @@ async function textoDeOutrosNoComeco(
       return haTextoDeOutros(c, execucao.pedidoPor, { tarefasInteiras: [execucao.tarefaId] });
     return false;
   });
+}
+
+/** Parou antes de começar (teto): a tarefa vai para "precisa de ajuda", com um comentário explicando. */
+async function pedirAjudaNaTarefa(
+  o: OpcoesDoMotor,
+  empresaId: string,
+  agenteId: string,
+  tarefaId: string,
+  texto: string,
+): Promise<void> {
+  const quem = { tipo: "agente" as const, agenteId };
+  // O comentário e a troca de status em transações separadas: tarefa pegada por outra pessoa recebe o comentário
+  // mesmo sem poder mudar de status.
+  const tarefa = await comEmpresa(o.poolApp, empresaId, async (c) => {
+    const t = await buscarTarefa(c, { ...quem, comoGerente: true }, tarefaId);
+    if (!t || t.status === "concluida" || t.status === "cancelada") return null;
+    await comentar(c, quem, tarefaId, texto);
+    return t;
+  }).catch((erro) => {
+    o.log.error({ erro, tarefaId }, "Teto: o comentário na tarefa não saiu");
+    return null;
+  });
+  if (!tarefa || tarefa.status === "precisa_de_ajuda") return;
+  const pegadaPorOutro =
+    tarefa.trava !== null && !(tarefa.trava.por.tipo === "agente" && tarefa.trava.por.agenteId === agenteId);
+  if (pegadaPorOutro) return;
+  await comEmpresa(o.poolApp, empresaId, async (c) => {
+    const t = await buscarTarefa(c, { ...quem, comoGerente: true }, tarefaId, true);
+    if (t && t.status !== "precisa_de_ajuda") await mudarStatus(c, quem, t, "precisa_de_ajuda", null);
+  }).catch((erro) => o.log.error({ erro, tarefaId }, "Teto: a tarefa não foi para precisa de ajuda"));
 }
 
 async function montarPartes(

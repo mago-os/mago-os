@@ -294,6 +294,13 @@ export const FERRAMENTAS_INTERNAS = [
     papeis: ["coordenador", "especialista"],
   },
   {
+    nome: "ver_custos",
+    descricao:
+      "Mostra quanto os agentes internos gastaram com IA no mês e hoje, e o teto de cada um. Se quem pediu não pode ver as contas de IA, mostra só o seu próprio gasto. Use quando perguntarem sobre custo ou teto.",
+    entrada: Type.Object({}, { additionalProperties: false }),
+    papeis: ["coordenador", "especialista"],
+  },
+  {
     nome: "criar_tarefa",
     descricao:
       "Cria uma tarefa a partir do pedido da pessoa, com título curto e claro, a descrição do que se espera e o prazo, se a pessoa disse. A tarefa fica com a permissão de quem pediu: se a pessoa não poderia criar, a ferramenta recusa. Criada pelo coordenador, fica com quem pediu; criada por um especialista, fica com ele, para planejar em seguida.",

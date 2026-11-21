@@ -131,7 +131,8 @@ export const rodarPeloClaudeCode: RodarClaudeCode = async (p) => {
       if (m.subtype === "success" && !(m as { is_error?: boolean }).is_error) {
         texto = typeof m.result === "string" && m.result.trim() ? m.result.trim() : null;
       } else {
-        throw erroDoClaudeCode(motivoDoResultado(m as never));
+        // O que o Claude Code gastou antes de falhar também conta (M4-06).
+        throw Object.assign(erroDoClaudeCode(motivoDoResultado(m as never)), { tokens });
       }
     }
     return { texto, tokens };

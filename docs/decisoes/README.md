@@ -34,3 +34,4 @@ Uma nota curta por decisão importante: o que foi decidido, por quê e o que foi
 | [0025](0025-regras-e-aprovacoes.md) | Regras por ação dos agentes (executa, executa nas dele, pede aprovação, bloqueado) e aprovações com conferência dos parâmetros | Aceita |
 | [0026](0026-permissao-de-quem-pediu-e-alto-risco.md) | O agente age com a permissão de quem pediu e do responsável por ele; alto risco só no app; texto de outros pede aprovação | Aceita |
 | [0027](0027-instrucoes-em-camadas-e-skills.md) | Instruções em camadas (plataforma, empresa, projeto, agente) com versões e biblioteca de skills, entregues aos internos e pelo MCP | Aceita |
+| [0028](0028-custo-e-teto-de-gasto.md) | Custo de cada chamada ao modelo (tabela de preços no código, ajuste do administrador) e tetos por mês (empresa, agente, conta) conferidos antes de cada execução | Aceita |

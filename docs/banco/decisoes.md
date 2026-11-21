@@ -279,3 +279,11 @@ O login (`mago_acesso`) não lê papéis nem as regras da plataforma direto. As 
 - `skills` e `versoes_de_skills`: o nome é único na empresa; uma skill tem no máximo um rascunho (índice parcial), e os agentes recebem a versão publicada mais nova. O app não apaga versões. As skills da plataforma ficam no código.
 - `skills_do_agente` diz quais skills cada agente recebe: uma skill da empresa (chave estrangeira) ou o nome de uma da plataforma, nunca as duas. O Gerente de projetos que já existia ganhou a "planejar-tarefas" na migração; os novos ganham ao nascer.
 
+## 38. Custo de cada chamada e tetos de gasto (21/11/2026, M4-06)
+
+- `consumo_de_ia` guarda cada chamada de um agente interno ao modelo ([decisão 0028](../decisoes/0028-custo-e-teto-de-gasto.md)): tokens e custo em microdólares (zero na assinatura), e se o modelo estava sem preço. O app só insere (não muda nem apaga), e os índices por mês, agente e conta servem ao painel e à conferência dos tetos.
+- `tetos_de_gasto`: o teto da empresa (sem agente) e o de cada agente. Sem linha, vale o padrão (US$ 50 e US$ 20); com o teto vazio, não há teto. Um por alvo (índice único).
+- `avisos_de_gasto` registra os avisos de 80% e 100% já mandados em cada mês, para cada um sair uma vez.
+- `contas_de_ia` ganha o limite em tokens (só na assinatura, regra no banco) e o que fazer ao chegar nele (avisar ou parar). `modelos_de_conta_de_ia` ganha o preço do administrador (os três valores juntos, ou nenhum).
+- Os avisos ganham o tipo `teto_de_gasto`.
+

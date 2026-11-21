@@ -11,6 +11,7 @@ export const VERSAO_CONTRATOS = 1 as const;
 export * from "./agentes/agente.ts";
 export * from "./agentes/chave.ts";
 export * from "./agentes/contas-de-ia.ts";
+export * from "./agentes/custos.ts";
 export * from "./agentes/instrucoes.ts";
 export * from "./agentes/internos.ts";
 export * from "./agentes/regras.ts";
