@@ -151,8 +151,7 @@ interface LinhaDaExecucao {
   modelo_conta_id: string | null;
   modelo: string | null;
   passou_ao_reserva_porque: string | null;
-  /** Coluna nova da M4-04 (até a migração dela, não vem). */
-  leu_texto_de_outros?: boolean;
+  leu_texto_de_outros: boolean;
   resumo: string | null;
   criada_em: Date;
   iniciada_em: Date | null;
@@ -171,7 +170,7 @@ const paraExecucao = (l: LinhaDaExecucao): ExecucaoComInstrucoes => ({
   tarefaId: l.tarefa_id,
   execucaoMaeId: l.execucao_mae_id,
   situacao: l.situacao,
-  leuTextoDeOutros: l.leu_texto_de_outros ?? false,
+  leuTextoDeOutros: l.leu_texto_de_outros,
   modeloUsado: l.modelo_conta_id && l.modelo ? { contaId: l.modelo_conta_id, modelo: l.modelo } : null,
   passouAoReservaPorque: l.passou_ao_reserva_porque,
   resumo: l.resumo,
@@ -191,12 +190,14 @@ export async function criarExecucao(
     tarefaId?: string | null;
     execucaoMaeId?: string | null;
     instrucoes?: string | null;
+    /** A delegação herda a marca de texto de outros (M4-04). */
+    leuTextoDeOutros?: boolean;
   },
 ): Promise<ExecucaoComInstrucoes> {
   const r = await c.query<LinhaDaExecucao>(
     `insert into execucoes_de_agente (empresa_id, agente_id, pedido_por, origem, conversa_id, tarefa_id,
-       execucao_mae_id, instrucoes)
-     values (empresa_ativa(), $1, $2, $3, $4, $5, $6, $7) returning *`,
+       execucao_mae_id, instrucoes, leu_texto_de_outros)
+     values (empresa_ativa(), $1, $2, $3, $4, $5, $6, $7, $8) returning *`,
     [
       d.agenteId,
       d.pedidoPor,
@@ -205,6 +206,7 @@ export async function criarExecucao(
       d.tarefaId ?? null,
       d.execucaoMaeId ?? null,
       d.instrucoes?.trim().slice(0, 4000) || null,
+      d.leuTextoDeOutros ?? false,
     ],
   );
   return paraExecucao(r.rows[0] as LinhaDaExecucao);

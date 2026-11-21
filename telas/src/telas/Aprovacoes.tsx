@@ -149,6 +149,12 @@ export function PaginaDaAprovacao({ id }: { id: string }) {
             <p className="whitespace-pre-wrap break-words text-sm">{a.motivo}</p>
           </div>
         )}
+        {a.porTextoDeOutros && (
+          <p className="rounded-md bg-alerta/10 px-3 py-2 text-sm text-alerta">
+            O agente leu texto de outra pessoa antes desta ação. Por segurança, ele pede aprovação mesmo
+            quando a regra deixaria fazer sozinho: confira se o pedido faz sentido.
+          </p>
+        )}
         {a.tarefaId && (
           <a href={`/tarefas/${a.tarefaId}`} className="text-sm underline">
             Abrir a tarefa

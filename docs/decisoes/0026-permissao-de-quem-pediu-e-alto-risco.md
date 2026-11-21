@@ -1,7 +1,7 @@
 # 0026 O agente age com a permissão de quem pediu; alto risco só no app; texto de outros pede aprovação
 
 - **Data:** 21/11/2026
-- **Situação:** proposta (esperando o aprovado do Sandro)
+- **Situação:** aceita (aprovada pelo Sandro no chat em 21/11/2026, com a recomendação do item 4)
 - **Tarefa:** M4-04
 
 ## Contexto
@@ -17,9 +17,9 @@ Desde a M4-02, o agente interno age com a permissão da pessoa que pediu (cada f
 5. **Na tela.** O pedido de aprovação diz quando foi pedido por causa de texto de outros ("O agente leu texto de outra pessoa antes desta ação"), e essas aprovações não contam para a sugestão de liberar a regra. A tela **Aprovações** entra no menu, para todos.
 6. **Agentes externos.** Continuam como estão: só veem e mexem nas tarefas deles, com as regras da M4-03. A marca do item 4 não vale para eles, porque o Mago OS não vê o que eles leem fora daqui (o Claude no Mac, por exemplo); cuidar disso é de quem roda o agente.
 
-## Ponto para o Sandro decidir (item 4)
+## Ponto decidido pelo Sandro (item 4)
 
-O que marca a execução é a escolha entre segurança e quantidade de aprovações:
+O que marca a execução é a escolha entre segurança e quantidade de aprovações. **Decidido em 21/11/2026: qualquer texto de outra pessoa.**
 
 - **Recomendado: qualquer texto de outra pessoa** (inclusive o título de uma tarefa numa lista). É o único jeito de a proteção não ser contornada: quem quiser esconder uma instrução escreve no título ou na descrição em vez de no comentário. Custo: quando a Flora pede "lista as minhas tarefas e conclui a do relatório", e a tarefa foi criada pelo gestor dela, concluir pede a aprovação da própria Flora (um toque). O que o próprio Sandro e os agentes internos escrevem não marca.
 - **Alternativa: só comentários e anexos de outras pessoas** (o texto literal da spec). Menos aprovações, mas uma instrução escondida no título ou na descrição passa.

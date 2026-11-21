@@ -64,15 +64,29 @@ export async function buscarItem(
   return r.rows[0] ? paraItem(r.rows[0]) : null;
 }
 
-/** Acrescenta o item no fim do checklist e marca a tarefa como atualizada. */
-export async function criarItem(c: pg.PoolClient, tarefaId: string, texto: string): Promise<ItemDeChecklist> {
+/**
+ * Acrescenta o item no fim do checklist e marca a tarefa como atualizada. Quem escreveu fica guardado (M4-04: o agente
+ * sabe se o texto é de outra pessoa).
+ */
+export async function criarItem(
+  c: pg.PoolClient,
+  tarefaId: string,
+  texto: string,
+  autor: Autor,
+): Promise<ItemDeChecklist> {
   const r = await c.query<LinhaDoItem>(
-    `insert into itens_de_checklist as i (empresa_id, tarefa_id, texto, ordem)
+    `insert into itens_de_checklist as i (empresa_id, tarefa_id, texto, ordem, escrito_por_pessoa_id,
+       escrito_por_agente_id)
      values (empresa_ativa(), $1, $2,
              (select coalesce(max(ordem) + 1, 0) from itens_de_checklist
-               where tarefa_id = $1 and empresa_id = empresa_ativa()))
+               where tarefa_id = $1 and empresa_id = empresa_ativa()), $3, $4)
      returning ${COLUNAS}`,
-    [tarefaId, texto.trim()],
+    [
+      tarefaId,
+      texto.trim(),
+      autor.tipo === "pessoa" ? autor.pessoaId : null,
+      autor.tipo === "agente" ? autor.agenteId : null,
+    ],
   );
   await tocarTarefa(c, tarefaId);
   return paraItem(r.rows[0] as LinhaDoItem);
@@ -87,13 +101,17 @@ export async function editarItem(
 ): Promise<ItemDeChecklist> {
   const marcado = mudanca.marcado ?? item.marcado;
   const passouAMarcar = marcado && !item.marcado;
+  // Texto novo: quem escreveu passa a ser quem mudou.
+  const mudouTexto = mudanca.texto !== undefined && mudanca.texto.trim() !== item.texto;
   const pessoa = autor.tipo === "pessoa" ? autor.pessoaId : null;
   const agente = autor.tipo === "agente" ? autor.agenteId : null;
   const r = await c.query<LinhaDoItem>(
     `update itens_de_checklist i set texto = $2, ordem = $3, marcado = $4,
         marcado_por_pessoa_id = case when not $4 then null when $5 then $6::uuid else i.marcado_por_pessoa_id end,
         marcado_por_agente_id = case when not $4 then null when $5 then $7::uuid else i.marcado_por_agente_id end,
-        marcado_em = case when not $4 then null when $5 then now() else i.marcado_em end
+        marcado_em = case when not $4 then null when $5 then now() else i.marcado_em end,
+        escrito_por_pessoa_id = case when $8 then $6::uuid else i.escrito_por_pessoa_id end,
+        escrito_por_agente_id = case when $8 then $7::uuid else i.escrito_por_agente_id end
       where i.id = $1 and i.empresa_id = empresa_ativa() returning ${COLUNAS}`,
     [
       item.id,
@@ -103,6 +121,7 @@ export async function editarItem(
       passouAMarcar,
       pessoa,
       agente,
+      mudouTexto,
     ],
   );
   await tocarTarefa(c, item.tarefaId);

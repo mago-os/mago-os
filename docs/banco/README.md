@@ -85,6 +85,7 @@ erDiagram
     boolean editada
     timestamp_with_time_zone criada_em
     timestamp_with_time_zone vence_em
+    boolean por_texto_de_outros
   }
   arquivos_para_apagar {
     uuid id PK
@@ -249,6 +250,7 @@ erDiagram
     timestamp_with_time_zone criada_em
     timestamp_with_time_zone iniciada_em
     timestamp_with_time_zone terminada_em
+    boolean leu_texto_de_outros
   }
   itens_de_checklist {
     uuid id PK
@@ -261,6 +263,8 @@ erDiagram
     uuid marcado_por_agente_id
     timestamp_with_time_zone marcado_em
     timestamp_with_time_zone criado_em
+    uuid escrito_por_pessoa_id
+    uuid escrito_por_agente_id
   }
   layouts_de_tela {
     uuid id PK
@@ -760,6 +764,7 @@ Isolamento por empresa (Row Level Security): ligado e forçado.
 | editada | boolean | sim | `false` | sistema | Quem aprovou mudou os parâmetros antes. |
 | criada_em | timestamp with time zone | sim | `now()` | sistema | Quando o agente pediu. |
 | vence_em | timestamp with time zone | sim | `(now() + '24:00:00'::interval)` | sistema | Depois disso, sem decisão, o pedido vence e a ação não acontece. |
+| por_texto_de_outros | boolean | sim | `false` | sistema | Pedido porque o agente leu texto de outra pessoa antes (a regra dizia executa). |
 
 ### arquivos_para_apagar
 
@@ -1029,6 +1034,7 @@ Isolamento por empresa (Row Level Security): ligado e forçado.
 | criada_em | timestamp with time zone | sim | `now()` | sistema | Quando entrou na fila. |
 | iniciada_em | timestamp with time zone | não |  | sistema | Quando começou a rodar. |
 | terminada_em | timestamp with time zone | não |  | sistema | Quando terminou. |
+| leu_texto_de_outros | boolean | sim | `false` | sistema | Leu texto de outra pessoa ou de agente externo: o que muda dados pede aprovação (M4-04). |
 
 ### itens_de_checklist
 
@@ -1048,6 +1054,8 @@ Isolamento por empresa (Row Level Security): ligado e forçado.
 | marcado_por_agente_id | uuid | não |  | sistema | Agente que marcou. |
 | marcado_em | timestamp with time zone | não |  | sistema | Quando foi marcado. |
 | criado_em | timestamp with time zone | sim | `now()` | sistema | Quando o item foi criado. |
+| escrito_por_pessoa_id | uuid | não |  | sistema | Pessoa que escreveu o texto do item. |
+| escrito_por_agente_id | uuid | não |  | sistema | Agente que escreveu o texto do item. Os dois vazios: o sistema. |
 
 ### layouts_de_tela
 

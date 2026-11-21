@@ -265,3 +265,11 @@ O login (`mago_acesso`) não lê papéis nem as regras da plataforma direto. As 
 - O app não apaga pedidos (`REVOKE DELETE`): eles ficam como histórico, como a auditoria. Apagar o agente apaga os pedidos dele.
 - `aprovacoes_vencidas()` roda como dona do banco, de todas as empresas, e devolve só ids, para a verificação a cada minuto marcar e avisar (dentro de cada empresa, pela política de sempre).
 - Os avisos ganham os tipos `aprovacao_pedida` e `aprovacao_decidida`.
+
+## 36. Texto de outros e a tarefa atribuída ao agente (21/11/2026, M4-04)
+
+- `execucoes_de_agente.leu_texto_de_outros` marca a execução que leu texto de outra pessoa (que não quem pediu) ou de um agente externo ([decisão 0026](../decisoes/0026-permissao-de-quem-pediu-e-alto-risco.md)); daí em diante, o que muda dados pede aprovação. A marca não volta atrás, e a delegação herda.
+- `aprovacoes.por_texto_de_outros` diz que o pedido saiu por causa dessa marca; esses pedidos não mexem no contador da sugestão de liberar.
+- `itens_de_checklist` ganha quem escreveu o texto (pessoa ou agente; os dois vazios, o sistema), trocado quando o texto muda. Os itens que já existiam ficaram com quem criou a tarefa, e a cópia da recorrente leva o autor junto.
+- `execucoes_esquecidas()` só acorda as execuções na fila de agentes ativos: a tarefa atribuída a um agente que foi pausado antes de rodar espera ele voltar.
+

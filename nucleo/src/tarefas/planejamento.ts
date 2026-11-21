@@ -234,8 +234,9 @@ export async function recorrerSePreciso(c: pg.PoolClient, tarefa: Tarefa): Promi
     [tarefa.id, nova],
   );
   await c.query(
-    `insert into itens_de_checklist (empresa_id, tarefa_id, texto, ordem)
-     select empresa_id, $2, texto, ordem from itens_de_checklist where tarefa_id = $1 and empresa_id = empresa_ativa()`,
+    `insert into itens_de_checklist (empresa_id, tarefa_id, texto, ordem, escrito_por_pessoa_id, escrito_por_agente_id)
+     select empresa_id, $2, texto, ordem, escrito_por_pessoa_id, escrito_por_agente_id
+       from itens_de_checklist where tarefa_id = $1 and empresa_id = empresa_ativa()`,
     [tarefa.id, nova],
   );
   return nova;

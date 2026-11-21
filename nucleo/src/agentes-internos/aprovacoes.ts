@@ -40,7 +40,7 @@ import { comEmpresa, comPessoa } from "../empresa.ts";
 import { executar, RecusaDaFerramenta } from "../mcp/index.ts";
 import { acessoDo, permissoesNaEmpresa, type Verificador } from "../permissoes/verificar.ts";
 import { buscarConversa, buscarExecucao, type ExecucaoComInstrucoes, gravarMensagem } from "./dados.ts";
-import { executarFerramenta } from "./ferramentas.ts";
+import { executarFerramenta, responsavelDoContexto } from "./ferramentas.ts";
 
 export interface OpcoesDasAprovacoes {
   verificador: Verificador;
@@ -68,9 +68,11 @@ export async function executarAprovado(
       tipo: string;
       papel: PapelDeAgente | null;
       situacao: string;
-    }>("select id, nome, tipo, papel, situacao from agentes where id = $1 and empresa_id = empresa_ativa()", [
-      aprovacao.agenteId,
-    ]);
+      responsavel_id: string;
+    }>(
+      "select id, nome, tipo, papel, situacao, responsavel_id from agentes where id = $1 and empresa_id = empresa_ativa()",
+      [aprovacao.agenteId],
+    );
     return r.rows[0] ?? null;
   });
   if (!agente || agente.situacao === "desligado") throw new RecusaDaFerramenta("O agente foi desligado.");
@@ -88,6 +90,16 @@ export async function executarAprovado(
   if (!agente.papel) throw new RecusaDaFerramenta("O agente não é um agente interno.");
   const permissoes = await permissoesNaEmpresa(o.poolApp, aprovacao.pedidoPor, empresaId, o.catalogo);
   if (!permissoes) throw new RecusaDaFerramenta("Quem pediu não está mais ativo na empresa.");
+  // A menor das duas também vale na hora de executar o aprovado (M4-04).
+  const responsavel = await responsavelDoContexto(
+    o.poolApp,
+    empresaId,
+    agente.responsavel_id,
+    aprovacao.pedidoPor,
+    o.catalogo,
+  );
+  if (responsavel === "inativo")
+    throw new RecusaDaFerramenta("A pessoa responsável pelo agente não está mais ativa na empresa.");
   // A execução de origem (se ainda existir) dá quem pediu e a conversa; sem ela, uma execução só de contexto, que
   // não vai para o banco (semExecucao: a delegação e a auditoria não citam esse id).
   const origem = aprovacao.execucaoId
@@ -123,6 +135,7 @@ export async function executarAprovado(
       log,
       acordar: (id) => o.acordar(empresaId, id),
       semExecucao: !origem,
+      responsavel,
     },
     aprovacao.acao,
     parametros,
