@@ -25,6 +25,7 @@ import {
   provedoresFalsos,
   registrarRotasDasContasDeIa,
 } from "@mago-os/nucleo/contas-de-ia";
+import { registrarRotasDosCustos } from "@mago-os/nucleo/custos";
 import { catalogoDeModulos, criarVerificador } from "@mago-os/nucleo/permissoes";
 import { registrarRotasDosProjetos } from "@mago-os/nucleo/projetos";
 import { registrarRotasDasTarefas } from "@mago-os/nucleo/tarefas";
@@ -183,6 +184,7 @@ describe.skipIf(!bancoDisponivel)("agentes internos", () => {
     const acordar = (empresa: string, execucaoId: string) => fila.push({ empresaId: empresa, execucaoId });
     registrarRotasDaConversa(app, { verificador, poolApp, acordar });
     registrarRotasDasTarefas(app, verificador, poolApp, { acordarAgente: acordar });
+    registrarRotasDosCustos(app, verificador, poolApp);
     registrarRotasDosProjetos(app, verificador, poolApp);
     motor = {
       poolApp,
@@ -1370,6 +1372,95 @@ describe.skipIf(!bancoDisponivel)("agentes internos", () => {
     );
     expect(sistema).toContain("# Seu papel");
     expect(sistema).toContain("planejar-tarefas (id plataforma:planejar-tarefas)");
+  });
+
+  it("custos e tetos (M4-06): registra cada chamada, avisa aos 80% uma vez, para aos 100% e usa o reserva", async () => {
+    const ana = await como("ana@teste.invalid");
+    const responder = (id: string) => () => ({
+      chamadas: [{ id, nome: "responder", entrada: { texto: "Feito." } }],
+    });
+    // Cada chamada vira consumo, com o custo pelo maior preço (o modelo de teste não tem preço de referência).
+    roteiro = [responder("c1")];
+    const r1 = await pedir("POST", "/conversas/mensagens", ana, { agenteId: ids.gerente, texto: "oi" });
+    await rodarFila();
+    const consumo = await dono.query<{ modelo: string; custo_micros: string; sem_preco: boolean }>(
+      "select modelo, custo_micros, sem_preco from consumo_de_ia where execucao_id = $1",
+      [r1.json().execucaoId],
+    );
+    expect(consumo.rows).toEqual([{ modelo: "modelo-bom", custo_micros: "175", sem_preco: true }]);
+    const painel = (await pedir("GET", "/custos", ana)).json();
+    expect(
+      painel.porAgente.find((a: { agenteId: string }) => a.agenteId === ids.gerente).hoje.custo,
+    ).toBeGreaterThan(0);
+    expect(painel.semPreco).toContainEqual({ contaId: ids.Principal, modelo: "modelo-bom" });
+    expect(painel.tetoDaEmpresa).toBe(5000);
+
+    // 80%: teto do Gerente de 1 centavo (10 mil microdólares) com 9,9 mil já gastos: a primeira roda e avisa; a
+    // segunda já passa dos 100% e para.
+    expect((await pedir("POST", `/custos/tetos/agente/${ids.gerente}`, ana, { teto: 1 })).statusCode).toBe(
+      200,
+    );
+    await dono.query("delete from consumo_de_ia where agente_id = $1", [ids.gerente]);
+    await dono.query(
+      "insert into consumo_de_ia (empresa_id, agente_id, conta_id, modelo, custo_micros) values ($1, $2, $3, 'modelo-bom', 9900)",
+      [empresaId, ids.gerente, ids.Principal],
+    );
+    const avisos = () =>
+      dono.query<{ texto: string }>(
+        "select texto from avisos where tipo = 'teto_de_gasto' and pessoa_id = $1",
+        [ids.ana],
+      );
+    for (const id of ["c2", "c3"]) {
+      roteiro = [responder(id)];
+      await pedir("POST", "/conversas/mensagens", ana, { agenteId: ids.gerente, texto: "de novo" });
+      await rodarFila();
+    }
+    // Um aviso de 80%, mesmo com duas execuções acima dele.
+    const textos = (await avisos()).rows.map((a) => a.texto);
+    expect(textos.filter((t) => t.includes("passou de 80%"))).toHaveLength(1);
+    // 100%: não começa, a conversa explica, e o aviso de 100% sai uma vez.
+    roteiro = [responder("c4")];
+    const r4 = await pedir("POST", "/conversas/mensagens", ana, { agenteId: ids.gerente, texto: "mais uma" });
+    await rodarFila();
+    const parada = await dono.query<{ situacao: string; resumo: string }>(
+      "select situacao, resumo from execucoes_de_agente where id = $1",
+      [r4.json().execucaoId],
+    );
+    expect(parada.rows[0]?.situacao).toBe("parada");
+    expect(parada.rows[0]?.resumo).toContain("teto de gasto do mês");
+    expect((await avisos()).rows.filter((a) => a.texto.includes("e parou"))).toHaveLength(1);
+    // Numa tarefa: ela vai para "precisa de ajuda", com o motivo no comentário.
+    const t = await pedir("POST", "/tarefas", ana, {
+      titulo: "Tarefa sem verba",
+      responsavel: { tipo: "agente", agenteId: ids.gerente },
+    });
+    await rodarFila();
+    const tarefa = await dono.query<{ status: string }>("select status from tarefas where id = $1", [
+      t.json().id,
+    ]);
+    expect(tarefa.rows[0]?.status).toBe("precisa_de_ajuda");
+    // Subir o teto libera na hora.
+    await pedir("POST", `/custos/tetos/agente/${ids.gerente}`, ana, { teto: null });
+
+    // Só a conta principal no teto: o agente segue pelo reserva.
+    await dono.query("update contas_de_ia set teto_mensal = 0 where id = $1", [ids.Principal]);
+    roteiro = [responder("c5")];
+    const r5 = await pedir("POST", "/conversas/mensagens", ana, {
+      agenteId: ids.gerente,
+      texto: "pelo reserva",
+    });
+    await rodarFila();
+    const pelaReserva = await dono.query<{
+      situacao: string;
+      modelo: string;
+      passou_ao_reserva_porque: string;
+    }>("select situacao, modelo, passou_ao_reserva_porque from execucoes_de_agente where id = $1", [
+      r5.json().execucaoId,
+    ]);
+    expect(pelaReserva.rows[0]).toMatchObject({ situacao: "concluida", modelo: "modelo-reserva" });
+    expect(pelaReserva.rows[0]?.passou_ao_reserva_porque).toContain("teto de gasto do mês");
+    await dono.query("update contas_de_ia set teto_mensal = null where id = $1", [ids.Principal]);
+    await dono.query("delete from tetos_de_gasto where empresa_id = $1", [empresaId]);
   });
 
   it("coordenador desligado por engano: nasce um novo, pausado, e o Gerente passa a responder a ele", async () => {

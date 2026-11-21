@@ -116,6 +116,13 @@ erDiagram
     uuid tarefa_id
     boolean push_pendente
   }
+  avisos_de_gasto {
+    uuid empresa_id PK
+    text alvo PK
+    text mes PK
+    integer nivel PK
+    timestamp_with_time_zone mandado_em
+  }
   chaves_de_agente {
     uuid id PK
     uuid empresa_id FK
@@ -149,6 +156,20 @@ erDiagram
     timestamp_with_time_zone editado_em
     timestamp_with_time_zone apagado_em
   }
+  consumo_de_ia {
+    uuid id PK
+    uuid empresa_id FK
+    uuid execucao_id
+    uuid agente_id
+    uuid conta_id
+    text modelo
+    integer tokens_entrada
+    integer tokens_saida
+    integer tokens_cache
+    bigint custo_micros
+    boolean sem_preco
+    timestamp_with_time_zone criado_em
+  }
   contadores_de_agente {
     uuid empresa_id FK
     uuid agente_id
@@ -177,6 +198,8 @@ erDiagram
     timestamp_with_time_zone termos_aceitos_em
     integer versao_do_aviso
     timestamp_with_time_zone limite_do_plano_ate
+    bigint limite_de_tokens
+    text ao_chegar_no_limite
   }
   conversas {
     uuid id PK
@@ -320,6 +343,9 @@ erDiagram
     boolean liberado
     boolean sumiu
     timestamp_with_time_zone descoberto_em
+    integer preco_entrada
+    integer preco_saida
+    integer preco_cache
   }
   papeis_plataforma {
     uuid pessoa_id PK
@@ -435,6 +461,13 @@ erDiagram
     uuid recorrente_de_id
     timestamp_with_time_zone avisou_prazo_hoje_em
     timestamp_with_time_zone avisou_prazo_vencido_em
+  }
+  tetos_de_gasto {
+    uuid empresa_id FK
+    uuid agente_id
+    integer teto
+    uuid mudado_por
+    timestamp_with_time_zone mudado_em
   }
   versoes_de_instrucoes {
     uuid id PK
@@ -631,9 +664,11 @@ erDiagram
   empresas ||--o{ assinaturas_de_push : "empresa_id"
   acesso_aparelhos ||--o{ assinaturas_de_push : "aparelho_id"
   empresas ||--o{ avisos : "empresa_id"
+  empresas ||--o{ avisos_de_gasto : "empresa_id"
   empresas ||--o{ chaves_de_agente : "empresa_id"
   empresas ||--o{ chaves_de_dados : "empresa_id"
   empresas ||--o{ comentarios_de_tarefa : "empresa_id"
+  empresas ||--o{ consumo_de_ia : "empresa_id"
   empresas ||--o{ contadores_de_agente : "empresa_id"
   empresas ||--o{ contas_de_ia : "empresa_id"
   empresas ||--o{ conversas : "empresa_id"
@@ -659,6 +694,7 @@ erDiagram
   empresas ||--o{ skills_do_agente : "empresa_id"
   empresas ||--o{ status_de_projeto : "empresa_id"
   empresas ||--o{ tarefas : "empresa_id"
+  empresas ||--o{ tetos_de_gasto : "empresa_id"
   empresas ||--o{ versoes_de_instrucoes : "empresa_id"
   empresas ||--o{ versoes_de_skills : "empresa_id"
   empresas ||--o{ vinculos : "empresa_id"
@@ -858,6 +894,20 @@ Isolamento por empresa (Row Level Security): ligado e forçado.
 | tarefa_id | uuid | não |  | sistema | Tarefa do aviso, quando é de uma tarefa (o aviso some junto com ela). |
 | push_pendente | boolean | sim | `false` | sistema | O push deste aviso ainda vai sair (a verificação a cada minuto manda, fora do horário de silêncio). |
 
+### avisos_de_gasto
+
+Avisos de teto (80% e 100%) já mandados no mês, para não repetir.
+
+Isolamento por empresa (Row Level Security): ligado e forçado.
+
+| Coluna | Tipo | Obrigatória | Padrão | Marca | Descrição |
+| --- | --- | --- | --- | --- | --- |
+| empresa_id | uuid | sim |  | sistema | Empresa. Chave primária. |
+| alvo | text | sim |  | sistema | empresa, agente:<id> ou conta:<id>. Chave primária. |
+| mes | text | sim |  | sistema | O mês (AAAA-MM, no fuso da empresa). Chave primária. |
+| nivel | integer | sim |  | sistema | 80 ou 100 (%). Chave primária. |
+| mandado_em | timestamp with time zone | sim | `now()` | sistema | Quando o aviso saiu. |
+
 ### chaves_de_agente
 
 Chaves dos agentes. Só o começo e o resumo SHA-256 ficam aqui: a chave inteira aparece uma vez, na tela.
@@ -912,6 +962,27 @@ Isolamento por empresa (Row Level Security): ligado e forçado.
 | editado_em | timestamp with time zone | não |  | sistema | Quando o texto foi editado pela última vez. |
 | apagado_em | timestamp with time zone | não |  | sistema | Quando foi apagado (o texto sai, o lugar fica). |
 
+### consumo_de_ia
+
+Cada chamada de um agente interno ao modelo de IA: tokens e custo (M4-06).
+
+Isolamento por empresa (Row Level Security): ligado e forçado.
+
+| Coluna | Tipo | Obrigatória | Padrão | Marca | Descrição |
+| --- | --- | --- | --- | --- | --- |
+| id | uuid | sim | `uuidv7()` | sistema | Identificador (UUID v7). Chave primária. |
+| empresa_id | uuid | sim |  | sistema | Empresa. Aponta para empresas.id. |
+| execucao_id | uuid | não |  | sistema | Execução do agente. |
+| agente_id | uuid | sim |  | sistema | Agente. |
+| conta_id | uuid | não |  | sistema | Conta de IA usada. |
+| modelo | text | sim |  | sistema | Modelo usado. |
+| tokens_entrada | integer | sim | `0` | sistema | Tokens de entrada. |
+| tokens_saida | integer | sim | `0` | sistema | Tokens de saída. |
+| tokens_cache | integer | sim | `0` | sistema | Tokens lidos do cache. |
+| custo_micros | bigint | sim | `0` | sistema | Custo em microdólares (zero na assinatura). |
+| sem_preco | boolean | sim | `false` | sistema | O modelo não tinha preço: o custo usou o maior da tabela. |
+| criado_em | timestamp with time zone | sim | `now()` | sistema | Quando a chamada terminou. |
+
 ### contadores_de_agente
 
 Contadores dos limites dos agentes: pedidos por minuto (por chave) e leituras por hora (por agente). Apagados depois de 2 horas.
@@ -954,6 +1025,8 @@ Isolamento por empresa (Row Level Security): ligado e forçado.
 | termos_aceitos_em | timestamp with time zone | não |  | sistema | Assinatura: quando o aviso foi aceito. |
 | versao_do_aviso | integer | não |  | sistema | Assinatura: a versão do aviso que foi aceita. |
 | limite_do_plano_ate | timestamp with time zone | não |  | sistema | Assinatura: o limite do plano acabou e volta nesta hora. |
+| limite_de_tokens | bigint | não |  | empresa | Assinatura: tokens por mês a partir dos quais o administrador é avisado (ou a conta para). |
+| ao_chegar_no_limite | text | sim | `'avisar'::text` | empresa | avisar (só avisa) ou parar (para aos 100%). |
 
 ### conversas
 
@@ -1195,6 +1268,9 @@ Isolamento por empresa (Row Level Security): ligado e forçado.
 | liberado | boolean | sim | `false` | empresa | O administrador liberou o modelo para os agentes. |
 | sumiu | boolean | sim | `false` | sistema | Saiu da lista do provedor no último teste. |
 | descoberto_em | timestamp with time zone | sim | `now()` | sistema | Quando o modelo apareceu pela primeira vez. |
+| preco_entrada | integer | não |  | empresa | Centavos por milhão de tokens de entrada (do administrador). |
+| preco_saida | integer | não |  | empresa | Centavos por milhão de tokens de saída (do administrador). |
+| preco_cache | integer | não |  | empresa | Centavos por milhão de tokens de cache (do administrador). |
 
 ### papeis_plataforma
 
@@ -1380,6 +1456,20 @@ Isolamento por empresa (Row Level Security): ligado e forçado.
 | recorrente_de_id | uuid | não |  | sistema | A tarefa anterior da recorrência, que ao ser concluída criou esta. |
 | avisou_prazo_hoje_em | timestamp with time zone | não |  | sistema | Quando o aviso de "vence hoje" foi mandado (mudar o prazo apaga). |
 | avisou_prazo_vencido_em | timestamp with time zone | não |  | sistema | Quando o aviso de "venceu" foi mandado (mudar o prazo apaga). |
+
+### tetos_de_gasto
+
+Teto de gasto com IA por mês: da empresa (sem agente) e de cada agente.
+
+Isolamento por empresa (Row Level Security): ligado e forçado.
+
+| Coluna | Tipo | Obrigatória | Padrão | Marca | Descrição |
+| --- | --- | --- | --- | --- | --- |
+| empresa_id | uuid | sim |  | sistema | Empresa. Aponta para empresas.id. |
+| agente_id | uuid | não |  | sistema | Agente; vazio: o teto da empresa. |
+| teto | integer | não |  | empresa | Centavos de dólar por mês; vazio: sem teto. |
+| mudado_por | uuid | não |  | sistema | Quem mudou. |
+| mudado_em | timestamp with time zone | sim | `now()` | sistema | Quando mudou. |
 
 ### versoes_de_instrucoes
 

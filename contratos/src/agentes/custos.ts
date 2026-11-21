@@ -141,6 +141,7 @@ export const ResumoDeCustos = Type.Object(
         {
           contaId: Id,
           nome: Type.String(),
+          credencial: Type.Enum(["chave_de_api", "assinatura"] as const),
           /** Chave de API: teto em dólar. Assinatura: não tem teto; tem o aviso em tokens. */
           teto: OuNulo(TetoMensal),
           avisoDeTokens: OuNulo(AvisoDeTokens),

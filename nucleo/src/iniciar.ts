@@ -37,6 +37,7 @@ import { modelosDeVerdade } from "./contas-de-ia/conversa.ts";
 import { provedoresDeVerdade } from "./contas-de-ia/provedores.ts";
 import { registrarRotasDasContasDeIa } from "./contas-de-ia/rotas.ts";
 import { registrarRotasDosConvites } from "./convites/rotas.ts";
+import { registrarRotasDosCustos } from "./custos/index.ts";
 import { registrarRotasDosDadosDaEmpresa } from "./dados-da-empresa/index.ts";
 import { criarFila } from "./fila.ts";
 import { registrarRotasDasInstrucoes } from "./instrucoes/index.ts";
@@ -111,6 +112,7 @@ async function iniciar(): Promise<void> {
     registrarRotaDaBusca(app, verificador, banco.pool);
     registrarRotasDosLayouts(app, verificador, banco.pool);
     registrarRotasDasInstrucoes(app, verificador, banco.pool);
+    registrarRotasDosCustos(app, verificador, banco.pool);
     registrarRotasDosDadosDaEmpresa(app, verificador, banco.pool);
     await registrarTempoReal(app, {
       login,

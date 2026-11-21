@@ -3,7 +3,7 @@
  * do agente. Todo mundo vê; só o administrador cadastra, edita, pausa, retoma e desliga (a API confere de novo).
  */
 import { type ChaveDeAgente, MINUTOS_SEM_SINAL_PADRAO, type SituacaoAgente } from "@mago-os/contratos";
-import { ArrowLeft, BookOpen, Bot, KeyRound, Plus, ScrollText } from "lucide-react";
+import { ArrowLeft, BookOpen, Bot, CircleDollarSign, KeyRound, Plus, ScrollText } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { listarPessoas, type PessoaDaEmpresa } from "@/acesso";
 import {
@@ -107,6 +107,14 @@ export function Agentes({
           >
             <BookOpen className="size-4" /> Skills
           </a>
+          {podeContasDeIa && (
+            <a
+              href="/agentes/custos"
+              className="inline-flex h-10 items-center gap-1.5 rounded-md border border-linha px-3 text-sm font-medium hover:bg-suave"
+            >
+              <CircleDollarSign className="size-4" /> Custos
+            </a>
+          )}
           {podeContasDeIa && (
             <a
               href="/agentes/contas-de-ia"

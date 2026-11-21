@@ -1,7 +1,7 @@
 # 0028 Custo de cada chamada ao modelo e tetos de gasto por mês
 
 - **Data:** 21/11/2026
-- **Situação:** proposta (esperando o aprovado do Sandro)
+- **Situação:** aceita (aprovada pelo Sandro no chat em 21/11/2026; item 3 pela recomendação)
 - **Tarefa:** M4-06
 
 ## Contexto
@@ -23,9 +23,9 @@ Os agentes internos já guardam qual modelo rodou, mas não quanto custou. O tet
 8. **Agentes externos** (o Claude no Mac, o Hermes) não usam as contas de IA do Mago OS: não entram no custo nem nos tetos.
 9. **Quem mexe:** ver o painel, mudar tetos e preços segue o módulo "Contas de IA" (administrador por padrão). Auditoria: `custos.mudou_teto`, `custos.mudou_aviso_de_tokens`, `custos.mudou_preco` e `agente.parou_no_teto`.
 
-## Ponto para o Sandro decidir (item 3)
+## Ponto decidido (item 3)
 
-- **Recomendado:** modelo sem preço conta pelo maior preço da tabela, e o painel avisa.
+- **Recomendado e adotado:** modelo sem preço conta pelo maior preço da tabela, e o painel avisa.
 - **Alternativa:** modelo sem preço não pode ser usado até o administrador dar o preço.
 
 ## Consequências

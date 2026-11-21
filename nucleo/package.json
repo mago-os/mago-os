@@ -31,6 +31,7 @@
     "./dados-da-empresa": "./src/dados-da-empresa/index.ts",
     "./layouts": "./src/layouts/index.ts",
     "./instrucoes": "./src/instrucoes/index.ts",
+    "./custos": "./src/custos/index.ts",
     "./anexos/servico": "./src/anexos/servico.ts",
     "./anexos/deposito": "./src/anexos/deposito.ts",
     "./anexos/antivirus": "./src/anexos/antivirus.ts",
