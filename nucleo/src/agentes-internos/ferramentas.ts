@@ -25,6 +25,7 @@ import { avisarDepois } from "../avisos/eventos.ts";
 import { buscar as buscarNoMago } from "../busca/index.ts";
 import type { FerramentaParaModelo } from "../contas-de-ia/conversa.ts";
 import { comEmpresa } from "../empresa.ts";
+import { skillsDoAgente } from "../instrucoes/servico.ts";
 import { type AcaoDeTarefa, executar, RecusaDaFerramenta } from "../mcp/index.ts";
 import { filtroDoAlcance } from "../permissoes/calcular.ts";
 import { type PermissoesNaEmpresa, permissoesNaEmpresa } from "../permissoes/verificar.ts";
@@ -428,6 +429,15 @@ async function executarSemMarca(
           tarefas: ((entrada.tarefas as string[] | undefined) ?? []).slice(0, 20),
         },
       };
+    }
+    case "pegar_skill": {
+      // Só lê as skills atribuídas ao próprio agente (configuração da empresa, não dado de pessoa): o alcance de quem
+      // pediu e o do responsável não entram aqui.
+      const skill = (await naEmpresa((c) => skillsDoAgente(c, ctx.agente.id))).find(
+        (s) => s.id === entrada.skillId,
+      );
+      if (!skill) throw new RecusaDaFerramenta("Essa skill não está atribuída a você.");
+      return { conteudo: skill };
     }
     case "ver_tarefa": {
       const tarefaId = entrada.tarefaId as string;

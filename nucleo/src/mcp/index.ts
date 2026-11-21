@@ -40,6 +40,7 @@ import { buscarAnexo, listarAnexos, type ServicosDosAnexos, semCaminho } from ".
 import { auditar } from "../auditoria/registrar.ts";
 import { avisarDepois } from "../avisos/eventos.ts";
 import { comEmpresa } from "../empresa.ts";
+import { montarInstrucoes, skillsDoAgente } from "../instrucoes/servico.ts";
 import { buscarItem, editarItem, listarChecklist } from "../tarefas/checklist.ts";
 import { acontecimentoDaAcao, mencoesPendentes, registrarAcontecimento } from "../tarefas/linha-do-tempo.ts";
 import { recorrerSePreciso } from "../tarefas/planejamento.ts";
@@ -558,5 +559,26 @@ export async function executar(
     case "estou_vivo":
       // A conferência da chave já registrou o sinal de vida.
       return { ok: true, agora: new Date().toISOString() };
+    case "pegar_instrucoes": {
+      // M4-05: as camadas juntadas; a do projeto só vem se o agente alcança a tarefa.
+      const e = entrada as EntradaDa<"pegar_instrucoes">;
+      return naEmpresa(async (c) => {
+        const tarefa = e.tarefaId ? await buscarTarefa(c, { ...quem, comoGerente: true }, e.tarefaId) : null;
+        if (e.tarefaId && !tarefa) throw naoAchou();
+        return montarInstrucoes(c, agente.agenteId, tarefa?.id ?? null);
+      });
+    }
+    case "listar_skills": {
+      const skills = await naEmpresa((c) => skillsDoAgente(c, agente.agenteId));
+      return { skills: skills.map(({ texto: _, ...s }) => s) };
+    }
+    case "pegar_skill": {
+      const e = entrada as EntradaDa<"pegar_skill">;
+      const skill = (await naEmpresa((c) => skillsDoAgente(c, agente.agenteId))).find(
+        (s) => s.id === e.skillId,
+      );
+      if (!skill) throw new RecusaDaFerramenta("Essa skill não está atribuída a você.");
+      return skill;
+    }
   }
 }

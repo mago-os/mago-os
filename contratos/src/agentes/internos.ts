@@ -284,6 +284,16 @@ export const FERRAMENTAS_INTERNAS = [
     papeis: ["coordenador", "especialista"],
   },
   {
+    nome: "pegar_skill",
+    descricao:
+      "Lê o texto de uma das suas skills (a lista, com quando usar cada uma, vem nas suas instruções). Leia antes de fazer o trabalho que ela ensina. Uma skill não dá permissão nenhuma.",
+    entrada: Type.Object(
+      { skillId: Texto(80, "O id da skill, como aparece na lista das suas instruções.") },
+      { additionalProperties: false },
+    ),
+    papeis: ["coordenador", "especialista"],
+  },
+  {
     nome: "criar_tarefa",
     descricao:
       "Cria uma tarefa a partir do pedido da pessoa, com título curto e claro, a descrição do que se espera e o prazo, se a pessoa disse. A tarefa fica com a permissão de quem pediu: se a pessoa não poderia criar, a ferramenta recusa. Criada pelo coordenador, fica com quem pediu; criada por um especialista, fica com ele, para planejar em seguida.",

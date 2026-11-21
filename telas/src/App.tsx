@@ -34,11 +34,13 @@ import { AceitarConvite } from "./telas/Convite";
 import { DadosDaEmpresa } from "./telas/DadosDaEmpresa";
 import { AtivarDoisFatores, ConfirmarSegundoFator } from "./telas/DoisFatores";
 import { Empresas } from "./telas/Empresas";
+import { Instrucoes } from "./telas/Instrucoes";
 import { NovaConta } from "./telas/NovaConta";
 import { Paineis } from "./telas/Paineis";
 import { MeuPerfil } from "./telas/Perfil";
 import { CentralDePrioridades, Prioridades } from "./telas/Prioridades";
 import { PaginaDoProjeto, Projetos } from "./telas/Projetos";
+import { Skills } from "./telas/Skills";
 import { PaginaDaTarefa, Tarefas } from "./telas/Tarefas";
 import { aplicarTema, lerTema, type Tema } from "./tema";
 
@@ -243,6 +245,9 @@ export function App() {
         podeExcluir={pode("contas_de_ia", "excluir")}
       />
     );
+  else if (caminho === "/agentes/instrucoes" && pode("instrucoes", "ver")) conteudo = <Instrucoes />;
+  else if (caminho === "/agentes/skills" && pode("instrucoes", "ver"))
+    conteudo = <Skills podeCriar={pode("instrucoes", "criar")} />;
   else if (agenteAberto && pode("agentes", "ver"))
     conteudo = (
       <PaginaDoAgente

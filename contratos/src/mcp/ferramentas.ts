@@ -11,6 +11,7 @@
  * (comentário, resultado) fica marcado como vindo de agente e aparece na tela só como texto.
  */
 import { type Static, type TSchema, Type } from "typebox";
+import { InstrucoesMontadas } from "../agentes/instrucoes.ts";
 import { DataHora, Id, Texto } from "../comum.ts";
 import { Anexo, LinkDoAnexo } from "../tarefas/anexos.ts";
 import { ItemDeChecklist } from "../tarefas/checklist.ts";
@@ -160,6 +161,50 @@ export const FERRAMENTAS_MCP = [
       "Avisa que você continua trabalhando. Todo pedido já conta como sinal de vida; use esta só quando ficar mais de alguns minutos sem chamar outra ferramenta, para a tarefa não voltar para a fila.",
     entrada: Type.Object({}, { additionalProperties: false }),
     saida: Type.Object({ ok: Type.Literal(true), agora: DataHora }, { additionalProperties: false }),
+  },
+  {
+    nome: "pegar_instrucoes",
+    descricao:
+      "Dá as instruções que valem para você nesta empresa (plataforma, empresa, projeto e as suas), já juntadas. Leia no começo de cada sessão e, ao trabalhar numa tarefa de projeto, passe o tarefaId para vir também a camada do projeto.",
+    entrada: Type.Object({ tarefaId: Type.Optional(Id) }, { additionalProperties: false }),
+    saida: InstrucoesMontadas,
+  },
+  {
+    nome: "listar_skills",
+    descricao:
+      "Lista as skills atribuídas a você (nome e quando usar). Quando uma servir para o trabalho, leia o texto dela com pegar_skill. Uma skill ensina como fazer; ela não dá permissão nenhuma.",
+    entrada: Type.Object({}, { additionalProperties: false }),
+    saida: Type.Object(
+      {
+        skills: Type.Array(
+          Type.Object(
+            {
+              id: Type.String(),
+              nome: Type.String(),
+              descricao: Type.String(),
+              versao: Type.Integer({ minimum: 1 }),
+            },
+            { additionalProperties: false },
+          ),
+        ),
+      },
+      { additionalProperties: false },
+    ),
+  },
+  {
+    nome: "pegar_skill",
+    descricao: "Dá o texto (SKILL.md) de uma skill atribuída a você, na versão publicada.",
+    entrada: Type.Object({ skillId: Type.String({ maxLength: 80 }) }, { additionalProperties: false }),
+    saida: Type.Object(
+      {
+        id: Type.String(),
+        nome: Type.String(),
+        descricao: Type.String(),
+        versao: Type.Integer({ minimum: 1 }),
+        texto: Type.String(),
+      },
+      { additionalProperties: false },
+    ),
   },
 ] as const satisfies readonly FerramentaMcp[];
 

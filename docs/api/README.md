@@ -288,6 +288,49 @@ Devolve:
 - `ok` (true, obrigatório)
 - `agora` (data e hora, obrigatório): Data e hora ISO 8601 com fuso.
 
+### `pegar_instrucoes`
+
+Dá as instruções que valem para você nesta empresa (plataforma, empresa, projeto e as suas), já juntadas. Leia no começo de cada sessão e, ao trabalhar numa tarefa de projeto, passe o tarefaId para vir também a camada do projeto.
+
+Recebe:
+
+- `tarefaId` (id): Identificador (UUID).
+
+Devolve:
+
+- `texto` (string, obrigatório)
+- `camadas` (lista de objeto, obrigatório)
+- `caracteres` (integer, obrigatório)
+- `passouDoRecomendado` (boolean, obrigatório)
+
+### `listar_skills`
+
+Lista as skills atribuídas a você (nome e quando usar). Quando uma servir para o trabalho, leia o texto dela com pegar_skill. Uma skill ensina como fazer; ela não dá permissão nenhuma.
+
+Recebe:
+
+- (nada)
+
+Devolve:
+
+- `skills` (lista de objeto, obrigatório)
+
+### `pegar_skill`
+
+Dá o texto (SKILL.md) de uma skill atribuída a você, na versão publicada.
+
+Recebe:
+
+- `skillId` (string, obrigatório)
+
+Devolve:
+
+- `id` (string, obrigatório)
+- `nome` (string, obrigatório)
+- `descricao` (string, obrigatório)
+- `versao` (integer, obrigatório)
+- `texto` (string, obrigatório)
+
 ## Rotas
 
 Todas com o prefixo `/api` no site, menos `/mcp`, que fica em `https://teste.osmago.com/mcp`. As rotas da tela pedem a sessão da pessoa e passam pela verificação central de permissões.
@@ -376,6 +419,20 @@ Todas com o prefixo `/api` no site, menos `/mcp`, que fica em `https://teste.osm
 | GET | `/aprovacoes` | tarefas.ver | Os pedidos de aprovação que a pessoa decide (quem pediu, o responsável pelo agente e o administrador). Query: situacao. |
 | GET | `/aprovacoes/:id` | tarefas.ver | Um pedido de aprovação, com os parâmetros exatos e a conferência. |
 | POST | `/aprovacoes/:id/decidir` | tarefas.ver | Aprova (podendo editar os parâmetros) ou recusa com motivo. Manda a conferência que a pessoa viu; se o pedido mudou, 409. |
+| GET | `/instrucoes/:camada` | instrucoes.ver | A camada da empresa (M4-05): a versão atual, o histórico e se a pessoa pode editar. |
+| GET | `/instrucoes/:camada/:alvoId` | instrucoes.ver | A camada de um projeto ou de um agente: a versão atual, o histórico e se a pessoa pode editar. |
+| POST | `/instrucoes/:camada` | instrucoes.editar | Salva uma versão nova da camada da empresa. |
+| POST | `/instrucoes/:camada/:alvoId` | instrucoes.editar (projeto: o diretor ou quem edita todos os projetos) | Salva uma versão nova da camada de um projeto ou de um agente. |
+| POST | `/instrucoes/:camada/voltar` | instrucoes.editar | Volta a camada da empresa para uma versão anterior (cria uma versão nova igual a ela). |
+| POST | `/instrucoes/:camada/:alvoId/voltar` | instrucoes.editar (projeto: o diretor ou quem edita todos os projetos) | Volta a camada de um projeto ou de um agente para uma versão anterior. |
+| GET | `/agentes/:id/instrucoes` | instrucoes.ver | O texto final que o agente recebe, com o que veio de cada camada (query: tarefa, para a camada do projeto). |
+| GET | `/skills` | instrucoes.ver | A biblioteca de skills (plataforma e empresa), com a versão publicada e os agentes de cada uma. |
+| GET | `/skills/:id` | instrucoes.ver | Uma skill e as versões dela. |
+| POST | `/skills` | instrucoes.criar | Cria uma skill da empresa; a primeira versão nasce como rascunho. |
+| POST | `/skills/:id/rascunho` | instrucoes.editar | Salva o rascunho (o da versão seguinte, se só houver publicadas). O nome não muda. |
+| POST | `/skills/:id/publicar` | instrucoes.aprovar | Publica o rascunho: os agentes passam a receber essa versão. |
+| GET | `/agentes/:id/skills` | instrucoes.ver | Os ids das skills atribuídas ao agente. |
+| POST | `/agentes/:id/skills` | instrucoes.editar | Troca a lista de skills do agente. |
 | GET | `/ia/contas` | contas_de_ia.ver | As contas de IA da empresa (sem a chave, só os 4 últimos caracteres) e se o cofre está ligado. |
 | POST | `/ia/contas` | contas_de_ia.criar | Conecta uma conta: testa a chave no provedor antes de gravar. Pede o segundo fator recente. |
 | POST | `/ia/contas/:id` | contas_de_ia.editar | Muda o nome, o teto ou troca a chave (testada antes; pede o segundo fator recente). |
@@ -643,6 +700,52 @@ Recebe:
 Recebe:
 
 - (nada)
+
+### POST `/instrucoes/:camada`
+
+Recebe:
+
+- `texto` (string, obrigatório)
+
+### POST `/instrucoes/:camada/:alvoId`
+
+Recebe:
+
+- `texto` (string, obrigatório)
+
+### POST `/instrucoes/:camada/voltar`
+
+Recebe:
+
+- `versao` (integer, obrigatório)
+
+### POST `/instrucoes/:camada/:alvoId/voltar`
+
+Recebe:
+
+- `versao` (integer, obrigatório)
+
+### POST `/skills`
+
+Recebe:
+
+- `nome` (string, obrigatório)
+- `descricao` (string, obrigatório)
+- `texto` (string, obrigatório)
+
+### POST `/skills/:id/rascunho`
+
+Recebe:
+
+- `nome` (string, obrigatório)
+- `descricao` (string, obrigatório)
+- `texto` (string, obrigatório)
+
+### POST `/agentes/:id/skills`
+
+Recebe:
+
+- `skills` (lista de string, obrigatório)
 
 ### POST `/ia/contas`
 

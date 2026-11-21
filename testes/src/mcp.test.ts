@@ -97,7 +97,7 @@ describe.skipIf(!bancoDisponivel)("servidor MCP", () => {
     await banco?.apagar();
   });
 
-  it("lista as onze ferramentas, com descrição e esquema de entrada", async () => {
+  it("lista as catorze ferramentas, com descrição e esquema de entrada", async () => {
     const cliente = await conectar(chaves.Um?.chave ?? "");
     const { tools } = await cliente.listTools();
     expect(tools.map((t) => t.name)).toEqual([
@@ -112,10 +112,57 @@ describe.skipIf(!bancoDisponivel)("servidor MCP", () => {
       "marcar_checklist",
       "baixar_anexo",
       "estou_vivo",
+      "pegar_instrucoes",
+      "listar_skills",
+      "pegar_skill",
     ]);
     expect(tools.every((t) => (t.description ?? "").length > 20 && t.inputSchema.type === "object")).toBe(
       true,
     );
+    await cliente.close();
+  });
+
+  it("instruções e skills pelo MCP (M4-05): o texto da empresa chega ao agente, e só as skills dele", async () => {
+    await dono.query(
+      `insert into versoes_de_instrucoes (empresa_id, camada, versao, texto)
+       values ($1, 'empresa', 1, 'Responda sempre em português do Brasil, sem travessão.')`,
+      [empresas.Um],
+    );
+    const s = await dono.query<{ id: string }>(
+      "insert into skills (empresa_id, nome) values ($1, 'responder-clientes') returning id",
+      [empresas.Um],
+    );
+    const skillId = s.rows[0]?.id as string;
+    await dono.query(
+      `insert into versoes_de_skills (empresa_id, skill_id, versao, situacao, descricao, texto, publicada_em)
+       values ($1, $2, 1, 'publicada', 'Use ao responder um cliente.', 'Seja cordial.', now())`,
+      [empresas.Um, skillId],
+    );
+    await dono.query("insert into skills_do_agente (empresa_id, agente_id, skill_id) values ($1, $2, $3)", [
+      empresas.Um,
+      agentes.Um,
+      skillId,
+    ]);
+    const cliente = await conectar(chaves.Um?.chave ?? "");
+    const instrucoes = await chamar(cliente, "pegar_instrucoes");
+    expect(String(instrucoes.structuredContent?.texto)).toContain("português do Brasil, sem travessão");
+    expect(String(instrucoes.structuredContent?.texto)).toContain("Instruções da plataforma");
+    const lista = await chamar(cliente, "listar_skills");
+    expect(lista.structuredContent?.skills).toEqual([
+      { id: skillId, nome: "responder-clientes", descricao: "Use ao responder um cliente.", versao: 1 },
+    ]);
+    const skill = await chamar(cliente, "pegar_skill", { skillId });
+    expect(skill.structuredContent?.texto).toBe("Seja cordial.");
+    expect((await chamar(cliente, "pegar_skill", { skillId: "plataforma:planejar-tarefas" })).isError).toBe(
+      true,
+    );
+    // A outra empresa não recebe nada desta.
+    const outro = await conectar(chaves.Dois?.chave ?? "");
+    expect(String((await chamar(outro, "pegar_instrucoes")).structuredContent?.texto)).not.toContain(
+      "travessão",
+    );
+    expect((await chamar(outro, "listar_skills")).structuredContent?.skills).toEqual([]);
+    await outro.close();
     await cliente.close();
   });
 

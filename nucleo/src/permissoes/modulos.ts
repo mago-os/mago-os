@@ -49,6 +49,15 @@ export const MODULOS_DO_NUCLEO: readonly DeclaracaoDeModulo[] = [
     temDadosSensiveis: true,
     area: null,
   },
+  // Instruções e skills dos agentes (M4-05): todos veem; editar as camadas da empresa e dos agentes, criar e
+  // atribuir skills e publicá-las (aprovar) é do administrador por padrão.
+  {
+    id: "instrucoes",
+    nome: "Instruções e skills",
+    acoes: ["ver", "criar", "editar", "aprovar"],
+    temDadosSensiveis: false,
+    area: null,
+  },
   // Espaços (M3-01): todos veem; só o administrador cria, edita e arquiva.
   {
     id: "espacos",

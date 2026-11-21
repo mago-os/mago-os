@@ -1341,6 +1341,37 @@ describe.skipIf(!bancoDisponivel)("agentes internos", () => {
     );
   });
 
+  it("instruções e skills (M4-05): o agente recebe as camadas e a lista das skills, e lê a skill com pegar_skill", async () => {
+    const ana = await como("ana@teste.invalid");
+    await dono.query(
+      "insert into versoes_de_instrucoes (empresa_id, camada, versao, texto) values ($1, 'empresa', 1, 'Assine como Mago da Empresa Um.')",
+      [empresaId],
+    );
+    let texto = "";
+    roteiro = [
+      () => ({
+        chamadas: [{ id: "s1", nome: "pegar_skill", entrada: { skillId: "plataforma:planejar-tarefas" } }],
+      }),
+      (p) => {
+        texto = String(ultimoResultado(p).texto ?? "");
+        return { chamadas: [{ id: "s2", nome: "responder", entrada: { texto: "Li a skill." } }] };
+      },
+    ];
+    const r = await pedir("POST", "/conversas/mensagens", ana, {
+      agenteId: ids.gerente,
+      texto: "como você planeja?",
+    });
+    expect(r.statusCode).toBe(201);
+    await rodarFila();
+    expect(texto).toContain("# Planejar tarefas");
+    const sistema = modelos.pedidos.at(-1)?.sistema ?? "";
+    expect(sistema.indexOf("Instruções da plataforma")).toBeLessThan(
+      sistema.indexOf("Assine como Mago da Empresa Um."),
+    );
+    expect(sistema).toContain("# Seu papel");
+    expect(sistema).toContain("planejar-tarefas (id plataforma:planejar-tarefas)");
+  });
+
   it("coordenador desligado por engano: nasce um novo, pausado, e o Gerente passa a responder a ele", async () => {
     const ana = await como("ana@teste.invalid");
     expect((await pedir("POST", `/agentes/${ids.coordenador}/desligar`, ana, {})).statusCode).toBe(200);

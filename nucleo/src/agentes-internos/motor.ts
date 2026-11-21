@@ -30,6 +30,7 @@ import {
   modelosDoAgente,
 } from "../contas-de-ia/servico.ts";
 import { comEmpresa } from "../empresa.ts";
+import { montarInstrucoes, skillsDoAgente } from "../instrucoes/servico.ts";
 import { RecusaDaFerramenta } from "../mcp/index.ts";
 import { permissoesNaEmpresa } from "../permissoes/verificar.ts";
 import { listarChecklist } from "../tarefas/checklist.ts";
@@ -377,7 +378,23 @@ async function rodar(o: OpcoesDoMotor, empresaId: string, execucaoId: string): P
         return;
       }
     }
-    const sistema = instrucoesDoPapel(agente.papel, agente.nome, preparo.especialistas);
+    // As instruções em camadas (M4-05) vêm primeiro; depois o papel e a lista das skills (o texto de cada uma só
+    // entra quando o agente pede, com pegar_skill).
+    const { instrucoes, skills } = await naEmpresa(async (c) => ({
+      instrucoes: await montarInstrucoes(c, agente.id, execucao.tarefaId),
+      skills: await skillsDoAgente(c, agente.id),
+    }));
+    const sistema = [
+      instrucoes.texto,
+      `# Seu papel\n\n${instrucoesDoPapel(agente.papel, agente.nome, preparo.especialistas)}`,
+      ...(skills.length > 0
+        ? [
+            `# Suas skills\n\nAntes de fazer um trabalho que uma delas ensina, leia o texto com pegar_skill.\n${skills
+              .map((s) => `- ${s.nome} (id ${s.id}): ${s.descricao}`)
+              .join("\n")}`,
+          ]
+        : []),
+    ].join("\n\n");
     const ferramentas = ferramentasDoPapel(agente.papel);
     const inicio = Date.now();
     let modeloUsado: ModeloEscolhido | null = null;
