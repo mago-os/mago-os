@@ -122,6 +122,7 @@ export const TIPOS_DE_AVISO = [
   // M4-03: um agente pediu aprovação (vai para quem pode aprovar) e a decisão (vai para o responsável do agente).
   "aprovacao_pedida",
   "aprovacao_decidida",
+  "teto_de_gasto",
 ] as const;
 export const TipoDeAviso = Type.Enum(TIPOS_DE_AVISO);
 export type TipoDeAviso = Static<typeof TipoDeAviso>;

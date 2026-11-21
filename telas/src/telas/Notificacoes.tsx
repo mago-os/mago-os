@@ -23,6 +23,7 @@ const NOMES: Record<TipoDeAviso, string> = {
   anexo_bloqueado: "Anexo bloqueado pelo antivírus",
   aprovacao_pedida: "Agente pediu a minha aprovação",
   aprovacao_decidida: "Pedido de aprovação decidido",
+  teto_de_gasto: "Teto de gasto com IA",
 };
 
 type Mensagem = { texto: string; tipo: "erro" | "ok" } | null;

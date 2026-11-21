@@ -27,6 +27,7 @@ export const TEXTO_DO_PUSH: Record<TipoDeAviso, string> = {
   anexo_bloqueado: "O antivírus bloqueou um anexo",
   aprovacao_pedida: "Um agente pediu a sua aprovação",
   aprovacao_decidida: "Um pedido de aprovação foi decidido",
+  teto_de_gasto: "Um teto de gasto com IA está perto ou chegou ao fim",
 };
 
 /**
