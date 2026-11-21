@@ -20,6 +20,14 @@ const OUTRO = "0193a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5c";
 const AGORA = "2026-11-20T18:00:00Z";
 
 const ASSINATURAS: Record<string, string> = {
+  ver_tarefa: "8f8e1c5de2161eef",
+  comentar: "4d44efce1e4873a0",
+  procurar_pessoa: "1cdd4de2d11c5aef",
+  mudar_prazo: "213d977fe85b5ba6",
+  mudar_projeto: "935355d66f972c80",
+  acrescentar_checklist: "45dce69d0d81fcc4",
+  minhas_prioridades: "d4cd7643c347fe59",
+  buscar: "db6325fc6e668a65",
   listar_tarefas: "e18504f90d2cfd8c",
   procurar_projeto: "b35c4efb2935a448",
   criar_tarefa: "4e1e0e8b51056cfd",

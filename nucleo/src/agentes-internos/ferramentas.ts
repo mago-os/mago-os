@@ -17,22 +17,29 @@ import {
 import type pg from "pg";
 import type { OpcoesDaChave } from "../agentes/chaves.ts";
 import { agenteRecebeTarefas } from "../agentes/servico.ts";
+import { listarAnexos } from "../anexos/servico.ts";
 import { auditar } from "../auditoria/registrar.ts";
 import { avisarDepois } from "../avisos/eventos.ts";
+import { buscar as buscarNoMago } from "../busca/index.ts";
 import type { FerramentaParaModelo } from "../contas-de-ia/conversa.ts";
 import { comEmpresa } from "../empresa.ts";
 import { type AcaoDeTarefa, executar, RecusaDaFerramenta } from "../mcp/index.ts";
 import { filtroDoAlcance } from "../permissoes/calcular.ts";
 import type { PermissoesNaEmpresa } from "../permissoes/verificar.ts";
-import { listarProjetos } from "../projetos/servico.ts";
-import { criarItem } from "../tarefas/checklist.ts";
+import { buscarProjeto, listarProjetos } from "../projetos/servico.ts";
+import { criarItem, listarChecklist } from "../tarefas/checklist.ts";
 import { acontecimentoDaAcao, registrarAcontecimento } from "../tarefas/linha-do-tempo.ts";
 import { fusoDaEmpresa, planejar, recusaDoPlanejamento } from "../tarefas/planejamento.ts";
+import { listarPrioridades } from "../tarefas/prioridades.ts";
 import {
   buscarTarefa,
   comentar,
   criarTarefa,
+  idsCitados,
+  listarComentarios,
+  listarSubtarefas,
   listarTarefas,
+  mudarProjetoDaTarefa,
   nomesCitados,
   pessoaAtivaNaEmpresa,
   type Quem,
@@ -134,7 +141,16 @@ export async function executarFerramenta(
     return t;
   }
 
-  const registrar = async (acao: AcaoDeTarefa | "agente.delegou", tarefaId: string, detalhes = {}) => {
+  const registrar = async (
+    acao:
+      | AcaoDeTarefa
+      | "agente.delegou"
+      | "tarefa.mudou_projeto"
+      | "tarefa.mudou_prazo"
+      | "tarefa.mudou_prioridade",
+    tarefaId: string,
+    detalhes = {},
+  ) => {
     const acontecimento = acontecimentoDaAcao(acao, detalhes);
     if (acontecimento)
       await naEmpresa((c) =>
@@ -190,6 +206,174 @@ export async function executarFerramenta(
           tarefas: ((entrada.tarefas as string[] | undefined) ?? []).slice(0, 20),
         },
       };
+    }
+    case "ver_tarefa": {
+      const tarefaId = entrada.tarefaId as string;
+      const feito = await naEmpresa(async (c) => {
+        const tarefa = await tarefaDeQuemPediu(c, tarefaId, "ver");
+        const comentarios = (await listarComentarios(c, tarefa.id, false)).slice(-30);
+        const subtarefas = await listarSubtarefas(c, tarefa.id);
+        const nomes = await nomesCitados(c, idsCitados([tarefa, ...subtarefas], comentarios));
+        return {
+          tarefa,
+          comentarios,
+          subtarefas: subtarefas.map((s) => ({
+            id: s.id,
+            titulo: s.titulo,
+            status: s.status,
+            responsavel: s.responsavel,
+          })),
+          checklist: await listarChecklist(c, tarefa.id),
+          anexos: (await listarAnexos(c, tarefa.id, true)).map((a) => a.nome),
+          nomes,
+        };
+      });
+      return { conteudo: feito };
+    }
+    case "comentar": {
+      const tarefaId = entrada.tarefaId as string;
+      const feito = await naEmpresa(async (c) => {
+        // Comentar pede só "ver", como na tela (M2-02).
+        await tarefaDeQuemPediu(c, tarefaId, "ver");
+        return comentar(c, { tipo: "agente", agenteId: ctx.agente.id }, tarefaId, entrada.texto as string);
+      });
+      await registrar("tarefa.comentou", tarefaId, { comentarioId: feito.id });
+      const tarefa = await naEmpresa((c) => tarefaDeQuemPediu(c, tarefaId, "ver"));
+      if (tarefa)
+        await avisarDepois(
+          ctx.poolApp,
+          ctx.empresaId,
+          { tipo: "agente", agenteId: ctx.agente.id },
+          { tipo: "comentou", tarefa, comentario: feito },
+          ctx.log,
+        );
+      return { conteudo: { comentarioId: feito.id } };
+    }
+    case "procurar_pessoa": {
+      const sem = (t: string) =>
+        t
+          .normalize("NFD")
+          .replace(/[\u0300-\u036f]/g, "")
+          .toLowerCase()
+          .trim();
+      const procurado = sem(entrada.nome as string);
+      const alcance = ctx.permissoes.modulos.get("pessoas")?.acoes.ver ?? "nada";
+      const filtro = filtroDoAlcance(alcance, pessoaId, ctx.permissoes.area);
+      const feito = await naEmpresa(async (c) => {
+        // Pessoas pelo alcance de quem pediu (o mesmo da tela Pessoas); agentes, todos os ativos (todos veem agentes).
+        const pessoas = filtro
+          ? await c.query<{ id: string; nome: string; area: string | null }>(
+              `select p.id, p.nome, v.area from vinculos v join pessoas p on p.id = v.pessoa_id
+                where v.empresa_id = empresa_ativa() and v.situacao = 'ativo'
+                  and ($1::text = 'tudo' or ($1 = 'equipe' and v.area is not distinct from $2) or v.pessoa_id = $3)
+                order by lower(p.nome) limit 500`,
+              [filtro.tipo, filtro.tipo === "equipe" ? filtro.area : null, pessoaId],
+            )
+          : { rows: [] };
+        const agentes = await c.query<{ id: string; nome: string }>(
+          `select id, nome from agentes where empresa_id = empresa_ativa() and situacao = 'ativo'
+            order by lower(nome) limit 200`,
+        );
+        return [
+          ...pessoas.rows.map((p) => ({ tipo: "pessoa" as const, id: p.id, nome: p.nome, area: p.area })),
+          ...agentes.rows.map((a) => ({ tipo: "agente" as const, id: a.id, nome: a.nome, area: null })),
+        ];
+      });
+      return { conteudo: { encontrados: feito.filter((x) => sem(x.nome).includes(procurado)).slice(0, 10) } };
+    }
+    case "mudar_prazo": {
+      const tarefaId = entrada.tarefaId as string;
+      const planejamento = {
+        ...(entrada.prazo !== undefined ? { prazo: entrada.prazo as never } : {}),
+        ...(entrada.prioridade !== undefined ? { prioridade: entrada.prioridade as never } : {}),
+      };
+      const feito = await naEmpresa(async (c) => {
+        const tarefa = await tarefaDeQuemPediu(c, tarefaId, "editar", true);
+        const recusa = await recusaDoPlanejamento(c, tarefa, planejamento);
+        if (recusa) throw new RecusaDaFerramenta(recusa);
+        const mudou = await planejar(c, tarefa, planejamento, await fusoDaEmpresa(c));
+        return { mudou, tarefa: await tarefaDeQuemPediu(c, tarefaId, "ver") };
+      });
+      if (feito.mudou.prioridade)
+        await registrar("tarefa.mudou_prioridade", tarefaId, { para: feito.tarefa?.prioridade ?? null });
+      if (feito.mudou.prazo)
+        await registrar("tarefa.mudou_prazo", tarefaId, {
+          dia: feito.tarefa?.prazo?.dia ?? null,
+          hora: feito.tarefa?.prazo?.hora ?? null,
+        });
+      return {
+        conteudo: { prazo: feito.tarefa?.prazo ?? null, prioridade: feito.tarefa?.prioridade ?? null },
+      };
+    }
+    case "mudar_projeto": {
+      const tarefaId = entrada.tarefaId as string;
+      const projetoId = entrada.projetoId as string | null;
+      const feito = await naEmpresa(async (c) => {
+        const tarefa = await tarefaDeQuemPediu(c, tarefaId, "editar", true);
+        if (tarefa.tarefaMaeId !== null)
+          throw new RecusaDaFerramenta("A subtarefa fica sempre no projeto da tarefa-mãe.");
+        if (projetoId !== null) {
+          const ver = ctx.permissoes.modulos.get("projetos")?.acoes.ver ?? "nada";
+          const projeto =
+            ver === "nada"
+              ? null
+              : await buscarProjeto(c, pessoaId, ver === "tudo" ? "todos" : "membro", projetoId);
+          if (projeto?.situacao !== "ativo")
+            throw new RecusaDaFerramenta("Projeto não encontrado entre os de quem pediu.");
+        }
+        if (tarefa.projetoId === projetoId) return { de: tarefa.projetoId, mudou: false };
+        await mudarProjetoDaTarefa(c, tarefa.id, projetoId);
+        return { de: tarefa.projetoId, mudou: true };
+      });
+      if (feito.mudou) await registrar("tarefa.mudou_projeto", tarefaId, { de: feito.de, para: projetoId });
+      return { conteudo: { ok: true, projetoId } };
+    }
+    case "acrescentar_checklist": {
+      const tarefaId = entrada.tarefaId as string;
+      const itens = entrada.itens as string[];
+      const n = await naEmpresa(async (c) => {
+        const tarefa = await tarefaDeQuemPediu(c, tarefaId, "editar", true);
+        if (tarefa.trava && !ehDoAgente(tarefa, ctx.agente.id))
+          throw new RecusaDaFerramenta("Essa tarefa está pegada por outra pessoa ou agente agora.");
+        for (const texto of itens) await criarItem(c, tarefa.id, texto);
+        return itens.length;
+      });
+      await registrar("checklist.editou", tarefaId, { acrescentados: n });
+      return { conteudo: { acrescentados: n } };
+    }
+    case "minhas_prioridades": {
+      const quem = quemPediu(ctx.permissoes, pessoaId, "ver");
+      if (!quem || quem.tipo !== "pessoa") throw new RecusaDaFerramenta("Quem pediu não vê tarefas.");
+      const itens = await naEmpresa((c) => listarPrioridades(c, quem));
+      return {
+        conteudo: {
+          itens: itens
+            .slice(0, 30)
+            .map((i) => ({ tipo: i.tipo, titulo: i.titulo, motivo: i.motivo, tarefaId: i.tarefaId })),
+        },
+      };
+    }
+    case "buscar": {
+      const ver = (modulo: string) => ctx.permissoes.modulos.get(modulo)?.acoes.ver ?? "nada";
+      const quem = quemPediu(ctx.permissoes, pessoaId, "ver");
+      const pessoas = filtroDoAlcance(ver("pessoas"), pessoaId, ctx.permissoes.area);
+      const projetos = ver("projetos");
+      const resultados = await naEmpresa((c) =>
+        buscarNoMago(c, pessoaId, entrada.texto as string, {
+          tarefas: quem && quem.tipo === "pessoa" ? quem : null,
+          projetos: projetos === "nada" ? null : projetos === "tudo" ? "todos" : "membro",
+          espacos: ver("espacos") !== "nada",
+          pessoas: pessoas
+            ? pessoas.tipo === "tudo"
+              ? { tipo: "tudo" }
+              : pessoas.tipo === "equipe"
+                ? { tipo: "equipe", area: pessoas.area }
+                : { tipo: "meus" }
+            : null,
+          agentes: ver("agentes") !== "nada",
+        }),
+      );
+      return { conteudo: { resultados: resultados.slice(0, 30) } };
     }
     case "listar_tarefas": {
       const quem = quemPediu(ctx.permissoes, pessoaId, "ver");

@@ -506,6 +506,66 @@ describe.skipIf(!bancoDisponivel)("agentes internos", () => {
     expect(vistas.map((t) => t.titulo)).not.toContain("Migrar o blog para o WordPress novo");
   });
 
+  it("ferramentas de consulta e de ajuste: pessoa, tarefa, comentário, prazo, projeto, checklist, prioridades e busca", async () => {
+    const ana = await como("ana@teste.invalid");
+    const resultados: Record<string, Record<string, unknown>> = {};
+    const chamar = (id: string, nome: string, entrada: unknown) => () => ({
+      chamadas: [{ id, nome, entrada }],
+    });
+    const guardar =
+      (
+        chave: string,
+        proximo: () => Partial<{ chamadas: { id: string; nome: string; entrada: unknown }[] }>,
+      ) =>
+      (p: PedidoAoModelo) => {
+        const r = [...p.partes].reverse().find((x) => x.papel === "resultado");
+        if (r?.papel !== "resultado") throw new Error("sem resultado");
+        resultados[chave] = r.erro ? { erro: r.conteudo } : ultimoResultado(p);
+        return proximo();
+      };
+    roteiro = [
+      chamar("a", "procurar_pessoa", { nome: "flóra" }),
+      guardar("pessoa", chamar("b", "ver_tarefa", { tarefaId: ids.tarefa })),
+      guardar(
+        "tarefa",
+        chamar("c", "comentar", { tarefaId: ids.tarefa, texto: "Comentário do coordenador." }),
+      ),
+      guardar("comentario", chamar("d", "mudar_prazo", { tarefaId: ids.tarefa, prioridade: "urgente" })),
+      guardar("prazo", chamar("e", "mudar_projeto", { tarefaId: ids.tarefa, projetoId: ids.projeto })),
+      guardar(
+        "projeto",
+        chamar("f", "acrescentar_checklist", { tarefaId: ids.tarefa, itens: ["Revisar links"] }),
+      ),
+      guardar("checklist", chamar("g", "minhas_prioridades", {})),
+      guardar("prioridades", chamar("h", "buscar", { texto: "wordpres" })),
+      guardar("busca", chamar("i", "responder", { texto: "Feito." })),
+    ];
+    await pedir("POST", "/conversas/mensagens", ana, { texto: "faz uma porção de coisas" });
+    await rodarFila();
+    expect(resultados.pessoa?.encontrados).toEqual([
+      { tipo: "pessoa", id: ids.flora, nome: "Flora Func", area: null },
+    ]);
+    expect((resultados.tarefa?.tarefa as { titulo: string }).titulo).toBe(
+      "Migrar o blog para o WordPress novo",
+    );
+    expect(resultados.tarefa?.subtarefas).toHaveLength(2);
+    expect(resultados.comentario?.comentarioId).toBeTruthy();
+    expect(resultados.prazo?.prioridade).toBe("urgente");
+    expect(resultados.projeto).toEqual({ ok: true, projetoId: ids.projeto });
+    expect(resultados.checklist).toEqual({ acrescentados: 1 });
+    expect(Array.isArray(resultados.prioridades?.itens)).toBe(true);
+    expect(JSON.stringify(resultados.busca)).toContain("Migrar o blog");
+    // A funcionária só se acha a si mesma (o alcance de pessoas dela é "meus").
+    const flora = await como("flora@teste.invalid");
+    roteiro = [
+      chamar("j", "procurar_pessoa", { nome: "ana" }),
+      guardar("daFlora", chamar("k", "responder", { texto: "Ok." })),
+    ];
+    await pedir("POST", "/conversas/mensagens", flora, { texto: "quem é a Ana?" });
+    await rodarFila();
+    expect(resultados.daFlora?.encontrados).toEqual([]);
+  });
+
   it("o agente age com a permissão de quem pediu: a funcionária não alcança a tarefa da Ana", async () => {
     const flora = await como("flora@teste.invalid");
     roteiro = [
