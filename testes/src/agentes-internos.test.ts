@@ -478,6 +478,34 @@ describe.skipIf(!bancoDisponivel)("agentes internos", () => {
     expect(t.rows[0]?.projeto_id).toBe(ids.projeto);
   });
 
+  it("listar tarefas: o agente vê as tarefas que quem pediu vê, com filtro de texto", async () => {
+    const ana = await como("ana@teste.invalid");
+    const flora = await como("flora@teste.invalid");
+    let vistas: { titulo: string; projeto: string | null; responsavel: string | null }[] = [];
+    roteiro = [
+      () => ({ chamadas: [{ id: "l1", nome: "listar_tarefas", entrada: { texto: "migrar" } }] }),
+      (p) => {
+        vistas = ultimoResultado(p).tarefas as typeof vistas;
+        return { chamadas: [{ id: "l2", nome: "responder", entrada: { texto: "Achei." } }] };
+      },
+    ];
+    await pedir("POST", "/conversas/mensagens", ana, { texto: "quais tarefas falam de migrar?" });
+    await rodarFila();
+    expect(vistas.map((t) => t.titulo)).toEqual(["Migrar o blog para o WordPress novo"]);
+    expect(vistas[0]?.responsavel).toBe("Gerente de projetos");
+    // A funcionária não vê a tarefa da Ana: a lista dela vem sem ela.
+    roteiro = [
+      () => ({ chamadas: [{ id: "l3", nome: "listar_tarefas", entrada: {} }] }),
+      (p) => {
+        vistas = ultimoResultado(p).tarefas as typeof vistas;
+        return { chamadas: [{ id: "l4", nome: "responder", entrada: { texto: "Ok." } }] };
+      },
+    ];
+    await pedir("POST", "/conversas/mensagens", flora, { texto: "liste todas as tarefas" });
+    await rodarFila();
+    expect(vistas.map((t) => t.titulo)).not.toContain("Migrar o blog para o WordPress novo");
+  });
+
   it("o agente age com a permissão de quem pediu: a funcionária não alcança a tarefa da Ana", async () => {
     const flora = await como("flora@teste.invalid");
     roteiro = [

@@ -9,7 +9,7 @@
 import { type Static, type TSchema, Type } from "typebox";
 import { conferir, DataHora, Id, OuNulo, type Problema, type Regra, Texto } from "../comum.ts";
 import { PedidoDePrazo, Prioridade } from "../tarefas/prazos.ts";
-import { Responsavel } from "../tarefas/tarefa.ts";
+import { Responsavel, StatusTarefa } from "../tarefas/tarefa.ts";
 import { ModeloEscolhido } from "./contas-de-ia.ts";
 
 /** Papel do agente interno na hierarquia: o coordenador recebe os pedidos e passa ao especialista. */
@@ -175,6 +175,25 @@ const SubtarefaPlanejada = Type.Object(
 );
 
 export const FERRAMENTAS_INTERNAS = [
+  {
+    nome: "listar_tarefas",
+    descricao:
+      'Lista as tarefas que quem pediu enxerga, das mais recentes para as mais antigas, com título, status, prioridade, prazo, projeto e responsável. Filtros: minhas (as de quem pediu), status, projeto (id, ou "sem" para as sem projeto), prazo (atrasadas, hoje, semana, sem_prazo) e texto no título. Use para responder perguntas sobre as tarefas e para achar o id de uma tarefa citada.',
+    entrada: Type.Object(
+      {
+        minhas: Type.Optional(Type.Boolean()),
+        status: Type.Optional(Type.Array(StatusTarefa, { minItems: 1, uniqueItems: true })),
+        projetoId: Type.Optional(Type.Union([Id, Type.Literal("sem")])),
+        prazo: Type.Optional(Type.Enum(["atrasadas", "hoje", "semana", "sem_prazo"] as const)),
+        texto: Type.Optional(Texto(120, "Parte do título.")),
+        limite: Type.Optional(
+          Type.Integer({ minimum: 1, maximum: 50, description: "Quantas no máximo (padrão 30)." }),
+        ),
+      },
+      { additionalProperties: false },
+    ),
+    papeis: ["coordenador", "especialista"],
+  },
   {
     nome: "procurar_projeto",
     descricao:

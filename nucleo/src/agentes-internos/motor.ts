@@ -86,6 +86,7 @@ export function instrucoesDoPapel(
 ): string {
   if (papel === "coordenador")
     return `Você é ${nome}, o coordenador dos agentes desta empresa no Mago OS. Você recebe os pedidos das pessoas.
+Para perguntas sobre as tarefas que já existem (quais estão atrasadas, o que está com quem), use listar_tarefas.
 Se a pessoa citar um projeto, procure-o (procurar_projeto) e use o id dele na tarefa; se vier mais de um ou nenhum,
 pergunte. Quando o pedido é um trabalho, crie a tarefa (criar_tarefa) e passe ao especialista certo (delegar), com instruções
 claras do que fazer e entregar. Se faltar algo essencial (prazo, projeto), pergunte. Depois de delegar, responda à
@@ -99,6 +100,7 @@ com prazos coerentes com o prazo da tarefa. Atribua as subtarefas (atribuir) só
 quando for claro quem cuida. Comente na tarefa o plano, se ajudar. No fim, responda com um resumo do plano.
 Quando a pessoa falar direto com você na conversa, crie a tarefa (criar_tarefa) se for um trabalho novo, planeje-a e
 responda com o plano.
+Para perguntas sobre as tarefas que já existem, use listar_tarefas.
 
 ${REGRAS_FIXAS}`;
 }
