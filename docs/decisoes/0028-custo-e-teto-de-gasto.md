@@ -28,6 +28,12 @@ Os agentes internos já guardam qual modelo rodou, mas não quanto custou. O tet
 - **Recomendado e adotado:** modelo sem preço conta pelo maior preço da tabela, e o painel avisa.
 - **Alternativa:** modelo sem preço não pode ser usado até o administrador dar o preço.
 
+## Detalhes acertados na codificação (21/11/2026)
+
+- A conta do modelo reserva também é conferida antes de começar: se ela já estiver no teto, o agente roda sem reserva, para não cair nela no meio da execução.
+- Uma execução que falha pelo plano de assinatura conta os tokens que gastou até a falha.
+- Os agentes internos ganham a ferramenta de leitura `ver_custos` (regra 12 do projeto): quem pode ver as contas de IA vê tudo; os outros, só o gasto do próprio agente. Não há ferramenta para mudar tetos nem preços: é configuração, feita no app por uma pessoa.
+
 ## Consequências
 
 - Contrato novo em `contratos/src/agentes/custos.ts`; aviso novo `teto_de_gasto`.

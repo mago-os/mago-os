@@ -52,7 +52,11 @@ export const PRECOS_DE_REFERENCIA: readonly { comeco: string; preco: PrecoDeMode
  * Sem preço de referência nem do administrador, o custo usa o maior preço da tabela: assim o teto continua
  * protegendo, e a tela avisa que o modelo está sem preço.
  */
-export const PRECO_SEM_REFERENCIA: PrecoDeModelo = { entrada: 500, saida: 2500, cache: 50 };
+export const PRECO_SEM_REFERENCIA: PrecoDeModelo = {
+  entrada: Math.max(...PRECOS_DE_REFERENCIA.map((p) => p.preco.entrada)),
+  saida: Math.max(...PRECOS_DE_REFERENCIA.map((p) => p.preco.saida)),
+  cache: Math.max(...PRECOS_DE_REFERENCIA.map((p) => p.preco.cache)),
+};
 
 export function precoDeReferencia(modelo: string): PrecoDeModelo | null {
   const nome = modelo.toLowerCase().replace(/^.*\//, "");

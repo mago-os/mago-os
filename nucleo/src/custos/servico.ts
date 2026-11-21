@@ -18,17 +18,18 @@ import { criarAviso } from "../avisos/index.ts";
 
 /** Início do mês e do dia de hoje no fuso da empresa (ou de um mês dado, AAAA-MM). */
 async function periodo(c: pg.PoolClient, mes: string | null = null) {
-  const r = await c.query<{ inicio: Date; fim: Date; hoje: Date; mes: string; fuso: string }>(
+  const r = await c.query<{ inicio: Date; fim: Date; hoje: Date; amanha: Date; mes: string; fuso: string }>(
     `with f as (select coalesce((select fuso_horario from empresas where id = empresa_ativa()), 'America/Sao_Paulo') as fuso),
           m as (select coalesce(to_date($1, 'YYYY-MM'), date_trunc('month', now() at time zone f.fuso)::date) as dia, f.fuso from f)
      select (m.dia::timestamp at time zone m.fuso) as inicio,
             ((m.dia + interval '1 month')::timestamp at time zone m.fuso) as fim,
             (date_trunc('day', now() at time zone m.fuso) at time zone m.fuso) as hoje,
+            ((date_trunc('day', now() at time zone m.fuso) + interval '1 day') at time zone m.fuso) as amanha,
             to_char(m.dia, 'YYYY-MM') as mes, m.fuso
        from m`,
     [mes],
   );
-  return r.rows[0] as { inicio: Date; fim: Date; hoje: Date; mes: string; fuso: string };
+  return r.rows[0] as { inicio: Date; fim: Date; hoje: Date; amanha: Date; mes: string; fuso: string };
 }
 
 /** O preço de um modelo: o do administrador, o de referência ou (sem nenhum) o maior da tabela. */
@@ -115,7 +116,10 @@ export async function mudarTeto(
   pessoaId: string,
 ): Promise<void> {
   await c.query(
-    `insert into tetos_de_gasto (empresa_id, agente_id, teto, mudado_por) values (empresa_ativa(), $1, $2, $3)
+    // Quem mudou só fica guardado se tiver vínculo com a empresa (o Dono da plataforma pode não ter).
+    `insert into tetos_de_gasto (empresa_id, agente_id, teto, mudado_por)
+     values (empresa_ativa(), $1, $2,
+             (select pessoa_id from vinculos where empresa_id = empresa_ativa() and pessoa_id = $3))
      on conflict (empresa_id, coalesce(agente_id, '00000000-0000-0000-0000-000000000000'::uuid))
      do update set teto = excluded.teto, mudado_por = excluded.mudado_por, mudado_em = now()`,
     [agenteId, teto, pessoaId],
@@ -147,6 +151,7 @@ async function somar(
 const micros = (centavos: number) => centavos * 10_000;
 
 export interface SituacaoDaConta {
+  nome: string;
   /** A conta não pode ser usada neste mês (teto em dólar, ou limite de tokens com "parar"). */
   parada: boolean;
   motivo: string | null;
@@ -166,24 +171,26 @@ async function situacaoDaConta(c: pg.PoolClient, contaId: string, inicio: Date):
     [contaId],
   );
   const conta = r.rows[0];
-  if (!conta) return { parada: false, motivo: null, nivel: 0 };
+  if (!conta) return { nome: "", parada: false, motivo: null, nivel: 0 };
   const gasto = await somar(c, inicio, { contaId });
   if (conta.credencial === "assinatura") {
-    if (conta.limite_de_tokens === null) return { parada: false, motivo: null, nivel: 0 };
+    if (conta.limite_de_tokens === null) return { nome: conta.nome, parada: false, motivo: null, nivel: 0 };
     const limite = Number(conta.limite_de_tokens);
     const p = (gasto.tokens / limite) * 100;
     const nivel = p >= 100 ? 100 : p >= PERCENTUAL_DE_AVISO ? 80 : 0;
     const parada = nivel === 100 && conta.ao_chegar_no_limite === "parar";
     return {
+      nome: conta.nome,
       parada,
       motivo: nivel === 100 ? `a conta "${conta.nome}" chegou ao limite de tokens do mês` : null,
       nivel,
     };
   }
-  if (conta.teto_mensal === null) return { parada: false, motivo: null, nivel: 0 };
+  if (conta.teto_mensal === null) return { nome: conta.nome, parada: false, motivo: null, nivel: 0 };
   const p = conta.teto_mensal === 0 ? 100 : (gasto.custo / micros(conta.teto_mensal)) * 100;
   const nivel = p >= 100 ? 100 : p >= PERCENTUAL_DE_AVISO ? 80 : 0;
   return {
+    nome: conta.nome,
     parada: nivel === 100,
     motivo: nivel === 100 ? `a conta "${conta.nome}" chegou ao teto de gasto do mês` : null,
     nivel,
@@ -217,7 +224,10 @@ async function administradores(c: pg.PoolClient): Promise<string[]> {
   return r.rows.map((l) => l.pessoa_id);
 }
 
-export type ConferenciaDosTetos = { parar: string } | { parar: null; usarReserva: string | null };
+/** usarReserva: a conta principal parou (motivo); semReserva: a conta do reserva parou (ou não há reserva). */
+export type ConferenciaDosTetos =
+  | { parar: string }
+  | { parar: null; usarReserva: string | null; semReserva: boolean };
 
 /**
  * Antes de cada execução: os tetos do mês (empresa, agente e a conta do modelo principal), com os avisos de 80% e
@@ -271,12 +281,7 @@ export async function conferirTetos(
 
   const avisarConta = async (contaId: string, s: SituacaoDaConta) => {
     if (s.nivel === 0) return;
-    const nome = (
-      await c.query<{ nome: string }>(
-        "select nome from contas_de_ia where id = $1 and empresa_id = empresa_ativa()",
-        [contaId],
-      )
-    ).rows[0]?.nome;
+    const nome = s.nome;
     await avisarUmaVez(
       c,
       `conta:${contaId}`,
@@ -290,35 +295,54 @@ export async function conferirTetos(
   };
   const principal = await situacaoDaConta(c, contas.principal, inicio);
   await avisarConta(contas.principal, principal);
+  // A conta do reserva também é conferida: parada, o agente roda sem reserva (não cai nela no meio).
+  const reserva = contas.reserva ? await situacaoDaConta(c, contas.reserva, inicio) : null;
+  if (contas.reserva && reserva) await avisarConta(contas.reserva, reserva);
   if (parar) return { parar };
-  if (!principal.parada) return { parar: null, usarReserva: null };
-  if (contas.reserva) {
-    const reserva = await situacaoDaConta(c, contas.reserva, inicio);
-    await avisarConta(contas.reserva, reserva);
-    if (!reserva.parada) return { parar: null, usarReserva: principal.motivo };
-  }
+  const reservaLivre = reserva !== null && !reserva.parada;
+  if (!principal.parada) return { parar: null, usarReserva: null, semReserva: !reservaLivre };
+  if (reservaLivre) return { parar: null, usarReserva: principal.motivo, semReserva: false };
   return { parar: principal.motivo ?? "a conta de IA chegou ao limite do mês" };
 }
 
-/** O painel de um mês (AAAA-MM; sem mês, o atual). */
+/** O painel de um mês (AAAA-MM; sem mês, o atual), em poucas consultas agrupadas. */
 export async function resumoDeCustos(c: pg.PoolClient, mes: string | null): Promise<ResumoDeCustos> {
   const p = await periodo(c, mes);
-  const somaEntre = async (de: Date, ate: Date, extra = "", valores: unknown[] = []) => {
-    const r = await c.query<{ custo: string; tokens: string }>(
-      `select coalesce(sum(custo_micros), 0) as custo, coalesce(sum(tokens_entrada + tokens_saida + tokens_cache), 0) as tokens
-         from consumo_de_ia where empresa_id = empresa_ativa() and criado_em >= $1 and criado_em < $2 ${extra}`,
-      [de, ate, ...valores],
-    );
-    return { custo: Number(r.rows[0]?.custo ?? 0), tokens: Number(r.rows[0]?.tokens ?? 0) };
-  };
-  const hojeAte = new Date(p.hoje.getTime() + 86_400_000);
   const ehMesAtual = p.hoje >= p.inicio && p.hoje < p.fim;
+  // Mês e hoje de uma vez, agrupados por agente e por conta.
+  const porAgente = await c.query<{
+    agente_id: string;
+    custo: string;
+    tokens: string;
+    custo_hoje: string;
+    tokens_hoje: string;
+  }>(
+    `select agente_id, sum(custo_micros) as custo, sum(tokens_entrada + tokens_saida + tokens_cache) as tokens,
+            coalesce(sum(custo_micros) filter (where criado_em >= $3 and criado_em < $4), 0) as custo_hoje,
+            coalesce(sum(tokens_entrada + tokens_saida + tokens_cache) filter (where criado_em >= $3 and criado_em < $4), 0)
+              as tokens_hoje
+       from consumo_de_ia where empresa_id = empresa_ativa() and criado_em >= $1 and criado_em < $2
+      group by agente_id`,
+    [p.inicio, p.fim, p.hoje, p.amanha],
+  );
+  const porConta = await c.query<{ conta_id: string; custo: string; tokens: string }>(
+    `select conta_id, sum(custo_micros) as custo, sum(tokens_entrada + tokens_saida + tokens_cache) as tokens
+       from consumo_de_ia where empresa_id = empresa_ativa() and criado_em >= $1 and criado_em < $2
+        and conta_id is not null group by conta_id`,
+    [p.inicio, p.fim],
+  );
+  const doAgente = new Map(porAgente.rows.map((l) => [l.agente_id, l]));
+  const daConta = new Map(porConta.rows.map((l) => [l.conta_id, l]));
+  const tetos = await c.query<{ agente_id: string | null; teto: number | null }>(
+    "select agente_id, teto from tetos_de_gasto where empresa_id = empresa_ativa()",
+  );
+  const tetoAjustado = new Map(tetos.rows.map((l) => [l.agente_id ?? "empresa", l.teto]));
+  const tetoDoAlvo = (alvo: string, padrao: number) =>
+    tetoAjustado.has(alvo) ? (tetoAjustado.get(alvo) ?? null) : padrao;
   const agentes = await c.query<{ id: string; nome: string }>(
     `select id, nome from agentes where empresa_id = empresa_ativa() and tipo = 'interno'
-        and (situacao <> 'desligado' or exists (select 1 from consumo_de_ia k where k.agente_id = agentes.id
-               and k.criado_em >= $1 and k.criado_em < $2))
-      order by nome`,
-    [p.inicio, p.fim],
+        and (situacao <> 'desligado' or id = any($1::uuid[])) order by nome`,
+    [[...doAgente.keys()]],
   );
   const contas = await c.query<{
     id: string;
@@ -337,39 +361,52 @@ export async function resumoDeCustos(c: pg.PoolClient, mes: string | null): Prom
       group by 1 order by 1`,
     [p.inicio, p.fim, p.fuso],
   );
-  const semPreco = await c.query<{ conta_id: string; modelo: string }>(
-    `select distinct conta_id, modelo from consumo_de_ia
-      where empresa_id = empresa_ativa() and sem_preco and conta_id is not null and criado_em >= $1 and criado_em < $2`,
-    [p.inicio, p.fim],
+  // Sem preço: usados no mês sem preço e que continuam sem (nem do administrador nem de referência).
+  const semPreco = (
+    await c.query<{ conta_id: string; modelo: string }>(
+      `select distinct k.conta_id, k.modelo from consumo_de_ia k
+         left join modelos_de_conta_de_ia m on m.conta_id = k.conta_id and m.modelo = k.modelo and m.empresa_id = k.empresa_id
+        where k.empresa_id = empresa_ativa() and k.sem_preco and k.conta_id is not null
+          and k.criado_em >= $1 and k.criado_em < $2 and m.preco_entrada is null`,
+      [p.inicio, p.fim],
+    )
+  ).rows.filter((l) => precoDeReferencia(l.modelo) === null);
+  const n = (x: string | undefined) => Number(x ?? 0);
+  const total = porAgente.rows.reduce(
+    (t, l) => ({ custo: t.custo + n(l.custo), tokens: t.tokens + n(l.tokens) }),
+    { custo: 0, tokens: 0 },
+  );
+  const hoje = porAgente.rows.reduce(
+    (t, l) => ({ custo: t.custo + n(l.custo_hoje), tokens: t.tokens + n(l.tokens_hoje) }),
+    { custo: 0, tokens: 0 },
   );
   const vazio = { custo: 0, tokens: 0 };
   return {
     mes: p.mes,
-    total: await somaEntre(p.inicio, p.fim),
-    hoje: ehMesAtual ? await somaEntre(p.hoje, hojeAte) : vazio,
-    tetoDaEmpresa: await tetoDe(c, null),
-    porAgente: await Promise.all(
-      agentes.rows.map(async (a) => ({
+    total,
+    hoje: ehMesAtual ? hoje : vazio,
+    tetoDaEmpresa: tetoDoAlvo("empresa", TETO_PADRAO_DA_EMPRESA),
+    porAgente: agentes.rows.map((a) => {
+      const l = doAgente.get(a.id);
+      return {
         agenteId: a.id,
         nome: a.nome,
-        teto: await tetoDe(c, a.id),
-        mes: await somaEntre(p.inicio, p.fim, "and agente_id = $3", [a.id]),
-        hoje: ehMesAtual ? await somaEntre(p.hoje, hojeAte, "and agente_id = $3", [a.id]) : vazio,
-      })),
-    ),
-    porConta: await Promise.all(
-      contas.rows.map(async (k) => ({
-        contaId: k.id,
-        nome: k.nome,
-        credencial: k.credencial,
-        teto: k.teto_mensal,
-        avisoDeTokens: k.limite_de_tokens === null ? null : Number(k.limite_de_tokens),
-        aoChegar: k.ao_chegar_no_limite,
-        mes: await somaEntre(p.inicio, p.fim, "and conta_id = $3", [k.id]),
-      })),
-    ),
+        teto: tetoDoAlvo(a.id, TETO_PADRAO_DO_AGENTE),
+        mes: { custo: n(l?.custo), tokens: n(l?.tokens) },
+        hoje: ehMesAtual ? { custo: n(l?.custo_hoje), tokens: n(l?.tokens_hoje) } : vazio,
+      };
+    }),
+    porConta: contas.rows.map((k) => ({
+      contaId: k.id,
+      nome: k.nome,
+      credencial: k.credencial,
+      teto: k.teto_mensal,
+      avisoDeTokens: k.limite_de_tokens === null ? null : Number(k.limite_de_tokens),
+      aoChegar: k.ao_chegar_no_limite,
+      mes: { custo: n(daConta.get(k.id)?.custo), tokens: n(daConta.get(k.id)?.tokens) },
+    })),
     porDia: dias.rows.map((d) => ({ dia: d.dia, custo: Number(d.custo) })),
-    semPreco: semPreco.rows.map((l) => ({ contaId: l.conta_id, modelo: l.modelo })),
+    semPreco: semPreco.map((l) => ({ contaId: l.conta_id, modelo: l.modelo })),
   };
 }
 

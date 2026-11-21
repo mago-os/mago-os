@@ -376,6 +376,9 @@ async function rodar(o: OpcoesDoMotor, empresaId: string, execucaoId: string): P
   const reservaPorTeto = "usarReserva" in tetos ? tetos.usarReserva : null;
   if (reservaPorTeto && modelosDoAgenteAtual.reserva)
     modelosDoAgenteAtual = { principal: modelosDoAgenteAtual.reserva, reserva: null };
+  // A conta do reserva parou no teto: o agente roda sem reserva, para não cair nela no meio da execução.
+  else if ("semReserva" in tetos && tetos.semReserva && modelosDoAgenteAtual.reserva)
+    modelosDoAgenteAtual = { principal: modelosDoAgenteAtual.principal, reserva: null };
 
   const ctx: ContextoDaFerramenta = {
     poolApp: o.poolApp,
@@ -515,6 +518,7 @@ async function rodar(o: OpcoesDoMotor, empresaId: string, execucaoId: string): P
         texto = r.texto;
         await guardarConsumo(m, r.tokens);
       } catch (erro) {
+        if (erro instanceof ErroDoModelo && erro.tokens) await guardarConsumo(m, erro.tokens);
         // A resposta já foi dada (o Claude Code falhou só ao fechar): ela vale.
         if (!fim) {
           if (erro instanceof ErroDoModelo && erro.limiteAte)
@@ -757,11 +761,24 @@ async function pedirAjudaNaTarefa(
   texto: string,
 ): Promise<void> {
   const quem = { tipo: "agente" as const, agenteId };
-  await comEmpresa(o.poolApp, empresaId, async (c) => {
-    const tarefa = await buscarTarefa(c, { ...quem, comoGerente: true }, tarefaId, true);
-    if (!tarefa || tarefa.status === "concluida" || tarefa.status === "cancelada") return;
+  // O comentário e a troca de status em transações separadas: tarefa pegada por outra pessoa recebe o comentário
+  // mesmo sem poder mudar de status.
+  const tarefa = await comEmpresa(o.poolApp, empresaId, async (c) => {
+    const t = await buscarTarefa(c, { ...quem, comoGerente: true }, tarefaId);
+    if (!t || t.status === "concluida" || t.status === "cancelada") return null;
     await comentar(c, quem, tarefaId, texto);
-    if (tarefa.status !== "precisa_de_ajuda") await mudarStatus(c, quem, tarefa, "precisa_de_ajuda", null);
+    return t;
+  }).catch((erro) => {
+    o.log.error({ erro, tarefaId }, "Teto: o comentário na tarefa não saiu");
+    return null;
+  });
+  if (!tarefa || tarefa.status === "precisa_de_ajuda") return;
+  const pegadaPorOutro =
+    tarefa.trava !== null && !(tarefa.trava.por.tipo === "agente" && tarefa.trava.por.agenteId === agenteId);
+  if (pegadaPorOutro) return;
+  await comEmpresa(o.poolApp, empresaId, async (c) => {
+    const t = await buscarTarefa(c, { ...quem, comoGerente: true }, tarefaId, true);
+    if (t && t.status !== "precisa_de_ajuda") await mudarStatus(c, quem, t, "precisa_de_ajuda", null);
   }).catch((erro) => o.log.error({ erro, tarefaId }, "Teto: a tarefa não foi para precisa de ajuda"));
 }
 

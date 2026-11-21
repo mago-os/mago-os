@@ -105,7 +105,8 @@ function LimiteDeTokens({
       className="flex flex-wrap items-center gap-1.5 text-xs"
       onSubmit={(e) => {
         e.preventDefault();
-        const n = valor.trim() === "" ? null : Math.round(Number(valor.replace(/\D/g, "")));
+        const n = valor.trim() === "" ? null : Number(valor);
+        if (n !== null && (!Number.isInteger(n) || n < 1000)) return;
         void aoSalvar(n, aoChegar);
       }}
     >
@@ -113,7 +114,9 @@ function LimiteDeTokens({
         Limite de tokens no mês
         <input
           aria-label={`Limite de tokens de ${conta.nome}`}
-          inputMode="numeric"
+          type="number"
+          min={1000}
+          step={1000}
           value={valor}
           onChange={(e) => setValor(e.target.value)}
           placeholder="sem limite"

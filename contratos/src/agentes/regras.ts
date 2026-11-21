@@ -94,6 +94,13 @@ export const CATALOGO_DE_ACOES: readonly AcaoDoCatalogo[] = [
     padraoExterno: null,
   },
   {
+    acao: "ver_custos",
+    nome: "Ver os custos",
+    mudaDados: false,
+    padraoInterno: "executa",
+    padraoExterno: null,
+  },
+  {
     acao: "pegar_instrucoes",
     nome: "Ler as instruções",
     mudaDados: false,

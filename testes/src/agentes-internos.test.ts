@@ -1394,6 +1394,19 @@ describe.skipIf(!bancoDisponivel)("agentes internos", () => {
     ).toBeGreaterThan(0);
     expect(painel.semPreco).toContainEqual({ contaId: ids.Principal, modelo: "modelo-bom" });
     expect(painel.tetoDaEmpresa).toBe(5000);
+    // Dado o preço, o modelo sai da lista dos sem preço.
+    expect(
+      (
+        await pedir("POST", `/ia/contas/${ids.Principal}/precos`, ana, {
+          modelo: "modelo-bom",
+          preco: { entrada: 300, saida: 1500, cache: 30 },
+        })
+      ).statusCode,
+    ).toBe(200);
+    expect((await pedir("GET", "/custos", ana)).json().semPreco).not.toContainEqual({
+      contaId: ids.Principal,
+      modelo: "modelo-bom",
+    });
 
     // 80%: teto do Gerente de 1 centavo (10 mil microdólares) com 9,9 mil já gastos: a primeira roda e avisa; a
     // segunda já passa dos 100% e para.
@@ -1441,6 +1454,22 @@ describe.skipIf(!bancoDisponivel)("agentes internos", () => {
     expect(tarefa.rows[0]?.status).toBe("precisa_de_ajuda");
     // Subir o teto libera na hora.
     await pedir("POST", `/custos/tetos/agente/${ids.gerente}`, ana, { teto: null });
+
+    // O agente consegue ler os custos (regra 12): a Ana administra e vê tudo.
+    let custos: Record<string, unknown> = {};
+    roteiro = [
+      () => ({ chamadas: [{ id: "v1", nome: "ver_custos", entrada: {} }] }),
+      (p) => {
+        custos = ultimoResultado(p);
+        return { chamadas: [{ id: "v2", nome: "responder", entrada: { texto: "Custos lidos." } }] };
+      },
+    ];
+    await pedir("POST", "/conversas/mensagens", ana, { agenteId: ids.gerente, texto: "quanto gastamos?" });
+    await rodarFila();
+    expect(custos.empresa).toMatchObject({ teto: "US$ 50.00" });
+    expect((custos.agentes as { agente: string }[]).some((a) => a.agente === "Gerente de projetos")).toBe(
+      true,
+    );
 
     // Só a conta principal no teto: o agente segue pelo reserva.
     await dono.query("update contas_de_ia set teto_mensal = 0 where id = $1", [ids.Principal]);
