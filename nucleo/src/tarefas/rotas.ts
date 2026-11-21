@@ -185,6 +185,7 @@ export function filtroDaQuery(q: Record<string, string | string[] | undefined>):
     ...(um("de") ? { de: um("de") } : {}),
     ...(um("ate") ? { ate: um("ate") } : {}),
     ...(varios(q.subtarefas).some((x) => x === "0" || x === "false") ? { subtarefas: false } : {}),
+    ...(um("texto")?.trim() ? { texto: um("texto")?.trim() } : {}),
   };
 }
 

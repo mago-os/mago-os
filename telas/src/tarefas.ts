@@ -107,6 +107,7 @@ export function buscarTarefas(filtro: FiltroDeTarefas) {
   if (filtro.de) q.set("de", filtro.de);
   if (filtro.ate) q.set("ate", filtro.ate);
   if (filtro.subtarefas === false) q.set("subtarefas", "0");
+  if (filtro.texto) q.set("texto", filtro.texto);
   return pedir<ListaDeTarefas>("GET", `/tarefas?${q}`);
 }
 
