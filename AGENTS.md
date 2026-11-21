@@ -36,6 +36,7 @@ O Mago OS é um sistema operacional de agentes para empresas: pessoas e agentes 
 9. **Sem estado no servidor:** a API pode ser reiniciada ou duplicada a qualquer momento. Sessão, fila e arquivos ficam no banco ou no depósito.
 10. **Toda rota de dados passa pela verificação central de permissões** (`verificador.exigir(modulo, acao)`, em `nucleo/src/permissoes`), e todo módulo novo declara as próprias ações e a área no catálogo (`modulos.ts`). O alcance que ela devolve vira o filtro da consulta. Ver [decisão 0012](docs/decisoes/0012-permissoes.md).
 11. **Ação importante vira evento de auditoria** (`auditar`, em `nucleo/src/auditoria`), no formato do contrato e sem dado sensível nos detalhes. Ver [decisão 0014](docs/decisoes/0014-auditoria.md).
+12. **Todo módulo novo entra com ferramentas para os agentes internos: de leitura (listar e ver) e de ação**, declaradas no contrato com a descrição congelada por teste e com a regra no catálogo de ações (M4-03). O agente age com a permissão de quem pediu. Regra criada em 21/11/2026, depois de os agentes não conseguirem listar as tarefas no teste do Sandro.
 
 ## Segredos e segurança
 

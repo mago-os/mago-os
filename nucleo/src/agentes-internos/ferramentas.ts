@@ -32,6 +32,8 @@ import {
   buscarTarefa,
   comentar,
   criarTarefa,
+  listarTarefas,
+  nomesCitados,
   pessoaAtivaNaEmpresa,
   type Quem,
   trocarResponsavel,
@@ -188,6 +190,58 @@ export async function executarFerramenta(
           tarefas: ((entrada.tarefas as string[] | undefined) ?? []).slice(0, 20),
         },
       };
+    }
+    case "listar_tarefas": {
+      const quem = quemPediu(ctx.permissoes, pessoaId, "ver");
+      if (!quem) throw new RecusaDaFerramenta("Quem pediu não vê tarefas.");
+      const sem = (t: string) =>
+        t
+          .normalize("NFD")
+          .replace(/[\u0300-\u036f]/g, "")
+          .toLowerCase()
+          .trim();
+      const texto = typeof entrada.texto === "string" ? sem(entrada.texto) : null;
+      const limite = typeof entrada.limite === "number" ? entrada.limite : 30;
+      const feito = await naEmpresa(async (c) => {
+        const todas = await listarTarefas(c, quem, {
+          ...(entrada.minhas ? { minhas: true } : {}),
+          ...(entrada.status ? { status: entrada.status as never } : {}),
+          ...(entrada.projetoId ? { projetoId: entrada.projetoId as never } : {}),
+          ...(entrada.prazo ? { prazo: entrada.prazo as never } : {}),
+        });
+        const filtradas = texto ? todas.filter((t) => sem(t.titulo).includes(texto)) : todas;
+        const lista = filtradas.slice(0, limite);
+        const nomes = await nomesCitados(
+          c,
+          lista.flatMap((t) =>
+            t.responsavel
+              ? [t.responsavel.tipo === "pessoa" ? t.responsavel.pessoaId : t.responsavel.agenteId]
+              : [],
+          ),
+        );
+        const projetos = await c.query<{ id: string; nome: string }>(
+          "select id, nome from projetos where empresa_id = empresa_ativa() and id = any($1::uuid[])",
+          [[...new Set(lista.flatMap((t) => (t.projetoId ? [t.projetoId] : [])))]],
+        );
+        const nomeDoProjeto = Object.fromEntries(projetos.rows.map((p) => [p.id, p.nome]));
+        return {
+          total: filtradas.length,
+          tarefas: lista.map((t) => ({
+            id: t.id,
+            titulo: t.titulo,
+            status: t.status,
+            prioridade: t.prioridade,
+            prazo: t.prazo ? `${t.prazo.dia}${t.prazo.hora ? ` ${t.prazo.hora}` : ""}` : null,
+            projeto: t.projetoId ? (nomeDoProjeto[t.projetoId] ?? null) : null,
+            responsavel: t.responsavel
+              ? (nomes[t.responsavel.tipo === "pessoa" ? t.responsavel.pessoaId : t.responsavel.agenteId] ??
+                null)
+              : null,
+            subtarefa: t.tarefaMaeId !== null,
+          })),
+        };
+      });
+      return { conteudo: feito };
     }
     case "procurar_projeto": {
       const ver = ctx.permissoes.modulos.get("projetos")?.acoes.ver ?? "nada";
