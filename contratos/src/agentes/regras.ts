@@ -94,6 +94,27 @@ export const CATALOGO_DE_ACOES: readonly AcaoDoCatalogo[] = [
     padraoExterno: null,
   },
   {
+    acao: "pegar_instrucoes",
+    nome: "Ler as instruções",
+    mudaDados: false,
+    padraoInterno: "executa",
+    padraoExterno: "executa",
+  },
+  {
+    acao: "listar_skills",
+    nome: "Listar as skills",
+    mudaDados: false,
+    padraoInterno: "executa",
+    padraoExterno: "executa",
+  },
+  {
+    acao: "pegar_skill",
+    nome: "Ler uma skill",
+    mudaDados: false,
+    padraoInterno: "executa",
+    padraoExterno: "executa",
+  },
+  {
     acao: "baixar_anexo",
     nome: "Baixar anexo",
     mudaDados: false,

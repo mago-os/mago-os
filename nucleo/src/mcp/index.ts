@@ -558,5 +558,10 @@ export async function executar(
     case "estou_vivo":
       // A conferência da chave já registrou o sinal de vida.
       return { ok: true, agora: new Date().toISOString() };
+    case "pegar_instrucoes":
+    case "listar_skills":
+    case "pegar_skill":
+      // M4-05: o código entra depois do aprovado dos contratos.
+      throw new RecusaDaFerramenta("Ainda não disponível.");
   }
 }

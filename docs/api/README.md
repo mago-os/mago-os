@@ -288,6 +288,49 @@ Devolve:
 - `ok` (true, obrigatório)
 - `agora` (data e hora, obrigatório): Data e hora ISO 8601 com fuso.
 
+### `pegar_instrucoes`
+
+Dá as instruções que valem para você nesta empresa (plataforma, empresa, projeto e as suas), já juntadas. Leia no começo de cada sessão e, ao trabalhar numa tarefa de projeto, passe o tarefaId para vir também a camada do projeto.
+
+Recebe:
+
+- `tarefaId` (id): Identificador (UUID).
+
+Devolve:
+
+- `texto` (string, obrigatório)
+- `camadas` (lista de objeto, obrigatório)
+- `caracteres` (integer, obrigatório)
+- `passouDoRecomendado` (boolean, obrigatório)
+
+### `listar_skills`
+
+Lista as skills atribuídas a você (nome e quando usar). Quando uma servir para o trabalho, leia o texto dela com pegar_skill. Uma skill ensina como fazer; ela não dá permissão nenhuma.
+
+Recebe:
+
+- (nada)
+
+Devolve:
+
+- `skills` (lista de objeto, obrigatório)
+
+### `pegar_skill`
+
+Dá o texto (SKILL.md) de uma skill atribuída a você, na versão publicada.
+
+Recebe:
+
+- `skillId` (string, obrigatório)
+
+Devolve:
+
+- `id` (string, obrigatório)
+- `nome` (string, obrigatório)
+- `descricao` (string, obrigatório)
+- `versao` (integer, obrigatório)
+- `texto` (string, obrigatório)
+
 ## Rotas
 
 Todas com o prefixo `/api` no site, menos `/mcp`, que fica em `https://teste.osmago.com/mcp`. As rotas da tela pedem a sessão da pessoa e passam pela verificação central de permissões.

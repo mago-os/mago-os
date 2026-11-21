@@ -97,7 +97,7 @@ describe.skipIf(!bancoDisponivel)("servidor MCP", () => {
     await banco?.apagar();
   });
 
-  it("lista as onze ferramentas, com descrição e esquema de entrada", async () => {
+  it("lista as catorze ferramentas, com descrição e esquema de entrada", async () => {
     const cliente = await conectar(chaves.Um?.chave ?? "");
     const { tools } = await cliente.listTools();
     expect(tools.map((t) => t.name)).toEqual([
@@ -112,6 +112,9 @@ describe.skipIf(!bancoDisponivel)("servidor MCP", () => {
       "marcar_checklist",
       "baixar_anexo",
       "estou_vivo",
+      "pegar_instrucoes",
+      "listar_skills",
+      "pegar_skill",
     ]);
     expect(tools.every((t) => (t.description ?? "").length > 20 && t.inputSchema.type === "object")).toBe(
       true,
