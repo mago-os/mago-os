@@ -8,6 +8,7 @@ import {
   type ACOES_LINHA_DO_TEMPO,
   type ACOES_PRAZOS,
   type ACOES_TAREFAS,
+  type Autor,
   conferir,
   conferirPedidoDeMudarStatus,
   FiltroDeTarefas,
@@ -35,6 +36,7 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import type pg from "pg";
 import { origemDoPedido } from "../acesso/rotas.ts";
 import { agenteRecebeTarefas } from "../agentes/servico.ts";
+import { entregarAoAgenteInterno } from "../agentes-internos/tarefa-atribuida.ts";
 import { auditar } from "../auditoria/registrar.ts";
 import { avisarDepois, type EventoDeTarefa } from "../avisos/eventos.ts";
 import { deixarDeSeguir, segue, seguir } from "../avisos/notificacoes.ts";
@@ -190,6 +192,8 @@ export function registrarRotasDasTarefas(
   app: FastifyInstance,
   verificador: Verificador,
   poolApp: pg.Pool,
+  /** acordarAgente: põe na fila o trabalho de um agente interno que recebeu uma tarefa (M4-04). */
+  opcoes: { acordarAgente?(empresaId: string, execucaoId: string): void } = {},
 ): void {
   /** Abre a transação da pessoa na empresa ativa. */
   function naEmpresa<T>(pedido: FastifyRequest, trabalho: (c: pg.PoolClient) => Promise<T>) {
@@ -198,15 +202,27 @@ export function registrarRotasDasTarefas(
   }
 
   /** Os avisos e seguidores de um acontecimento (M3-06), depois da mudança. */
-  function avisar(pedido: FastifyRequest, e: EventoDeTarefa) {
+  async function avisar(pedido: FastifyRequest, e: EventoDeTarefa) {
     const { sessao } = acessoDo(pedido);
-    return avisarDepois(
+    await avisarDepois(
       poolApp,
       sessao.empresaId,
       { tipo: "pessoa", pessoaId: sessao.pessoa.id },
       e,
       pedido.log,
     );
+    // Tarefa que chegou a um agente interno vira trabalho dele, com a permissão de quem atribuiu (M4-04).
+    if ((e.tipo === "criou" || e.tipo === "trocou_responsavel") && e.tarefa.responsavel?.tipo === "agente")
+      await entregar(pedido, { tipo: "pessoa", pessoaId: sessao.pessoa.id }, e.tarefa.id);
+  }
+  async function entregar(pedido: FastifyRequest, quem: Autor, tarefaId: string) {
+    await entregarAoAgenteInterno(
+      poolApp,
+      acessoDo(pedido).sessao.empresaId,
+      quem,
+      tarefaId,
+      opcoes.acordarAgente,
+    ).catch((erro) => pedido.log.error({ erro, tarefaId }, "Tarefa do agente interno: não entrou na fila"));
   }
 
   async function registrar(
@@ -510,6 +526,8 @@ export function registrarRotasDasTarefas(
           proximaId: feito.proxima,
           ocorrencia: feito.tarefa.ocorrencia + 1,
         });
+        // A próxima nasce do sistema: com um agente interno de responsável, quem pede é o responsável por ele.
+        await entregar(pedido, { tipo: "sistema" }, feito.proxima);
       }
       if (feito.pegou) await avisar(pedido, { tipo: "pegou", tarefa: feito.tarefa });
       if (feito.mudou) await avisar(pedido, { tipo: "mudou_status", tarefa: feito.tarefa, de: feito.de });
@@ -576,7 +594,7 @@ export function registrarRotasDasTarefas(
         const tarefa = await buscarTarefa(c, quem, id, true);
         if (!tarefa) return null;
         if (tarefa.trava && !travadaPorQuem(tarefa, quem)) return { travada: true as const };
-        return { item: await criarItem(c, tarefa.id, r.valor.texto) };
+        return { item: await criarItem(c, tarefa.id, r.valor.texto, autorDe(quem)) };
       });
       if (!feito) return naoEncontrada(resposta);
       if ("travada" in feito) return travada(resposta);

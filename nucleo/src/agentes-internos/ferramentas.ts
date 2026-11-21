@@ -6,6 +6,7 @@
  */
 import {
   conferir,
+  type DeclaracaoDeModulo,
   FERRAMENTAS_DO_MCP_NO_ESPECIALISTA,
   FERRAMENTAS_INTERNAS,
   FERRAMENTAS_MCP,
@@ -26,7 +27,7 @@ import type { FerramentaParaModelo } from "../contas-de-ia/conversa.ts";
 import { comEmpresa } from "../empresa.ts";
 import { type AcaoDeTarefa, executar, RecusaDaFerramenta } from "../mcp/index.ts";
 import { filtroDoAlcance } from "../permissoes/calcular.ts";
-import type { PermissoesNaEmpresa } from "../permissoes/verificar.ts";
+import { type PermissoesNaEmpresa, permissoesNaEmpresa } from "../permissoes/verificar.ts";
 import { buscarProjeto, listarProjetos } from "../projetos/servico.ts";
 import { criarItem, listarChecklist } from "../tarefas/checklist.ts";
 import { acontecimentoDaAcao, registrarAcontecimento } from "../tarefas/linha-do-tempo.ts";
@@ -35,6 +36,7 @@ import { listarPrioridades } from "../tarefas/prioridades.ts";
 import {
   buscarTarefa,
   comentar,
+  condicaoDeAlcance,
   criarTarefa,
   idsCitados,
   listarComentarios,
@@ -47,6 +49,13 @@ import {
   trocarResponsavel,
 } from "../tarefas/servico.ts";
 import { criarExecucao, type ExecucaoComInstrucoes } from "./dados.ts";
+import { entregarAoAgenteInterno } from "./tarefa-atribuida.ts";
+import {
+  type FontesDeTexto,
+  haTextoDeOutros,
+  marcarTextoDeOutros,
+  tarefasNoResultado,
+} from "./texto-de-outros.ts";
 
 export interface AgenteQueRoda {
   id: string;
@@ -69,6 +78,16 @@ export interface ContextoDaFerramenta {
   motivoDoPedido?: string | null;
   /** Ação aprovada cuja execução de origem não existe mais: a execução do contexto não está no banco. */
   semExecucao?: boolean;
+  /**
+   * O responsável pelo agente, quando não é quem pediu nem administra (M4-04): o agente só alcança o que quem pediu
+   * e ele alcançam. Nulo: vale só a permissão de quem pediu.
+   */
+  responsavel?: ResponsavelDoAgente | null;
+}
+
+export interface ResponsavelDoAgente {
+  pessoaId: string;
+  permissoes: PermissoesNaEmpresa;
 }
 
 /** O que a ferramenta devolveu ao modelo e, se for o fim, o que dizer à pessoa. */
@@ -112,12 +131,94 @@ const ehDoAgente = (t: Tarefa, agenteId: string) =>
   (t.responsavel?.tipo === "agente" && t.responsavel.agenteId === agenteId) ||
   (t.trava?.por.tipo === "agente" && t.trava.por.agenteId === agenteId);
 
+/**
+ * O responsável pelo agente para o contexto (M4-04): nulo quando é quem pediu ou quando administra a empresa (alcança
+ * tudo). "inativo": o responsável não tem mais vínculo ativo, e o agente não age.
+ */
+export async function responsavelDoContexto(
+  poolApp: pg.Pool,
+  empresaId: string,
+  responsavelId: string,
+  pedidoPor: string,
+  catalogo: Map<string, DeclaracaoDeModulo>,
+): Promise<ResponsavelDoAgente | null | "inativo"> {
+  if (responsavelId === pedidoPor) return null;
+  const permissoes = await permissoesNaEmpresa(poolApp, responsavelId, empresaId, catalogo);
+  if (!permissoes) return "inativo";
+  return permissoes.perfil === "administrador" ? null : { pessoaId: responsavelId, permissoes };
+}
+
+/** O texto que cada ferramenta mostrou ao modelo (para a marca de texto de outros, M4-04). */
+function fontesDaFerramenta(
+  nome: string,
+  entrada: Record<string, unknown>,
+  conteudo: unknown,
+): FontesDeTexto | null {
+  const tarefaDaEntrada = typeof entrada.tarefaId === "string" ? [entrada.tarefaId] : [];
+  switch (nome) {
+    case "responder":
+    case "perguntar":
+    // Nomes de pessoas e de projetos não contam (decisão 0026: texto de tarefas e anexos).
+    case "procurar_pessoa":
+    case "procurar_projeto":
+      return null;
+    case "ver_tarefa":
+      return { tarefasInteiras: tarefaDaEntrada };
+    case "buscar": {
+      const rs = ((conteudo as { resultados?: unknown[] })?.resultados ?? []) as {
+        tipo?: string;
+        id?: string;
+        link?: string;
+      }[];
+      const comentarios = rs.filter((x) => x.tipo === "comentario");
+      return {
+        tarefas: [
+          ...rs.filter((x) => x.tipo === "tarefa").flatMap((x) => (x.id ? [x.id] : [])),
+          ...comentarios.flatMap((x) => (x.link?.startsWith("/tarefas/") ? [x.link.slice(9)] : [])),
+        ],
+        comentarios: comentarios.flatMap((x) => (x.id ? [x.id] : [])),
+      };
+    }
+    default:
+      return { tarefas: [...tarefaDaEntrada, ...tarefasNoResultado(conteudo)] };
+  }
+}
+
+/**
+ * Executa a ferramenta e, se ela mostrou texto de outra pessoa ou de agente externo, marca a execução: daí em diante,
+ * o que muda dados pede aprovação (M4-04, decisão 0026).
+ */
 export async function executarFerramenta(
   ctx: ContextoDaFerramenta,
   nome: string,
   entradaBruta: unknown,
   /** aprovada: a ação foi aprovada por uma pessoa (M4-03): a regra já foi cumprida. */
   opcoes: { aprovada?: boolean } = {},
+): Promise<ResultadoDaFerramenta> {
+  const feito = await executarSemMarca(ctx, nome, entradaBruta, opcoes);
+  if (opcoes.aprovada || ctx.semExecucao || ctx.execucao.leuTextoDeOutros) return feito;
+  const conteudo = feito.conteudo as Record<string, unknown> | null;
+  if (conteudo && typeof conteudo === "object" && "pedidoDeAprovacao" in conteudo) return feito;
+  const fontes = fontesDaFerramenta(nome, (entradaBruta ?? {}) as Record<string, unknown>, feito.conteudo);
+  if (!fontes) return feito;
+  // A ação já aconteceu: um erro aqui não pode parecer falha dela (o modelo repetiria). Sem saber, vale a marca.
+  const marcou = await comEmpresa(ctx.poolApp, ctx.empresaId, async (c) => {
+    if (!(await haTextoDeOutros(c, ctx.execucao.pedidoPor, fontes))) return false;
+    await marcarTextoDeOutros(c, ctx.execucao.id);
+    return true;
+  }).catch((erro) => {
+    ctx.log.error({ erro, ferramenta: nome }, "Texto de outros: não conferiu; a execução fica marcada");
+    return true;
+  });
+  if (marcou) ctx.execucao = { ...ctx.execucao, leuTextoDeOutros: true };
+  return feito;
+}
+
+async function executarSemMarca(
+  ctx: ContextoDaFerramenta,
+  nome: string,
+  entradaBruta: unknown,
+  opcoes: { aprovada?: boolean },
 ): Promise<ResultadoDaFerramenta> {
   const pode = ferramentasDoPapel(ctx.agente.papel).find((f) => f.nome === nome);
   if (!pode) throw new RecusaDaFerramenta(`A ferramenta ${nome} não existe para o seu papel.`);
@@ -136,6 +237,42 @@ export async function executarFerramenta(
     comEmpresa(ctx.poolApp, ctx.empresaId, trabalho);
 
   /** A tarefa precisa estar ao alcance de quem pediu (a permissão da pessoa vale para o agente). */
+  /** Tarefa passada a outro agente interno: vira trabalho dele, em nome de quem pediu e com a marca (M4-04). */
+  const entregarAoAgente = (tarefaId: string) =>
+    entregarAoAgenteInterno(
+      ctx.poolApp,
+      ctx.empresaId,
+      { tipo: "pessoa", pessoaId },
+      tarefaId,
+      (_empresa, id) => ctx.acordar(id),
+      { leuTextoDeOutros: ctx.execucao.leuTextoDeOutros },
+    ).catch((erro) => ctx.log.error({ erro, tarefaId }, "Tarefa do agente interno: não entrou na fila"));
+
+  // A menor das duas permissões (M4-04): quem pediu e o responsável pelo agente (quando não é a mesma pessoa).
+  const responsavel = ctx.responsavel ?? null;
+  async function alcancaOResponsavel(c: pg.PoolClient, tarefaId: string, acao: "ver" | "editar") {
+    if (!responsavel) return true;
+    const q = quemPediu(responsavel.permissoes, responsavel.pessoaId, acao);
+    return q !== null && (await buscarTarefa(c, q, tarefaId)) !== null;
+  }
+  /** Só os itens cujas tarefas o responsável também vê (uma consulta só, com o alcance dele). */
+  async function soAsDoResponsavel<T>(c: pg.PoolClient, itens: T[], tarefaDe: (x: T) => string | null) {
+    if (!responsavel) return itens;
+    const q = quemPediu(responsavel.permissoes, responsavel.pessoaId, "ver");
+    const ids = [...new Set(itens.flatMap((x) => tarefaDe(x) ?? []))];
+    if (!q) return itens.filter((x) => !tarefaDe(x));
+    const alcance = condicaoDeAlcance(q, 1);
+    const r = await c.query<{ id: string }>(
+      `select t.id from tarefas t where t.empresa_id = empresa_ativa() and t.id = any($1::uuid[]) and ${alcance.sql}`,
+      [ids, ...alcance.valores],
+    );
+    const veem = new Set(r.rows.map((l) => l.id));
+    return itens.filter((x) => {
+      const id = tarefaDe(x);
+      return !id || veem.has(id);
+    });
+  }
+
   async function tarefaDeQuemPediu(
     c: pg.PoolClient,
     tarefaId: string,
@@ -146,6 +283,10 @@ export async function executarFerramenta(
     if (!quem) throw new RecusaDaFerramenta("Quem pediu não tem acesso a tarefas.");
     const t = await buscarTarefa(c, quem, tarefaId, travar);
     if (!t) throw new RecusaDaFerramenta("Tarefa não encontrada entre as que quem pediu alcança.");
+    if (!(await alcancaOResponsavel(c, tarefaId, acao)))
+      throw new RecusaDaFerramenta(
+        "Essa tarefa está fora do alcance da pessoa responsável por você, e você nunca alcança mais que ela.",
+      );
     return t;
   }
 
@@ -189,7 +330,9 @@ export async function executarFerramenta(
   // virar pedido (o resumo do pedido mostra o título).
   if (!opcoes.aprovada) {
     const agenteDaRegra = { id: ctx.agente.id, tipo: "interno" as const };
-    const avaliacao = await naEmpresa((c) => avaliarAcao(c, agenteDaRegra, nome, entrada));
+    const avaliacao = await naEmpresa((c) =>
+      avaliarAcao(c, agenteDaRegra, nome, entrada, { textoDeOutros: ctx.execucao.leuTextoDeOutros }),
+    );
     if (avaliacao === "bloqueado") {
       await auditar(
         ctx.poolApp,
@@ -208,7 +351,8 @@ export async function executarFerramenta(
         "Essa ação está bloqueada pela regra da empresa para você. Diga à pessoa que ela pode fazer pela tela.",
       );
     }
-    if (avaliacao === "aprovacao") {
+    if (avaliacao === "aprovacao" || avaliacao === "aprovacao_por_texto") {
+      const porTextoDeOutros = avaliacao === "aprovacao_por_texto";
       const pedido = await naEmpresa(async (c) => {
         // Quem pediu precisa poder fazer a ação na tarefa (ver para comentar, editar para mudar), senão o pedido
         // nasceria para falhar.
@@ -225,6 +369,7 @@ export async function executarFerramenta(
           acao: nome,
           parametros: entrada,
           motivo: ctx.motivoDoPedido ?? null,
+          porTextoDeOutros,
         });
       });
       await auditar(
@@ -236,7 +381,7 @@ export async function executarFerramenta(
           alvo: { tipo: "aprovacao", id: pedido.id },
           origem: ctx.opcoesMcp.origem,
           rastreio: null,
-          detalhes: { acao: nome, execucaoId, tarefaId: pedido.tarefaId },
+          detalhes: { acao: nome, execucaoId, tarefaId: pedido.tarefaId, porTextoDeOutros },
         },
         ctx.log,
       );
@@ -244,7 +389,7 @@ export async function executarFerramenta(
         conteudo: {
           pedidoDeAprovacao: pedido.id,
           situacao: "pendente",
-          mensagem: `Essa ação precisa de aprovação. O pedido foi enviado (${pedido.resumo}) e ela acontece quando alguém aprovar, em até 24 horas. Avise a pessoa e siga com o resto.`,
+          mensagem: `${porTextoDeOutros ? "Você leu texto de outra pessoa neste trabalho, então o que muda dados agora precisa de aprovação." : "Essa ação precisa de aprovação."} O pedido foi enviado (${pedido.resumo}) e ela acontece quando alguém aprovar, em até 24 horas. Avise a pessoa e siga com o resto.`,
         },
       };
     }
@@ -264,6 +409,10 @@ export async function executarFerramenta(
       ctx.opcoesMcp,
       { log: ctx.log as never },
     );
+    // Subtarefa criada para outro agente interno: vira trabalho dele, em nome de quem pediu (M4-04).
+    const criada = resultado as { id?: string; responsavel?: { tipo: string } | null };
+    if (nome === "criar_subtarefa" && criada.id && criada.responsavel?.tipo === "agente")
+      await entregarAoAgente(criada.id);
     return { conteudo: resultado };
   }
 
@@ -329,19 +478,28 @@ export async function executarFerramenta(
           .toLowerCase()
           .trim();
       const procurado = sem(entrada.nome as string);
-      const alcance = ctx.permissoes.modulos.get("pessoas")?.acoes.ver ?? "nada";
-      const filtro = filtroDoAlcance(alcance, pessoaId, ctx.permissoes.area);
       const feito = await naEmpresa(async (c) => {
-        // Pessoas pelo alcance de quem pediu (o mesmo da tela Pessoas); agentes, todos os ativos (todos veem agentes).
-        const pessoas = filtro
-          ? await c.query<{ id: string; nome: string; area: string | null }>(
-              `select p.id, p.nome, v.area from vinculos v join pessoas p on p.id = v.pessoa_id
-                where v.empresa_id = empresa_ativa() and v.situacao = 'ativo'
-                  and ($1::text = 'tudo' or ($1 = 'equipe' and v.area is not distinct from $2) or v.pessoa_id = $3)
-                order by lower(p.nome) limit 500`,
-              [filtro.tipo, filtro.tipo === "equipe" ? filtro.area : null, pessoaId],
-            )
-          : { rows: [] };
+        // Pessoas pelo alcance de quem pediu (o mesmo da tela Pessoas) e do responsável pelo agente; agentes, todos os
+        // ativos (todos veem agentes).
+        const pessoasDe = async (p: PermissoesNaEmpresa, id: string) => {
+          const filtro = filtroDoAlcance(p.modulos.get("pessoas")?.acoes.ver ?? "nada", id, p.area);
+          if (!filtro) return [];
+          const r = await c.query<{ id: string; nome: string; area: string | null }>(
+            `select p.id, p.nome, v.area from vinculos v join pessoas p on p.id = v.pessoa_id
+              where v.empresa_id = empresa_ativa() and v.situacao = 'ativo'
+                and ($1::text = 'tudo' or ($1 = 'equipe' and v.area is not distinct from $2) or v.pessoa_id = $3)
+              order by lower(p.nome) limit 500`,
+            [filtro.tipo, filtro.tipo === "equipe" ? filtro.area : null, id],
+          );
+          return r.rows;
+        };
+        let pessoas = { rows: await pessoasDe(ctx.permissoes, pessoaId) };
+        if (responsavel) {
+          const dele = new Set(
+            (await pessoasDe(responsavel.permissoes, responsavel.pessoaId)).map((p) => p.id),
+          );
+          pessoas = { rows: pessoas.rows.filter((p) => dele.has(p.id)) };
+        }
         const agentes = await c.query<{ id: string; nome: string }>(
           `select id, nome from agentes where empresa_id = empresa_ativa() and situacao = 'ativo'
             order by lower(nome) limit 200`,
@@ -407,7 +565,7 @@ export async function executarFerramenta(
         const tarefa = await tarefaDeQuemPediu(c, tarefaId, "editar", true);
         if (tarefa.trava && !ehDoAgente(tarefa, ctx.agente.id))
           throw new RecusaDaFerramenta("Essa tarefa está pegada por outra pessoa ou agente agora.");
-        for (const texto of itens) await criarItem(c, tarefa.id, texto);
+        for (const texto of itens) await criarItem(c, tarefa.id, texto, agenteQuem);
         return itens.length;
       });
       await registrar("checklist.editou", tarefaId, { acrescentados: n });
@@ -416,7 +574,9 @@ export async function executarFerramenta(
     case "minhas_prioridades": {
       const quem = quemPediu(ctx.permissoes, pessoaId, "ver");
       if (quem?.tipo !== "pessoa") throw new RecusaDaFerramenta("Quem pediu não vê tarefas.");
-      const itens = await naEmpresa((c) => listarPrioridades(c, quem));
+      const itens = await naEmpresa(async (c) =>
+        soAsDoResponsavel(c, await listarPrioridades(c, quem), (i) => i.tarefaId),
+      );
       return {
         conteudo: {
           itens: itens
@@ -426,12 +586,13 @@ export async function executarFerramenta(
       };
     }
     case "buscar": {
-      const ver = (modulo: string) => ctx.permissoes.modulos.get(modulo)?.acoes.ver ?? "nada";
-      const quem = quemPediu(ctx.permissoes, pessoaId, "ver");
-      const pessoas = filtroDoAlcance(ver("pessoas"), pessoaId, ctx.permissoes.area);
-      const projetos = ver("projetos");
-      const resultados = await naEmpresa((c) =>
-        buscarNoMago(c, pessoaId, entrada.texto as string, {
+      // A busca com o alcance de uma pessoa (a de quem pediu e, se for outra, a do responsável pelo agente).
+      const buscarComo = (c: pg.PoolClient, p: PermissoesNaEmpresa, id: string) => {
+        const ver = (modulo: string) => p.modulos.get(modulo)?.acoes.ver ?? "nada";
+        const quem = quemPediu(p, id, "ver");
+        const pessoas = filtroDoAlcance(ver("pessoas"), id, p.area);
+        const projetos = ver("projetos");
+        return buscarNoMago(c, id, entrada.texto as string, {
           tarefas: quem && quem.tipo === "pessoa" ? quem : null,
           projetos: projetos === "nada" ? null : projetos === "tudo" ? "todos" : "membro",
           espacos: ver("espacos") !== "nada",
@@ -443,8 +604,16 @@ export async function executarFerramenta(
                 : { tipo: "meus" }
             : null,
           agentes: ver("agentes") !== "nada",
-        }),
-      );
+        });
+      };
+      const resultados = await naEmpresa(async (c) => {
+        const meus = await buscarComo(c, ctx.permissoes, pessoaId);
+        if (!responsavel) return meus;
+        const dele = new Set(
+          (await buscarComo(c, responsavel.permissoes, responsavel.pessoaId)).map((x) => `${x.tipo}:${x.id}`),
+        );
+        return meus.filter((x) => dele.has(`${x.tipo}:${x.id}`));
+      });
       return { conteudo: { resultados: resultados.slice(0, 30) } };
     }
     case "listar_tarefas": {
@@ -465,7 +634,11 @@ export async function executarFerramenta(
           ...(entrada.projetoId ? { projetoId: entrada.projetoId as never } : {}),
           ...(entrada.prazo ? { prazo: entrada.prazo as never } : {}),
         });
-        const filtradas = texto ? todas.filter((t) => sem(t.titulo).includes(texto)) : todas;
+        const filtradas = await soAsDoResponsavel(
+          c,
+          texto ? todas.filter((t) => sem(t.titulo).includes(texto)) : todas,
+          (t) => t.id,
+        );
         const lista = filtradas.slice(0, limite);
         const nomes = await nomesCitados(
           c,
@@ -509,25 +682,48 @@ export async function executarFerramenta(
           .toLowerCase()
           .trim();
       const procurado = sem(entrada.nome as string);
-      const projetos = await naEmpresa((c) =>
-        listarProjetos(c, pessoaId, ver === "tudo" ? "todos" : "membro", { arquivados: false }),
-      );
+      const projetos = await naEmpresa(async (c) => {
+        const meus = await listarProjetos(c, pessoaId, ver === "tudo" ? "todos" : "membro", {
+          arquivados: false,
+        });
+        if (!responsavel) return meus;
+        const verDele = responsavel.permissoes.modulos.get("projetos")?.acoes.ver ?? "nada";
+        if (verDele === "nada") return [];
+        const dele = new Set(
+          (
+            await listarProjetos(c, responsavel.pessoaId, verDele === "tudo" ? "todos" : "membro", {
+              arquivados: false,
+            })
+          ).map((p) => p.id),
+        );
+        return meus.filter((p) => dele.has(p.id));
+      });
       const achados = projetos.filter((p) => sem(p.nome).includes(procurado)).slice(0, 10);
       return { conteudo: { projetos: achados.map((p) => ({ id: p.id, nome: p.nome })) } };
     }
     case "criar_tarefa": {
       const quem = quemPediu(ctx.permissoes, pessoaId, "criar");
       if (!quem) throw new RecusaDaFerramenta("Quem pediu não pode criar tarefas.");
+      if (responsavel && !quemPediu(responsavel.permissoes, responsavel.pessoaId, "criar"))
+        throw new RecusaDaFerramenta(
+          "A pessoa responsável por você não pode criar tarefas, e você também não.",
+        );
       const projetoId = entrada.projetoId as string | undefined;
       const feito = await naEmpresa(async (c) => {
+        // O projeto precisa estar ao alcance de quem pediu e do responsável pelo agente.
+        const projetoAlcancado = async (p: PermissoesNaEmpresa, id: string) =>
+          ((
+            await c.query(
+              `select 1 from projetos p where p.id = $1 and p.empresa_id = empresa_ativa() and p.situacao = 'ativo'
+                  and ($2::boolean or membro_do_projeto(p.id, $3))`,
+              [projetoId, (p.modulos.get("projetos")?.acoes.ver ?? "nada") === "tudo", id],
+            )
+          ).rowCount ?? 0) > 0;
         if (projetoId) {
-          const p = await c.query(
-            `select 1 from projetos p where p.id = $1 and p.empresa_id = empresa_ativa() and p.situacao = 'ativo'
-                and ($2::boolean or membro_do_projeto(p.id, $3))`,
-            [projetoId, (ctx.permissoes.modulos.get("projetos")?.acoes.ver ?? "nada") === "tudo", pessoaId],
-          );
-          if ((p.rowCount ?? 0) === 0)
+          if (!(await projetoAlcancado(ctx.permissoes, pessoaId)))
             throw new RecusaDaFerramenta("Projeto não encontrado entre os de quem pediu.");
+          if (responsavel && !(await projetoAlcancado(responsavel.permissoes, responsavel.pessoaId)))
+            throw new RecusaDaFerramenta("Projeto fora do alcance da pessoa responsável por você.");
         }
         const planejamento = {
           ...(entrada.prazo ? { prazo: entrada.prazo as never } : {}),
@@ -589,6 +785,7 @@ export async function executarFerramenta(
           tarefaId,
           execucaoMaeId: execucaoId,
           instrucoes: entrada.instrucoes as string,
+          leuTextoDeOutros: ctx.execucao.leuTextoDeOutros,
         });
         return { tarefa: passada, execucaoId: filha.id };
       });
@@ -632,7 +829,7 @@ export async function executarFerramenta(
           criadas.push(sub);
         }
         const itens = [];
-        for (const texto of checklist) itens.push(await criarItem(c, mae.id, texto));
+        for (const texto of checklist) itens.push(await criarItem(c, mae.id, texto, agenteQuem));
         return { criadas, itens: itens.length };
       });
       for (const s of feito.criadas) {
@@ -676,6 +873,7 @@ export async function executarFerramenta(
         { tipo: "trocou_responsavel", tarefa: feito },
         ctx.log,
       );
+      if (responsavel.tipo === "agente") await entregarAoAgente(tarefaId);
       return { conteudo: { tarefa: { id: feito.id, titulo: feito.titulo, responsavel: feito.responsavel } } };
     }
   }

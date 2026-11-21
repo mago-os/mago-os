@@ -3,6 +3,7 @@
  * com o mago no centro, e no topo o seletor de empresa, o tema e a pessoa.
  */
 import {
+  ClipboardCheck,
   Download,
   Flame,
   FolderKanban,
@@ -33,12 +34,16 @@ export interface ItemDoMenu {
 export const MENU_DA_PESSOA: ItemDoMenu[] = [
   { caminho: "/", nome: "Início", icone: House },
   { caminho: "/prioridades", nome: "Prioridades", icone: Flame },
+  { caminho: "/aprovacoes", nome: "Aprovações", icone: ClipboardCheck },
   { caminho: "/tarefas", nome: "Tarefas", icone: ListChecks },
   { caminho: "/projetos", nome: "Projetos", icone: FolderKanban },
   { caminho: "/paineis", nome: "Painéis", icone: PanelsTopLeft },
   { caminho: "/perfil", nome: "Meu perfil", icone: UserRound },
   { caminho: "/aparelhos", nome: "Meus aparelhos", icone: MonitorSmartphone },
 ];
+
+/** Um item do menu pelo endereço (o menu de baixo do celular escolhe alguns). */
+const doMenu = (caminho: string) => MENU_DA_PESSOA.find((i) => i.caminho === caminho) as ItemDoMenu;
 
 const ICONE_DO_TEMA = { automatico: Monitor, claro: Sun, escuro: Moon } as const;
 
@@ -230,18 +235,15 @@ export function Casca(props: PropsDaCasca) {
         aria-label="Menu do celular"
         className="fixed inset-x-0 bottom-0 z-10 grid grid-cols-5 items-end border-t border-linha bg-cartao/95 px-2 pt-1 pb-[env(safe-area-inset-bottom)] backdrop-blur md:hidden"
       >
-        <ItemDeBaixo item={MENU_DA_PESSOA[0] as ItemDoMenu} aqui={caminho === "/"} />
-        <ItemDeBaixo item={MENU_DA_PESSOA[2] as ItemDoMenu} aqui={caminho.startsWith("/tarefas")} />
+        <ItemDeBaixo item={doMenu("/")} aqui={caminho === "/"} />
+        <ItemDeBaixo item={doMenu("/tarefas")} aqui={caminho.startsWith("/tarefas")} />
         <a href="/conversa" aria-label="Fale com o mago" className="mx-auto -mt-5 grid">
           <span className="grid size-14 place-items-center rounded-full bg-tinta shadow-lg">
             <Mago tamanho={44} cor="sobre-tinta" />
           </span>
         </a>
-        <ItemDeBaixo item={MENU_DA_PESSOA[3] as ItemDoMenu} aqui={caminho.startsWith("/projetos")} />
-        <ItemDeBaixo
-          item={MENU_DA_PESSOA[5] as ItemDoMenu}
-          aqui={caminho === "/perfil" || caminho === "/aparelhos"}
-        />
+        <ItemDeBaixo item={doMenu("/projetos")} aqui={caminho.startsWith("/projetos")} />
+        <ItemDeBaixo item={doMenu("/perfil")} aqui={caminho === "/perfil" || caminho === "/aparelhos"} />
       </nav>
     </div>
   );

@@ -97,7 +97,15 @@ async function iniciar(): Promise<void> {
     registrarRotasDoLogin(app, login, poolDoLogin);
     const verificador = criarVerificador(login, poolDoLogin, banco.pool, catalogoDeModulos());
     registrarRotasDePermissoes(app, verificador, banco.pool);
-    registrarRotasDasTarefas(app, verificador, banco.pool);
+    // Agentes internos (M4-02): a mensagem da pessoa, a delegação e a tarefa atribuída (M4-04) viram trabalho na fila; o motor roda cada um.
+    const acordarAgente = (empresaId: string, execucaoId: string) => {
+      void fila
+        .send(FILA_AGENTES_INTERNOS, { empresaId, execucaoId })
+        .catch((erro) =>
+          app.log.error({ erro, execucaoId }, "Fila dos agentes internos não recebeu o trabalho"),
+        );
+    };
+    registrarRotasDasTarefas(app, verificador, banco.pool, { acordarAgente });
     registrarRotasDosProjetos(app, verificador, banco.pool);
     registrarRotaDaBusca(app, verificador, banco.pool);
     registrarRotasDosLayouts(app, verificador, banco.pool);
@@ -129,14 +137,6 @@ async function iniciar(): Promise<void> {
       ),
       ambiente: config.ambiente,
     });
-    // Agentes internos (M4-02): a mensagem da pessoa e a delegação viram trabalho na fila; o motor roda cada um.
-    const acordarAgente = (empresaId: string, execucaoId: string) => {
-      void fila
-        .send(FILA_AGENTES_INTERNOS, { empresaId, execucaoId })
-        .catch((erro) =>
-          app.log.error({ erro, execucaoId }, "Fila dos agentes internos não recebeu o trabalho"),
-        );
-    };
     const opcoesDoMotor: OpcoesDoMotor = {
       poolApp: banco.pool,
       cofre,

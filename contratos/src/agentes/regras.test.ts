@@ -3,11 +3,14 @@ import { conferir } from "../comum.ts";
 import { FERRAMENTAS_MCP } from "../mcp/ferramentas.ts";
 import { FERRAMENTAS_INTERNAS } from "./internos.ts";
 import {
+  ACOES_DE_ALTO_RISCO,
   CATALOGO_DE_ACOES,
   conferirAprovacao,
   maisRestrito,
+  modoDepoisDeTextoDeOutros,
   PedidoDeDecisao,
   PedidoDeMudarRegras,
+  PREFIXOS_DE_ALTO_RISCO,
   padraoDaAcao,
 } from "./regras.ts";
 
@@ -34,6 +37,32 @@ describe("regras por ação", () => {
     // O que só lê ou conversa nunca pede aprovação.
     for (const a of CATALOGO_DE_ACOES.filter((x) => !x.mudaDados))
       expect(a.padraoInterno, a.acao).toBe("executa");
+  });
+
+  it("alto risco não existe como ferramenta de agente (M4-04, decisão 8)", () => {
+    for (const f of [
+      ...FERRAMENTAS_INTERNAS,
+      ...FERRAMENTAS_MCP,
+      ...CATALOGO_DE_ACOES.map((a) => ({ nome: a.acao })),
+    ])
+      for (const p of PREFIXOS_DE_ALTO_RISCO)
+        expect(f.nome.startsWith(p), `${f.nome} parece alto risco`).toBe(false);
+    expect(ACOES_DE_ALTO_RISCO.map((a) => a.assunto)).toEqual(
+      expect.arrayContaining([
+        "excluir tarefas",
+        "excluir projetos e espaços",
+        "ver a auditoria",
+        "exportar dados",
+      ]),
+    );
+  });
+
+  it("depois de texto de outros, o que muda dados pede aprovação; ler e conversar continuam (M4-04)", () => {
+    expect(modoDepoisDeTextoDeOutros("mudar_status", "executa_nas_dele")).toBe("pede_aprovacao");
+    expect(modoDepoisDeTextoDeOutros("comentar", "executa")).toBe("pede_aprovacao");
+    expect(modoDepoisDeTextoDeOutros("atribuir", "bloqueado")).toBe("bloqueado");
+    expect(modoDepoisDeTextoDeOutros("ver_tarefa", "executa")).toBe("executa");
+    expect(modoDepoisDeTextoDeOutros("responder", "executa")).toBe("executa");
   });
 
   it("o responsável só deixa mais restrito", () => {
@@ -63,6 +92,7 @@ describe("aprovações", () => {
     decididaEm: null,
     observacao: null,
     editada: false,
+    porTextoDeOutros: false,
     criadaEm: AGORA,
     venceEm: DEPOIS,
   };

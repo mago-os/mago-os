@@ -35,6 +35,7 @@ import {
 } from "../agentes/chaves.ts";
 import { avaliarAcao, criarAprovacao } from "../agentes/regras.ts";
 import { agenteRecebeTarefas } from "../agentes/servico.ts";
+import { entregarAoAgenteInterno } from "../agentes-internos/tarefa-atribuida.ts";
 import { buscarAnexo, listarAnexos, type ServicosDosAnexos, semCaminho } from "../anexos/servico.ts";
 import { auditar } from "../auditoria/registrar.ts";
 import { avisarDepois } from "../avisos/eventos.ts";
@@ -443,6 +444,10 @@ export async function executar(
           proximaId: feito.proxima,
           ocorrencia: feito.tarefa.ocorrencia + 1,
         });
+        // A próxima nasce do sistema: com um agente interno de responsável, ele trabalha em nome do responsável dele.
+        await entregarAoAgenteInterno(o.poolApp, agente.empresaId, { tipo: "sistema" }, feito.proxima).catch(
+          (erro) => pedido.log.error({ erro }, "Tarefa do agente interno: não entrou na fila"),
+        );
       }
       if (feito.mudou) {
         await avisarDepois(
@@ -487,6 +492,14 @@ export async function executar(
         tarefaMaeId: e.tarefaId,
       });
       await registrar("tarefa.criou_subtarefa", e.tarefaId, { subtarefaId: feito.tarefa.id });
+      // Para um agente interno: vira trabalho dele (M4-04); de um agente externo, em nome do responsável por ele.
+      if (responsavel.tipo === "agente")
+        await entregarAoAgenteInterno(
+          o.poolApp,
+          agente.empresaId,
+          { tipo: "agente", agenteId: agente.agenteId },
+          feito.tarefa.id,
+        ).catch((erro) => pedido.log.error({ erro }, "Tarefa do agente interno: não entrou na fila"));
       return feito.tarefa;
     }
     case "marcar_checklist": {

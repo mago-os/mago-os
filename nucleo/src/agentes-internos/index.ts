@@ -3,3 +3,5 @@ export * from "./dados.ts";
 export * from "./ferramentas.ts";
 export * from "./motor.ts";
 export * from "./rotas.ts";
+export * from "./tarefa-atribuida.ts";
+export * from "./texto-de-outros.ts";

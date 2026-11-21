@@ -15,6 +15,7 @@ import {
   HORAS_PARA_VENCER,
   type ModoDeAcao,
   maisRestrito,
+  modoDepoisDeTextoDeOutros,
   padraoDaAcao,
   type RegraDeAgente,
   type SituacaoDaAprovacao,
@@ -57,7 +58,8 @@ export async function tarefaEhDoAgente(
   return (r.rowCount ?? 0) > 0;
 }
 
-export type Avaliacao = "executa" | "aprovacao" | "bloqueado";
+/** aprovacao_por_texto: a regra deixava executar, mas a execução leu texto de outros antes (M4-04). */
+export type Avaliacao = "executa" | "aprovacao" | "aprovacao_por_texto" | "bloqueado";
 
 /** O que fazer com uma chamada de ferramenta, pela regra (a permissão de quem pediu é conferida depois, na ação). */
 export async function avaliarAcao(
@@ -65,15 +67,19 @@ export async function avaliarAcao(
   agente: { id: string; tipo: TipoDoAgente },
   acao: string,
   entrada: Record<string, unknown>,
+  opcoes: { textoDeOutros?: boolean } = {},
 ): Promise<Avaliacao> {
   const modo = await modoDaAcao(c, agente, acao);
   if (modo === "bloqueado") return "bloqueado";
-  if (modo === "executa") return "executa";
   if (modo === "pede_aprovacao") return "aprovacao";
   // executa_nas_dele: sem tarefa na entrada (ex.: criar), executa; com tarefa, só se for do agente.
   const tarefaId = typeof entrada.tarefaId === "string" ? entrada.tarefaId : null;
-  if (!tarefaId) return "executa";
-  return (await tarefaEhDoAgente(c, agente.id, tarefaId)) ? "executa" : "aprovacao";
+  if (modo === "executa_nas_dele" && tarefaId && !(await tarefaEhDoAgente(c, agente.id, tarefaId)))
+    return "aprovacao";
+  // A regra deixaria executar: depois de texto de outros, o que muda dados pede aprovação (M4-04).
+  if (opcoes.textoDeOutros && modoDepoisDeTextoDeOutros(acao, modo) === "pede_aprovacao")
+    return "aprovacao_por_texto";
+  return "executa";
 }
 
 /** As regras do agente, como a tela mostra (só as ações que existem para o tipo dele). */
@@ -219,6 +225,7 @@ interface LinhaDaAprovacao {
   decidida_em: Date | null;
   observacao: string | null;
   editada: boolean;
+  por_texto_de_outros: boolean;
   criada_em: Date;
   vence_em: Date;
 }
@@ -241,13 +248,15 @@ function paraAprovacao(l: LinhaDaAprovacao): Aprovacao {
     decididaEm: l.decidida_em?.toISOString() ?? null,
     observacao: l.observacao,
     editada: l.editada,
+    porTextoDeOutros: l.por_texto_de_outros,
     criadaEm: l.criada_em.toISOString(),
     venceEm: l.vence_em.toISOString(),
   };
 }
 
 const COLUNAS_DA_APROVACAO = `id, empresa_id, agente_id, execucao_id, pedido_por, acao, tarefa_id, parametros, resumo,
-  motivo, conferencia, situacao, decidida_por, decidida_em, observacao, editada, criada_em, vence_em`;
+  motivo, conferencia, situacao, decidida_por, decidida_em, observacao, editada, por_texto_de_outros, criada_em,
+  vence_em`;
 
 /** Grava o pedido e avisa quem pediu e o responsável pelo agente (no sino e no celular). */
 export async function criarAprovacao(
@@ -259,6 +268,8 @@ export async function criarAprovacao(
     acao: string;
     parametros: Record<string, unknown>;
     motivo: string | null;
+    /** Saiu porque o agente leu texto de outros (a regra dizia executa; M4-04). */
+    porTextoDeOutros?: boolean;
   },
 ): Promise<Aprovacao> {
   const tarefaId =
@@ -271,8 +282,8 @@ export async function criarAprovacao(
     : false;
   const r = await c.query<LinhaDaAprovacao>(
     `insert into aprovacoes (empresa_id, agente_id, execucao_id, pedido_por, acao, tarefa_id, parametros, resumo,
-       motivo, conferencia, vence_em)
-     values (empresa_ativa(), $1, $2, $3, $4, $5, $6::jsonb, $7, $8, $9, now() + make_interval(hours => $10))
+       motivo, conferencia, vence_em, por_texto_de_outros)
+     values (empresa_ativa(), $1, $2, $3, $4, $5, $6::jsonb, $7, $8, $9, now() + make_interval(hours => $10), $11)
      returning ${COLUNAS_DA_APROVACAO}`,
     [
       d.agenteId,
@@ -285,6 +296,7 @@ export async function criarAprovacao(
       d.motivo?.trim().slice(0, 1000) || null,
       conferenciaDe(d.parametros),
       HORAS_PARA_VENCER,
+      d.porTextoDeOutros ?? false,
     ],
   );
   const aprovacao = paraAprovacao(r.rows[0] as LinhaDaAprovacao);
@@ -414,8 +426,12 @@ export async function concluirAprovacao(
   return r.rows[0] ? paraAprovacao(r.rows[0]) : aprovacao;
 }
 
-/** Aprovações seguidas sem edição contam para a sugestão de liberar; recusa, edição ou falha zeram. */
+/**
+ * Aprovações seguidas sem edição contam para a sugestão de liberar; recusa, edição ou falha zeram. Os pedidos que
+ * saíram por texto de outros não mexem no contador (a regra já deixava executar).
+ */
 async function contarAprovacao(c: pg.PoolClient, aprovacao: Aprovacao, conta: boolean): Promise<void> {
+  if (aprovacao.porTextoDeOutros) return;
   await c.query(
     `insert into regras_de_agente (empresa_id, agente_id, acao, aprovadas_sem_edicao)
      values (empresa_ativa(), $1, $2, $3)
