@@ -222,6 +222,14 @@ export function textoDaAprovacaoNoTelegram(a: {
   return linhas.join("\n");
 }
 
+// Avisos e resumo do dia pelo Telegram (M5-08, decisão 0037).
+
+/** O aviso que não foi pelo Telegram em 12 horas (Telegram fora do ar, silêncio longo) fica só no sino e no push. */
+export const HORAS_PARA_DESISTIR_DO_AVISO_NO_TELEGRAM = 12;
+
+/** O aviso como chega no Telegram: o texto e o link para abrir no app. */
+export const textoDoAvisoNoTelegram = (texto: string, link: string) => `${texto}\n\n${link}`;
+
 /** Comandos do bot, na ordem do menu do Telegram. /nova e /tarefas chegam na M5-02. */
 export const COMANDOS_DO_TELEGRAM = [
   { comando: "nova", descricao: "Começar uma conversa nova com o coordenador" },

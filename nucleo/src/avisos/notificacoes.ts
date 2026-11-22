@@ -4,7 +4,12 @@
  * fora do horário de silêncio. O texto do push nunca leva dado da tarefa: o detalhe aparece ao abrir, depois da checagem
  * de permissão.
  */
-import type { Perfil, PreferenciasDeNotificacao, TipoDeAviso } from "@mago-os/contratos";
+import {
+  canaisDoTipo,
+  type Perfil,
+  type PreferenciasDeNotificacao,
+  type TipoDeAviso,
+} from "@mago-os/contratos";
 import type pg from "pg";
 import * as webPush from "web-push";
 import { comEmpresa } from "../empresa.ts";
@@ -72,7 +77,12 @@ export async function preferenciasDe(c: pg.PoolClient, pessoaId: string): Promis
     [pessoaId],
   );
   const p = r.rows[0]?.preferencias;
-  return { porTipo: p?.porTipo ?? {}, silencio: p?.silencio ?? null };
+  return {
+    porTipo: p?.porTipo ?? {},
+    silencio: p?.silencio ?? null,
+    // M5-08: sem o campo, o resumo do dia vai às 8h (horaDoResumo); nulo, desligado.
+    ...(p && "resumoDoDia" in p ? { resumoDoDia: p.resumoDoDia ?? null } : {}),
+  };
 }
 
 export async function salvarPreferencias(
@@ -143,11 +153,11 @@ export async function notificarTarefa(
   for (const pessoaId of para) {
     if (!(await pessoaVeTarefa(c, pessoaId, dados.tarefaId))) continue;
     const prefs = await preferenciasDe(c, pessoaId);
-    const canais = prefs.porTipo[dados.tipo] ?? { tela: true, push: true };
-    if (!canais.tela && !canais.push) continue;
+    const canais = canaisDoTipo(prefs, dados.tipo);
+    if (!canais.tela && !canais.push && !canais.telegram) continue;
     const r = await c.query(
-      `insert into avisos (empresa_id, pessoa_id, tipo, texto, link, tarefa_id, push_pendente, lido_em)
-       values (empresa_ativa(), $1, $2, $3, $4, $5, $6, case when $7 then null else now() end)`,
+      `insert into avisos (empresa_id, pessoa_id, tipo, texto, link, tarefa_id, push_pendente, lido_em, telegram_pendente)
+       values (empresa_ativa(), $1, $2, $3, $4, $5, $6, case when $7 then null else now() end, $8)`,
       [
         pessoaId,
         dados.tipo,
@@ -156,6 +166,7 @@ export async function notificarTarefa(
         dados.tarefaId,
         canais.push,
         canais.tela,
+        canais.telegram,
       ],
     );
     criados += r.rowCount ?? 0;
@@ -164,7 +175,7 @@ export async function notificarTarefa(
 }
 
 /** "Hoje" e a hora agora (HH:MM) no fuso. */
-function agoraNoFuso(fusoPedido: string, agora: Date): { dia: string; hora: string } {
+export function agoraNoFuso(fusoPedido: string, agora: Date): { dia: string; hora: string } {
   let fuso = fusoPedido;
   try {
     new Intl.DateTimeFormat("en-CA", { timeZone: fuso });

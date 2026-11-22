@@ -29,6 +29,7 @@ import {
 } from "@mago-os/nucleo/contas-de-ia";
 import { catalogoDeModulos, criarVerificador } from "@mago-os/nucleo/permissoes";
 import {
+  avisarNoTelegram,
   type CarteiroFalsoDoTelegram,
   carteiroFalsoDoTelegram,
   codigoDoPasso,
@@ -38,6 +39,7 @@ import {
   entregarPendentesNoTelegram,
   type OpcoesDoTelegram,
   registrarRotasDoTelegram,
+  resumoDoDiaNoTelegram,
   tratarAtualizacao,
 } from "@mago-os/nucleo/telegram";
 import Fastify, { type FastifyInstance } from "fastify";
@@ -152,7 +154,15 @@ describe.skipIf(!bancoDisponivel)("conversa pelo Telegram", () => {
     } as AtualizacaoDoTelegram;
     await tratarAtualizacao(opcoesDoBot, a);
   }
-  const doChat = (chatId: number) => carteiro.enviadas.filter((m) => m.chatId === chatId).map((m) => m.texto);
+  // O resumo do dia (M5-08) vai sozinho na verificação a cada minuto; os testes de cada assunto não contam com ele.
+  const doChat = (chatId: number) =>
+    carteiro.enviadas
+      .filter((m) => m.chatId === chatId && !m.texto.startsWith("Resumo do dia"))
+      .map((m) => m.texto);
+  const resumosDe = (chatId: number) =>
+    carteiro.enviadas
+      .filter((m) => m.chatId === chatId && m.texto.startsWith("Resumo do dia"))
+      .map((m) => m.texto);
 
   /** Roda a fila dos agentes e entrega as respostas, como a API faz ao fim de cada execução. */
   async function rodarEEntregar() {
@@ -814,5 +824,70 @@ describe.skipIf(!bancoDisponivel)("conversa pelo Telegram", () => {
   it("quem não pode decidir não decide pelo botão", async () => {
     await tocar(FLORA, `ap:a:${ids.aprovacao}`);
     expect(doChat(FLORA).at(-1)).toBe("Não encontrei esse pedido entre os que você pode decidir.");
+  });
+
+  // Avisos e resumo do dia pelo Telegram (M5-08).
+  async function aviso(pessoaId: string, tipo: string, texto: string, criadoHa = "0 minutes") {
+    await dono.query(
+      `insert into avisos (empresa_id, pessoa_id, tipo, texto, link, push_pendente, criado_em)
+       values ($1, $2, $3, $4, '/tarefas', false, now() - $5::interval)`,
+      [empresaId, pessoaId, tipo, texto, criadoHa],
+    );
+  }
+  async function preferencias(pessoaId: string, p: Record<string, unknown>) {
+    await dono.query(
+      `insert into preferencias_de_notificacao (empresa_id, pessoa_id, preferencias) values ($1, $2, $3::jsonb)
+       on conflict (empresa_id, pessoa_id) do update set preferencias = excluded.preferencias`,
+      [empresaId, pessoaId, JSON.stringify(p)],
+    );
+  }
+
+  it("pelo Telegram vai na hora só o urgente; o pedido de aprovação não se repete; o resto fica no sino", async () => {
+    await dono.query("update avisos set telegram_pendente = false");
+    await aviso(ids.ana as string, "mencao", "Flora mencionou você em Revisar o contrato da DFO.");
+    await aviso(ids.ana as string, "comentario", "Comentário novo numa tarefa que você segue.");
+    await aviso(ids.ana as string, "aprovacao_pedida", "Gerente de projetos pede aprovação.");
+    expect(await avisarNoTelegram(opcoesDoBot, empresaId)).toBe(1);
+    expect(doChat(ANA)).toEqual([`Flora mencionou você em Revisar o contrato da DFO.\n\n${SITE}/tarefas`]);
+    const pendentes = await dono.query("select count(*)::int as n from avisos where telegram_pendente");
+    expect(pendentes.rows[0]?.n).toBe(0);
+  });
+
+  it("o silêncio segura o aviso; ligado na preferência, o tipo vai; depois de 12 horas, desiste", async () => {
+    await preferencias(ids.ana as string, { porTipo: {}, silencio: { de: "00:00", ate: "23:59" } });
+    await aviso(ids.ana as string, "precisa_de_ajuda", "Uma tarefa precisa de ajuda.");
+    expect(await avisarNoTelegram(opcoesDoBot, empresaId)).toBe(0);
+    await preferencias(ids.ana as string, {
+      porTipo: { comentario: { tela: true, push: true, telegram: true } },
+      silencio: null,
+    });
+    await aviso(ids.ana as string, "comentario", "Comentário novo, agora pelo Telegram.");
+    await aviso(ids.ana as string, "mencao", "Menção antiga demais.", "13 hours");
+    expect(await avisarNoTelegram(opcoesDoBot, empresaId)).toBe(2);
+    expect(
+      doChat(ANA)
+        .map((t) => t.split("\n")[0])
+        .sort(),
+    ).toEqual(["Comentário novo, agora pelo Telegram.", "Uma tarefa precisa de ajuda."]);
+  });
+
+  it("o resumo do dia vai uma vez, na hora; desligado, não vai; tarde demais, o dia é pulado", async () => {
+    // 11:30 em UTC são 08:30 em São Paulo (o fuso padrão das pessoas de teste).
+    const asOitoEMeia = new Date("2030-01-15T11:30:00Z");
+    await preferencias(ids.ana as string, { porTipo: {}, silencio: null, resumoDoDia: { hora: "08:00" } });
+    await dono.query("update vinculos_do_telegram set resumo_do_dia_em = null");
+    await preferencias(ids.flora as string, { porTipo: {}, silencio: null, resumoDoDia: null });
+    expect(await resumoDoDiaNoTelegram(opcoesDoBot, empresaId, asOitoEMeia)).toBe(1);
+    expect(resumosDe(ANA)).toHaveLength(1);
+    expect(resumosDe(FLORA)).toEqual([]);
+    // Na mesma data, não repete.
+    expect(await resumoDoDiaNoTelegram(opcoesDoBot, empresaId, asOitoEMeia)).toBe(0);
+    const marcados = await dono.query(
+      "select count(*)::int as n from vinculos_do_telegram where resumo_do_dia_em = '2030-01-15'",
+    );
+    expect(marcados.rows[0]?.n).toBe(2);
+    // No dia seguinte às 20h (vinculou à noite, o servidor ficou fora): nada de resumo à noite, o dia é pulado.
+    expect(await resumoDoDiaNoTelegram(opcoesDoBot, empresaId, new Date("2030-01-16T23:00:00Z"))).toBe(0);
+    expect(resumosDe(ANA)).toHaveLength(1);
   });
 });
