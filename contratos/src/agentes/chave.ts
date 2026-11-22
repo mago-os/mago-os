@@ -123,6 +123,9 @@ export const TIPOS_DE_AVISO = [
   "aprovacao_pedida",
   "aprovacao_decidida",
   "teto_de_gasto",
+  // M4-09: os agentes foram parados (vai para os responsáveis e os administradores) e retomados.
+  "agentes_parados",
+  "agentes_retomados",
 ] as const;
 export const TipoDeAviso = Type.Enum(TIPOS_DE_AVISO);
 export type TipoDeAviso = Static<typeof TipoDeAviso>;

@@ -24,6 +24,8 @@ const NOMES: Record<TipoDeAviso, string> = {
   aprovacao_pedida: "Agente pediu a minha aprovação",
   aprovacao_decidida: "Pedido de aprovação decidido",
   teto_de_gasto: "Teto de gasto com IA",
+  agentes_parados: "Agentes parados",
+  agentes_retomados: "Agentes retomados",
 };
 
 type Mensagem = { texto: string; tipo: "erro" | "ok" } | null;

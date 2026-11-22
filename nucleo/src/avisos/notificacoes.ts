@@ -28,6 +28,8 @@ export const TEXTO_DO_PUSH: Record<TipoDeAviso, string> = {
   aprovacao_pedida: "Um agente pediu a sua aprovação",
   aprovacao_decidida: "Um pedido de aprovação foi decidido",
   teto_de_gasto: "Um teto de gasto com IA está perto ou chegou ao fim",
+  agentes_parados: "Os agentes foram parados",
+  agentes_retomados: "Os agentes voltaram ao trabalho",
 };
 
 /**
