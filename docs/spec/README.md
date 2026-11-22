@@ -10,8 +10,9 @@ Escrita em 15/11/2026 por Sandro Nolasco e Claude. Passou para cá em 16/11/2026
 | [M1-acesso.md](M1-acesso.md) | M1 Acesso | Concluído em 18/11/2026 |
 | [M2-prova.md](M2-prova.md) | M2 Prova de ponta a ponta | Concluído em 19/11/2026 |
 | [M3-projetos.md](M3-projetos.md) | M3 Projetos e tarefas completos | Concluído em 20/11/2026 |
-| [M4-agentes.md](M4-agentes.md) | M4 Agentes internos e regras | Aprovado em 20/11/2026, em construção |
-| [M2-a-M6.md](M2-a-M6.md) | M5 e M6 | Não iniciado (subtarefas escritas antes de cada marco) |
+| [M4-agentes.md](M4-agentes.md) | M4 Agentes internos e regras | Concluído em 22/11/2026 |
+| [M5-telegram-e-rotinas.md](M5-telegram-e-rotinas.md) | M5 Telegram e rotinas | Proposta em 22/11/2026, aguardando aprovação |
+| [M2-a-M6.md](M2-a-M6.md) | M6 | Não iniciado (subtarefas escritas antes de cada marco) |
 
 ## Como ler esta spec
 
