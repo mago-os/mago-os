@@ -124,6 +124,8 @@ function nomeDoAparelho(): string {
 type Etapa =
   | { tipo: "escolher" }
   | { tipo: "senha" }
+  /** O último segundo fator tem mais de 10 minutos: confirma (passkey ou código) e tenta de novo. */
+  | { tipo: "confirmar"; senha?: string }
   | { tipo: "qr"; totpURI: string; codigos: string[]; imagem: string }
   | { tipo: "codigos"; codigos: string[] };
 
@@ -161,6 +163,9 @@ export function AtivarDoisFatores({
       setEtapa({ tipo: "qr", totpURI: r.totpURI, codigos: r.codigos ?? [], imagem });
     } else if (r.codigo === "INVALID_PASSWORD" && !senha) {
       setEtapa({ tipo: "senha" });
+    } else if (r.codigo === "CONFIRMACAO_NECESSARIA") {
+      // Mexer no 2FA pede o segundo fator recente (M1-05): sem isso, a tela só mostrava o aviso e travava.
+      setEtapa(senha ? { tipo: "confirmar", senha } : { tipo: "confirmar" });
     } else {
       setErro(r.mensagem ?? null);
     }
@@ -173,6 +178,19 @@ export function AtivarDoisFatores({
       : obrigatorio
         ? "Para o seu perfil, a autenticação em 2 fatores é obrigatória. Escolha como quer confirmar que é você."
         : "Uma segunda prova, além da senha, de que é você mesmo.";
+
+  if (etapa.tipo === "confirmar") {
+    const senha = etapa.senha;
+    return (
+      <ConfirmarSegundoFator
+        soPasskey={soPasskey}
+        aoConfirmar={() => {
+          setEtapa({ tipo: "escolher" });
+          void comApp(senha);
+        }}
+      />
+    );
+  }
 
   if (etapa.tipo === "senha") {
     return (
