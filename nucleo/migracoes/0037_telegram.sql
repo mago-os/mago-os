@@ -141,6 +141,13 @@ CREATE FUNCTION public.atualizacao_nova_do_telegram(numero bigint) RETURNS boole
 COMMENT ON FUNCTION public.atualizacao_nova_do_telegram(bigint) IS
   'Grava o número da atualização do Telegram; falso se ela já tinha chegado.';
 
+-- A atualização não chegou à fila: esquece o número, para o Telegram poder entregar de novo.
+CREATE FUNCTION public.esquecer_atualizacao_do_telegram(numero bigint) RETURNS void
+  LANGUAGE sql SECURITY DEFINER SET search_path = public, pg_temp
+  AS $$ DELETE FROM telegram.atualizacoes WHERE update_id = numero $$;
+COMMENT ON FUNCTION public.esquecer_atualizacao_do_telegram(bigint) IS
+  'Apaga o número de uma atualização do Telegram que não chegou à fila (o Telegram entrega de novo).';
+
 -- Conta a mensagem da conta neste minuto e devolve quantas já foram.
 CREATE FUNCTION public.contar_mensagem_do_telegram(conta bigint) RETURNS integer
   LANGUAGE sql SECURITY DEFINER SET search_path = public, pg_temp
@@ -216,10 +223,10 @@ CREATE FUNCTION public.vincular_telegram(resumo_do_codigo text, conta bigint, ch
 COMMENT ON FUNCTION public.vincular_telegram(text, bigint, bigint, text, text) IS
   'Usa o código de vínculo do Telegram e liga a conta à pessoa, na empresa em que o código foi gerado.';
 
-REVOKE EXECUTE ON FUNCTION public.atualizacao_nova_do_telegram(bigint), public.contar_mensagem_do_telegram(bigint),
+REVOKE EXECUTE ON FUNCTION public.atualizacao_nova_do_telegram(bigint), public.esquecer_atualizacao_do_telegram(bigint), public.contar_mensagem_do_telegram(bigint),
   public.codigos_errados_do_telegram(bigint, boolean, integer), public.reconhecer_telegram(bigint),
   public.vincular_telegram(text, bigint, bigint, text, text), public.conferir_empresa_do_telegram() FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION public.atualizacao_nova_do_telegram(bigint), public.contar_mensagem_do_telegram(bigint),
+GRANT EXECUTE ON FUNCTION public.atualizacao_nova_do_telegram(bigint), public.esquecer_atualizacao_do_telegram(bigint), public.contar_mensagem_do_telegram(bigint),
   public.codigos_errados_do_telegram(bigint, boolean, integer), public.reconhecer_telegram(bigint),
   public.vincular_telegram(text, bigint, bigint, text, text) TO mago_app;
 
@@ -257,6 +264,7 @@ DROP FUNCTION public.vincular_telegram(text, bigint, bigint, text, text);
 DROP FUNCTION public.reconhecer_telegram(bigint);
 DROP FUNCTION public.codigos_errados_do_telegram(bigint, boolean, integer);
 DROP FUNCTION public.contar_mensagem_do_telegram(bigint);
+DROP FUNCTION public.esquecer_atualizacao_do_telegram(bigint);
 DROP FUNCTION public.atualizacao_nova_do_telegram(bigint);
 DROP SCHEMA telegram CASCADE;
 DROP TABLE public.codigos_do_telegram;

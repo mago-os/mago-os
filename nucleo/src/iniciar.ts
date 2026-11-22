@@ -59,7 +59,7 @@ import { criarServidor } from "./servidor.ts";
 import { registrarRotasDasTarefas } from "./tarefas/rotas.ts";
 import { carteiroDoTelegram } from "./telegram/carteiro.ts";
 import { type BotLigado, registrarRotasDoTelegram } from "./telegram/rotas.ts";
-import { tratarAtualizacao } from "./telegram/servico.ts";
+import { COMANDOS_LIGADOS, tratarAtualizacao } from "./telegram/servico.ts";
 import { registrarTempoReal } from "./tempo-real/index.ts";
 
 /** Fila da verificação de agente vivo (a cada minuto). */
@@ -301,7 +301,8 @@ async function iniciar(): Promise<void> {
       poolApp: banco.pool,
       bot,
       receber: async (atualizacao) => {
-        await fila.send(FILA_TELEGRAM, atualizacao, { retryLimit: 2, retryDelay: 5 });
+        // Sem repetir: vincular e as travas não podem rodar duas vezes (tratarAtualizacao não lança pelo envio).
+        await fila.send(FILA_TELEGRAM, atualizacao, { retryLimit: 0 });
       },
     });
     if (bot) {
@@ -312,13 +313,21 @@ async function iniciar(): Promise<void> {
           for (const t of lote)
             await tratarAtualizacao({ poolApp: banco.pool, carteiro: bot.carteiro, log: app.log }, t.data);
         });
-        // Ligar o webhook não segura a subida da API: se o Telegram não responder, tenta de novo ao reiniciar.
-        void (async () => {
-          usuarioDoBot = await bot.carteiro.quemSouEu();
-          await bot.carteiro.ligarWebhook(urlDoWebhook, bot.segredo);
-          await bot.carteiro.definirComandos();
-          app.log.info({ evento: "telegram.ligado", bot: usuarioDoBot }, "Bot do Telegram ligado");
-        })().catch((erro) => app.log.error({ erro }, "Telegram: o bot não ligou"));
+        // Ligar o webhook não segura a subida da API: se o Telegram não responder, tenta de novo a cada minuto. O
+        // cartão de Meu perfil só deixa gerar código depois que o webhook ligou.
+        const ligarBot = async () => {
+          try {
+            const usuario = await bot.carteiro.quemSouEu();
+            await bot.carteiro.ligarWebhook(urlDoWebhook, bot.segredo);
+            await bot.carteiro.definirComandos(COMANDOS_LIGADOS);
+            usuarioDoBot = usuario;
+            app.log.info({ evento: "telegram.ligado", bot: usuario }, "Bot do Telegram ligado");
+          } catch (erro) {
+            app.log.error({ erro }, "Telegram: o bot não ligou; tenta de novo em 1 minuto");
+            setTimeout(() => void ligarBot(), 60_000).unref();
+          }
+        };
+        void ligarBot();
       });
     }
     registrarRotasDaParadaDaPlataforma(app, {

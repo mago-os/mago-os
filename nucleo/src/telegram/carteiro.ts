@@ -5,7 +5,6 @@
  *
  * O token do bot nunca aparece no log: os erros levam só o nome do método e a descrição que o Telegram devolveu.
  */
-import { COMANDOS_DO_TELEGRAM } from "@mago-os/contratos";
 
 /** Um botão embaixo da mensagem (M5-04 em diante): ou abre um endereço, ou devolve os dados ao bot. */
 export type BotaoDoTelegram = { texto: string; url: string } | { texto: string; dados: string };
@@ -23,7 +22,7 @@ export interface CarteiroDoTelegram {
   /** Liga o webhook com o segredo, só para os tipos de atualização usados. */
   ligarWebhook(url: string, segredo: string): Promise<void>;
   /** O menu de comandos do bot. */
-  definirComandos(): Promise<void>;
+  definirComandos(comandos: readonly { comando: string; descricao: string }[]): Promise<void>;
   /** Sai de um grupo ou canal em que alguém pôs o bot. */
   sairDoChat(chatId: number): Promise<void>;
 }
@@ -108,9 +107,9 @@ export function carteiroDoTelegram(
         max_connections: 10,
       });
     },
-    async definirComandos() {
+    async definirComandos(comandos) {
       await chamar("setMyCommands", {
-        commands: COMANDOS_DO_TELEGRAM.map((c) => ({ command: c.comando, description: c.descricao })),
+        commands: comandos.map((c) => ({ command: c.comando, description: c.descricao })),
       });
     },
     async sairDoChat(chatId) {

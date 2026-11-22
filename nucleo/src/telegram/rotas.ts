@@ -60,7 +60,16 @@ export function registrarRotasDoTelegram(app: FastifyInstance, o: OpcoesDasRotas
         "select atualizacao_nova_do_telegram($1) as nova",
         [r.valor.update_id],
       );
-      if (nova.rows[0]?.nova) await o.receber(r.valor);
+      if (!nova.rows[0]?.nova) return { ok: true };
+      try {
+        await o.receber(r.valor);
+      } catch (erro) {
+        // Não chegou à fila: esquece o número para o Telegram poder entregar de novo.
+        await o.poolApp
+          .query("select esquecer_atualizacao_do_telegram($1)", [r.valor.update_id])
+          .catch(() => {});
+        throw erro;
+      }
       return { ok: true };
     });
   }
@@ -90,10 +99,9 @@ export function registrarRotasDoTelegram(app: FastifyInstance, o: OpcoesDasRotas
         nome: string;
         empresa_id: string;
         empresa_nome: string;
-        chat_id: string;
         vinculado_em: Date;
       }>(
-        `select t.usuario, t.nome, t.empresa_id, e.nome as empresa_nome, t.chat_id, t.vinculado_em
+        `select t.usuario, t.nome, t.empresa_id, e.nome as empresa_nome, t.vinculado_em
            from vinculos_do_telegram t join empresas e on e.id = t.empresa_id
           where t.pessoa_id = pessoa_ativa()`,
       );
@@ -136,7 +144,8 @@ export function registrarRotasDoTelegram(app: FastifyInstance, o: OpcoesDasRotas
     const ok = await comPessoa(o.poolApp, sessao.pessoa.id, sessao.empresaId, async (c) => {
       const e = await c.query<{ e: string | null }>("select empresa_ativa() as e");
       if (!e.rows[0]?.e) return false;
-      // Um código aberto por pessoa: o anterior deixa de valer.
+      // Um código aberto por pessoa: o anterior deixa de valer (um pedido por vez, para dois cliques não colidirem).
+      await c.query("select pg_advisory_xact_lock(hashtextextended('telegram:' || pessoa_ativa()::text, 0))");
       await c.query(
         "update codigos_do_telegram set usado_em = now() where pessoa_id = pessoa_ativa() and usado_em is null",
       );

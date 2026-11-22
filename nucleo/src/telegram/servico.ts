@@ -54,12 +54,18 @@ export function resumoDoCodigo(codigo: string): string {
  * O código que a pessoa mandou, se a mensagem parece um: "/start CODIGO" (o link do app) ou o código digitado,
  * com ou sem espaços e hífen, em maiúsculas ou minúsculas. Nulo se não parece código.
  */
-export function codigoDaMensagem(texto: string): string | null {
+export function codigoDaMensagem(texto: string): { codigo: string; peloLink: boolean } | null {
   const t = texto.trim();
   const comStart = /^\/start(?:@\w+)?\s+(\S+)$/i.exec(t);
   const bruto = (comStart ? comStart[1] : t)?.replace(/[\s-]/g, "").toUpperCase() ?? "";
-  return bruto.length === TAMANHO_DO_CODIGO_DO_TELEGRAM && /^[A-Z0-9]+$/.test(bruto) ? bruto : null;
+  return FORMATO_DO_CODIGO.test(bruto) ? { codigo: bruto, peloLink: comStart !== null } : null;
 }
+
+/** Só as letras do contrato: texto com 0, O, 1, I ou L nunca é código (e não conta como erro). */
+const FORMATO_DO_CODIGO = new RegExp(`^[${LETRAS_DO_CODIGO_DO_TELEGRAM}]{${TAMANHO_DO_CODIGO_DO_TELEGRAM}}$`);
+
+/** Os comandos que já funcionam (o menu do bot e a ajuda mostram só estes). /nova e /tarefas chegam na M5-02. */
+export const COMANDOS_LIGADOS = COMANDOS_DO_TELEGRAM.filter((c) => !["nova", "tarefas"].includes(c.comando));
 
 /** O comando da mensagem (sem a barra e sem o @bot), e o resto. */
 export function comandoDaMensagem(texto: string): { comando: string; resto: string } | null {
@@ -104,18 +110,33 @@ export function textoDaAjuda(p: PessoaDoTelegram): string {
     `Oi, ${primeiroNome(p.pessoaNome)}. Você está na ${p.empresaNome}.`,
     "",
     "Comandos:",
-    ...COMANDOS_DO_TELEGRAM.map((c) => `/${c.comando}: ${c.descricao}`),
+    ...COMANDOS_LIGADOS.map((c) => `/${c.comando}: ${c.descricao}`),
     "",
     "O Mago OS nunca pede senha nem código por aqui fora de uma aprovação que você mesmo abriu.",
   ].join("\n");
 }
 
-/** Trata uma atualização do webhook. Nunca lança por causa do conteúdo: o pior caso é não responder. */
-export async function tratarAtualizacao(o: OpcoesDoTelegram, a: AtualizacaoDoTelegram): Promise<void> {
+/**
+ * Trata uma atualização do webhook. Nunca lança por causa do conteúdo nem do envio: a fila não repete o trabalho
+ * (vincular e as travas não podem rodar duas vezes), e o pior caso é a resposta não chegar.
+ */
+export async function tratarAtualizacao(opcoes: OpcoesDoTelegram, a: AtualizacaoDoTelegram): Promise<void> {
   const m = a.message;
   if (!m?.from || m.from.is_bot) return;
+  const carteiro = opcoes.carteiro;
+  const o: OpcoesDoTelegram = {
+    ...opcoes,
+    carteiro: {
+      ...carteiro,
+      enviar: (chatId, texto, op) =>
+        carteiro.enviar(chatId, texto, op).catch((erro) => {
+          opcoes.log.warn({ erro }, "Telegram: a resposta não foi enviada");
+          return 0;
+        }),
+    },
+  };
   if (m.chat.type !== "private") {
-    await o.carteiro.enviar(m.chat.id, RESPOSTAS_DO_TELEGRAM.soConversaIndividual).catch(() => 0);
+    await o.carteiro.enviar(m.chat.id, RESPOSTAS_DO_TELEGRAM.soConversaIndividual);
     await o.carteiro.sairDoChat(m.chat.id).catch(() => {});
     return;
   }
@@ -124,10 +145,10 @@ export async function tratarAtualizacao(o: OpcoesDoTelegram, a: AtualizacaoDoTel
   if ((n.rows[0]?.n ?? 0) > MENSAGENS_POR_MINUTO_DO_TELEGRAM) return;
 
   const texto = m.text ?? "";
-  const codigo = codigoDaMensagem(texto);
-  if (codigo) return vincular(o, m, codigo);
-
   const pessoa = await reconhecerTelegram(o.poolApp, conta);
+  // Quem já está vinculado só vincula de novo pelo link (/start CODIGO): texto solto de 8 letras é conversa.
+  const codigo = codigoDaMensagem(texto);
+  if (codigo && (codigo.peloLink || !pessoa)) return vincular(o, m, codigo.codigo);
   if (!pessoa) {
     await o.carteiro.enviar(m.chat.id, RESPOSTAS_DO_TELEGRAM.semVinculo);
     return;
@@ -215,7 +236,7 @@ async function vincular(o: OpcoesDoTelegram, m: MensagemDoTelegram, codigo: stri
         tipo: "telegram_desvinculado",
         texto:
           "A conta do Telegram ligada a você foi vinculada a outra pessoa. Vincule de novo em Meu perfil se for sua.",
-        link: "/conta/perfil",
+        link: "/perfil",
       }),
     ).catch((erro) => o.log.warn({ erro }, "Aviso de Telegram desvinculado não foi criado"));
     await auditar(

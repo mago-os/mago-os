@@ -27,7 +27,7 @@ O M5 leva o Mago OS para o Telegram: falar com o coordenador, mandar arquivos, a
 - **/empresa por número:** /empresa lista as empresas numeradas e /empresa 2 troca. Os botões embaixo da mensagem chegam com a M5-04 (que precisa deles para as aprovações), e aí o /empresa ganha botões também.
 - **Aviso novo `telegram_desvinculado`:** vai para a pessoa que perdeu a conta do Telegram porque outra pessoa vinculou a mesma conta. A troca feita pela própria pessoa não gera aviso.
 - **O código aceita** o link (/start CODIGO), o código digitado e o código com espaço, hífen ou em minúsculas.
-- **Fila "telegram":** o webhook grava o número da atualização e manda para a fila (duas tentativas a mais). Texto solto, antes da M5-02, recebe a ajuda.
+- **Fila "telegram":** o webhook grava o número da atualização e manda para a fila, sem repetir (vincular e as travas não podem rodar duas vezes; se a fila não receber, o número é esquecido e o Telegram entrega de novo). A falha de envio da resposta só vai para o log. Texto solto de 8 letras de quem já está vinculado é conversa, não código (vincular de novo só pelo link); texto com 0, O, 1, I ou L nunca é código. O menu do bot e a ajuda mostram só os comandos que já funcionam. Texto solto, antes da M5-02, recebe a ajuda.
 - **Meu perfil › Telegram:** o cartão mostra o código, o link "Abrir o Telegram" e confere a cada 3 segundos se o bot já recebeu; com o vínculo, mostra a conta, a empresa e o botão Desvincular.
 
 ## O que foi descartado

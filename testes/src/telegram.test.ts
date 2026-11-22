@@ -238,7 +238,8 @@ describe.skipIf(!bancoDisponivel)("Telegram", () => {
 
   it("a mesma conta vinculada a outra pessoa sai da primeira, que é avisada no app", async () => {
     const codigo = await codigoDe("flora@teste.invalid");
-    await mandar(222, codigo);
+    // A conta já está vinculada (ao Sandro): vincular de novo só pelo link.
+    await mandar(222, `/start ${codigo}`);
     expect(ultima(222)).toMatch(/^Pronto, Flora\./);
     const s = (await pedir("GET", "/conta/telegram", await como("sandro@teste.invalid"))).json();
     expect(s.vinculo).toBeNull();
@@ -247,6 +248,14 @@ describe.skipIf(!bancoDisponivel)("Telegram", () => {
       [ids.sandro],
     );
     expect(aviso.rowCount).toBe(1);
+  });
+
+  it("quem já está vinculado conversa: texto de 8 letras não é código nem conta como erro", async () => {
+    for (let i = 0; i < 6; i++) await mandar(222, "ABCDEFGH");
+    expect(ultima(222)).toMatch(/^Oi, Flora/);
+    await mandar(222, "/ajuda");
+    expect(ultima(222)).toMatch(/^Oi, Flora/);
+    expect(ultima(222)).not.toMatch(/\/nova/);
   });
 
   it("/empresa lista as empresas da pessoa e troca", async () => {
