@@ -31,6 +31,7 @@ import {
   PedidoDeInstrucoes,
   PedidoDeItemDeChecklist,
   PedidoDeLiberarModelos,
+  PedidoDeLimites,
   PedidoDeLista,
   PedidoDeMensagem,
   PedidoDeMudarLista,
@@ -711,6 +712,20 @@ export const ROTAS: Rota[] = [
     permissao: "agentes.ver",
     oQueFaz:
       "As execuções recentes de um agente interno (todas para o responsável e o administrador; as próprias para os outros).",
+  },
+  {
+    metodo: "GET",
+    caminho: "/agentes/:id/limites",
+    permissao: "agentes.ver",
+    oQueFaz:
+      "Os limites de cada execução do agente interno: rodadas e minutos (M4-08), e se foram ajustados.",
+  },
+  {
+    metodo: "POST",
+    caminho: "/agentes/:id/limites",
+    permissao: "agentes.editar",
+    oQueFaz: "Muda os limites do agente interno (null volta ao padrão: 30 rodadas e 10 minutos).",
+    recebe: PedidoDeLimites,
   },
   {
     metodo: "GET",

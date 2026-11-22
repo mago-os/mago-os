@@ -10,13 +10,19 @@
 import {
   ACOES_DE_ALTO_RISCO,
   type DeclaracaoDeModulo,
+  LIMITE_PADRAO_DE_MINUTOS,
+  LIMITE_PADRAO_DE_RODADAS,
   type ModeloEscolhido,
+  type MotivoDaParada,
+  PASSADAS_PARA_PARAR,
   type PapelDeAgente,
+  REPETICOES_PARA_PARAR,
 } from "@mago-os/contratos";
 import type pg from "pg";
 import type { OpcoesDaChave } from "../agentes/chaves.ts";
-import { criarAprovacao } from "../agentes/regras.ts";
+import { criarAprovacao, jsonCanonico } from "../agentes/regras.ts";
 import { auditar } from "../auditoria/registrar.ts";
+import { criarAviso } from "../avisos/index.ts";
 import type { RodarClaudeCode } from "../contas-de-ia/claude-code.ts";
 import type { Cofre } from "../contas-de-ia/cofre.ts";
 import { ErroDoModelo, type Modelos, type ParteDaConversa } from "../contas-de-ia/conversa.ts";
@@ -83,7 +89,7 @@ export interface OpcoesDoMotor {
   limites?: { rodadas: number; tempoMs: number };
 }
 
-const LIMITES_PADRAO = { rodadas: 30, tempoMs: 10 * 60_000 };
+const LIMITES_PADRAO = { rodadas: LIMITE_PADRAO_DE_RODADAS, tempoMs: LIMITE_PADRAO_DE_MINUTOS * 60_000 };
 
 const REGRAS_FIXAS = `Regras que valem sempre:
 - Você trabalha dentro do Mago OS, para uma empresa. Use só as ferramentas que recebeu; não invente dados.
@@ -216,7 +222,6 @@ export async function verificarExecucoesEsquecidas(o: OpcoesDoMotor): Promise<nu
 }
 
 async function rodar(o: OpcoesDoMotor, empresaId: string, execucaoId: string): Promise<void> {
-  const limites = o.limites ?? LIMITES_PADRAO;
   const naEmpresa = <T>(trabalho: (c: pg.PoolClient) => Promise<T>) =>
     comEmpresa(o.poolApp, empresaId, trabalho);
 
@@ -230,8 +235,11 @@ async function rodar(o: OpcoesDoMotor, empresaId: string, execucaoId: string): P
       situacao: string;
       tipo: string;
       responsavel_id: string;
+      limite_de_rodadas: number | null;
+      limite_de_minutos: number | null;
     }>(
-      "select id, nome, papel, situacao, tipo, responsavel_id from agentes where id = $1 and empresa_id = empresa_ativa()",
+      `select id, nome, papel, situacao, tipo, responsavel_id, limite_de_rodadas, limite_de_minutos
+         from agentes where id = $1 and empresa_id = empresa_ativa()`,
       [execucao.agenteId],
     );
     // Tarefa atribuída a um agente pausado espera na fila até ele voltar (M4-04).
@@ -314,6 +322,12 @@ async function rodar(o: OpcoesDoMotor, empresaId: string, execucaoId: string): P
     return;
   }
   const agente: AgenteQueRoda = { id: agenteBruto.id, nome: agenteBruto.nome, papel: agenteBruto.papel };
+  // Os limites do agente (M4-08): o ajustado pelo administrador, ou o padrão (os testes podem trocar o padrão).
+  const padrao = o.limites ?? LIMITES_PADRAO;
+  const limites = {
+    rodadas: agenteBruto.limite_de_rodadas ?? padrao.rodadas,
+    tempoMs: agenteBruto.limite_de_minutos ? agenteBruto.limite_de_minutos * 60_000 : padrao.tempoMs,
+  };
   const cofre = o.cofre;
   let modelosDoAgenteAtual = preparo.modelos;
 
@@ -415,7 +429,19 @@ async function rodar(o: OpcoesDoMotor, empresaId: string, execucaoId: string): P
     });
 
   /** Roda uma ferramenta e grava o passo (parâmetros, resultado ou recusa, tempo e o pedido de aprovação). */
+  // As últimas chamadas (ferramenta e parâmetros), para parar o agente que repete a mesma coisa (M4-08).
+  const ultimasChamadas: string[] = [];
   const executarComPasso = async (nome: string, entrada: unknown) => {
+    if (nome !== "responder" && nome !== "perguntar") {
+      const assinatura = `${nome}:${jsonCanonico(entrada)}`;
+      const anteriores = ultimasChamadas.slice(-(REPETICOES_PARA_PARAR - 1));
+      if (anteriores.length === REPETICOES_PARA_PARAR - 1 && anteriores.every((a) => a === assinatura))
+        throw new LimiteDaExecucao(
+          `Chamou ${nome} com os mesmos dados ${REPETICOES_PARA_PARAR} vezes seguidas: parei para não ficar em círculo.`,
+          "repeticao",
+        );
+      ultimasChamadas.push(assinatura);
+    }
     const t0 = Date.now();
     try {
       const feito = await executarFerramenta(ctx, nome, entrada);
@@ -446,6 +472,12 @@ async function rodar(o: OpcoesDoMotor, empresaId: string, execucaoId: string): P
   // A tarefa da delegação: o especialista pega (para as ferramentas do MCP valerem) e solta no fim.
   let pegou = false;
   try {
+    // A mesma tarefa passando entre os mesmos dois agentes (M4-08): a terceira passada não começa.
+    if (execucao.tarefaId && execucao.origem !== "conversa" && (await vaiEVolta(o, empresaId, execucao)))
+      throw new LimiteDaExecucao(
+        `A tarefa passou entre os mesmos dois agentes ${PASSADAS_PARA_PARAR} vezes nas últimas 24 horas: parei para não ficar em círculo.`,
+        "vai_e_volta",
+      );
     const partes = await montarPartes(o, empresaId, execucao, agente, ctx);
     // O motivo dos pedidos de aprovação: as instruções de quem delegou, ou a última mensagem da pessoa.
     const ultimaDaPessoa = [...partes].reverse().find((p) => p.papel === "usuario");
@@ -540,6 +572,12 @@ async function rodar(o: OpcoesDoMotor, empresaId: string, execucaoId: string): P
             return { texto: externo(feito.conteudo).slice(0, 60_000), erro: false };
           } catch (erro) {
             if (erro instanceof RecusaDaFerramenta) return { texto: erro.message, erro: true };
+            // O núcleo parou o agente (M4-08): nada mais roda nesta execução, e ela para quando o Claude Code fechar.
+            if (erro instanceof LimiteDaExecucao) {
+              parouNoMeio = erro;
+              fim = { tipo: "responder", texto: erro.message, tarefas: [] };
+              return { texto: `Pare agora: ${erro.message}`, erro: true };
+            }
             o.log.error({ erro, execucaoId, ferramenta: nome }, "Agente interno: erro na ferramenta");
             return { texto: "Não foi possível concluir a ferramenta agora.", erro: true };
           }
@@ -548,6 +586,7 @@ async function rodar(o: OpcoesDoMotor, empresaId: string, execucaoId: string): P
         return esta;
       };
       let texto: string | null = null;
+      let parouNoMeio: LimiteDaExecucao | null = null;
       try {
         const r = await rodarCc({
           token: acesso.chave,
@@ -561,6 +600,10 @@ async function rodar(o: OpcoesDoMotor, empresaId: string, execucaoId: string): P
           executar,
         });
         texto = r.texto;
+        if (parouNoMeio) {
+          await passo({ tipo: "modelo", modelo: m.modelo, consumoId: await guardarConsumo(m, r.tokens) });
+          throw parouNoMeio;
+        }
         // Pelo Claude Code, o Mago OS vê as ferramentas e o fim; o custo vem num número só.
         await passo({
           tipo: "modelo",
@@ -570,7 +613,30 @@ async function rodar(o: OpcoesDoMotor, empresaId: string, execucaoId: string): P
           duracaoMs: Date.now() - inicio,
         });
       } catch (erro) {
-        if (erro instanceof ErroDoModelo && erro.tokens)
+        if (erro instanceof LimiteDaExecucao) throw erro;
+        if (parouNoMeio) throw parouNoMeio;
+        // O limite de rodadas e o de tempo, pelo Claude Code, também param como limite (M4-08).
+        if (erro instanceof ErroDoModelo && !fim) {
+          if (erro.tokens)
+            await passo({
+              tipo: "modelo",
+              modelo: m.modelo,
+              texto: erro.message,
+              consumoId: await guardarConsumo(m, erro.tokens),
+              duracaoMs: Date.now() - inicio,
+            });
+          if (/limite de rodadas/.test(erro.message))
+            throw new LimiteDaExecucao(
+              `Passou do limite de ${limites.rodadas} rodadas da execução.`,
+              "rodadas",
+            );
+          if (/tempo máximo/.test(erro.message))
+            throw new LimiteDaExecucao(
+              `Passou do tempo máximo da execução (${Math.round(limites.tempoMs / 60_000)} minutos).`,
+              "tempo",
+            );
+        }
+        if (erro instanceof ErroDoModelo && erro.tokens && fim)
           await passo({
             tipo: "modelo",
             modelo: m.modelo,
@@ -627,8 +693,33 @@ async function rodar(o: OpcoesDoMotor, empresaId: string, execucaoId: string): P
 
     const rodarPelaApi = async (): Promise<void> => {
       for (let rodada = 0; rodada < limites.rodadas; rodada++) {
+        // O teto também a cada rodada (M4-08): uma execução longa não passa muito dele.
+        if (rodada > 0) {
+          const agora = await naEmpresa((c) =>
+            conferirTetos(
+              c,
+              { id: agente.id, nome: agente.nome, responsavelId: agenteBruto.responsavel_id },
+              {
+                principal: modelosDoAgenteAtual.principal.contaId,
+                reserva: modelosDoAgenteAtual.reserva?.contaId ?? null,
+              },
+            ),
+          );
+          if (!("usarReserva" in agora) || agora.parar)
+            throw new LimiteDaExecucao(`Parou no meio: ${agora.parar}.`, "teto");
+          // A conta principal chegou ao limite no meio: segue pelo reserva; a do reserva chegou: sem reserva.
+          if (agora.usarReserva && modelosDoAgenteAtual.reserva) {
+            modelosDoAgenteAtual = { principal: modelosDoAgenteAtual.reserva, reserva: null };
+            reserva = reserva ?? agora.usarReserva;
+            await passo({ tipo: "sistema", texto: `Passou ao modelo reserva: ${agora.usarReserva}.` });
+          } else if (agora.semReserva && modelosDoAgenteAtual.reserva)
+            modelosDoAgenteAtual = { principal: modelosDoAgenteAtual.principal, reserva: null };
+        }
         if (Date.now() - inicio > limites.tempoMs)
-          throw new LimiteDaExecucao("Passou do tempo máximo da execução.");
+          throw new LimiteDaExecucao(
+            `Passou do tempo máximo da execução (${Math.round(limites.tempoMs / 60_000)} minutos).`,
+            "tempo",
+          );
         const r = await comReserva(
           modelosDoAgenteAtual,
           (m) =>
@@ -742,7 +833,7 @@ async function rodar(o: OpcoesDoMotor, empresaId: string, execucaoId: string): P
           }
         }
       }
-      throw new LimiteDaExecucao("Passou do limite de rodadas da execução.");
+      throw new LimiteDaExecucao(`Passou do limite de ${limites.rodadas} rodadas da execução.`, "rodadas");
     };
     try {
       await rodarPelaApi();
@@ -765,33 +856,77 @@ async function rodar(o: OpcoesDoMotor, empresaId: string, execucaoId: string): P
     await passo({ tipo: "sistema", texto: `Não concluiu: ${texto}` });
     await encerrar(limite ? "parada" : "falhou", texto);
     await avisarNaConversa(`Não consegui concluir: ${texto}`, "sistema");
-    await auditar(
-      o.poolApp,
-      {
-        empresaId,
-        ator: { tipo: "agente", agenteId: agente.id },
-        acao: "agente.falhou",
-        alvo: { tipo: "agente", id: agente.id },
-        origem: o.opcoesMcp.origem,
-        rastreio: null,
-        detalhes: { execucaoId, motivo: texto.slice(0, 300) },
-      },
-      o.log,
-    );
+    // Parado pelo núcleo (M4-08): a tarefa pede ajuda e o responsável recebe o aviso com o resumo.
+    if (erro instanceof LimiteDaExecucao) {
+      const resumo = `${agente.nome} parou: ${texto}`;
+      if (execucao.tarefaId && execucao.origem !== "conversa")
+        await pedirAjudaNaTarefa(
+          o,
+          empresaId,
+          agente.id,
+          execucao.tarefaId,
+          `${resumo} Veja o passo a passo da execução.`,
+        );
+      await naEmpresa((c) =>
+        criarAviso(c, {
+          pessoaId: agenteBruto.responsavel_id,
+          tipo: "agente_passou_do_limite",
+          texto: resumo.slice(0, 300),
+          link: `/execucoes/${execucaoId}`,
+        }),
+      ).catch((e) => o.log.error({ erro: e, execucaoId }, "Agente interno: o aviso da parada não saiu"));
+      await auditar(
+        o.poolApp,
+        {
+          empresaId,
+          ator: { tipo: "agente", agenteId: agente.id },
+          acao:
+            erro.motivo === "repeticao" || erro.motivo === "vai_e_volta"
+              ? "agente.andou_em_circulo"
+              : "agente.parou_no_limite",
+          alvo: { tipo: "agente", id: agente.id },
+          origem: o.opcoesMcp.origem,
+          rastreio: null,
+          detalhes: { execucaoId, motivo: erro.motivo },
+        },
+        o.log,
+      );
+    }
+    if (!(erro instanceof LimiteDaExecucao))
+      await auditar(
+        o.poolApp,
+        {
+          empresaId,
+          ator: { tipo: "agente", agenteId: agente.id },
+          acao: "agente.falhou",
+          alvo: { tipo: "agente", id: agente.id },
+          origem: o.opcoesMcp.origem,
+          rastreio: null,
+          detalhes: { execucaoId, motivo: texto.slice(0, 300) },
+        },
+        o.log,
+      );
   } finally {
     if (pegou && execucao.tarefaId) {
       const tarefaId = execucao.tarefaId;
       await naEmpresa(async (c) => {
         const t = await buscarTarefa(c, { tipo: "agente", agenteId: agente.id, comoGerente: true }, tarefaId);
-        if (t?.trava?.por.tipo === "agente" && t.trava.por.agenteId === agente.id)
-          await tirarTrava(c, tarefaId);
+        if (t?.trava?.por.tipo !== "agente" || t.trava.por.agenteId !== agente.id) return;
+        // Parado pelo núcleo, a tarefa já foi para "precisa de ajuda": solta sem voltar o status para "a fazer".
+        await tirarTrava(c, tarefaId, { manterStatus: t.status === "precisa_de_ajuda" });
       }).catch((erro) => o.log.error({ erro, execucaoId }, "Agente interno: não soltou a tarefa"));
     }
   }
 }
 
+/** O núcleo parou o agente no meio (M4-08): rodadas, tempo, repetição, vai e volta ou teto. */
 class LimiteDaExecucao extends Error {
   override name = "LimiteDaExecucao";
+  readonly motivo: MotivoDaParada;
+  constructor(mensagem: string, motivo: MotivoDaParada) {
+    super(mensagem);
+    this.motivo = motivo;
+  }
 }
 
 /** O pedido inicial: a conversa (coordenador) ou as instruções e a tarefa (delegação). */
@@ -820,6 +955,37 @@ async function textoDeOutrosNoComeco(
       return haTextoDeOutros(c, execucao.pedidoPor, { tarefasInteiras: [execucao.tarefaId] });
     return false;
   });
+}
+
+/**
+ * Vai e volta (M4-08): a corrente de passadas (cada execução criada pela anterior, por delegação ou atribuição de um
+ * agente) da tarefa, nas últimas 24 horas, alterna entre os mesmos dois agentes por PASSADAS_PARA_PARAR passadas.
+ * Duas execuções independentes do mesmo par (revisar e delegar de novo) não contam: só a tarefa passada de mão em mão.
+ */
+async function vaiEVolta(
+  o: OpcoesDoMotor,
+  empresaId: string,
+  execucao: ExecucaoComInstrucoes,
+): Promise<boolean> {
+  const r = await comEmpresa(o.poolApp, empresaId, (c) =>
+    c.query<{ agente_id: string }>(
+      `with recursive corrente as (
+         select id, agente_id, execucao_mae_id, tarefa_id, criada_em, 1 as n from execucoes_de_agente
+          where id = $1 and empresa_id = empresa_ativa()
+         union all
+         select e.id, e.agente_id, e.execucao_mae_id, e.tarefa_id, e.criada_em, c.n + 1
+           from execucoes_de_agente e join corrente c on e.id = c.execucao_mae_id
+          where e.empresa_id = empresa_ativa() and e.tarefa_id = c.tarefa_id and e.criada_em > now() - interval '24 hours'
+            and c.n <= $2
+       )
+       select agente_id from corrente order by n`,
+      [execucao.id, PASSADAS_PARA_PARAR + 1],
+    ),
+  );
+  const a = r.rows.map((l) => l.agente_id);
+  if (a.length < PASSADAS_PARA_PARAR + 1) return false;
+  const [x, y] = a;
+  return x !== y && a.slice(0, PASSADAS_PARA_PARAR + 1).every((id, i) => id === (i % 2 === 0 ? x : y));
 }
 
 /** Parou antes de começar (teto): a tarefa vai para "precisa de ajuda", com um comentário explicando. */

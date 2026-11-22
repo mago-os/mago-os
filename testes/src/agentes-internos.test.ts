@@ -13,6 +13,7 @@ import {
   type OpcoesDoMotor,
   registrarRotasDaConversa,
   registrarRotasDasAprovacoes,
+  registrarRotasDosLimites,
   registrarRotasDosPassos,
   rodarExecucao,
   verificarAprovacoesVencidas,
@@ -188,6 +189,7 @@ describe.skipIf(!bancoDisponivel)("agentes internos", () => {
     registrarRotasDasTarefas(app, verificador, poolApp, { acordarAgente: acordar });
     registrarRotasDosCustos(app, verificador, poolApp);
     registrarRotasDosPassos(app, verificador, poolApp);
+    registrarRotasDosLimites(app, verificador, poolApp);
     registrarRotasDosProjetos(app, verificador, poolApp);
     motor = {
       poolApp,
@@ -1575,6 +1577,114 @@ describe.skipIf(!bancoDisponivel)("agentes internos", () => {
     const depois = (await pedir("GET", `/execucoes/${execucaoId}`, ana)).json();
     expect(depois).toMatchObject({ passosApagados: true, passos: [] });
     expect(depois.custo).toBeGreaterThan(0);
+  });
+
+  it("limites e agente em círculo (M4-08): repetição, rodadas, teto no meio e vai e volta", async () => {
+    const ana = await como("ana@teste.invalid");
+    const novaTarefa = async (titulo: string) => {
+      const t = await pedir("POST", "/tarefas", ana, { titulo });
+      return t.json().id as string;
+    };
+    const passarAoGerente = (tarefaId: string) =>
+      pedir("POST", `/tarefas/${tarefaId}/responsavel`, ana, {
+        responsavel: { tipo: "agente", agenteId: ids.gerente },
+      });
+    const execucaoDa = async (tarefaId: string) =>
+      (
+        await dono.query<{ id: string; situacao: string; resumo: string }>(
+          "select id, situacao, resumo from execucoes_de_agente where tarefa_id = $1 order by criada_em desc limit 1",
+          [tarefaId],
+        )
+      ).rows[0];
+
+    // Repetição: a mesma ferramenta com os mesmos dados três vezes; a terceira não roda.
+    const repetida = await novaTarefa("Tarefa repetida");
+    const ver = () => ({ chamadas: [{ id: "r", nome: "ver_tarefa", entrada: { tarefaId: repetida } }] });
+    roteiro = [ver, ver, ver, ver];
+    await passarAoGerente(repetida);
+    await rodarFila();
+    const e1 = await execucaoDa(repetida);
+    expect(e1?.situacao).toBe("parada");
+    expect(e1?.resumo).toContain("mesmos dados 3 vezes seguidas");
+    const vezes = await dono.query(
+      "select 1 from passos_de_execucao where execucao_id = $1 and tipo = 'ferramenta' and ferramenta = 'ver_tarefa'",
+      [e1?.id],
+    );
+    expect(vezes.rowCount).toBe(2);
+    expect(
+      (await dono.query<{ status: string }>("select status from tarefas where id = $1", [repetida])).rows[0]
+        ?.status,
+    ).toBe("precisa_de_ajuda");
+    const aviso = await dono.query<{ link: string }>(
+      "select link from avisos where tipo = 'agente_passou_do_limite' and pessoa_id = $1 order by criado_em desc limit 1",
+      [ids.ana],
+    );
+    expect(aviso.rows[0]?.link).toBe(`/execucoes/${e1?.id}`);
+    expect(
+      (await dono.query("select 1 from auditoria.eventos where acao = 'agente.andou_em_circulo'")).rowCount,
+    ).toBeGreaterThan(0);
+
+    // Rodadas: com o limite de 1 rodada, a execução que precisa de duas para.
+    expect(
+      (await pedir("POST", `/agentes/${ids.gerente}/limites`, ana, { rodadas: 1, minutos: null })).json(),
+    ).toEqual({ rodadas: 1, minutos: 10, ajustados: true });
+    const curta = await novaTarefa("Tarefa curta");
+    roteiro = [
+      () => ({ chamadas: [{ id: "c1", nome: "ver_tarefa", entrada: { tarefaId: curta } }] }),
+      () => ({ chamadas: [{ id: "c2", nome: "responder", entrada: { texto: "Feito." } }] }),
+    ];
+    await passarAoGerente(curta);
+    await rodarFila();
+    expect((await execucaoDa(curta))?.resumo).toContain("limite de 1 rodadas");
+    await pedir("POST", `/agentes/${ids.gerente}/limites`, ana, { rodadas: null, minutos: null });
+
+    // Teto no meio: a primeira rodada passa, e a segunda já encontra o teto do agente estourado.
+    await pedir("POST", `/custos/tetos/agente/${ids.gerente}`, ana, { teto: 1 });
+    await dono.query("delete from consumo_de_ia where agente_id = $1", [ids.gerente]);
+    await dono.query(
+      "insert into consumo_de_ia (empresa_id, agente_id, conta_id, modelo, custo_micros) values ($1, $2, $3, 'modelo-bom', 9950)",
+      [empresaId, ids.gerente, ids.Principal],
+    );
+    const cara = await novaTarefa("Tarefa cara");
+    roteiro = [
+      () => ({ chamadas: [{ id: "t1", nome: "ver_tarefa", entrada: { tarefaId: cara } }] }),
+      () => ({ chamadas: [{ id: "t2", nome: "responder", entrada: { texto: "Feito." } }] }),
+    ];
+    await passarAoGerente(cara);
+    await rodarFila();
+    expect((await execucaoDa(cara))?.resumo).toContain("Parou no meio");
+    await pedir("POST", `/custos/tetos/agente/${ids.gerente}`, ana, { teto: null });
+
+    // Vai e volta: Coordenador passa ao Gerente, que passa ao Coordenador, que passa de novo ao Gerente (uma corrente
+    // de passadas): o Gerente não começa. Duas execuções soltas do mesmo par não contam.
+    const bola = await novaTarefa("Tarefa pingue-pongue");
+    let mae: string | null = null;
+    for (const [agente, minutos] of [
+      [ids.coordenador, 30],
+      [ids.gerente, 20],
+      [ids.coordenador, 10],
+    ] as const) {
+      const r: { rows: { id: string }[] } = await dono.query<{ id: string }>(
+        `insert into execucoes_de_agente (empresa_id, agente_id, pedido_por, origem, tarefa_id, execucao_mae_id, situacao,
+           iniciada_em, terminada_em, criada_em)
+         values ($1, $2, $3, $4, $5, $6, 'concluida', now() - make_interval(mins => $7), now() - make_interval(mins => $7),
+                 now() - make_interval(mins => $7))
+         returning id`,
+        [empresaId, agente, ids.ana, mae ? "delegacao" : "tarefa", bola, mae, minutos],
+      );
+      mae = r.rows[0]?.id ?? null;
+    }
+    const quarta = await dono.query<{ id: string }>(
+      `insert into execucoes_de_agente (empresa_id, agente_id, pedido_por, origem, tarefa_id, execucao_mae_id)
+       values ($1, $2, $3, 'delegacao', $4, $5) returning id`,
+      [empresaId, ids.gerente, ids.ana, bola, mae],
+    );
+    roteiro = [() => ({ chamadas: [{ id: "b1", nome: "responder", entrada: { texto: "Peguei." } }] })];
+    fila.push({ empresaId, execucaoId: quarta.rows[0]?.id as string });
+    await rodarFila();
+    const e4 = await execucaoDa(bola);
+    expect(e4?.situacao).toBe("parada");
+    expect(e4?.resumo).toContain("passou entre os mesmos dois agentes 3 vezes");
   });
 
   it("coordenador desligado por engano: nasce um novo, pausado, e o Gerente passa a responder a ele", async () => {

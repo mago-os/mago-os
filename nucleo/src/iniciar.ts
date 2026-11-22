@@ -12,6 +12,7 @@ import {
   type OpcoesDoMotor,
   registrarRotasDaConversa,
   registrarRotasDasAprovacoes,
+  registrarRotasDosLimites,
   registrarRotasDosPassos,
   rodarExecucao,
   verificarAprovacoesVencidas,
@@ -164,6 +165,7 @@ async function iniciar(): Promise<void> {
     registrarRotasDaConversa(app, { verificador, poolApp: banco.pool, acordar: acordarAgente });
     // Passo a passo das execuções (M4-07).
     registrarRotasDosPassos(app, verificador, banco.pool);
+    registrarRotasDosLimites(app, verificador, banco.pool);
     // Regras por ação e aprovações (M4-03).
     registrarRotasDasAprovacoes(app, {
       verificador,

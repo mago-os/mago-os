@@ -14,6 +14,7 @@ export * from "./agentes/contas-de-ia.ts";
 export * from "./agentes/custos.ts";
 export * from "./agentes/instrucoes.ts";
 export * from "./agentes/internos.ts";
+export * from "./agentes/limites.ts";
 export * from "./agentes/passos.ts";
 export * from "./agentes/regras.ts";
 export * from "./auditoria.ts";
