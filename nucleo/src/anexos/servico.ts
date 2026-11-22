@@ -5,7 +5,13 @@
  *   empresas/<empresa>/anexos/<anexo>     depois de liberado
  */
 import { randomUUID } from "node:crypto";
-import type { Anexo, Autor, SituacaoDoAnexo } from "@mago-os/contratos";
+import {
+  type Anexo,
+  type Autor,
+  type CanalDoAnexo,
+  MAXIMO_DA_DESCRICAO_DO_ANEXO,
+  type SituacaoDoAnexo,
+} from "@mago-os/contratos";
 import type pg from "pg";
 import { auditar } from "../auditoria/registrar.ts";
 import { criarAviso } from "../avisos/index.ts";
@@ -22,6 +28,8 @@ interface LinhaDoAnexo {
   tipo: string;
   tamanho: string;
   situacao: SituacaoDoAnexo;
+  descricao: string | null;
+  canal: CanalDoAnexo;
   caminho: string;
   enviado_por_pessoa_id: string | null;
   enviado_por_agente_id: string | null;
@@ -29,7 +37,7 @@ interface LinhaDoAnexo {
   verificado_em: Date | null;
 }
 
-const COLUNAS = `id, empresa_id, tarefa_id, comentario_id, nome, tipo, tamanho, situacao, caminho,
+const COLUNAS = `id, empresa_id, tarefa_id, comentario_id, nome, tipo, tamanho, situacao, descricao, canal, caminho,
   enviado_por_pessoa_id, enviado_por_agente_id, enviado_em, verificado_em`;
 
 export interface AnexoComCaminho extends Anexo {
@@ -51,6 +59,8 @@ function paraAnexo(l: LinhaDoAnexo): AnexoComCaminho {
     tipo: l.tipo,
     tamanho: Number(l.tamanho),
     situacao: l.situacao,
+    descricao: l.descricao,
+    canal: l.canal,
     enviadoPor,
     enviadoEm: l.enviado_em.toISOString(),
     verificadoEm: l.verificado_em ? l.verificado_em.toISOString() : null,
@@ -109,15 +119,45 @@ export async function criarAnexo(
     tipo: string;
     tamanho: number;
     pessoaId: string;
+    descricao?: string | null;
+    canal?: CanalDoAnexo;
   },
 ): Promise<AnexoComCaminho> {
+  const descricao = d.descricao?.trim() || null;
   const r = await c.query<LinhaDoAnexo>(
-    `insert into anexos (empresa_id, tarefa_id, comentario_id, nome, tipo, tamanho, caminho, enviado_por_pessoa_id)
-     values (empresa_ativa(), $1, $2, $3, $4, $5, 'quarentena/' || empresa_ativa() || '/' || $6, $7)
+    `insert into anexos (empresa_id, tarefa_id, comentario_id, nome, tipo, tamanho, caminho, enviado_por_pessoa_id,
+       descricao, canal)
+     values (empresa_ativa(), $1, $2, $3, $4, $5, 'quarentena/' || empresa_ativa() || '/' || $6, $7, $8, $9)
      returning ${COLUNAS}`,
-    [d.tarefaId, d.comentarioId, d.nome.trim(), d.tipo, d.tamanho, randomUUID(), d.pessoaId],
+    [
+      d.tarefaId,
+      d.comentarioId,
+      d.nome.trim(),
+      d.tipo,
+      d.tamanho,
+      randomUUID(),
+      d.pessoaId,
+      descricao ? descricao.slice(0, MAXIMO_DA_DESCRICAO_DO_ANEXO) : null,
+      d.canal ?? "app",
+    ],
   );
   return paraAnexo(r.rows[0] as LinhaDoAnexo);
+}
+
+/** Escreve, troca ou tira (nulo) a descrição do anexo (M5-03b), guardando quem escreveu. Devolve o anexo. */
+export async function descreverAnexo(
+  c: pg.PoolClient,
+  anexoId: string,
+  descricao: string | null,
+  pessoaId: string,
+): Promise<AnexoComCaminho | null> {
+  const limpa = descricao?.trim() || null;
+  const r = await c.query<LinhaDoAnexo>(
+    `update anexos set descricao = $2, descrito_por_pessoa_id = case when $2::text is null then null else $3::uuid end
+      where id = $1 and empresa_id = empresa_ativa() returning ${COLUNAS}`,
+    [anexoId, limpa ? limpa.slice(0, MAXIMO_DA_DESCRICAO_DO_ANEXO) : null, pessoaId],
+  );
+  return r.rows[0] ? paraAnexo(r.rows[0]) : null;
 }
 
 /** O arquivo chegou inteiro: vai para o antivírus. */

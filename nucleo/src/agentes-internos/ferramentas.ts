@@ -490,7 +490,10 @@ async function executarSemMarca(
             responsavel: s.responsavel,
           })),
           checklist: await listarChecklist(c, tarefa.id),
-          anexos: (await listarAnexos(c, tarefa.id, true)).map((a) => a.nome),
+          // M5-03b: o nome e, quando há, a descrição (o conteúdo do arquivo nunca vai ao agente).
+          anexos: (await listarAnexos(c, tarefa.id, true)).map((a) =>
+            a.descricao ? { nome: a.nome, descricao: a.descricao } : a.nome,
+          ),
           nomes,
         };
       });
@@ -722,6 +725,9 @@ async function executarSemMarca(
           tipo: arquivo.tipo,
           tamanho: dados.length,
           pessoaId,
+          // M5-03b: o que é o arquivo, nas palavras do agente a partir da legenda.
+          descricao: typeof entrada.descricao === "string" ? entrada.descricao : null,
+          canal: "telegram",
         });
         await c.query(
           "update arquivos_do_telegram set situacao = 'anexado', anexo_id = $2 where id = $1 and empresa_id = empresa_ativa()",

@@ -11,6 +11,7 @@ import { pedir } from "@/tarefas";
 const GRUPOS: Record<TipoDeResultado, string> = {
   tarefa: "Tarefas",
   comentario: "Comentários",
+  anexo: "Anexos",
   projeto: "Projetos",
   espaco: "Espaços",
   pessoa: "Pessoas",

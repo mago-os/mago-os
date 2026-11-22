@@ -332,3 +332,8 @@ O login (`mago_acesso`) não lê papéis nem as regras da plataforma direto. As 
 - No esquema `telegram`, `erros_de_codigo` conta os códigos errados por pessoa e `travas_de_aprovacao` guarda a trava de 15 minutos a contar do terceiro erro (`aprovacoes_travadas_no_telegram()` também respeita a trava do 2FA do login) e `passos_do_autenticador` guarda o último passo de 30 segundos aceito por pessoa: `usar_passo_do_autenticador()` só aceita um passo mais novo, e o mesmo código não vale duas vezes.
 - O segredo do app autenticador continua só em `acesso.dois_fatores`: o núcleo lê pelo papel do login e abre com a função do Better Auth, na hora de conferir.
 - `empresas_com_telegram_pendente()` acha também os pedidos a mandar e as mensagens a atualizar. Aviso novo `telegram_aprovacoes_travadas`.
+
+## 46. Descrição e canal do anexo (22/11/2026, M5-03b)
+
+- `anexos.descricao` (opcional, até 500 caracteres) diz o que é o arquivo ([decisão 0036](../decisoes/0036-descricao-do-anexo.md)); a API só pode mudar essa coluna, além das da M3-08. `anexos.canal` diz se o anexo entrou pelo app ou pelo Telegram (os que vieram do Telegram antes da migração foram acertados por `arquivos_do_telegram`). `anexos.descrito_por_pessoa_id` guarda quem escreveu a descrição, que para os agentes conta como texto de outros quando não é de quem pediu.
+- Índices de trigramas no nome e na descrição, para o Ctrl+K achar anexos.

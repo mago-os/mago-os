@@ -13,6 +13,7 @@ import { criarDepositoEmDisco, type DepositoEmDisco } from "@mago-os/nucleo/anex
 import { cuidarDosAnexos, listarAnexos } from "@mago-os/nucleo/anexos/servico";
 import { registrarRotasDosAvisos } from "@mago-os/nucleo/avisos";
 import { type BancoTemporario, criarBancoTemporario } from "@mago-os/nucleo/banco-temporario";
+import { registrarRotaDaBusca } from "@mago-os/nucleo/busca";
 import { comEmpresa, comPessoa as comPessoaNaEmpresa } from "@mago-os/nucleo/empresa";
 import { catalogoDeModulos, criarVerificador } from "@mago-os/nucleo/permissoes";
 import { registrarRotasDosProjetos } from "@mago-os/nucleo/projetos";
@@ -139,6 +140,7 @@ describe.skipIf(!bancoDisponivel)("anexos", () => {
     const verificador = criarVerificador(login, poolAcesso, poolApp, catalogoDeModulos());
     registrarRotasDasTarefas(app, verificador, poolApp);
     registrarRotasDosProjetos(app, verificador, poolApp);
+    registrarRotaDaBusca(app, verificador, poolApp);
     registrarRotasDosAvisos(app, verificador, poolApp, "chave-publica-de-teste");
     deposito = criarDepositoEmDisco(SITE, await mkdtemp(join(tmpdir(), "anexos-")), () => relogio);
     registrarRotasDosAnexos(app, {
@@ -164,13 +166,21 @@ describe.skipIf(!bancoDisponivel)("anexos", () => {
   const servicos = () => ({ deposito, antivirus: antivirusDeTeste });
 
   /** Pede o link, envia pelo depósito local e avisa que chegou. Devolve o anexo. */
-  async function anexar(email: string, tarefaId: string, nome: string, tipo: string, conteudo: string) {
+  async function anexar(
+    email: string,
+    tarefaId: string,
+    nome: string,
+    tipo: string,
+    conteudo: string,
+    descricao?: string,
+  ) {
     const cookie = await como(email);
     const dados = Buffer.from(conteudo);
     const pedido = await pedir("POST", `/tarefas/${tarefaId}/anexos`, cookie, {
       nome,
       tipo,
       tamanho: dados.length,
+      ...(descricao ? { descricao } : {}),
     });
     expect(pedido.statusCode).toBe(201);
     const { anexo, url } = pedido.json() as { anexo: { id: string }; url: string };
@@ -228,6 +238,60 @@ describe.skipIf(!bancoDisponivel)("anexos", () => {
     relogio = new Date(Date.now() + 6 * 60 * 1000);
     expect((await app.inject({ method: "GET", url: url.replace(`${SITE}/api`, "") })).statusCode).toBe(403);
     relogio = new Date();
+  });
+
+  it("descrição do anexo: quem enviou e quem edita a tarefa mudam; a lista traz quando, quem e o canal; a busca acha", async () => {
+    const fabio = await como("fabio@teste.invalid");
+    const t = (await pedir("POST", "/tarefas", fabio, { titulo: "Contratos do mês" })).json().id as string;
+    const id = await anexar(
+      "fabio@teste.invalid",
+      t,
+      "dfo.pdf",
+      "application/pdf",
+      "%PDF-1.4 dfo",
+      "Contrato assinado da DFO",
+    );
+    const lista = (await pedir("GET", `/tarefas/${t}/anexos`, fabio)).json() as {
+      anexos: { id: string; descricao: string | null; canal: string; enviadoEm: string }[];
+      nomes: Record<string, string>;
+    };
+    expect(lista.anexos[0]).toMatchObject({ id, descricao: "Contrato assinado da DFO", canal: "app" });
+    expect(lista.nomes[ids.fabio as string]).toBe("Fabio Func");
+    // Quem enviou muda; o administrador (edita a tarefa) também; outra empresa não acha.
+    const url = `/tarefas/${t}/anexos/${id}/descricao`;
+    expect((await pedir("POST", url, fabio, { descricao: "Contrato da DFO, versão final" })).statusCode).toBe(
+      200,
+    );
+    const ana = await como("ana@teste.invalid");
+    const mudou = await pedir("POST", url, ana, { descricao: "Contrato DFO assinado em 22/11" });
+    expect(mudou.json().anexo.descricao).toBe("Contrato DFO assinado em 22/11");
+    // Quem escreveu fica guardado: para os agentes, a descrição da Ana é texto de outros para o Fabio (M4-04).
+    const por = await dono.query("select descrito_por_pessoa_id from anexos where id = $1", [id]);
+    expect(por.rows[0]?.descrito_por_pessoa_id).toBe(ids.ana);
+    expect((await pedir("POST", url, await como("otto@teste.invalid"), { descricao: "x" })).statusCode).toBe(
+      404,
+    );
+    expect((await pedir("POST", url, ana, { descricao: "x".repeat(501) })).statusCode).toBe(400);
+    const ev = await dono.query(
+      "select count(*)::int as n from auditoria.eventos where acao = 'anexo.descreveu'",
+    );
+    expect(ev.rows[0]?.n).toBe(2);
+    // A busca acha pelo texto da descrição, depois do antivírus.
+    await cuidarDosAnexos(poolApp, servicos(), log);
+    const busca = (await pedir("GET", "/busca?texto=assinado&tipos=anexo", ana)).json() as {
+      resultados: { tipo: string; id: string; titulo: string; trecho: string | null; link: string }[];
+    };
+    expect(busca.resultados).toEqual([
+      {
+        tipo: "anexo",
+        id,
+        titulo: "dfo.pdf",
+        trecho: "Contrato DFO assinado em 22/11",
+        link: `/tarefas/${t}`,
+      },
+    ]);
+    // Tirar a descrição.
+    expect((await pedir("POST", url, fabio, { descricao: null })).json().anexo.descricao).toBeNull();
   });
 
   it("recusa tipo que roda programa e arquivo maior que 25 MB; o envio parado some depois de uma hora", async () => {
