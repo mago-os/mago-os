@@ -31,7 +31,7 @@ const ASSINATURAS: Record<string, string> = {
   listar_tarefas: "e18504f90d2cfd8c",
   procurar_projeto: "b35c4efb2935a448",
   arquivos_recebidos: "8ad42e9276210ff2",
-  anexar_arquivo: "59b4e0f56a8d677c",
+  anexar_arquivo: "232554c1a0389e4d",
   pegar_skill: "dfed5bf9f13544f2",
   ver_custos: "ad0af9c1bceefbcb",
   criar_tarefa: "4e1e0e8b51056cfd",

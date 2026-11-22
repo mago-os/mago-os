@@ -113,6 +113,32 @@ export async function buscar(
     }
   }
 
+  // Anexos (M5-03b): pelo nome e pela descrição, das tarefas que a pessoa vê. O conteúdo do arquivo não entra.
+  if (onde.tarefas && quer("anexo")) {
+    const alcance = condicaoDeAlcance(onde.tarefas, 1);
+    const r = await c.query<{ id: string; tarefa_id: string; nome: string; descricao: string | null }>(
+      `select x.id, x.tarefa_id, x.nome, x.descricao
+         from anexos x join tarefas t on t.id = x.tarefa_id and t.empresa_id = x.empresa_id
+        where x.empresa_id = empresa_ativa() and x.situacao = 'disponivel' and ${alcance.sql}
+          and (${acha("x.nome")} or para_busca(x.descricao) like ${CONTEM})
+        order by greatest(${nota("x.nome")}, case when para_busca(x.descricao) like ${CONTEM} then 1 else 0 end) desc,
+                 x.enviado_em desc
+        limit ${RESULTADOS_POR_TIPO}`,
+      [bruto, ...alcance.valores],
+    );
+    for (const x of r.rows) {
+      // O trecho só quando o achado foi na descrição (no nome, o título já mostra).
+      const naDescricao = x.descricao && !paraBusca(x.nome).includes(q) && paraBusca(x.descricao).includes(q);
+      resultados.push({
+        tipo: "anexo",
+        id: x.id,
+        titulo: x.nome,
+        trecho: naDescricao && x.descricao ? trecho(x.descricao, texto) : null,
+        link: `/tarefas/${x.tarefa_id}`,
+      });
+    }
+  }
+
   if (onde.projetos && quer("projeto")) {
     const condicao =
       onde.projetos === "todos" ? "($2::uuid is not null or true)" : "membro_do_projeto(p.id, $2)";

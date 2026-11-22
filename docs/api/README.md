@@ -361,6 +361,7 @@ Todas com o prefixo `/api` no site, menos `/mcp`, que fica em `https://teste.osm
 | POST | `/tarefas/:id/anexos` | tarefas.editar (ou ver, no próprio comentário) | Pede o link de 5 minutos para enviar um arquivo (até 25 MB, sem tipos que rodam programa) para a quarentena. |
 | POST | `/tarefas/:id/anexos/:anexoId/enviado` | tarefas.ver (quem enviou) | Avisa que o arquivo chegou inteiro e o manda para o antivírus. |
 | GET | `/tarefas/:id/anexos/:anexoId/link` | tarefas.ver | Link de 5 minutos para baixar ou ver um anexo liberado pelo antivírus. |
+| POST | `/tarefas/:id/anexos/:anexoId/descricao` | tarefas.ver (quem enviou) ou tarefas.editar | Escreve, troca ou tira a descrição do anexo (M5-03b). |
 | DELETE | `/tarefas/:id/anexos/:anexoId` | tarefas.ver (quem enviou) ou tarefas.excluir (tudo) | Exclui o anexo (o arquivo sai do depósito pela fila). |
 | GET | `/empresa/espaco-dos-anexos` | seguranca.ver | Quanto os anexos da empresa ocupam no depósito. |
 | GET | `/busca` | tarefas.ver (cada tipo pela própria permissão) | Busca Ctrl+K: tarefas, comentários, projetos, espaços, pessoas e agentes, sem acento e tolerante a erro de digitação. |

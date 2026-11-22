@@ -512,7 +512,15 @@ describe.skipIf(!bancoDisponivel)("conversa pelo Telegram", () => {
         ids.arquivo = idDoArquivo(p);
         return {
           chamadas: [
-            { id: "a1", nome: "anexar_arquivo", entrada: { arquivoId: ids.arquivo, tarefaId: ids.tarefa } },
+            {
+              id: "a1",
+              nome: "anexar_arquivo",
+              entrada: {
+                arquivoId: ids.arquivo,
+                tarefaId: ids.tarefa,
+                descricao: "Foto do contrato assinado",
+              },
+            },
           ],
         };
       },
@@ -542,11 +550,18 @@ describe.skipIf(!bancoDisponivel)("conversa pelo Telegram", () => {
       },
     );
     const anexo = await dono.query(
-      "select situacao, tamanho::int as tamanho, enviado_por_pessoa_id, enviado_por_agente_id from anexos where tarefa_id = $1",
+      "select situacao, tamanho::int as tamanho, enviado_por_pessoa_id, enviado_por_agente_id, descricao, canal from anexos where tarefa_id = $1",
       [ids.tarefa],
     );
     expect(anexo.rows).toEqual([
-      { situacao: "disponivel", tamanho: 16, enviado_por_pessoa_id: ids.ana, enviado_por_agente_id: null },
+      {
+        situacao: "disponivel",
+        tamanho: 16,
+        enviado_por_pessoa_id: ids.ana,
+        enviado_por_agente_id: null,
+        descricao: "Foto do contrato assinado",
+        canal: "telegram",
+      },
     ]);
     const arq = await dono.query("select situacao from arquivos_do_telegram where id = $1", [ids.arquivo]);
     expect(arq.rows[0]?.situacao).toBe("anexado");

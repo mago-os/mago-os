@@ -141,6 +141,7 @@ export function LinhaDoTempo({
   anexos = [],
   anexosLigados = false,
   aoMudarAnexos = () => {},
+  podeDescreverAnexos = false,
 }: {
   tarefaId: string;
   comentarios: ComentarioDeTarefa[];
@@ -158,6 +159,8 @@ export function LinhaDoTempo({
   /** Os anexos estão ligados neste ambiente (sem eles, o comentário não oferece anexar). */
   anexosLigados?: boolean;
   aoMudarAnexos?: () => void;
+  /** Quem edita a tarefa escreve a descrição de qualquer anexo (M5-03b). */
+  podeDescreverAnexos?: boolean;
 }) {
   const [mensagem, setMensagem] = useState<Mensagem>(null);
   const [editando, setEditando] = useState<string | null>(null);
@@ -257,6 +260,7 @@ export function LinhaDoTempo({
                   anexos={anexos.filter((a) => a.comentarioId === c.id)}
                   euId={euId}
                   podeExcluirTodos={podeApagarTodos}
+                  podeDescrever={podeDescreverAnexos}
                   aoMudar={aoMudarAnexos}
                 />
               )}

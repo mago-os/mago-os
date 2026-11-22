@@ -42,3 +42,4 @@ Uma nota curta por decisão importante: o que foi decidido, por quê e o que foi
 | [0033](0033-conversa-pelo-telegram.md) | Conversa com o coordenador pelo Telegram: a mesma conversa e o mesmo motor, conversa nova depois de 6 horas ou /nova, resposta pelo canal da última mensagem | Aceita |
 | [0034](0034-arquivos-pelo-telegram.md) | Arquivos pelo Telegram: esperam a tarefa por 24 horas sem baixar, o coordenador anexa, e o anexo passa pelo antivírus como no app | Aceita |
 | [0035](0035-aprovar-pelo-telegram.md) | Aprovar pelo Telegram: botões, código do app autenticador (sem PIN), trava em 3 erros, e a mesma decisão do app pela conferência mostrada | Aceita |
+| [0036](0036-descricao-do-anexo.md) | Descrição do anexo (quem enviou ou quem edita a tarefa), o canal por onde entrou, e anexos na busca | Aceita |

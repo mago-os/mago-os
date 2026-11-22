@@ -67,6 +67,15 @@ const TipoDoArquivo = Type.String({
   description: "Tipo do arquivo (MIME), ex.: application/pdf.",
 });
 
+/** M5-03b: descrição opcional do anexo (o que é o arquivo), até 500 caracteres, só texto. */
+export const MAXIMO_DA_DESCRICAO_DO_ANEXO = 500;
+const DescricaoDoAnexo = Texto(MAXIMO_DA_DESCRICAO_DO_ANEXO, "O que é o arquivo, numa frase.");
+
+/** Por onde o anexo entrou (M5-03b): pelo app ou pelo Telegram. */
+export const CANAIS_DO_ANEXO = ["app", "telegram"] as const;
+export const CanalDoAnexo = Type.Enum(CANAIS_DO_ANEXO, { description: "app ou telegram." });
+export type CanalDoAnexo = Static<typeof CanalDoAnexo>;
+
 export const Anexo = Type.Object(
   {
     id: Id,
@@ -78,6 +87,9 @@ export const Anexo = Type.Object(
     tipo: TipoDoArquivo,
     tamanho: Type.Integer({ minimum: 1, maximum: TAMANHO_MAXIMO_DO_ANEXO, description: "Bytes." }),
     situacao: SituacaoDoAnexo,
+    /** O que é o arquivo (M5-03b). Quem mandou, ou quem pode editar a tarefa, escreve e muda. */
+    descricao: OuNulo(DescricaoDoAnexo),
+    canal: CanalDoAnexo,
     enviadoPor: Autor,
     enviadoEm: DataHora,
     verificadoEm: OuNulo(DataHora),
@@ -92,10 +104,18 @@ export const PedidoDeEnvioDeAnexo = Type.Object(
     tipo: TipoDoArquivo,
     tamanho: Type.Integer({ minimum: 1, maximum: TAMANHO_MAXIMO_DO_ANEXO }),
     comentarioId: Type.Optional(OuNulo(Id)),
+    descricao: Type.Optional(OuNulo(DescricaoDoAnexo)),
   },
   { additionalProperties: false },
 );
 export type PedidoDeEnvioDeAnexo = Static<typeof PedidoDeEnvioDeAnexo>;
+
+/** Escrever, trocar ou tirar (nulo) a descrição do anexo (M5-03b). */
+export const PedidoDeDescricaoDoAnexo = Type.Object(
+  { descricao: OuNulo(DescricaoDoAnexo) },
+  { additionalProperties: false },
+);
+export type PedidoDeDescricaoDoAnexo = Static<typeof PedidoDeDescricaoDoAnexo>;
 
 /** O link para o navegador mandar o arquivo (PUT, com o content-type pedido), direto para a quarentena. */
 export const LinkDeEnvioDeAnexo = Type.Object(
@@ -119,7 +139,14 @@ export const LinkDoAnexo = Type.Object(
 export type LinkDoAnexo = Static<typeof LinkDoAnexo>;
 
 /** Ações de auditoria dos anexos (sem o nome do arquivo nos detalhes: só id, tipo e tamanho). */
-export const ACOES_ANEXOS = ["anexo.enviou", "anexo.bloqueou", "anexo.baixou", "anexo.excluiu"] as const;
+export const ACOES_ANEXOS = [
+  "anexo.enviou",
+  "anexo.bloqueou",
+  "anexo.baixou",
+  "anexo.excluiu",
+  // M5-03b: a descrição mudou (sem o texto nos detalhes).
+  "anexo.descreveu",
+] as const;
 
 /** A extensão do nome é bloqueada (decisão 14)? */
 export function extensaoBloqueada(nome: string): boolean {

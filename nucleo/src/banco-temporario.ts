@@ -49,16 +49,28 @@ export async function criarBancoTemporario(
 ): Promise<BancoTemporario> {
   const urlServidor = opcoes.urlServidor ?? urlDoServidorDeTeste();
   const nome = `mago_teste_${randomBytes(6).toString("hex")}`;
+  const urlDono = trocarBanco(urlServidor, nome);
   const admin = new pg.Client({ connectionString: urlServidor });
   await admin.connect();
   try {
     await admin.query(`create database ${nome}`);
+    // Os papéis (mago_app, mago_acesso) valem para o servidor inteiro: num servidor novo, dois arquivos de teste
+    // migrando ao mesmo tempo tentariam criá-los juntos. Enquanto eles não existem, as migrações vão uma de cada vez.
+    const papeis = await admin.query<{ n: number }>(
+      "select count(*)::int as n from pg_roles where rolname in ('mago_app', 'mago_acesso')",
+    );
+    const primeiro = (papeis.rows[0]?.n ?? 0) < 2;
+    if (opcoes.migrar !== false) {
+      if (primeiro) await admin.query("select pg_advisory_lock(hashtext('mago-os-teste-papeis'))");
+      try {
+        await migrar(urlDono, "up");
+      } finally {
+        if (primeiro) await admin.query("select pg_advisory_unlock(hashtext('mago-os-teste-papeis'))");
+      }
+    }
   } finally {
     await admin.end();
   }
-
-  const urlDono = trocarBanco(urlServidor, nome);
-  if (opcoes.migrar !== false) await migrar(urlDono, "up");
 
   return {
     nome,
