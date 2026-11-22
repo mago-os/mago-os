@@ -41,6 +41,7 @@ import { executar, RecusaDaFerramenta } from "../mcp/index.ts";
 import { acessoDo, permissoesNaEmpresa, type Verificador } from "../permissoes/verificar.ts";
 import { buscarConversa, buscarExecucao, type ExecucaoComInstrucoes, gravarMensagem } from "./dados.ts";
 import { executarFerramenta, responsavelDoContexto } from "./ferramentas.ts";
+import { registrarPasso } from "./passos.ts";
 
 export interface OpcoesDasAprovacoes {
   verificador: Verificador;
@@ -378,6 +379,18 @@ export function registrarRotasDasAprovacoes(app: FastifyInstance, o: OpcoesDasAp
       }
       const feita = await naEmpresa(pedido, async (c) => {
         const d = await concluirAprovacao(c, aprovacao, erro ? { erro } : { resultado });
+        // A ação aprovada entra no passo a passo da execução que pediu (ou na atividade do externo na tarefa).
+        await registrarPasso(c, {
+          execucaoId: aprovacao.execucaoId,
+          agenteId: aprovacao.agenteId,
+          tarefaId: aprovacao.tarefaId,
+          tipo: "ferramenta",
+          ferramenta: aprovacao.acao,
+          entrada: aprovacao.parametros,
+          resultado: erro ?? resultado,
+          erro: erro !== null,
+          aprovacaoId: aprovacao.id,
+        });
         await avisarNaConversa(
           c,
           aprovacao,

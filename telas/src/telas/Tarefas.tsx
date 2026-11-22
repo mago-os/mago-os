@@ -36,6 +36,7 @@ import { useTempoReal } from "@/tempo-real";
 import { Aviso } from "./Acesso";
 import { useAoVoltar } from "./Administrador";
 import { AnexosDaTarefa, useAnexos } from "./Anexos";
+import { ExecucoesDaTarefa } from "./Execucoes";
 import { LinhaDoTempo } from "./LinhaDoTempo";
 import { Checklist, Subtarefas } from "./PartesDaTarefa";
 import { PlanejamentoDaTarefa } from "./Planejamento";
@@ -786,6 +787,8 @@ export function PaginaDaTarefa({
         podeExcluirTodos={podeApagarComentarios}
         aoMudar={() => void anexosDaTarefa.recarregar()}
       />
+
+      <ExecucoesDaTarefa tarefaId={tarefa.id} />
 
       <LinhaDoTempo
         anexos={anexosDaTarefa.anexos}

@@ -124,7 +124,7 @@ const invalido = (resposta: FastifyReply, problemas: unknown) =>
  * quem vê todos os projetos (administrador, gestor) também vê as tarefas de todos, mas só mexe nas que o alcance
  * da ação ou ser membro do projeto permitem.
  */
-function quemDoPedido(pedido: FastifyRequest): Extract<Quem, { tipo: "pessoa" }> {
+export function quemDoPedido(pedido: FastifyRequest): Extract<Quem, { tipo: "pessoa" }> {
   const { sessao, filtro, acao, permissoes } = acessoDo(pedido);
   const verProjetos = permissoes.modulos.get("projetos")?.acoes.ver ?? "nada";
   // Ser membro do projeto vale para ver e mexer nas tarefas dele, não para excluir nem destravar.

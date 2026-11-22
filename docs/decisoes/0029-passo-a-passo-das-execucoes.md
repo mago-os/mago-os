@@ -1,7 +1,7 @@
 # 0029 Passo a passo de cada execução dos agentes
 
 - **Data:** 21/11/2026
-- **Situação:** proposta (esperando o aprovado do Sandro)
+- **Situação:** aceita (aprovada pelo Sandro no chat em 21/11/2026, com a recomendação do item 4)
 - **Tarefa:** M4-07
 
 ## Contexto
@@ -25,9 +25,9 @@ Hoje a execução guarda quem pediu, o modelo e um resumo, e a M4-06 passou a gu
 6. **Onde abre:** a página da execução (`/execucoes/:id`), com o resumo em cima e os passos em ordem. Chega-se a ela pela tarefa (uma seção "Execuções de agentes" na linha do tempo), pela página do agente (as execuções recentes) e pela conversa (o link "Ver passo a passo" em cada resposta do agente).
 7. **Texto do agente e resultados aparecem só como texto**, nunca como HTML, como já é desde o M2.
 
-## Ponto para o Sandro decidir (item 4)
+## Ponto decidido (item 4)
 
-- **Recomendado:** detalhes só para quem pediu, o responsável pelo agente e o administrador; quem vê a tarefa vê o resumo e os nomes dos passos.
+- **Recomendado e adotado:** detalhes só para quem pediu, o responsável pelo agente e o administrador; quem vê a tarefa vê o resumo e os nomes dos passos.
 - **Alternativa:** quem vê a tarefa vê tudo.
 
 ## Consequências

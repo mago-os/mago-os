@@ -35,6 +35,7 @@ import {
 } from "../agentes/chaves.ts";
 import { avaliarAcao, criarAprovacao } from "../agentes/regras.ts";
 import { agenteRecebeTarefas } from "../agentes/servico.ts";
+import { registrarPasso } from "../agentes-internos/passos.ts";
 import { entregarAoAgenteInterno } from "../agentes-internos/tarefa-atribuida.ts";
 import { buscarAnexo, listarAnexos, type ServicosDosAnexos, semCaminho } from "../anexos/servico.ts";
 import { auditar } from "../auditoria/registrar.ts";
@@ -173,10 +174,29 @@ function criarServidor(agente: AgenteDoPedido, o: OpcoesDaChave, pedido: Fastify
         `Entrada fora do formato: ${entrada.problemas.map((p) => `${p.caminho} ${p.mensagem}`).join("; ")}`,
       );
     }
+    // O que o agente externo faz numa tarefa vira passo (M4-07), sem o raciocínio, que fica na máquina dele.
+    const params = entrada.valor as Record<string, unknown>;
+    const t0 = Date.now();
+    const passo = (resultado: unknown, falhou: boolean, aprovacaoId: string | null = null) =>
+      typeof params.tarefaId === "string"
+        ? comEmpresa(o.poolApp, agente.empresaId, (c) =>
+            registrarPasso(c, {
+              execucaoId: null,
+              agenteId: agente.agenteId,
+              tarefaId: params.tarefaId as string,
+              tipo: "ferramenta",
+              ferramenta: ferramenta.nome,
+              entrada: params,
+              resultado,
+              erro: falhou,
+              duracaoMs: Date.now() - t0,
+              aprovacaoId,
+            }),
+          ).catch((e) => pedido.log.error({ erro: e }, "MCP: o passo não foi registrado"))
+        : Promise.resolve();
     try {
       // Regra por ação (M4-03): para os externos, as ferramentas de hoje executam, mas o administrador pode mudar.
       const regra = await comEmpresa(o.poolApp, agente.empresaId, async (c) => {
-        const params = entrada.valor as Record<string, unknown>;
         const avaliacao = await avaliarAcao(
           c,
           { id: agente.agenteId, tipo: "externo" },
@@ -224,22 +244,30 @@ function criarServidor(agente: AgenteDoPedido, o: OpcoesDaChave, pedido: Fastify
           },
           pedido.log,
         );
-        if (regra.avaliacao === "bloqueado")
-          return erro(
-            "Essa ação está bloqueada pela regra da empresa para este agente. Peça a uma pessoa pela tela.",
-          );
+        if (regra.avaliacao === "bloqueado") {
+          const texto =
+            "Essa ação está bloqueada pela regra da empresa para este agente. Peça a uma pessoa pela tela.";
+          await passo(texto, true);
+          return erro(texto);
+        }
         const texto = `Essa ação precisa de aprovação. O pedido foi enviado (${"aprovacao" in regra && regra.aprovacao ? regra.aprovacao.resumo : ferramenta.nome}) e ela acontece quando alguém aprovar, em até 24 horas.`;
         // Sem o resultado da ferramenta (ela ainda não rodou): volta como recusa, com a explicação.
+        await passo(texto, true, "aprovacao" in regra && regra.aprovacao ? regra.aprovacao.id : null);
         return erro(texto);
       }
       const resultado = await executar(ferramenta.nome, entrada.valor as never, agente, o, pedido);
+      await passo(resultado, false);
       return {
         content: [{ type: "text" as const, text: JSON.stringify(resultado) }],
         structuredContent: resultado,
       };
     } catch (e) {
-      if (e instanceof RecusaDaFerramenta) return erro(e.message);
+      if (e instanceof RecusaDaFerramenta) {
+        await passo(e.message, true);
+        return erro(e.message);
+      }
       pedido.log.error({ erro: e, ferramenta: ferramenta.nome }, "MCP: erro na ferramenta");
+      await passo("Não foi possível concluir agora.", true);
       return erro("Não foi possível concluir agora. Tente de novo em instantes.");
     }
   });

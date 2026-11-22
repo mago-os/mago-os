@@ -287,3 +287,9 @@ O login (`mago_acesso`) não lê papéis nem as regras da plataforma direto. As 
 - `contas_de_ia` ganha o limite em tokens (só na assinatura, regra no banco) e o que fazer ao chegar nele (avisar ou parar). `modelos_de_conta_de_ia` ganha o preço do administrador (os três valores juntos, ou nenhum).
 - Os avisos ganham o tipo `teto_de_gasto`.
 
+## 39. Passo a passo das execuções (22/11/2026, M4-07)
+
+- `passos_de_execucao` guarda cada passo de uma execução de agente interno (resposta do modelo, ferramenta, aviso do sistema) e cada ferramenta que um agente externo chamou numa tarefa pelo MCP (sem execução) ([decisão 0029](../decisoes/0029-passo-a-passo-das-execucoes.md)). Os tokens e o custo do passo de modelo vêm do registro de consumo ligado (M4-06), sem repetir.
+- Parâmetros e resultados guardam até 20 mil caracteres cada (acima disso, o começo e a marca "cortado"); o banco ainda limita o tamanho de cada um.
+- O app só insere: não muda nem apaga passos. A função `apagar_passos_antigos()` roda como dona do banco, uma vez por dia, e apaga os passos com mais de 90 dias de todas as empresas. O resumo da execução continua (o custo vem do consumo, que fica).
+

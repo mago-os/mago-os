@@ -8,9 +8,11 @@ import { registrarRotasDoLogin } from "./acesso/rotas.ts";
 import { verificarAgentesVivos } from "./agentes/chaves.ts";
 import { registrarRotasDoAgente, registrarRotasDosAgentes } from "./agentes/rotas.ts";
 import {
+  apagarPassosAntigos,
   type OpcoesDoMotor,
   registrarRotasDaConversa,
   registrarRotasDasAprovacoes,
+  registrarRotasDosPassos,
   rodarExecucao,
   verificarAprovacoesVencidas,
   verificarExecucoesEsquecidas,
@@ -62,6 +64,7 @@ const FILA_NOTIFICACOES = "notificacoes";
 const FILA_AGENTES_INTERNOS = "agentes-internos";
 const FILA_EXECUCOES_ESQUECIDAS = "agentes-internos-esquecidas";
 const FILA_APROVACOES_VENCIDAS = "aprovacoes-vencidas";
+const FILA_PASSOS_ANTIGOS = "passos-antigos";
 /** Fila dos anexos (M3-08): antivírus, envios parados e arquivos para apagar. A cada minuto, e na hora do envio. */
 const FILA_ANEXOS = "anexos";
 /** Aviso de espaço dos anexos (conta gratuita do Backblaze): uma vez por dia. */
@@ -160,6 +163,7 @@ async function iniciar(): Promise<void> {
     };
     registrarRotasDaConversa(app, { verificador, poolApp: banco.pool, acordar: acordarAgente });
     // Regras por ação e aprovações (M4-03).
+    registrarRotasDosPassos(app, verificador, banco.pool);
     registrarRotasDasAprovacoes(app, {
       verificador,
       poolApp: banco.pool,
@@ -177,6 +181,13 @@ async function iniciar(): Promise<void> {
         },
       );
       // A cada minuto: pedidos de aprovação de mais de 24 horas vencem (M4-03).
+      // Todo dia, às 4h (UTC): os passos com mais de 90 dias são apagados (M4-07).
+      await fila.createQueue(FILA_PASSOS_ANTIGOS);
+      await fila.schedule(FILA_PASSOS_ANTIGOS, "0 4 * * *");
+      await fila.work(FILA_PASSOS_ANTIGOS, async () => {
+        const n = await apagarPassosAntigos(banco.pool);
+        if (n > 0) app.log.info({ evento: "passos.apagados", n }, "Passos com mais de 90 dias apagados");
+      });
       await fila.createQueue(FILA_APROVACOES_VENCIDAS);
       await fila.schedule(FILA_APROVACOES_VENCIDAS, "* * * * *");
       await fila.work(FILA_APROVACOES_VENCIDAS, async () => {

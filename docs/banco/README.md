@@ -352,6 +352,25 @@ erDiagram
     text papel
     timestamp_with_time_zone concedido_em
   }
+  passos_de_execucao {
+    uuid id PK
+    uuid empresa_id FK
+    uuid execucao_id
+    uuid agente_id
+    uuid tarefa_id
+    text tipo
+    integer duracao_ms
+    text modelo
+    text texto
+    text ferramenta
+    jsonb entrada
+    jsonb resultado
+    boolean erro
+    boolean cortado
+    uuid consumo_id FK
+    uuid aprovacao_id
+    timestamp_with_time_zone criado_em
+  }
   pessoas {
     uuid id PK
     text nome
@@ -686,6 +705,8 @@ erDiagram
   empresas ||--o{ mensagens_de_conversa : "empresa_id"
   empresas ||--o{ modelos_de_conta_de_ia : "empresa_id"
   pessoas ||--o{ papeis_plataforma : "pessoa_id"
+  empresas ||--o{ passos_de_execucao : "empresa_id"
+  consumo_de_ia ||--o{ passos_de_execucao : "consumo_id"
   empresas ||--o{ preferencias_de_notificacao : "empresa_id"
   empresas ||--o{ projetos : "empresa_id"
   empresas ||--o{ regras_de_agente : "empresa_id"
@@ -1283,6 +1304,32 @@ Isolamento por empresa (Row Level Security): ligado e forçado.
 | pessoa_id | uuid | sim |  | sistema | Pessoa que tem o papel. Chave primária. |
 | papel | text | sim |  | sistema | dono: Dono da plataforma. |
 | concedido_em | timestamp with time zone | sim | `now()` | sistema | Quando o papel foi dado. |
+
+### passos_de_execucao
+
+Passo a passo de cada execução (resposta do modelo, ferramenta, aviso) e o que os externos fizeram pelo MCP. 90 dias.
+
+Isolamento por empresa (Row Level Security): ligado e forçado.
+
+| Coluna | Tipo | Obrigatória | Padrão | Marca | Descrição |
+| --- | --- | --- | --- | --- | --- |
+| id | uuid | sim | `uuidv7()` | sistema | Identificador (UUID v7). Chave primária. |
+| empresa_id | uuid | sim |  | sistema | Empresa. Aponta para empresas.id. |
+| execucao_id | uuid | não |  | sistema | Execução do agente interno (vazio: agente externo, pelo MCP). |
+| agente_id | uuid | sim |  | sistema | Agente. |
+| tarefa_id | uuid | não |  | sistema | Tarefa do passo (a da execução, ou a da ferramenta do externo). |
+| tipo | text | sim |  | sistema | modelo, ferramenta ou sistema. |
+| duracao_ms | integer | não |  | sistema | Quanto o passo demorou. |
+| modelo | text | não |  | sistema | O modelo que respondeu (passo de modelo). |
+| texto | text | não |  | empresa | O que o modelo devolveu, ou o aviso do sistema (só texto). |
+| ferramenta | text | não |  | sistema | A ferramenta chamada (ou as pedidas pelo modelo). |
+| entrada | jsonb | não |  | empresa | Os parâmetros da ferramenta (cortados acima do limite). |
+| resultado | jsonb | não |  | empresa | O resultado da ferramenta, ou a recusa (cortado acima do limite). |
+| erro | boolean | sim | `false` | sistema | A ferramenta recusou ou falhou. |
+| cortado | boolean | sim | `false` | sistema | Parâmetros ou resultado passaram do limite e foram cortados. |
+| consumo_id | uuid | não |  | sistema | O consumo (tokens e custo) do passo de modelo. Aponta para consumo_de_ia.id. |
+| aprovacao_id | uuid | não |  | sistema | O pedido de aprovação que o passo criou. |
+| criado_em | timestamp with time zone | sim | `now()` | sistema | Quando o passo terminou. |
 
 ### pessoas
 

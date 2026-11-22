@@ -24,6 +24,7 @@ import { cn } from "@/lib/utils";
 import { useTempoReal } from "@/tempo-real";
 import { Aviso } from "./Acesso";
 import { useAoVoltar } from "./Administrador";
+import { ExecucoesDoAgente } from "./Execucoes";
 import { ModeloDoAgente } from "./ModeloDoAgente";
 import { RegrasDoAgente } from "./RegrasDoAgente";
 
@@ -396,6 +397,7 @@ export function PaginaDoAgente({
         <ChavesDoAgente agenteId={agente.id} desligado={desligado} />
       )}
       {!desligado && !editando && <RegrasDoAgente agenteId={agente.id} />}
+      {agente.tipo === "interno" && !editando && <ExecucoesDoAgente agenteId={agente.id} />}
       {!desligado && !editando && (podeEditar || podeDesligar) && (
         <div className="flex flex-wrap gap-2">
           {podeEditar && (
