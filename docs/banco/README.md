@@ -358,6 +358,7 @@ erDiagram
     text canal
     boolean telegram_pendente
     timestamp_with_time_zone telegram_enviada_em
+    integer telegram_partes_enviadas
   }
   modelos_de_conta_de_ia {
     uuid empresa_id FK
@@ -1361,6 +1362,7 @@ Isolamento por empresa (Row Level Security): ligado e forçado.
 | canal | text | sim | `'app'::text` | sistema | Por onde a mensagem passou: app ou telegram (a do agente vai pelo canal da última mensagem da pessoa). |
 | telegram_pendente | boolean | sim | `false` | sistema | Falta mandar esta mensagem ao Telegram da pessoa. |
 | telegram_enviada_em | timestamp with time zone | não |  | sistema | Quando foi mandada ao Telegram. |
+| telegram_partes_enviadas | integer | sim | `0` | sistema | Partes já mandadas ao Telegram (resposta longa dividida; continua da que faltava). |
 
 ### modelos_de_conta_de_ia
 

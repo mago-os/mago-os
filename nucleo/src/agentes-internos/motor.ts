@@ -448,9 +448,14 @@ async function rodar(o: OpcoesDoMotor, empresaId: string, execucaoId: string): P
       return null;
     });
 
-  /** O canal de fora mostra que o agente está trabalhando (o "digitando" do Telegram), só nas conversas. */
+  /**
+   * O canal de fora mostra que o agente está trabalhando (o "digitando" do Telegram), só nas conversas, no máximo a
+   * cada 4 segundos (o Telegram mostra por cerca de 5).
+   */
+  let ultimoAvisoDeTrabalho = 0;
   const avisarQueTrabalha = () => {
-    if (!execucao.conversaId) return;
+    if (!execucao.conversaId || Date.now() - ultimoAvisoDeTrabalho < 4000) return;
+    ultimoAvisoDeTrabalho = Date.now();
     try {
       o.canais?.aoRodar(empresaId, execucao.conversaId);
     } catch {

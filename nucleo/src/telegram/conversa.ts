@@ -18,6 +18,7 @@ import {
 import type pg from "pg";
 import { quemPediu } from "../agentes-internos/ferramentas.ts";
 import { podeFalarComEspecialista, receberMensagemDaPessoa } from "../agentes-internos/mensagem-da-pessoa.ts";
+import { paraBusca } from "../busca/index.ts";
 import { comEmpresa, comPessoa } from "../empresa.ts";
 import { permissoesNaEmpresa } from "../permissoes/verificar.ts";
 import { listarPrioridades } from "../tarefas/prioridades.ts";
@@ -35,12 +36,6 @@ export interface OpcoesDaConversaPeloTelegram {
 
 /** Depois de 1 hora, a resposta que não chegou ao Telegram fica só no app. */
 const MINUTOS_PARA_DESISTIR_DA_ENTREGA = 60;
-
-const semAcento = (t: string) =>
-  t
-    .normalize("NFD")
-    .replace(/\p{Diacritic}/gu, "")
-    .toLowerCase();
 
 /** Divide um texto longo em partes que cabem numa mensagem, quebrando em linha ou espaço quando dá. */
 export function partesDoTexto(texto: string, maximo = MAXIMO_DA_MENSAGEM_DO_TELEGRAM): string[] {
@@ -70,7 +65,16 @@ export async function conversarPeloTelegram(
     return;
   }
   const permissoes = await permissoesNaEmpresa(o.poolApp, p.pessoaId, p.empresaId, conv.catalogo);
-  if (!permissoes || (permissoes.modulos.get("agentes")?.acoes.ver ?? "nada") === "nada") {
+  if (!permissoes) {
+    await o.carteiro.enviar(chatId, RESPOSTAS_DO_TELEGRAM.semVinculo);
+    return;
+  }
+  // /tarefas não fala com agente: vale a permissão de ver tarefas, como a central de prioridades.
+  if (comando?.comando === "tarefas") {
+    await mandarPrioridades(o, conv, p, chatId, permissoes);
+    return;
+  }
+  if ((permissoes.modulos.get("agentes")?.acoes.ver ?? "nada") === "nada") {
     await o.carteiro.enviar(chatId, RESPOSTAS_DO_TELEGRAM.semAcessoAosAgentes);
     return;
   }
@@ -82,61 +86,60 @@ export async function conversarPeloTelegram(
     await o.carteiro.enviar(chatId, RESPOSTAS_DO_TELEGRAM.conversaNova);
     if (!comando.resto) return;
     texto = comando.resto;
-  } else if (comando?.comando === "tarefas") {
-    await mandarPrioridades(o, conv, p, chatId, permissoes);
-    return;
   }
 
-  // "@gerente planeja o lançamento": conversa nova direto com o especialista.
+  // "@gerente planeja o lançamento": conversa nova direto com o especialista. Só conta como menção a um agente
+  // interno (pelo começo de uma palavra do nome); outro "@" ("@Ana, cria...") vai inteiro ao coordenador.
   const mencao = mencaoNoComeco(texto);
   let agenteId: string | undefined;
   if (mencao) {
-    if (!podeFalarComEspecialista(permissoes.perfil)) {
-      await o.carteiro.enviar(chatId, RESPOSTAS_DO_TELEGRAM.semPermissaoDeEspecialista);
-      return;
-    }
-    const nomes = await comPessoa(o.poolApp, p.pessoaId, p.empresaId, async (c) => {
-      const r = await c.query<{ id: string; nome: string }>(
-        `select id, nome from agentes where empresa_id = empresa_ativa() and tipo = 'interno'
-            and papel = 'especialista' and situacao <> 'desligado' order by lower(nome)`,
+    const agentes = await comPessoa(o.poolApp, p.pessoaId, p.empresaId, async (c) => {
+      const r = await c.query<{ id: string; nome: string; papel: string }>(
+        `select id, nome, papel from agentes where empresa_id = empresa_ativa() and tipo = 'interno'
+            and situacao <> 'desligado' order by papel, lower(nome)`,
       );
       return r.rows;
     });
-    const procurado = semAcento(mencao.mencao);
-    const achado = nomes.find((a) =>
-      semAcento(a.nome)
+    const procurado = paraBusca(mencao.mencao);
+    const achado = agentes.find((a) =>
+      paraBusca(a.nome)
         .split(/[\s_-]+/)
         .some((w) => w.startsWith(procurado)),
     );
-    if (!achado) {
-      await o.carteiro.enviar(chatId, RESPOSTAS_DO_TELEGRAM.especialistaNaoEncontrado);
-      return;
+    if (achado?.papel === "coordenador") texto = mencao.resto;
+    else if (achado) {
+      if (!podeFalarComEspecialista(permissoes.perfil)) {
+        await o.carteiro.enviar(chatId, RESPOSTAS_DO_TELEGRAM.semPermissaoDeEspecialista);
+        return;
+      }
+      agenteId = achado.id;
+      texto = mencao.resto;
     }
-    agenteId = achado.id;
-    texto = mencao.resto;
   }
 
   const feito = await comPessoa(o.poolApp, p.pessoaId, p.empresaId, async (c) => {
+    // A linha do vínculo fica travada até o fim: duas mensagens ao mesmo tempo não abrem duas conversas.
+    const v = await c.query<{ conversa_id: string | null; recente: boolean | null }>(
+      `select t.conversa_id, v.atualizada_em > now() - make_interval(hours => $1) as recente
+         from vinculos_do_telegram t
+         left join conversas v on v.id = t.conversa_id and v.empresa_id = t.empresa_id
+        where t.pessoa_id = pessoa_ativa() and t.empresa_id = empresa_ativa()
+          for update of t`,
+      [HORAS_PARA_CONVERSA_NOVA_NO_TELEGRAM],
+    );
     // A conversa atual, se ainda vale: sem menção, e com mensagem nas últimas 6 horas.
-    const atual = agenteId
-      ? null
-      : (
-          await c.query<{ conversa_id: string | null }>(
-            `select t.conversa_id from vinculos_do_telegram t
-               join conversas v on v.id = t.conversa_id and v.empresa_id = t.empresa_id
-              where t.pessoa_id = pessoa_ativa() and t.empresa_id = empresa_ativa()
-                and v.atualizada_em > now() - make_interval(hours => $1)`,
-            [HORAS_PARA_CONVERSA_NOVA_NO_TELEGRAM],
-          )
-        ).rows[0]?.conversa_id;
-    const r = await receberMensagemDaPessoa(c, {
+    const atual = !agenteId && v.rows[0]?.recente ? v.rows[0].conversa_id : null;
+    const pedido = {
       pessoaId: p.pessoaId,
       perfil: permissoes.perfil,
       texto: texto.slice(0, 4000),
-      conversaId: atual ?? undefined,
       agenteId,
-      canal: "telegram",
-    });
+      canal: "telegram" as const,
+    };
+    let r = await receberMensagemDaPessoa(c, { ...pedido, conversaId: atual ?? undefined });
+    // O agente da conversa atual foi desligado (ou a conversa sumiu): começa outra, com o coordenador.
+    if (atual && "erro" in r && (r.erro === "nao_encontrada" || r.erro === "sem_coordenador"))
+      r = await receberMensagemDaPessoa(c, pedido);
     if ("conversa" in r && r.conversa.id !== atual)
       await c.query("update vinculos_do_telegram set conversa_id = $1 where pessoa_id = pessoa_ativa()", [
         r.conversa.id,
@@ -194,25 +197,30 @@ async function mandarPrioridades(
 /**
  * Manda ao Telegram as mensagens marcadas de uma empresa, em ordem. A que falhar fica para a próxima vez (até 1 hora;
  * depois, só no app). Mensagem de quem não tem mais o Telegram nesta empresa deixa de esperar.
+ *
+ * Uma entrega por vez por empresa: a trava do banco espera a outra terminar (o fim de uma execução e a verificação a
+ * cada minuto podem se cruzar), e quem chega depois lê de novo o que falta. Cada parte enviada fica gravada na hora,
+ * fora da transação da trava, para nada ir duas vezes se algo cair no meio.
  */
 export async function entregarNoTelegram(
   o: Pick<OpcoesDoTelegram, "poolApp" | "carteiro" | "log" | "conversa">,
   empresaId: string,
 ): Promise<number> {
+  const gravar = (sql: string, valores: unknown[]) =>
+    comEmpresa(o.poolApp, empresaId, (c) => c.query(sql, valores));
   return comEmpresa(o.poolApp, empresaId, async (c) => {
-    // Uma entrega por vez por empresa (o fim de uma execução e a verificação a cada minuto podem se cruzar).
-    const livre = await c.query<{ ok: boolean }>(
-      "select pg_try_advisory_xact_lock(hashtextextended('telegram-entrega:' || empresa_ativa()::text, 0)) as ok",
+    await c.query(
+      "select pg_advisory_xact_lock(hashtextextended('telegram-entrega:' || empresa_ativa()::text, 0))",
     );
-    if (!livre.rows[0]?.ok) return 0;
     const r = await c.query<{
       id: string;
       texto: string;
       tarefas: string[];
+      partes_enviadas: number;
       chat_id: string | null;
       velha: boolean;
     }>(
-      `select m.id, m.texto, m.tarefas, t.chat_id,
+      `select m.id, m.texto, m.tarefas, m.telegram_partes_enviadas as partes_enviadas, t.chat_id,
               m.criada_em < now() - make_interval(mins => $1) as velha
          from mensagens_de_conversa m
          left join vinculos_do_telegram t on t.pessoa_id = m.pessoa_id and t.empresa_id = m.empresa_id
@@ -224,7 +232,7 @@ export async function entregarNoTelegram(
     const falhouPara = new Set<string>();
     for (const m of r.rows) {
       if (!m.chat_id || m.velha) {
-        await c.query("update mensagens_de_conversa set telegram_pendente = false where id = $1", [m.id]);
+        await gravar("update mensagens_de_conversa set telegram_pendente = false where id = $1", [m.id]);
         continue;
       }
       // Depois de uma falha para o mesmo chat, as seguintes esperam (para não chegarem fora de ordem).
@@ -232,18 +240,24 @@ export async function entregarNoTelegram(
       const links = o.conversa
         ? m.tarefas.map((id) => `${o.conversa?.urlPublica}/tarefas/${id}`).join("\n")
         : "";
+      const partes = partesDoTexto(links ? `${m.texto}\n\n${links}` : m.texto);
       try {
-        for (const parte of partesDoTexto(links ? `${m.texto}\n\n${links}` : m.texto))
-          await o.carteiro.enviar(Number(m.chat_id), parte);
+        // Uma resposta longa que parou no meio continua da parte que faltava.
+        for (let i = m.partes_enviadas; i < partes.length; i++) {
+          await o.carteiro.enviar(Number(m.chat_id), partes[i] as string);
+          await gravar(
+            i === partes.length - 1
+              ? `update mensagens_de_conversa set telegram_pendente = false, telegram_enviada_em = now(),
+                   telegram_partes_enviadas = $2 where id = $1`
+              : "update mensagens_de_conversa set telegram_partes_enviadas = $2 where id = $1",
+            [m.id, i + 1],
+          );
+        }
       } catch (erro) {
         o.log.warn({ erro, mensagemId: m.id }, "Telegram: resposta não entregue; tenta de novo em 1 minuto");
         falhouPara.add(m.chat_id);
         continue;
       }
-      await c.query(
-        "update mensagens_de_conversa set telegram_pendente = false, telegram_enviada_em = now() where id = $1",
-        [m.id],
-      );
       enviadas++;
     }
     return enviadas;
@@ -266,7 +280,7 @@ export async function entregarPendentesNoTelegram(
   return total;
 }
 
-/** "Digitando" na conversa do Telegram da pessoa dona da conversa, se ela conversa por lá agora. */
+/** "Digitando" no Telegram da dona da conversa, se a última mensagem dela veio de lá (senão a resposta vai ao app). */
 export async function digitandoNoTelegram(
   o: Pick<OpcoesDoTelegram, "poolApp" | "carteiro">,
   empresaId: string,
@@ -274,7 +288,10 @@ export async function digitandoNoTelegram(
 ): Promise<void> {
   const r = await comEmpresa(o.poolApp, empresaId, (c) =>
     c.query<{ chat_id: string }>(
-      `select t.chat_id from vinculos_do_telegram t where t.empresa_id = empresa_ativa() and t.conversa_id = $1`,
+      `select t.chat_id from vinculos_do_telegram t
+        where t.empresa_id = empresa_ativa() and t.conversa_id = $1
+          and (select m.canal from mensagens_de_conversa m where m.conversa_id = $1 and m.empresa_id = empresa_ativa()
+                  and m.autor_pessoa_id is not null order by m.criada_em desc limit 1) = 'telegram'`,
       [conversaId],
     ),
   );

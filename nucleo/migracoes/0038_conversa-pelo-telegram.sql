@@ -17,6 +17,7 @@ ALTER TABLE public.mensagens_de_conversa
   ADD COLUMN canal text NOT NULL DEFAULT 'app' CHECK (canal IN ('app', 'telegram')),
   ADD COLUMN telegram_pendente boolean NOT NULL DEFAULT false,
   ADD COLUMN telegram_enviada_em timestamptz,
+  ADD COLUMN telegram_partes_enviadas integer NOT NULL DEFAULT 0 CHECK (telegram_partes_enviadas >= 0),
   ADD CONSTRAINT mensagens_telegram_pelo_canal CHECK (NOT telegram_pendente OR canal = 'telegram');
 CREATE INDEX mensagens_para_o_telegram ON public.mensagens_de_conversa (empresa_id, criada_em)
   WHERE telegram_pendente;
@@ -25,6 +26,8 @@ COMMENT ON COLUMN public.mensagens_de_conversa.canal IS
 COMMENT ON COLUMN public.mensagens_de_conversa.telegram_pendente IS
   '[sistema] Falta mandar esta mensagem ao Telegram da pessoa.';
 COMMENT ON COLUMN public.mensagens_de_conversa.telegram_enviada_em IS '[sistema] Quando foi mandada ao Telegram.';
+COMMENT ON COLUMN public.mensagens_de_conversa.telegram_partes_enviadas IS
+  '[sistema] Partes já mandadas ao Telegram (resposta longa dividida; continua da que faltava).';
 
 ALTER TABLE public.vinculos_do_telegram
   ADD COLUMN conversa_id uuid,
@@ -114,5 +117,6 @@ CREATE OR REPLACE FUNCTION public.vincular_telegram(resumo_do_codigo text, conta
 ALTER TABLE public.vinculos_do_telegram DROP CONSTRAINT vinculos_do_telegram_conversa, DROP COLUMN conversa_id;
 DROP INDEX public.mensagens_para_o_telegram;
 ALTER TABLE public.mensagens_de_conversa DROP CONSTRAINT mensagens_telegram_pelo_canal,
-  DROP COLUMN telegram_enviada_em, DROP COLUMN telegram_pendente, DROP COLUMN canal;
+  DROP COLUMN telegram_partes_enviadas, DROP COLUMN telegram_enviada_em, DROP COLUMN telegram_pendente,
+  DROP COLUMN canal;
 ALTER TABLE public.conversas DROP COLUMN canal;

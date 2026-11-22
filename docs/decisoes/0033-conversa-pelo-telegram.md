@@ -27,8 +27,12 @@ Com o vínculo da M5-01, o bot sabe quem é a pessoa e em que empresa ela está.
 
 - **Serviço comum:** a lógica da rota `POST /conversas/mensagens` foi para `receberMensagemDaPessoa` (`nucleo/src/agentes-internos/mensagem-da-pessoa.ts`), que o app e o Telegram chamam.
 - **O canal na gravação:** `gravarMensagem` decide o canal e a marca do Telegram no próprio insert, pela última mensagem da pessoa; o motor só ganhou dois avisos opcionais (`canais.aoRodar` e `canais.aoTerminar`), que nunca seguram a execução.
-- **Entrega em ordem:** uma entrega por vez por empresa (trava do banco); se uma mensagem falha para um chat, as seguintes do mesmo chat esperam a próxima vez, para não chegarem fora de ordem. Mensagem de quem não tem mais o Telegram naquela empresa deixa de esperar.
-- **"Digitando":** ao receber o pedido, a cada rodada pela API e a cada ferramenta (inclusive pelo Claude Code).
+- **Entrega em ordem e sem repetir:** uma entrega por vez por empresa (a trava do banco espera a outra terminar e lê de novo o que falta). Cada parte mandada é gravada na hora, fora da transação da trava, e a resposta longa que parou no meio continua da parte que faltava (`telegram_partes_enviadas`). Se uma mensagem falha para um chat, as seguintes do mesmo chat esperam a próxima vez, para não chegarem fora de ordem. Mensagem de quem não tem mais o Telegram naquela empresa deixa de esperar.
+- **Menção só a agente:** "@palavra" no começo só abre conversa direta quando é o começo do nome de um especialista; o nome do coordenador vai ao coordenador, e outro "@" ("@Ana, cria...") vai inteiro ao coordenador.
+- **Agente da conversa desligado:** a conversa atual é deixada e o pedido começa outra com o coordenador.
+- **/tarefas** vale para quem vê tarefas, mesmo sem falar com os agentes.
+- **Duas mensagens juntas** não abrem duas conversas: a linha do vínculo fica travada até o fim do pedido.
+- **"Digitando":** ao receber o pedido, a cada rodada pela API e a cada ferramenta (inclusive pelo Claude Code), no máximo a cada 4 segundos, e só se a última mensagem da pessoa veio do Telegram.
 - **/nova com texto:** "/nova planeja o lançamento" começa a conversa nova já com o pedido.
 
 ## O que foi descartado

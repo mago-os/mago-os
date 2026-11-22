@@ -412,6 +412,18 @@ describe.skipIf(!bancoDisponivel)("conversa pelo Telegram", () => {
     expect(doChat(ANA)).toEqual(["Vou planejar."]);
   });
 
+  it("um @ que não é de agente vai inteiro ao coordenador", async () => {
+    roteiro = [() => ({ chamadas: [{ id: "r", nome: "responder", entrada: { texto: "Certo, Flora." } }] })];
+    await mandar(FLORA, "@Ana, cria uma tarefa para revisar o contrato");
+    await rodarEEntregar();
+    expect(doChat(FLORA)).toEqual(["Certo, Flora."]);
+    const c = await dono.query<{ agente_id: string }>(
+      "select v.agente_id from vinculos_do_telegram t join conversas v on v.id = t.conversa_id where t.pessoa_id = $1",
+      [ids.flora],
+    );
+    expect(c.rows[0]?.agente_id).toBe(ids.coordenador);
+  });
+
   it("a resposta que não chegou ao Telegram vai na próxima entrega", async () => {
     roteiro = [() => ({ chamadas: [{ id: "r", nome: "responder", entrada: { texto: "Depois." } }] })];
     await mandar(ANA, "/nova teste da entrega");
@@ -432,6 +444,28 @@ describe.skipIf(!bancoDisponivel)("conversa pelo Telegram", () => {
     expect(texto).toMatch(/^Prioridades de hoje:/);
     expect(texto).toContain("Revisar o contrato da DFO");
     expect(texto).toContain(`${SITE}/tarefas/${ids.tarefa}`);
+  });
+
+  it("resposta longa que parou no meio continua da parte que faltava", async () => {
+    const longo = `${"palavra ".repeat(600)}fim`;
+    roteiro = [() => ({ chamadas: [{ id: "r", nome: "responder", entrada: { texto: longo } }] })];
+    await mandar(ANA, "/nova resposta longa");
+    carteiro.enviadas.length = 0;
+    // A primeira parte vai; a segunda falha.
+    const enviar = carteiro.enviar.bind(carteiro);
+    let n = 0;
+    carteiro.enviar = async (chatId, texto, op) => {
+      n += 1;
+      if (n === 2) throw new Error("caiu no meio");
+      return enviar(chatId, texto, op);
+    };
+    await rodarEEntregar();
+    carteiro.enviar = enviar;
+    expect(doChat(ANA)).toHaveLength(1);
+    await entregarNoTelegram(opcoesDoBot, empresaId);
+    const partes = doChat(ANA);
+    expect(partes).toHaveLength(2);
+    expect(partes.join(" ").replace(/\s+/g, " ")).toBe(longo.replace(/\s+/g, " "));
   });
 
   it("foto e arquivo recebem o aviso de que, por enquanto, só texto", async () => {

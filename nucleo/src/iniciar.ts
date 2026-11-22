@@ -60,7 +60,7 @@ import { registrarRotasDasTarefas } from "./tarefas/rotas.ts";
 import { carteiroDoTelegram } from "./telegram/carteiro.ts";
 import { digitandoNoTelegram, entregarNoTelegram, entregarPendentesNoTelegram } from "./telegram/conversa.ts";
 import { type BotLigado, registrarRotasDoTelegram } from "./telegram/rotas.ts";
-import { COMANDOS_LIGADOS, tratarAtualizacao } from "./telegram/servico.ts";
+import { COMANDOS_LIGADOS, type OpcoesDoTelegram, tratarAtualizacao } from "./telegram/servico.ts";
 import { registrarTempoReal } from "./tempo-real/index.ts";
 
 /** Fila da verificação de agente vivo (a cada minuto). */
@@ -194,7 +194,7 @@ async function iniciar(): Promise<void> {
       log: app.log,
       acordar: acordarAgente,
       // Telegram (M5-02): "digitando" a cada rodada e as respostas mandadas ao fim de cada execução.
-      ...(bot
+      ...(opcoesDoBot
         ? {
             canais: {
               aoRodar: (empresaId: string, conversaId: string) => {
@@ -333,7 +333,7 @@ async function iniciar(): Promise<void> {
         await fila.send(FILA_TELEGRAM, atualizacao, { retryLimit: 0 });
       },
     });
-    if (bot) {
+    if (bot && opcoesDoBot) {
       const urlDoWebhook = `${config.acesso.urlPublica}/api/telegram/webhook`;
       trabalhos.push(async () => {
         await fila.createQueue(FILA_TELEGRAM);

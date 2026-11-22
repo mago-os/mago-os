@@ -316,5 +316,5 @@ O login (`mago_acesso`) não lê papéis nem as regras da plataforma direto. As 
 ## 43. Conversa pelo Telegram (22/11/2026, M5-02)
 
 - `conversas.canal` diz onde a conversa começou e `mensagens_de_conversa.canal` por onde cada mensagem passou ([decisão 0033](../decisoes/0033-conversa-pelo-telegram.md)). A mensagem do agente e a do sistema tomam o canal da última mensagem da pessoa na conversa, na própria gravação.
-- `mensagens_de_conversa.telegram_pendente` marca o que falta mandar ao Telegram (só pode ser verdade com o canal telegram), e `telegram_enviada_em` guarda quando foi. Um índice parcial acha as pendentes; `empresas_com_telegram_pendente()` dá à verificação a cada minuto só os ids das empresas.
+- `mensagens_de_conversa.telegram_pendente` marca o que falta mandar ao Telegram (só pode ser verdade com o canal telegram), `telegram_enviada_em` guarda quando foi e `telegram_partes_enviadas` quantas partes de uma resposta longa já foram. Um índice parcial acha as pendentes; `empresas_com_telegram_pendente()` dá à verificação a cada minuto só os ids das empresas.
 - `vinculos_do_telegram.conversa_id` é a conversa atual pelo Telegram, com chave estrangeira composta (a conversa é da mesma empresa). Apagar a conversa no app zera o campo; trocar de empresa e vincular de novo também.
