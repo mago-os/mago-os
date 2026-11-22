@@ -1,7 +1,7 @@
 # 0005 Main sem trava do GitHub por enquanto
 
 - **Data:** 16/11/2026
-- **Situação:** aceita (rever antes de entrar outro agente ou desenvolvedor, ou antes da produção no M6, o que vier primeiro)
+- **Situação:** substituída pela [0038](0038-main-protegida-pelo-github.md) em 22/11/2026 (o repositório ficou público e a proteção, grátis)
 - **Tarefa:** M0-07
 - **Decidido por:** Sandro
 

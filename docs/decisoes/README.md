@@ -11,7 +11,7 @@ Uma nota curta por decisão importante: o que foi decidido, por quê e o que foi
 | [0002](0002-backup-no-backblaze-b2.md) | Backup do banco no Backblaze B2 em vez do Cloudflare R2 | Aceita |
 | [0003](0003-api-registros-e-rastreio.md) | API: configuração, registros, número de rastreio e fila | Aceita |
 | [0004](0004-telas.md) | Telas: React, Tailwind, shadcn, app instalável e o mago | Aceita |
-| [0005](0005-main-sem-trava-por-enquanto.md) | Main sem trava do GitHub por enquanto, com regra escrita (rever antes de novos agentes ou do M6) | Aceita |
+| [0005](0005-main-sem-trava-por-enquanto.md) | Main sem trava do GitHub por enquanto, com regra escrita (rever antes de novos agentes ou do M6) | Substituída pela 0038 |
 | [0006](0006-ssh-da-vps02.md) | SSH da VPS02 só com chave, porta 22 aberta enquanto dividir com a Ratoeira | Aceita |
 | [0007](0007-backup-em-tres-depositos.md) | Backup em três depósitos (30 dias, 3 meses e 1 ano), teste de restauração mensal | Aceita |
 | [0008](0008-contratos-com-typebox.md) | Contratos com TypeBox; formatos de pessoa, empresa, vínculo, sessão e auditoria encadeada | Aceita |
@@ -44,3 +44,4 @@ Uma nota curta por decisão importante: o que foi decidido, por quê e o que foi
 | [0035](0035-aprovar-pelo-telegram.md) | Aprovar pelo Telegram: botões, código do app autenticador (sem PIN), trava em 3 erros, e a mesma decisão do app pela conferência mostrada | Aceita |
 | [0036](0036-descricao-do-anexo.md) | Descrição do anexo (quem enviou ou quem edita a tarefa), o canal por onde entrou, e anexos na busca | Aceita |
 | [0037](0037-avisos-e-resumo-pelo-telegram.md) | Avisos pelo Telegram (só o urgente por padrão, com silêncio) e resumo do dia às 8h | Aceita |
+| [0038](0038-main-protegida-pelo-github.md) | Main protegida pelo GitHub: só por PR, verificação verde e em dia com a main, sem apagar nem reescrever; o "ok" do Sandro continua no chat | Aceita |

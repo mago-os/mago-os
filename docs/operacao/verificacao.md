@@ -14,4 +14,10 @@ Em 16/11/2026, um PR com um teste quebrado de propósito (#30) foi barrado: "Tip
 
 ## Proteção da main
 
-O GitHub só permite proteger a main de um repositório privado com plano pago. Quando estiver disponível, a proteção exige: entrar só por PR, os três trabalhos acima verdes e o PR atualizado com a main. Enquanto isso, a regra é combinada: nenhum merge sem a verificação verde ([decisão 0005](../decisoes/0005-main-sem-trava-por-enquanto.md)).
+Ligada em 22/11/2026 ([decisão 0038](../decisoes/0038-main-protegida-pelo-github.md)), na regra do GitHub "Proteção da main" (Settings › Rules › Rulesets do repositório). Ela exige:
+
+- entrar só por PR (nada de envio direto, nem dos agentes);
+- os três trabalhos acima verdes ("Tipos, estilo e testes", "Testes de tela" e "Segurança") e o PR atualizado com a main (se a main andou: `gh pr update-branch <número>` e esperar a verificação de novo);
+- nada de apagar a main nem reescrever o histórico dela.
+
+Não exige aprovação no GitHub: o "ok" do Sandro no chat é a aprovação. Os administradores da organização podem passar por cima só dentro de um PR, numa emergência e a pedido do Sandro. Para conferir a regra: `gh api repos/mago-os/mago-os/rules/branches/main`.
