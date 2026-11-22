@@ -305,8 +305,15 @@ export const FERRAMENTAS_INTERNAS = [
   {
     nome: "anexar_arquivo",
     descricao:
-      "Anexa a uma tarefa um arquivo que quem pediu mandou pelo Telegram (o id vem na mensagem ou em arquivos_recebidos). O arquivo passa pelo antivírus antes de aparecer na tarefa. Se não estiver claro em qual tarefa anexar, pergunte à pessoa antes.",
-    entrada: Type.Object({ arquivoId: Id, tarefaId: Id }, { additionalProperties: false }),
+      'Anexa a uma tarefa um arquivo que quem pediu mandou pelo Telegram (o id vem na mensagem ou em arquivos_recebidos). O arquivo passa pelo antivírus antes de aparecer na tarefa. Em descricao, diga numa frase curta o que é o arquivo, tirado da legenda ou da conversa (não repita a ordem, como "anexa na tarefa"; sem nada a dizer, deixe de fora). Se não estiver claro em qual tarefa anexar, pergunte à pessoa antes.',
+    entrada: Type.Object(
+      {
+        arquivoId: Id,
+        tarefaId: Id,
+        descricao: Type.Optional(Texto(500, "O que é o arquivo, numa frase curta.")),
+      },
+      { additionalProperties: false },
+    ),
     papeis: ["coordenador", "especialista"],
   },
   {

@@ -1,5 +1,6 @@
 /**
- * Busca Ctrl+K (M3-09): uma caixa só para achar tarefas, comentários, projetos, espaços, pessoas e agentes.
+ * Busca Ctrl+K (M3-09): uma caixa só para achar tarefas, comentários, anexos (nome e descrição, M5-03b), projetos,
+ * espaços, pessoas e agentes.
  * Busca de texto do PostgreSQL em português, sem acento e tolerante a erro de digitação (pg_trgm), sempre com a
  * permissão de quem busca (a mesma regra das listas). A busca por significado (pgvector) vem com a memória da
  * empresa, na Fase 2 (decisão 15). Os comandos rápidos ("nova tarefa", "abrir agentes"...) são da tela.
@@ -8,9 +9,18 @@ import { type Static, Type } from "typebox";
 import { Id, OuNulo, Texto } from "../comum.ts";
 
 /** Na ordem em que os grupos aparecem. */
-export const TIPOS_DE_RESULTADO = ["tarefa", "comentario", "projeto", "espaco", "pessoa", "agente"] as const;
+export const TIPOS_DE_RESULTADO = [
+  "tarefa",
+  "comentario",
+  // M5-03b: o nome e a descrição dos anexos (o conteúdo do arquivo não entra).
+  "anexo",
+  "projeto",
+  "espaco",
+  "pessoa",
+  "agente",
+] as const;
 export const TipoDeResultado = Type.Enum(TIPOS_DE_RESULTADO, {
-  description: "tarefa, comentario, projeto, espaco, pessoa ou agente.",
+  description: "tarefa, comentario, anexo, projeto, espaco, pessoa ou agente.",
 });
 export type TipoDeResultado = Static<typeof TipoDeResultado>;
 

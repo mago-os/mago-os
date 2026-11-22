@@ -797,6 +797,7 @@ export function PaginaDaTarefa({
         anexos={anexosDaTarefa.anexos}
         anexosLigados={anexosDaTarefa.ligados}
         aoMudarAnexos={() => void anexosDaTarefa.recarregar()}
+        podeDescreverAnexos={podeEditar}
         tarefaId={tarefa.id}
         comentarios={comentarios}
         acontecimentos={aberta.acontecimentos}

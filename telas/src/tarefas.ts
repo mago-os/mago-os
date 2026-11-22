@@ -216,7 +216,17 @@ export const resolverPrioridade = (chave: string) => pedir<null>("POST", "/prior
 
 /** Anexos (M3-08). */
 export const listarAnexos = (tarefaId: string) =>
-  pedir<{ anexos: Anexo[]; ligados: boolean }>("GET", `/tarefas/${encodeURIComponent(tarefaId)}/anexos`);
+  pedir<{ anexos: Anexo[]; nomes: Record<string, string>; ligados: boolean }>(
+    "GET",
+    `/tarefas/${encodeURIComponent(tarefaId)}/anexos`,
+  );
+/** Escreve, troca ou tira (nulo) a descrição do anexo (M5-03b). */
+export const descreverAnexo = (tarefaId: string, anexoId: string, descricao: string | null) =>
+  pedir<{ anexo: Anexo }>(
+    "POST",
+    `/tarefas/${encodeURIComponent(tarefaId)}/anexos/${encodeURIComponent(anexoId)}/descricao`,
+    { descricao },
+  );
 export const linkDoAnexo = (tarefaId: string, anexoId: string) =>
   pedir<LinkDoAnexo>(
     "GET",

@@ -50,7 +50,9 @@ export async function haTextoDeOutros(
           and ${deOutros("i.escrito_por_pessoa_id", "i.escrito_por_agente_id")}
        union all
        select 1 from anexos a where a.empresa_id = empresa_ativa() and a.tarefa_id = any($3::uuid[])
-          and ${deOutros("a.enviado_por_pessoa_id", "a.enviado_por_agente_id")}
+          and (${deOutros("a.enviado_por_pessoa_id", "a.enviado_por_agente_id")}
+               or (a.descricao is not null and a.descrito_por_pessoa_id is not null
+                   and a.descrito_por_pessoa_id <> $1::uuid))
      ) as ha`,
     [pedidoPor, tarefas, inteiras, comentarios],
   );
