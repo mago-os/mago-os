@@ -190,6 +190,17 @@ async function iniciar(): Promise<void> {
         log: app.log,
         origem: { canal: "sistema", ip: null, aparelho: null },
         anexos: servicosDosAnexos,
+        // Arquivos mandados pelo Telegram (M5-03): a ferramenta anexar_arquivo baixa e acorda o antivírus.
+        telegram: bot
+          ? {
+              baixar: (id: string) => bot.carteiro.baixarArquivo(id),
+              acordarAnexos: () => {
+                void fila
+                  .send(FILA_ANEXOS, {})
+                  .catch((erro) => app.log.warn({ erro }, "Fila dos anexos não acordou"));
+              },
+            }
+          : null,
       },
       log: app.log,
       acordar: acordarAgente,

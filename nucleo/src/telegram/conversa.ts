@@ -14,6 +14,7 @@ import {
   RESPOSTAS_DO_TELEGRAM,
   respostaDeAgentePausado,
   respostaDeAgentesParados,
+  respostaDeArquivoEsperando,
 } from "@mago-os/contratos";
 import type pg from "pg";
 import { quemPediu } from "../agentes-internos/ferramentas.ts";
@@ -22,6 +23,7 @@ import { paraBusca } from "../busca/index.ts";
 import { comEmpresa, comPessoa } from "../empresa.ts";
 import { permissoesNaEmpresa } from "../permissoes/verificar.ts";
 import { listarPrioridades } from "../tarefas/prioridades.ts";
+import { cuidarDosArquivosDoTelegram } from "./arquivos.ts";
 import { MAXIMO_DA_MENSAGEM_DO_TELEGRAM } from "./carteiro.ts";
 import type { OpcoesDoTelegram, PessoaDoTelegram } from "./servico.ts";
 
@@ -60,6 +62,8 @@ export async function conversarPeloTelegram(
   chatId: number,
   texto: string,
   comando: { comando: string; resto: string } | null,
+  /** A mensagem trouxe um arquivo (M5-03): com o agente ocupado, ele espera em vez de recusar. */
+  arquivo: { nome: string } | null = null,
 ): Promise<void> {
   const conv = o.conversa;
   if (!conv) {
@@ -151,7 +155,9 @@ export async function conversarPeloTelegram(
   if ("erro" in feito) {
     const resposta =
       feito.erro === "ocupado"
-        ? RESPOSTAS_DO_TELEGRAM.ocupado
+        ? arquivo
+          ? respostaDeArquivoEsperando(arquivo.nome)
+          : RESPOSTAS_DO_TELEGRAM.ocupado
         : feito.erro === "parados"
           ? respostaDeAgentesParados(feito.motivo)
           : feito.erro === "pausado"
@@ -266,7 +272,7 @@ export async function entregarNoTelegram(
   });
 }
 
-/** A verificação a cada minuto: as empresas com resposta esperando para ir ao Telegram. */
+/** A verificação a cada minuto: respostas esperando para ir ao Telegram e os arquivos a cuidar, por empresa. */
 export async function entregarPendentesNoTelegram(
   o: Pick<OpcoesDoTelegram, "poolApp" | "carteiro" | "log" | "conversa">,
 ): Promise<number> {
@@ -274,11 +280,16 @@ export async function entregarPendentesNoTelegram(
     "select empresa_id from empresas_com_telegram_pendente()",
   );
   let total = 0;
-  for (const e of r.rows)
+  for (const e of r.rows) {
     total += await entregarNoTelegram(o, e.empresa_id).catch((erro) => {
       o.log.error({ erro, empresaId: e.empresa_id }, "Telegram: entrega da empresa falhou");
       return 0;
     });
+    // Arquivos (M5-03): os vencidos e os bloqueios pelo antivírus a avisar.
+    await cuidarDosArquivosDoTelegram(o, e.empresa_id).catch((erro) =>
+      o.log.error({ erro, empresaId: e.empresa_id }, "Telegram: cuidar dos arquivos da empresa falhou"),
+    );
+  }
   return total;
 }
 

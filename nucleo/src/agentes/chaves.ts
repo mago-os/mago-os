@@ -132,6 +132,11 @@ export interface OpcoesDaChave {
   limites?: { pedidosPorMinuto: number; leiturasPorHora: number };
   /** Anexos (M3-08), para o MCP: nulo quando estão desligados. */
   anexos?: ServicosDosAnexos | null;
+  /**
+   * Telegram (M5-03), para a ferramenta anexar_arquivo dos agentes internos: baixar o arquivo e acordar a fila do
+   * antivírus. Nulo quando o bot está desligado.
+   */
+  telegram?: { baixar(idNoTelegram: string): Promise<Buffer>; acordarAnexos(): void } | null;
 }
 
 /** Pausa o agente que passou do limite, avisa o responsável e registra. Roda na transação da empresa. */

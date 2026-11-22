@@ -21,6 +21,8 @@ export interface CarteiroDoTelegram {
   digitando(chatId: number): Promise<void>;
   /** O @ do bot (getMe). */
   quemSouEu(): Promise<string>;
+  /** Baixa um arquivo pelo número dele no Telegram (getFile e o download), até o limite de 20 MB (M5-03). */
+  baixarArquivo(idNoTelegram: string): Promise<Buffer>;
   /** Liga o webhook com o segredo, só para os tipos de atualização usados. */
   ligarWebhook(url: string, segredo: string): Promise<void>;
   /** O menu de comandos do bot. */
@@ -57,6 +59,9 @@ function teclado(botoes: BotaoDoTelegram[][] | undefined) {
     ),
   };
 }
+
+/** O Telegram não deixa um bot baixar mais que isto. */
+const LIMITE_PARA_BAIXAR = 20 * 1024 * 1024;
 
 export function carteiroDoTelegram(
   token: string,
@@ -103,6 +108,22 @@ export function carteiroDoTelegram(
       const eu = await chamar<{ username: string }>("getMe", {});
       return eu.username;
     },
+    async baixarArquivo(idNoTelegram) {
+      const f = await chamar<{ file_path?: string; file_size?: number }>("getFile", {
+        file_id: idNoTelegram,
+      });
+      if (!f.file_path) throw new ErroDoTelegram("getFile", 400, "arquivo sem caminho para baixar");
+      if ((f.file_size ?? 0) > LIMITE_PARA_BAIXAR)
+        throw new ErroDoTelegram("getFile", 400, "arquivo grande demais");
+      const r = await buscar(`${base}/file/bot${token}/${f.file_path}`, {
+        signal: AbortSignal.timeout(60_000),
+      });
+      if (!r.ok) throw new ErroDoTelegram("download", r.status, "o arquivo não veio");
+      const dados = Buffer.from(await r.arrayBuffer());
+      if (dados.length > LIMITE_PARA_BAIXAR)
+        throw new ErroDoTelegram("download", 400, "arquivo grande demais");
+      return dados;
+    },
     async ligarWebhook(url, segredo) {
       await chamar("setWebhook", {
         url,
@@ -129,6 +150,8 @@ export interface CarteiroFalsoDoTelegram extends CarteiroDoTelegram {
   digitandoEm: number[];
   /** Faz o próximo envio falhar (para testar a entrega que fica para depois). */
   falharProximo: boolean;
+  /** Os arquivos que o "Telegram" tem, pelo número de cada um. */
+  arquivos: Map<string, Buffer>;
 }
 
 /** Para os testes: guarda as mensagens em vez de mandar. */
@@ -138,6 +161,7 @@ export function carteiroFalsoDoTelegram(bot = "OsMagoTesteBot"): CarteiroFalsoDo
     saiuDe: [],
     digitandoEm: [],
     falharProximo: false,
+    arquivos: new Map(),
     async enviar(chatId, texto, opcoes) {
       if (falso.falharProximo) {
         falso.falharProximo = false;
@@ -151,6 +175,11 @@ export function carteiroFalsoDoTelegram(bot = "OsMagoTesteBot"): CarteiroFalsoDo
     },
     async quemSouEu() {
       return bot;
+    },
+    async baixarArquivo(idNoTelegram) {
+      const dados = falso.arquivos.get(idNoTelegram);
+      if (!dados) throw new ErroDoTelegram("getFile", 400, "arquivo não encontrado");
+      return dados;
     },
     async ligarWebhook() {},
     async definirComandos() {},

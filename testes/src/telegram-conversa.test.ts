@@ -5,6 +5,9 @@
  * especialista segue a mesma regra do app; a entrega que falha fica para depois; /tarefas e o "só texto".
  */
 import { randomBytes } from "node:crypto";
+import { mkdtemp } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import type { AtualizacaoDoTelegram } from "@mago-os/contratos";
 import { criarLogin, criarPoolDoLogin, embaralharSenha, registrarRotasDoLogin } from "@mago-os/nucleo/acesso";
 import { registrarRotasDosAgentes } from "@mago-os/nucleo/agentes";
@@ -13,6 +16,9 @@ import {
   registrarRotasDaConversa,
   rodarExecucao,
 } from "@mago-os/nucleo/agentes-internos";
+import { antivirusDeTeste } from "@mago-os/nucleo/anexos/antivirus";
+import { criarDepositoEmDisco, type DepositoEmDisco } from "@mago-os/nucleo/anexos/deposito";
+import { cuidarDosAnexos } from "@mago-os/nucleo/anexos/servico";
 import { type BancoTemporario, criarBancoTemporario } from "@mago-os/nucleo/banco-temporario";
 import {
   criarCofre,
@@ -26,6 +32,7 @@ import {
   type CarteiroFalsoDoTelegram,
   carteiroFalsoDoTelegram,
   entregarNoTelegram,
+  entregarPendentesNoTelegram,
   type OpcoesDoTelegram,
   registrarRotasDoTelegram,
   tratarAtualizacao,
@@ -60,6 +67,7 @@ describe.skipIf(!bancoDisponivel)("conversa pelo Telegram", () => {
   let carteiro: CarteiroFalsoDoTelegram;
   let opcoesDoBot: OpcoesDoTelegram;
   let motor: OpcoesDoMotor;
+  let deposito: DepositoEmDisco;
   let empresaId: string;
   let ip = 0;
   let numero = 5000;
@@ -126,7 +134,7 @@ describe.skipIf(!bancoDisponivel)("conversa pelo Telegram", () => {
   }
 
   /** Uma mensagem individual de uma conta do Telegram, tratada na hora (na API, pela fila). */
-  async function mandar(conta: number, texto: string | null) {
+  async function mandar(conta: number, texto: string | null, extra: Record<string, unknown> = {}) {
     numero += 1;
     const a = {
       update_id: numero,
@@ -136,6 +144,7 @@ describe.skipIf(!bancoDisponivel)("conversa pelo Telegram", () => {
         chat: { id: conta, type: "private" },
         from: { id: conta, is_bot: false, first_name: `Conta ${conta}` },
         ...(texto === null ? {} : { text: texto }),
+        ...extra,
       },
     } as AtualizacaoDoTelegram;
     await tratarAtualizacao(opcoesDoBot, a);
@@ -213,6 +222,7 @@ describe.skipIf(!bancoDisponivel)("conversa pelo Telegram", () => {
       bot: { carteiro, segredo: SEGREDO, usuario: () => "OsMagoTesteBot" },
       receber: (a) => tratarAtualizacao(opcoesDoBot, a),
     });
+    deposito = criarDepositoEmDisco(SITE, await mkdtemp(join(tmpdir(), "anexos-telegram-")));
     motor = {
       poolApp,
       cofre,
@@ -229,6 +239,8 @@ describe.skipIf(!bancoDisponivel)("conversa pelo Telegram", () => {
         urlPublica: SITE,
         log: app.log,
         origem: { canal: "sistema", ip: null, aparelho: null },
+        anexos: { deposito, antivirus: antivirusDeTeste },
+        telegram: { baixar: (id) => carteiro.baixarArquivo(id), acordarAnexos: () => {} },
       },
       log: SILENCIO,
       acordar,
@@ -468,10 +480,173 @@ describe.skipIf(!bancoDisponivel)("conversa pelo Telegram", () => {
     expect(partes.join(" ").replace(/\s+/g, " ")).toBe(longo.replace(/\s+/g, " "));
   });
 
-  it("foto e arquivo recebem o aviso de que, por enquanto, só texto", async () => {
+  it("mensagem sem texto nem arquivo recebe o aviso de que só entende texto", async () => {
     await mandar(ANA, null);
     expect(doChat(ANA)).toEqual([
       "Por enquanto entendo só texto por aqui. Arquivos e fotos chegam em breve.",
     ]);
+  });
+
+  // Arquivos (M5-03): o id do arquivo vem na mensagem que o agente recebe.
+  const idDoArquivo = (p: PedidoAoModelo) =>
+    /id ([0-9a-f-]{36})\]/.exec(JSON.stringify(p.partes.filter((x) => x.papel === "usuario").at(-1)))?.[1] ??
+    "";
+
+  it("a foto com legenda vira anexo da tarefa, passa pelo antivírus, e o agente não vê o conteúdo", async () => {
+    carteiro.arquivos.set("foto-grande", Buffer.from("conteudo da foto"));
+    let vistoPeloAgente = "";
+    roteiro = [
+      (p) => {
+        vistoPeloAgente = JSON.stringify(p.partes.at(-1));
+        ids.arquivo = idDoArquivo(p);
+        return {
+          chamadas: [
+            { id: "a1", nome: "anexar_arquivo", entrada: { arquivoId: ids.arquivo, tarefaId: ids.tarefa } },
+          ],
+        };
+      },
+      () => ({
+        chamadas: [
+          { id: "r", nome: "responder", entrada: { texto: "Anexei a foto.", tarefas: [ids.tarefa] } },
+        ],
+      }),
+    ];
+    await mandar(ANA, null, {
+      caption: "/nova anexa na tarefa do contrato",
+      photo: [
+        { file_id: "foto-pequena", file_unique_id: "p", file_size: 10 },
+        { file_id: "foto-grande", file_unique_id: "g", file_size: 16 },
+      ],
+    });
+    await rodarEEntregar();
+    expect(vistoPeloAgente).toContain("anexa na tarefa do contrato");
+    expect(vistoPeloAgente).toMatch(
+      /Arquivo recebido pelo Telegram, esperando uma tarefa: foto-[0-9-]+\.jpg \(image\/jpeg/,
+    );
+    expect(vistoPeloAgente).not.toContain("conteudo da foto");
+    expect(doChat(ANA).at(-1)).toBe(`Anexei a foto.\n\n${SITE}/tarefas/${ids.tarefa}`);
+    expect(await cuidarDosAnexos(poolApp, { deposito, antivirus: antivirusDeTeste }, SILENCIO)).toMatchObject(
+      {
+        liberados: 1,
+      },
+    );
+    const anexo = await dono.query(
+      "select situacao, tamanho::int as tamanho, enviado_por_pessoa_id, enviado_por_agente_id from anexos where tarefa_id = $1",
+      [ids.tarefa],
+    );
+    expect(anexo.rows).toEqual([
+      { situacao: "disponivel", tamanho: 16, enviado_por_pessoa_id: ids.ana, enviado_por_agente_id: null },
+    ]);
+    const arq = await dono.query("select situacao from arquivos_do_telegram where id = $1", [ids.arquivo]);
+    expect(arq.rows[0]?.situacao).toBe("anexado");
+  });
+
+  it("o arquivo bloqueado pelo antivírus é avisado no Telegram, uma vez", async () => {
+    const eicar = "X5O!P%@AP[4\\PZX54(P^)7CC)7}$EICAR-STANDARD-ANTIVIRUS-TEST-FILE!$H+H*";
+    carteiro.arquivos.set("doc-eicar", Buffer.from(eicar));
+    roteiro = [
+      (p) => ({
+        chamadas: [
+          { id: "a1", nome: "anexar_arquivo", entrada: { arquivoId: idDoArquivo(p), tarefaId: ids.tarefa } },
+        ],
+      }),
+      () => ({ chamadas: [{ id: "r", nome: "responder", entrada: { texto: "Anexei." } }] }),
+    ];
+    await mandar(ANA, null, {
+      caption: "/nova anexa no contrato",
+      document: {
+        file_id: "doc-eicar",
+        file_unique_id: "e",
+        file_size: eicar.length,
+        file_name: "teste.txt",
+        mime_type: "text/plain",
+      },
+    });
+    await rodarEEntregar();
+    expect(await cuidarDosAnexos(poolApp, { deposito, antivirus: antivirusDeTeste }, SILENCIO)).toMatchObject(
+      {
+        bloqueados: 1,
+      },
+    );
+    carteiro.enviadas.length = 0;
+    await entregarPendentesNoTelegram(opcoesDoBot);
+    await entregarPendentesNoTelegram(opcoesDoBot);
+    expect(doChat(ANA)).toEqual([
+      "O antivírus bloqueou teste.txt, e o arquivo foi apagado. Ele não entrou na tarefa.",
+    ]);
+  });
+
+  it("arquivo grande, tipo que roda programa e figurinha são recusados na hora", async () => {
+    await mandar(ANA, null, {
+      document: { file_id: "x", file_unique_id: "x", file_size: 21 * 1024 * 1024, file_name: "grande.pdf" },
+    });
+    await mandar(ANA, null, {
+      document: { file_id: "y", file_unique_id: "y", file_size: 10, file_name: "instalar.exe" },
+    });
+    await mandar(ANA, null, { sticker: { file_id: "z" } });
+    expect(doChat(ANA)).toEqual([
+      "Esse arquivo passa de 20 MB, o limite do Telegram para o Mago OS receber. Mande pelo app, na tarefa.",
+      "Esse tipo de arquivo não é aceito (pode rodar um programa). Mande outro formato, como PDF ou imagem.",
+      "Figurinhas e GIFs não viram anexo. Mande foto, documento, áudio ou vídeo.",
+    ]);
+    const n = await dono.query(
+      "select count(*)::int as n from arquivos_do_telegram where nome in ('grande.pdf', 'instalar.exe')",
+    );
+    expect(n.rows[0]?.n).toBe(0);
+  });
+
+  it("com o agente ocupado, o arquivo espera; e ninguém anexa o arquivo de outra pessoa", async () => {
+    roteiro = [() => ({ chamadas: [{ id: "r", nome: "responder", entrada: { texto: "Ok." } }] })];
+    await mandar(ANA, "/nova primeiro pedido");
+    await mandar(ANA, null, {
+      voice: { file_id: "voz", file_unique_id: "v", file_size: 100, mime_type: "audio/ogg" },
+    });
+    expect(doChat(ANA).at(-1)).toMatch(/^Recebi audio-[0-9-]+\.ogg\. Ele fica esperando por 24 horas/);
+    await rodarEEntregar();
+    const esperando = await dono.query<{ id: string }>(
+      "select id from arquivos_do_telegram where pessoa_id = $1 and situacao = 'esperando' and tipo = 'audio/ogg'",
+      [ids.ana],
+    );
+    expect(esperando.rowCount).toBe(1);
+    ids.voz = esperando.rows[0]?.id as string;
+    // A Flora pede ao coordenador para anexar o áudio da Ana: a ferramenta recusa.
+    let resultado = "";
+    roteiro = [
+      () => ({
+        chamadas: [
+          { id: "a1", nome: "anexar_arquivo", entrada: { arquivoId: ids.voz, tarefaId: ids.tarefa } },
+        ],
+      }),
+      (p) => {
+        resultado = JSON.stringify(p.partes.at(-1));
+        return { chamadas: [{ id: "r", nome: "responder", entrada: { texto: "Não deu." } }] };
+      },
+    ];
+    await mandar(FLORA, "/nova anexa o áudio");
+    await rodarEEntregar();
+    expect(resultado).toContain("Arquivo não encontrado entre os que quem pediu mandou pelo Telegram");
+    const ainda = await dono.query("select situacao from arquivos_do_telegram where id = $1", [ids.voz]);
+    expect(ainda.rows[0]?.situacao).toBe("esperando");
+  });
+
+  it("arquivos_recebidos mostra os que esperam, e o que passou de 24 horas vence", async () => {
+    let lista = "";
+    roteiro = [
+      () => ({ chamadas: [{ id: "l", nome: "arquivos_recebidos", entrada: {} }] }),
+      (p) => {
+        lista = JSON.stringify(p.partes.at(-1));
+        return { chamadas: [{ id: "r", nome: "responder", entrada: { texto: "Tem um áudio." } }] };
+      },
+    ];
+    await mandar(ANA, "/nova quais arquivos eu mandei?");
+    await rodarEEntregar();
+    expect(lista).toContain(ids.voz);
+    await dono.query(
+      "update arquivos_do_telegram set recebido_em = now() - interval '25 hours', vence_em = now() - interval '1 hour' where id = $1",
+      [ids.voz],
+    );
+    await entregarPendentesNoTelegram(opcoesDoBot);
+    const v = await dono.query("select situacao from arquivos_do_telegram where id = $1", [ids.voz]);
+    expect(v.rows[0]?.situacao).toBe("vencido");
   });
 });

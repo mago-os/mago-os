@@ -318,3 +318,9 @@ O login (`mago_acesso`) não lê papéis nem as regras da plataforma direto. As 
 - `conversas.canal` diz onde a conversa começou e `mensagens_de_conversa.canal` por onde cada mensagem passou ([decisão 0033](../decisoes/0033-conversa-pelo-telegram.md)). A mensagem do agente e a do sistema tomam o canal da última mensagem da pessoa na conversa, na própria gravação.
 - `mensagens_de_conversa.telegram_pendente` marca o que falta mandar ao Telegram (só pode ser verdade com o canal telegram), `telegram_enviada_em` guarda quando foi e `telegram_partes_enviadas` quantas partes de uma resposta longa já foram. Um índice parcial acha as pendentes; `empresas_com_telegram_pendente()` dá à verificação a cada minuto só os ids das empresas.
 - `vinculos_do_telegram.conversa_id` é a conversa atual pelo Telegram, com chave estrangeira composta (a conversa é da mesma empresa). Apagar a conversa no app zera o campo; trocar de empresa e vincular de novo também.
+
+## 44. Arquivos pelo Telegram (22/11/2026, M5-03)
+
+- `arquivos_do_telegram` guarda o arquivo mandado pelo Telegram enquanto ele espera uma tarefa, por até 24 horas ([decisão 0034](../decisoes/0034-arquivos-pelo-telegram.md)): nome, tipo, tamanho e o número do arquivo no Telegram (`[sensivel]`, porque com ele e o token do bot dá para baixar). Nada é baixado nessa hora.
+- Ao anexar, o arquivo vira um anexo comum (`anexos`, M3-08), em nome da pessoa que mandou, e passa pelo antivírus. A situação "anexado" exige o anexo; se o anexo for apagado (a tarefa foi excluída), um gatilho deixa o arquivo como "vencido".
+- `bloqueio_avisado_em` marca o aviso de bloqueio pelo antivírus no Telegram, uma vez só. `empresas_com_telegram_pendente()` passa a achar também os arquivos vencidos e os bloqueios a avisar.
