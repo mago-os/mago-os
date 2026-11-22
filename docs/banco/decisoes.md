@@ -337,3 +337,9 @@ O login (`mago_acesso`) não lê papéis nem as regras da plataforma direto. As 
 
 - `anexos.descricao` (opcional, até 500 caracteres) diz o que é o arquivo ([decisão 0036](../decisoes/0036-descricao-do-anexo.md)); a API só pode mudar essa coluna, além das da M3-08. `anexos.canal` diz se o anexo entrou pelo app ou pelo Telegram (os que vieram do Telegram antes da migração foram acertados por `arquivos_do_telegram`). `anexos.descrito_por_pessoa_id` guarda quem escreveu a descrição, que para os agentes conta como texto de outros quando não é de quem pediu.
 - Índices de trigramas no nome e na descrição, para o Ctrl+K achar anexos.
+
+## 47. Avisos e resumo do dia pelo Telegram (22/11/2026, M5-08)
+
+- `avisos.telegram_pendente` marca o aviso novo para a verificação do Telegram ([decisão 0037](../decisoes/0037-avisos-e-resumo-pelo-telegram.md)): o padrão da coluna é verdadeiro só para os avisos criados depois da migração (os antigos não vão). A verificação confere o tipo nas preferências, o vínculo do Telegram na empresa e o silêncio, desmarca e só então manda; depois de 12 horas, desiste.
+- `vinculos_do_telegram.resumo_do_dia_em` guarda o último dia (no fuso da pessoa) em que o resumo foi, ou foi pulado por estar desligado. A verificação do sistema não tem pessoa no pedido, e a política do vínculo é da pessoa: por isso marca pelo `marcar_resumo_do_dia_no_telegram()`.
+- `empresas_com_telegram_pendente()` acha também os avisos esperando e as pessoas cujo resumo do dia ainda não foi hoje (o fuso inválido vira UTC).

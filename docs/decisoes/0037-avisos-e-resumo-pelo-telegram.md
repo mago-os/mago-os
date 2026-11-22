@@ -1,7 +1,7 @@
 # 0037 Avisos e resumo do dia pelo Telegram
 
 - **Data:** 22/11/2026
-- **Situação:** proposta (aguardando o "aprovado" do Sandro)
+- **Situação:** aceita (aprovada pelo Sandro no chat em 22/11/2026)
 - **Tarefa:** M5-08
 
 ## Contexto
@@ -17,6 +17,13 @@ Os avisos (M3-06) chegam no sino e no push. O plano pede que o urgente também c
 5. **Resumo do dia.** Ligado por padrão às 8h, no fuso da pessoa, com hora ajustável ou desligado. Traz as prioridades de hoje (a mesma lista da central, até 10, com o link de cada uma) e quantos avisos ainda não foram lidos. Vai uma vez por dia; num dia sem nada, vai a frase "Nada pedindo a sua atenção hoje". No silêncio, espera o fim dele.
 6. **Entrega.** Todo aviso novo fica marcado para o Telegram. A verificação a cada minuto confere o canal, o vínculo e o silêncio, manda e desmarca. O aviso que não foi em 12 horas desiste (fica no sino e no push). O texto é o do aviso, mais o link para abrir no app, só como texto.
 7. **Cada empresa por si.** O aviso vai pelo Telegram só se o vínculo do Telegram é da mesma empresa do aviso; avisos de outra empresa da pessoa ficam no sino daquela empresa. O resumo do dia é da empresa do Telegram.
+
+## Detalhes acertados na implementação
+
+- **Avisos antigos não vão:** só os criados depois da M5-08 ficam marcados para o Telegram.
+- **Marca antes de mandar,** como o push: um aviso que falhar no Telegram não é repetido (fica no sino e no push).
+- **Resumo desligado ou mandado** marca o dia; antes da hora ou no silêncio, espera a próxima verificação. O texto diz "Resumo do dia" (a hora é escolhida pela pessoa, então não diz "bom dia").
+- **Tela:** a coluna Telegram mostra um traço nos tipos que nunca vão por lá; o resumo do dia tem a caixa de ligar e a hora.
 
 ## O que foi descartado
 

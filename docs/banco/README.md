@@ -151,6 +151,7 @@ erDiagram
     timestamp_with_time_zone lido_em
     uuid tarefa_id
     boolean push_pendente
+    boolean telegram_pendente
   }
   avisos_de_gasto {
     uuid empresa_id PK
@@ -602,6 +603,7 @@ erDiagram
     text nome
     timestamp_with_time_zone vinculado_em
     uuid conversa_id
+    date resumo_do_dia_em
   }
   visoes_salvas {
     uuid id PK
@@ -1061,6 +1063,7 @@ Isolamento por empresa (Row Level Security): ligado e forçado.
 | lido_em | timestamp with time zone | não |  | sistema | Quando a pessoa marcou como lido. |
 | tarefa_id | uuid | não |  | sistema | Tarefa do aviso, quando é de uma tarefa (o aviso some junto com ela). |
 | push_pendente | boolean | sim | `false` | sistema | O push deste aviso ainda vai sair (a verificação a cada minuto manda, fora do horário de silêncio). |
+| telegram_pendente | boolean | sim | `true` | sistema | O aviso ainda espera a verificação do Telegram (se o tipo vai por lá, o vínculo e o silêncio). |
 
 ### avisos_de_gasto
 
@@ -1792,6 +1795,7 @@ Isolamento por empresa (Row Level Security): ligado e forçado.
 | nome | text | sim |  | pessoal | Nome que a pessoa usa no Telegram. |
 | vinculado_em | timestamp with time zone | sim | `now()` | sistema | Quando a conta foi vinculada. |
 | conversa_id | uuid | não |  | sistema | A conversa atual pelo Telegram (vazio: a próxima mensagem começa uma nova). |
+| resumo_do_dia_em | date | não |  | sistema | O último dia, no fuso da pessoa, em que o resumo do dia foi pelo Telegram (ou foi pulado). |
 
 ### visoes_salvas
 

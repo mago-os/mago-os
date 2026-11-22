@@ -2,7 +2,15 @@
  * Notificações em Meu perfil (M3-06): ligar o push neste aparelho, o que chega por onde e o horário de silêncio.
  * No iPhone, o push só funciona com o app instalado na tela de início (limite da Apple).
  */
-import { type PreferenciasDeNotificacao, TIPOS_DE_AVISO, type TipoDeAviso } from "@mago-os/contratos";
+import {
+  AVISOS_FORA_DO_TELEGRAM,
+  canaisDoTipo,
+  HORA_PADRAO_DO_RESUMO,
+  horaDoResumo,
+  type PreferenciasDeNotificacao,
+  TIPOS_DE_AVISO,
+  type TipoDeAviso,
+} from "@mago-os/contratos";
 import { useCallback, useEffect, useState } from "react";
 import { desligarPush, lerNotificacoes, ligarPush, salvarPreferenciasDeNotificacao } from "@/agentes";
 import { Button } from "@/componentes/ui/button";
@@ -113,9 +121,11 @@ export function Notificacoes() {
     setMensagem(r.ok ? null : { tipo: "erro", texto: r.mensagem ?? "" });
   }
 
-  const canais = (t: TipoDeAviso) => prefs.porTipo[t] ?? { tela: true, push: true };
-  const mudar = (t: TipoDeAviso, canal: "tela" | "push", valor: boolean) =>
+  // Os padrões vêm do contrato (no Telegram, por padrão, só o urgente; M5-08).
+  const canais = (t: TipoDeAviso) => canaisDoTipo(prefs, t);
+  const mudar = (t: TipoDeAviso, canal: "tela" | "push" | "telegram", valor: boolean) =>
     void salvar({ ...prefs, porTipo: { ...prefs.porTipo, [t]: { ...canais(t), [canal]: valor } } });
+  const resumo = horaDoResumo(prefs);
 
   return (
     <Card className="gap-3">
@@ -151,6 +161,7 @@ export function Notificacoes() {
             <th className="py-1 font-medium">Aviso</th>
             <th className="w-16 py-1 text-center font-medium">Sino</th>
             <th className="w-16 py-1 text-center font-medium">Push</th>
+            <th className="w-16 py-1 text-center font-medium">Telegram</th>
           </tr>
         </thead>
         <tbody>
@@ -173,6 +184,20 @@ export function Notificacoes() {
                   onChange={(e) => mudar(t, "push", e.target.checked)}
                 />
               </td>
+              <td className="text-center">
+                {(AVISOS_FORA_DO_TELEGRAM as readonly string[]).includes(t) ? (
+                  <span className="text-xs text-texto-2" title="Não vai como aviso pelo Telegram">
+                    -
+                  </span>
+                ) : (
+                  <input
+                    type="checkbox"
+                    aria-label={`${NOMES[t]} no Telegram`}
+                    checked={canais(t).telegram}
+                    onChange={(e) => mudar(t, "telegram", e.target.checked)}
+                  />
+                )}
+              </td>
             </tr>
           ))}
         </tbody>
@@ -186,7 +211,7 @@ export function Notificacoes() {
               void salvar({ ...prefs, silencio: e.target.checked ? { de: "22:00", ate: "07:00" } : null })
             }
           />
-          Horário de silêncio (o push espera; o sino recebe na hora)
+          Horário de silêncio (o push e o Telegram esperam; o sino recebe na hora)
         </label>
         {prefs.silencio && (
           <>
@@ -214,6 +239,39 @@ export function Notificacoes() {
           </>
         )}
       </fieldset>
+      <fieldset className="flex flex-wrap items-center gap-2 text-sm">
+        <label className="flex items-center gap-2">
+          <input
+            type="checkbox"
+            checked={resumo !== null}
+            onChange={(e) =>
+              void salvar({
+                ...prefs,
+                resumoDoDia: e.target.checked ? { hora: HORA_PADRAO_DO_RESUMO } : null,
+              })
+            }
+          />
+          Resumo do dia pelo Telegram (as prioridades de hoje)
+        </label>
+        {resumo !== null && (
+          <>
+            às
+            <input
+              type="time"
+              aria-label="Hora do resumo do dia"
+              className="h-9 rounded-md border border-linha bg-cartao px-2"
+              value={resumo}
+              onChange={(e) =>
+                e.target.value && void salvar({ ...prefs, resumoDoDia: { hora: e.target.value } })
+              }
+            />
+          </>
+        )}
+      </fieldset>
+      <p className="text-xs text-texto-2">
+        O Telegram vale quando ele está vinculado nesta empresa (cartão Telegram, acima). O pedido de
+        aprovação já chega lá com os botões.
+      </p>
     </Card>
   );
 }

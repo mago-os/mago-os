@@ -25,6 +25,7 @@ import { permissoesNaEmpresa } from "../permissoes/verificar.ts";
 import { listarPrioridades } from "../tarefas/prioridades.ts";
 import { cuidarDasAprovacoesNoTelegram, type OpcoesDasAprovacoesNoTelegram } from "./aprovacoes.ts";
 import { cuidarDosArquivosDoTelegram } from "./arquivos.ts";
+import { avisarNoTelegram, resumoDoDiaNoTelegram } from "./avisos.ts";
 import { MAXIMO_DA_MENSAGEM_DO_TELEGRAM } from "./carteiro.ts";
 import type { OpcoesDoTelegram, PessoaDoTelegram } from "./servico.ts";
 
@@ -291,6 +292,13 @@ export async function entregarPendentesNoTelegram(
     // Aprovações (M5-04): os pedidos a mandar e as mensagens a atualizar com a decisão.
     await cuidarDasAprovacoesNoTelegram(o, e.empresa_id).catch((erro) =>
       o.log.error({ erro, empresaId: e.empresa_id }, "Telegram: cuidar das aprovações da empresa falhou"),
+    );
+    // Avisos e resumo do dia (M5-08).
+    await avisarNoTelegram(o, e.empresa_id).catch((erro) =>
+      o.log.error({ erro, empresaId: e.empresa_id }, "Telegram: os avisos da empresa falharam"),
+    );
+    await resumoDoDiaNoTelegram(o, e.empresa_id).catch((erro) =>
+      o.log.error({ erro, empresaId: e.empresa_id }, "Telegram: o resumo do dia da empresa falhou"),
     );
     // Arquivos (M5-03): os vencidos e os bloqueios pelo antivírus a avisar.
     await cuidarDosArquivosDoTelegram(o, e.empresa_id).catch((erro) =>
