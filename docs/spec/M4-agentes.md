@@ -1,6 +1,6 @@
 # Spec da Fase 1: M4 Agentes internos e regras
 
-Parte da [spec da Fase 1](README.md). Estado em 20/11/2026: **aprovado** pelo Sandro, com todas as 12 recomendações.
+Parte da [spec da Fase 1](README.md). Estado em 20/11/2026: **aprovado** pelo Sandro, com todas as 12 recomendações. Concluído em 22/11/2026 (M4-01 a M4-10).
 
 **Pronto quando:** o Sandro escreve ao coordenador, no app, "planeja a migração do blog para o WordPress novo, com prazo sexta". O coordenador cria a tarefa e passa ao especialista, que quebra a tarefa em subtarefas e checklist. Antes de atribuir as subtarefas a pessoas da equipe, ele pede aprovação, porque a regra manda, e a aprovação aparece na central de prioridades. O Sandro aprova e acompanha cada passo da execução, com o custo de cada um. O botão "Parar todos os agentes" pausa tudo e a retomada continua de onde parou. Os testes provam que um agente não faz o que a pessoa que pediu não poderia fazer e que uma empresa não usa a chave de IA da outra.
 
