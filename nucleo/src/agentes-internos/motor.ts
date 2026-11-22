@@ -340,14 +340,14 @@ async function rodar(o: OpcoesDoMotor, empresaId: string, execucaoId: string): P
     return;
   }
 
-  // Os tetos de gasto do mês (M4-06): empresa ou agente no teto, a execução não começa; só a conta principal parada,
-  // segue pelo reserva. Os avisos de 80% e 100% saem aqui, uma vez por mês.
   /** Um passo do passo a passo (M4-07). Uma falha aqui não derruba a execução. */
   const passo = (d: Omit<Parameters<typeof registrarPasso>[1], "execucaoId" | "agenteId" | "tarefaId">) =>
     naEmpresa((c) =>
       registrarPasso(c, { execucaoId, agenteId: agente.id, tarefaId: execucao.tarefaId, ...d }),
     ).catch((erro) => o.log.error({ erro, execucaoId }, "Agente interno: o passo não foi registrado"));
 
+  // Os tetos de gasto do mês (M4-06): empresa ou agente no teto, a execução não começa; só a conta principal parada,
+  // segue pelo reserva. Os avisos de 80% e 100% saem aqui, uma vez por mês.
   const tetos = await naEmpresa((c) =>
     conferirTetos(
       c,

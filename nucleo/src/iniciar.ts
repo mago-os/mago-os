@@ -162,8 +162,9 @@ async function iniciar(): Promise<void> {
       acordar: acordarAgente,
     };
     registrarRotasDaConversa(app, { verificador, poolApp: banco.pool, acordar: acordarAgente });
-    // Regras por ação e aprovações (M4-03).
+    // Passo a passo das execuções (M4-07).
     registrarRotasDosPassos(app, verificador, banco.pool);
+    // Regras por ação e aprovações (M4-03).
     registrarRotasDasAprovacoes(app, {
       verificador,
       poolApp: banco.pool,
@@ -180,7 +181,6 @@ async function iniciar(): Promise<void> {
           for (const t of trabalhos) await rodarExecucao(opcoesDoMotor, t.data.empresaId, t.data.execucaoId);
         },
       );
-      // A cada minuto: pedidos de aprovação de mais de 24 horas vencem (M4-03).
       // Todo dia, às 4h (UTC): os passos com mais de 90 dias são apagados (M4-07).
       await fila.createQueue(FILA_PASSOS_ANTIGOS);
       await fila.schedule(FILA_PASSOS_ANTIGOS, "0 4 * * *");
@@ -188,6 +188,7 @@ async function iniciar(): Promise<void> {
         const n = await apagarPassosAntigos(banco.pool);
         if (n > 0) app.log.info({ evento: "passos.apagados", n }, "Passos com mais de 90 dias apagados");
       });
+      // A cada minuto: pedidos de aprovação de mais de 24 horas vencem (M4-03).
       await fila.createQueue(FILA_APROVACOES_VENCIDAS);
       await fila.schedule(FILA_APROVACOES_VENCIDAS, "* * * * *");
       await fila.work(FILA_APROVACOES_VENCIDAS, async () => {

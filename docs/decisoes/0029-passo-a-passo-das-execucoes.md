@@ -30,6 +30,13 @@ Hoje a execução guarda quem pediu, o modelo e um resumo, e a M4-06 passou a gu
 - **Recomendado e adotado:** detalhes só para quem pediu, o responsável pelo agente e o administrador; quem vê a tarefa vê o resumo e os nomes dos passos.
 - **Alternativa:** quem vê a tarefa vê tudo.
 
+## Detalhes acertados na codificação (22/11/2026)
+
+- Quem não vê a tarefa não vê a execução, nem sendo o responsável pelo agente; quem pediu numa conversa abre a execução mesmo sem permissão de ver tarefas.
+- Do agente externo, só entram as ferramentas chamadas em tarefas que ele alcança (uma tentativa numa tarefa alheia não aparece na tarefa dos outros). Uma ação que ficou esperando aprovação aparece com o pedido, não como recusa.
+- A ação aprovada entra no passo a passo da execução que pediu (ou na atividade do externo na tarefa).
+- Parâmetros e resultados são cortados sem partir caracteres e cabendo no limite de bytes do banco.
+
 ## Consequências
 
 - Contrato novo em `contratos/src/agentes/passos.ts`.

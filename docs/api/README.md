@@ -433,7 +433,7 @@ Todas com o prefixo `/api` no site, menos `/mcp`, que fica em `https://teste.osm
 | POST | `/skills/:id/publicar` | instrucoes.aprovar | Publica o rascunho: os agentes passam a receber essa versão. |
 | GET | `/agentes/:id/skills` | instrucoes.ver | Os ids das skills atribuídas ao agente. |
 | POST | `/agentes/:id/skills` | instrucoes.editar | Troca a lista de skills do agente. |
-| GET | `/execucoes/:id` | tarefas.ver | Uma execução de agente interno com o resumo e os passos (M4-07). Detalhes (parâmetros e resultados) só para quem pediu, o responsável pelo agente e o administrador; quem só vê a tarefa vê o resumo e os nomes dos passos. |
+| GET | `/execucoes/:id` | agentes.ver | Uma execução de agente interno com o resumo e os passos (M4-07). Detalhes (parâmetros e resultados) só para quem pediu, o responsável pelo agente e o administrador; quem só vê a tarefa vê o resumo e os nomes dos passos. |
 | GET | `/tarefas/:id/execucoes` | tarefas.ver | As execuções de agentes internos numa tarefa e o que os agentes externos fizeram nela pelo MCP. |
 | GET | `/agentes/:id/execucoes` | agentes.ver | As execuções recentes de um agente interno (todas para o responsável e o administrador; as próprias para os outros). |
 | GET | `/custos` | contas_de_ia.ver | O painel de custos do mês (query: mes=AAAA-MM): total, hoje, por agente, por conta, por dia e os modelos sem preço (M4-06). |

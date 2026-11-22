@@ -177,10 +177,17 @@ function criarServidor(agente: AgenteDoPedido, o: OpcoesDaChave, pedido: Fastify
     // O que o agente externo faz numa tarefa vira passo (M4-07), sem o raciocínio, que fica na máquina dele.
     const params = entrada.valor as Record<string, unknown>;
     const t0 = Date.now();
+    // Só nas tarefas que o agente alcança: uma tentativa numa tarefa alheia não aparece na tarefa dos outros.
     const passo = (resultado: unknown, falhou: boolean, aprovacaoId: string | null = null) =>
       typeof params.tarefaId === "string"
-        ? comEmpresa(o.poolApp, agente.empresaId, (c) =>
-            registrarPasso(c, {
+        ? comEmpresa(o.poolApp, agente.empresaId, async (c) => {
+            const alcanca = await buscarTarefa(
+              c,
+              { tipo: "agente", agenteId: agente.agenteId, comoGerente: true },
+              params.tarefaId as string,
+            );
+            if (!alcanca) return;
+            await registrarPasso(c, {
               execucaoId: null,
               agenteId: agente.agenteId,
               tarefaId: params.tarefaId as string,
@@ -191,8 +198,8 @@ function criarServidor(agente: AgenteDoPedido, o: OpcoesDaChave, pedido: Fastify
               erro: falhou,
               duracaoMs: Date.now() - t0,
               aprovacaoId,
-            }),
-          ).catch((e) => pedido.log.error({ erro: e }, "MCP: o passo não foi registrado"))
+            });
+          }).catch((e) => pedido.log.error({ erro: e }, "MCP: o passo não foi registrado"))
         : Promise.resolve();
     try {
       // Regra por ação (M4-03): para os externos, as ferramentas de hoje executam, mas o administrador pode mudar.
@@ -252,7 +259,8 @@ function criarServidor(agente: AgenteDoPedido, o: OpcoesDaChave, pedido: Fastify
         }
         const texto = `Essa ação precisa de aprovação. O pedido foi enviado (${"aprovacao" in regra && regra.aprovacao ? regra.aprovacao.resumo : ferramenta.nome}) e ela acontece quando alguém aprovar, em até 24 horas.`;
         // Sem o resultado da ferramenta (ela ainda não rodou): volta como recusa, com a explicação.
-        await passo(texto, true, "aprovacao" in regra && regra.aprovacao ? regra.aprovacao.id : null);
+        // Esperando aprovação não é recusa: o passo mostra o pedido.
+        await passo(texto, false, "aprovacao" in regra && regra.aprovacao ? regra.aprovacao.id : null);
         return erro(texto);
       }
       const resultado = await executar(ferramenta.nome, entrada.valor as never, agente, o, pedido);

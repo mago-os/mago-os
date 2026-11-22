@@ -694,7 +694,7 @@ export const ROTAS: Rota[] = [
   {
     metodo: "GET",
     caminho: "/execucoes/:id",
-    permissao: "tarefas.ver",
+    permissao: "agentes.ver",
     oQueFaz:
       "Uma execução de agente interno com o resumo e os passos (M4-07). Detalhes (parâmetros e resultados) só para quem pediu, o responsável pelo agente e o administrador; quem só vê a tarefa vê o resumo e os nomes dos passos.",
   },

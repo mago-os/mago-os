@@ -1537,6 +1537,15 @@ describe.skipIf(!bancoDisponivel)("agentes internos", () => {
     // A Flora não vê a tarefa: não vê a execução.
     expect((await pedir("GET", `/execucoes/${execucaoId}`, flora)).statusCode).toBe(404);
     expect((await pedir("GET", `/tarefas/${tarefaId}/execucoes`, flora)).statusCode).toBe(404);
+    // Nem como responsável pelo agente: sem ver a tarefa, não vê a execução.
+    await dono.query("update agentes set responsavel_id = $1 where id = $2", [ids.flora, ids.gerente]);
+    expect((await pedir("GET", `/execucoes/${execucaoId}`, flora)).statusCode).toBe(404);
+    expect(
+      ((await pedir("GET", `/agentes/${ids.gerente}/execucoes`, flora)).json() as { id: string }[]).some(
+        (e) => e.id === execucaoId,
+      ),
+    ).toBe(false);
+    await dono.query("update agentes set responsavel_id = $1 where id = $2", [ids.ana, ids.gerente]);
     // Vendo a tarefa (aqui, como quem a criou), quem não pediu nem responde pelo agente vê só o resumo e os nomes
     // dos passos.
     await dono.query("update tarefas set criada_por_pessoa_id = $1 where id = $2", [ids.flora, tarefaId]);

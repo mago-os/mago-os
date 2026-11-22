@@ -6,6 +6,7 @@
 import {
   CARACTERES_POR_PASSO,
   type DetalheDaExecucao,
+  DIAS_DOS_PASSOS,
   type ExecucaoNaLista,
   type PassoDaExecucao,
   type TipoDePasso,
@@ -14,14 +15,35 @@ import type pg from "pg";
 import { FORMATO_UUID } from "../comum.ts";
 import { buscarExecucao } from "./dados.ts";
 
-/** Guarda um valor até o limite; acima, guarda o começo do texto e marca como cortado. */
+/** Corta sem partir um caractere em dois (emoji e outros pares UTF-16). */
+function cortar(texto: string, maximo: number): string {
+  const s = texto.slice(0, maximo);
+  return /[\uD800-\uDBFF]$/.test(s) ? s.slice(0, -1) : s;
+}
+
+/** O banco aceita até 80 mil bytes por valor; folga para o escape do JSON. */
+const BYTES_POR_VALOR = 60_000;
+
+/**
+ * Guarda um valor até o limite de caracteres e de bytes (o escape do JSON e o UTF-8 aumentam o tamanho); acima,
+ * guarda o começo do texto e marca como cortado.
+ */
 function caber(valor: unknown): { valor: unknown; cortado: boolean } {
   if (valor === undefined || valor === null) return { valor: null, cortado: false };
   const texto = typeof valor === "string" ? valor : JSON.stringify(valor);
   if (texto === undefined) return { valor: null, cortado: false };
-  if (texto.length <= CARACTERES_POR_PASSO)
-    return { valor: typeof valor === "string" ? valor : JSON.parse(texto), cortado: false };
-  return { valor: `${texto.slice(0, CARACTERES_POR_PASSO)}…`, cortado: true };
+  const cabe = (v: unknown) => Buffer.byteLength(JSON.stringify(v)) <= BYTES_POR_VALOR;
+  if (texto.length <= CARACTERES_POR_PASSO) {
+    const inteiro = typeof valor === "string" ? valor : (JSON.parse(texto) as unknown);
+    if (cabe(inteiro)) return { valor: inteiro, cortado: false };
+  }
+  let tamanho = CARACTERES_POR_PASSO;
+  let cortado = `${cortar(texto, tamanho)}…`;
+  while (!cabe(cortado) && tamanho > 100) {
+    tamanho = Math.floor(tamanho / 2);
+    cortado = `${cortar(texto, tamanho)}…`;
+  }
+  return { valor: cortado, cortado: true };
 }
 
 export async function registrarPasso(
@@ -60,7 +82,7 @@ export async function registrarPasso(
       d.tipo,
       d.duracaoMs === undefined || d.duracaoMs === null ? null : Math.max(0, Math.round(d.duracaoMs)),
       d.modelo?.slice(0, 120) ?? null,
-      texto === null ? null : texto.slice(0, CARACTERES_POR_PASSO),
+      texto === null ? null : cortar(texto, CARACTERES_POR_PASSO),
       d.ferramenta?.slice(0, 400) ?? null,
       entrada.valor === null ? null : JSON.stringify(entrada.valor),
       resultado.valor === null ? null : JSON.stringify(resultado.valor),
@@ -148,8 +170,10 @@ export async function detalheDaExecucao(
   const e = await buscarExecucao(c, execucaoId);
   if (!e) return null;
   const comDetalhes = await veDetalhes(c, e.agenteId, e.pedidoPor, pessoa.id, pessoa.administrador);
-  if (!comDetalhes && !(e.tarefaId && e.origem !== "conversa" && (await tarefaVisivel(e.tarefaId))))
-    return null;
+  // Quem não vê a tarefa não vê a execução, nem o responsável pelo agente (decisão 0029).
+  const daTarefa = e.tarefaId !== null && e.origem !== "conversa";
+  if (daTarefa && !(await tarefaVisivel(e.tarefaId as string))) return null;
+  if (!daTarefa && !comDetalhes) return null;
   const nomes = await c.query<{ agente: string | null; pessoa: string | null }>(
     `select (select nome from agentes where id = $1 and empresa_id = empresa_ativa()) as agente,
             (select nome from pessoas where id = $2) as pessoa`,
@@ -169,7 +193,7 @@ export async function detalheDaExecucao(
   const t = total.rows[0];
   const inicio = e.iniciadaEm ? Date.parse(e.iniciadaEm) : null;
   const fim = e.terminadaEm ? Date.parse(e.terminadaEm) : null;
-  const terminouHaMuito = fim !== null && Date.now() - fim > 90 * 86_400_000;
+  const terminouHaMuito = fim !== null && Date.now() - fim > DIAS_DOS_PASSOS * 86_400_000;
   return {
     execucao: e,
     agenteNome: nomes.rows[0]?.agente ?? "Agente",
@@ -234,6 +258,7 @@ export async function execucoesDoAgente(
   c: pg.PoolClient,
   agenteId: string,
   pessoa: { id: string; administrador: boolean },
+  tarefaVisivel: (tarefaId: string) => Promise<boolean>,
 ): Promise<ExecucaoNaLista[]> {
   const todas = await veDetalhes(c, agenteId, null, pessoa.id, pessoa.administrador);
   const r = await c.query<LinhaDaLista>(
@@ -241,7 +266,11 @@ export async function execucoesDoAgente(
       order by e.criada_em desc limit 50`,
     [agenteId, todas, pessoa.id],
   );
-  return r.rows.map(paraLinha);
+  // As execuções de tarefa só aparecem para quem vê a tarefa.
+  const ficam: LinhaDaLista[] = [];
+  for (const l of r.rows)
+    if (!l.tarefa_id || l.origem === "conversa" || (await tarefaVisivel(l.tarefa_id))) ficam.push(l);
+  return ficam.map(paraLinha);
 }
 
 /** O que os agentes externos fizeram pelo MCP numa tarefa, agrupado por agente. */
@@ -256,9 +285,11 @@ export async function atividadeExternaDaTarefa(
        join agentes g on g.id = p.agente_id and g.empresa_id = p.empresa_id
        left join consumo_de_ia k on k.id = p.consumo_id
       where p.empresa_id = empresa_ativa() and p.tarefa_id = $1 and p.execucao_id is null
-      order by p.criado_em, p.id limit 500`,
+      order by p.criado_em desc, p.id desc limit 500`,
     [tarefaId],
   );
+  // Os 500 mais recentes, em ordem.
+  r.rows.reverse();
   const grupos = new Map<string, { agenteNome: string; linhas: LinhaDoPasso[] }>();
   for (const l of r.rows) {
     const g = grupos.get(l.agente_id) ?? { agenteNome: l.agente_nome, linhas: [] };

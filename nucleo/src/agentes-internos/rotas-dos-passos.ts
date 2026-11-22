@@ -10,6 +10,7 @@ import { comPessoa } from "../empresa.ts";
 import { acessoDo, type Verificador } from "../permissoes/verificar.ts";
 import { quemDoPedido } from "../tarefas/rotas.ts";
 import { buscarTarefa } from "../tarefas/servico.ts";
+import { quemPediu } from "./ferramentas.ts";
 import {
   atividadeExternaDaTarefa,
   detalheDaExecucao,
@@ -33,20 +34,21 @@ export function registrarRotasDosPassos(
     const { sessao, permissoes } = acessoDo(pedido);
     return { id: sessao.pessoa.id, administrador: permissoes.perfil === "administrador" };
   };
+  /** A pessoa vê a tarefa? Pelo alcance dela em "tarefas.ver" (a rota pode ter conferido outro módulo). */
+  const veTarefa = (pedido: FastifyRequest, c: pg.PoolClient) => {
+    const { sessao, permissoes } = acessoDo(pedido);
+    const quem = quemPediu(permissoes, sessao.pessoa.id, "ver");
+    return async (tarefaId: string) => quem !== null && (await buscarTarefa(c, quem, tarefaId)) !== null;
+  };
 
+  // Em "agentes.ver": quem pediu numa conversa abre a execução mesmo sem ver tarefas.
   app.get(
     "/execucoes/:id",
-    { preHandler: verificador.exigir("tarefas", "ver") },
+    { preHandler: verificador.exigir("agentes", "ver") },
     async (pedido, resposta) => {
       const { id } = pedido.params as { id: string };
-      const quem = quemDoPedido(pedido);
       const feito = await naEmpresa(pedido, (c) =>
-        detalheDaExecucao(
-          c,
-          id,
-          pessoaDo(pedido),
-          async (tarefaId) => (await buscarTarefa(c, quem, tarefaId)) !== null,
-        ),
+        detalheDaExecucao(c, id, pessoaDo(pedido), veTarefa(pedido, c)),
       );
       return feito ?? naoEncontrado(resposta, "Execução");
     },
@@ -75,8 +77,9 @@ export function registrarRotasDosPassos(
     { preHandler: verificador.exigir("agentes", "ver") },
     async (pedido, resposta) => {
       const { id } = pedido.params as { id: string };
-      if (!FORMATO_UUID.test(id)) return naoEncontrado(resposta, "Execução");
-      return naEmpresa(pedido, (c) => execucoesDoAgente(c, id, pessoaDo(pedido)));
+      if (!FORMATO_UUID.test(id))
+        return resposta.code(404).send({ code: "NAO_ENCONTRADO", message: "Agente não encontrado." });
+      return naEmpresa(pedido, (c) => execucoesDoAgente(c, id, pessoaDo(pedido), veTarefa(pedido, c)));
     },
   );
 }
