@@ -38,9 +38,11 @@ import {
   PedidoDeMudarProjeto,
   PedidoDeMudarRegras,
   PedidoDeMudarStatus,
+  PedidoDeParada,
   PedidoDePlanejamento,
   PedidoDePrecoDoModelo,
   PedidoDeProjeto,
+  PedidoDeRetomada,
   PedidoDeSkill,
   PedidoDeSkillsDoAgente,
   PedidoDeStatusDoProjeto,
@@ -726,6 +728,49 @@ export const ROTAS: Rota[] = [
     permissao: "agentes.editar",
     oQueFaz: "Muda os limites do agente interno (null volta ao padrão: 30 rodadas e 10 minutos).",
     recebe: PedidoDeLimites,
+  },
+  {
+    metodo: "GET",
+    caminho: "/agentes/parada",
+    permissao: "agentes.ver",
+    oQueFaz: "A parada ativa da empresa (Parar todos os agentes, M4-09), com os agentes dela, ou null.",
+  },
+  {
+    metodo: "POST",
+    caminho: "/agentes/parar-todos",
+    permissao: "agentes.excluir",
+    oQueFaz:
+      "Para todos os agentes ativos da empresa, com o motivo e o segundo fator recente. As tarefas ficam como estavam.",
+    recebe: PedidoDeParada,
+  },
+  {
+    metodo: "POST",
+    caminho: "/agentes/retomar-todos",
+    permissao: "agentes.excluir",
+    oQueFaz:
+      "Retoma os agentes da parada (todos, com agenteIds null, ou os escolhidos), com o segundo fator recente. A tarefa interrompida volta à fila.",
+    recebe: PedidoDeRetomada,
+  },
+  {
+    metodo: "GET",
+    caminho: "/plataforma/agentes/paradas",
+    permissao: "Dono da plataforma",
+    oQueFaz: "As empresas com os agentes parados.",
+  },
+  {
+    metodo: "POST",
+    caminho: "/plataforma/agentes/parar-todos",
+    permissao: "Dono da plataforma",
+    oQueFaz:
+      "Para os agentes de todas as empresas ativas (com o motivo e o segundo fator recente). Só o Dono retoma.",
+    recebe: PedidoDeParada,
+  },
+  {
+    metodo: "POST",
+    caminho: "/plataforma/agentes/retomar-todos",
+    permissao: "Dono da plataforma",
+    oQueFaz:
+      "Retoma os agentes das paradas feitas pelo Dono, em todas as empresas (com o segundo fator recente).",
   },
   {
     metodo: "GET",

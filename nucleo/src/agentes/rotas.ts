@@ -18,6 +18,7 @@ import {
 } from "@mago-os/contratos";
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import type pg from "pg";
+import { podeFazerAcaoPerigosa } from "../acesso/dois-fatores.ts";
 import type { Carteiro } from "../acesso/login.ts";
 import { origemDoPedido } from "../acesso/rotas.ts";
 import { auditar } from "../auditoria/registrar.ts";
@@ -26,6 +27,8 @@ import { comPessoa } from "../empresa.ts";
 import { acessoDo, type Verificador } from "../permissoes/verificar.ts";
 import { pessoaAtivaNaEmpresa } from "../tarefas/servico.ts";
 import { autenticarAgente, criarChave, listarChaves, revogarChave } from "./chaves.ts";
+import { entrarNaParada, paradaDoAgente, retomarDaParada } from "./parada.ts";
+import { respostaDaRetomada } from "./rotas-da-parada.ts";
 import {
   alcanceCobreAgente,
   buscarAgente,
@@ -47,6 +50,8 @@ export interface OpcoesDosAgentes {
   urlPublica: string;
   /** Limites dos agentes (os testes usam valores pequenos). */
   limites?: { pedidosPorMinuto: number; leiturasPorHora: number };
+  /** Põe na fila as execuções que a retomada de uma parada devolveu (M4-09). */
+  acordar?: (empresaId: string, execucaoId: string) => void;
 }
 
 const naoEncontrado = (resposta: FastifyReply) =>
@@ -109,13 +114,15 @@ export function registrarRotasDosAgentes(app: FastifyInstance, o: OpcoesDosAgent
     try {
       const feito = await naEmpresa(pedido, async (c) => {
         if (!(await pessoaAtivaNaEmpresa(c, r.valor.responsavelId))) return null;
-        return cadastrarAgente(c, {
+        const novo = await cadastrarAgente(c, {
           nome: r.valor.nome,
           descricao: r.valor.descricao ?? null,
           ondeRoda: r.valor.ondeRoda ?? null,
           responsavelId: r.valor.responsavelId,
           minutosSemSinal: r.valor.minutosSemSinal ?? MINUTOS_SEM_SINAL_PADRAO,
         });
+        // Com os agentes parados (M4-09), o agente novo nasce pausado e volta junto com os outros.
+        return (await entrarNaParada(c, novo.id)) ? ((await buscarAgente(c, novo.id)) ?? novo) : novo;
       });
       if (!feito) return responsavelInvalido(resposta);
       await registrar(pedido, "agente.cadastrou", feito.id, { tipo: feito.tipo });
@@ -162,10 +169,57 @@ export function registrarRotasDosAgentes(app: FastifyInstance, o: OpcoesDosAgent
     },
   );
 
+  async function retomarAgenteDaParada(pedido: FastifyRequest, resposta: FastifyReply, id: string) {
+    const { sessao, permissoes } = acessoDo(pedido);
+    if (permissoes.modulos.get("agentes")?.acoes.excluir !== "tudo")
+      return resposta.code(403).send({
+        code: "SEM_PERMISSAO",
+        message: "Os agentes foram parados todos juntos. Só quem pode parar e retomar todos retoma este.",
+      });
+    if (!podeFazerAcaoPerigosa(sessao.estado.dois, sessao.estado.confirmadoEm, sessao.metodo))
+      return resposta.code(403).send({
+        code: "CONFIRMACAO_NECESSARIA",
+        message: "Por segurança, confirme com o código do app ou com a passkey antes de retomar o agente.",
+      });
+    const feito = await naEmpresa(pedido, (c) =>
+      retomarDaParada(c, {
+        pessoaId: sessao.pessoa.id,
+        nome: sessao.pessoa.nome,
+        agenteIds: [id],
+        comoDono: false,
+      }),
+    );
+    const erro = respostaDaRetomada(resposta, feito);
+    if (erro || "erro" in feito) return erro;
+    await auditar(
+      poolApp,
+      {
+        empresaId: sessao.empresaId,
+        ator: { tipo: "pessoa", pessoaId: sessao.pessoa.id },
+        acao: "agentes.retomou",
+        alvo: { tipo: "parada_de_agentes", id: feito.parada.id },
+        origem: origemDoPedido(pedido),
+        rastreio: pedido.id,
+        detalhes: { agentes: feito.retomados, terminou: feito.terminou },
+      },
+      pedido.log,
+    );
+    for (const e of feito.acordar) o.acordar?.(sessao.empresaId, e);
+    return naEmpresa(pedido, (c) => buscarAgente(c, id));
+  }
+
   /** Pausar e retomar: só muda a situação (as chaves continuam guardadas). */
   function rotaDeSituacao(caminho: string, para: SituacaoAgente, de: SituacaoAgente, acao: AcaoDeAgente) {
     app.post(caminho, { preHandler: verificador.exigir("agentes", "editar") }, async (pedido, resposta) => {
       const { id } = pedido.params as { id: string };
+      // Durante uma parada (M4-09), o agente dela volta pela retomada da parada (com o segundo fator), e a tarefa que
+      // ela interrompeu volta à fila dele.
+      if (para === "ativo") {
+        const naParada = await naEmpresa(pedido, async (c) =>
+          (await agenteAlcancado(c, pedido, id)) ? paradaDoAgente(c, id) : null,
+        );
+        if (naParada) return retomarAgenteDaParada(pedido, resposta, id);
+      }
       const feito = await naEmpresa(pedido, async (c) => {
         const atual = await agenteAlcancado(c, pedido, id);
         if (!atual) return null;
@@ -197,6 +251,7 @@ export function registrarRotasDosAgentes(app: FastifyInstance, o: OpcoesDosAgent
     });
   }
   rotaDeSituacao("/agentes/:id/pausar", "pausado", "ativo", "agente.pausou");
+
   rotaDeSituacao("/agentes/:id/retomar", "ativo", "pausado", "agente.retomou");
 
   app.post(

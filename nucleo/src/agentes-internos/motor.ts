@@ -17,9 +17,11 @@ import {
   PASSADAS_PARA_PARAR,
   type PapelDeAgente,
   REPETICOES_PARA_PARAR,
+  RESUMO_DA_PARADA,
 } from "@mago-os/contratos";
 import type pg from "pg";
 import type { OpcoesDaChave } from "../agentes/chaves.ts";
+import { devolverAFila, paradaDoAgente } from "../agentes/parada.ts";
 import { criarAprovacao, jsonCanonico } from "../agentes/regras.ts";
 import { auditar } from "../auditoria/registrar.ts";
 import { criarAviso } from "../avisos/index.ts";
@@ -242,8 +244,12 @@ async function rodar(o: OpcoesDoMotor, empresaId: string, execucaoId: string): P
          from agentes where id = $1 and empresa_id = empresa_ativa()`,
       [execucao.agenteId],
     );
-    // Tarefa atribuída a um agente pausado espera na fila até ele voltar (M4-04).
-    if (execucao.origem === "tarefa" && a.rows[0]?.situacao === "pausado") return null;
+    // Tarefa atribuída a um agente pausado espera na fila até ele voltar (M4-04). Com os agentes parados (M4-09),
+    // toda a fila do agente espera a retomada.
+    if (a.rows[0]?.situacao === "pausado") {
+      if (execucao.origem === "tarefa") return null;
+      if (await paradaDoAgente(c, execucao.agenteId)) return null;
+    }
     await iniciarExecucao(c, execucaoId);
     const especialistas = await c.query<{ id: string; nome: string }>(
       `select id, nome from agentes where empresa_id = empresa_ativa() and tipo = 'interno' and papel = 'especialista'
@@ -429,9 +435,15 @@ async function rodar(o: OpcoesDoMotor, empresaId: string, execucaoId: string): P
     });
 
   /** Roda uma ferramenta e grava o passo (parâmetros, resultado ou recusa, tempo e o pedido de aprovação). */
+  const conferirParada = async () => {
+    const paradaId = await naEmpresa((c) => paradaDoAgente(c, agente.id));
+    if (paradaId) throw new ParadaDaEmpresa(paradaId);
+  };
   // As últimas chamadas (ferramenta e parâmetros), para parar o agente que repete a mesma coisa (M4-08).
   const ultimasChamadas: string[] = [];
   const executarComPasso = async (nome: string, entrada: unknown) => {
+    // Os agentes foram parados (M4-09): a ferramenta não roda, e a execução termina neste passo.
+    await conferirParada();
     if (nome !== "responder" && nome !== "perguntar") {
       const assinatura = `${nome}:${jsonCanonico(entrada)}`;
       const anteriores = ultimasChamadas.slice(-(REPETICOES_PARA_PARAR - 1));
@@ -471,6 +483,7 @@ async function rodar(o: OpcoesDoMotor, empresaId: string, execucaoId: string): P
 
   // A tarefa da delegação: o especialista pega (para as ferramentas do MCP valerem) e solta no fim.
   let pegou = false;
+  let parada = false;
   try {
     // A mesma tarefa passando entre os mesmos dois agentes (M4-08): a terceira passada não começa.
     if (execucao.tarefaId && execucao.origem !== "conversa" && (await vaiEVolta(o, empresaId, execucao)))
@@ -573,7 +586,7 @@ async function rodar(o: OpcoesDoMotor, empresaId: string, execucaoId: string): P
           } catch (erro) {
             if (erro instanceof RecusaDaFerramenta) return { texto: erro.message, erro: true };
             // O núcleo parou o agente (M4-08): nada mais roda nesta execução, e ela para quando o Claude Code fechar.
-            if (erro instanceof LimiteDaExecucao) {
+            if (erro instanceof LimiteDaExecucao || erro instanceof ParadaDaEmpresa) {
               parouNoMeio = erro;
               fim = { tipo: "responder", texto: erro.message, tarefas: [] };
               return { texto: `Pare agora: ${erro.message}`, erro: true };
@@ -586,7 +599,7 @@ async function rodar(o: OpcoesDoMotor, empresaId: string, execucaoId: string): P
         return esta;
       };
       let texto: string | null = null;
-      let parouNoMeio: LimiteDaExecucao | null = null;
+      let parouNoMeio: LimiteDaExecucao | ParadaDaEmpresa | null = null;
       try {
         const r = await rodarCc({
           token: acesso.chave,
@@ -613,7 +626,7 @@ async function rodar(o: OpcoesDoMotor, empresaId: string, execucaoId: string): P
           duracaoMs: Date.now() - inicio,
         });
       } catch (erro) {
-        if (erro instanceof LimiteDaExecucao) throw erro;
+        if (erro instanceof LimiteDaExecucao || erro instanceof ParadaDaEmpresa) throw erro;
         if (parouNoMeio) throw parouNoMeio;
         // O limite de rodadas e o de tempo, pelo Claude Code, também param como limite (M4-08).
         if (erro instanceof ErroDoModelo && !fim) {
@@ -693,6 +706,7 @@ async function rodar(o: OpcoesDoMotor, empresaId: string, execucaoId: string): P
 
     const rodarPelaApi = async (): Promise<void> => {
       for (let rodada = 0; rodada < limites.rodadas; rodada++) {
+        await conferirParada();
         // O teto também a cada rodada (M4-08): uma execução longa não passa muito dele.
         if (rodada > 0) {
           const agora = await naEmpresa((c) =>
@@ -844,6 +858,26 @@ async function rodar(o: OpcoesDoMotor, empresaId: string, execucaoId: string): P
       await rodarNoClaudeCode(reservaPeloClaudeCode, o.claudeCode, false);
     }
   } catch (erro) {
+    // Os agentes foram parados (M4-09): a execução termina aqui e a tarefa fica como está; volta à fila ao retomar.
+    if (erro instanceof ParadaDaEmpresa) {
+      parada = true;
+      await passo({ tipo: "sistema", texto: RESUMO_DA_PARADA });
+      const devolvidas = await naEmpresa(async (c) => {
+        await terminarExecucao(c, execucaoId, { situacao: "parada", resumo: RESUMO_DA_PARADA, modelo: null });
+        await c.query(
+          "update execucoes_de_agente set parada_id = $2 where id = $1 and empresa_id = empresa_ativa()",
+          [execucaoId, erro.paradaId],
+        );
+        // Retomado enquanto este passo terminava: a tarefa volta à fila agora (a retomada não viu esta execução).
+        return (await paradaDoAgente(c, agente.id)) ? [] : devolverAFila(c, erro.paradaId, [agente.id]);
+      });
+      for (const id of devolvidas) o.acordar(empresaId, id);
+      await avisarNaConversa(
+        "Os agentes foram parados por um administrador. Parei aqui; quando eles voltarem, a tarefa continua.",
+        "sistema",
+      );
+      return;
+    }
     const limite = erro instanceof LimiteDaExecucao;
     const texto =
       erro instanceof ErroDoModelo || limite
@@ -912,10 +946,21 @@ async function rodar(o: OpcoesDoMotor, empresaId: string, execucaoId: string): P
       await naEmpresa(async (c) => {
         const t = await buscarTarefa(c, { tipo: "agente", agenteId: agente.id, comoGerente: true }, tarefaId);
         if (t?.trava?.por.tipo !== "agente" || t.trava.por.agenteId !== agente.id) return;
-        // Parado pelo núcleo, a tarefa já foi para "precisa de ajuda": solta sem voltar o status para "a fazer".
-        await tirarTrava(c, tarefaId, { manterStatus: t.status === "precisa_de_ajuda" });
+        // Parado pelo núcleo, a tarefa já foi para "precisa de ajuda": solta sem voltar o status para "a fazer". Com os
+        // agentes parados (M4-09), a tarefa fica como estava.
+        await tirarTrava(c, tarefaId, { manterStatus: parada || t.status === "precisa_de_ajuda" });
       }).catch((erro) => o.log.error({ erro, execucaoId }, "Agente interno: não soltou a tarefa"));
     }
+  }
+}
+
+/** Os agentes da empresa foram parados (M4-09): a execução termina no passo atual. */
+class ParadaDaEmpresa extends Error {
+  override name = "ParadaDaEmpresa";
+  readonly paradaId: string;
+  constructor(paradaId: string) {
+    super(RESUMO_DA_PARADA);
+    this.paradaId = paradaId;
   }
 }
 

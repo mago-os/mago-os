@@ -1,7 +1,7 @@
 # 0031 Parar todos os agentes
 
 - **Data:** 22/11/2026
-- **Situação:** proposta (esperando o aprovado do Sandro)
+- **Situação:** aceita (aprovada pelo Sandro no chat em 22/11/2026)
 - **Tarefa:** M4-09
 
 ## Contexto
