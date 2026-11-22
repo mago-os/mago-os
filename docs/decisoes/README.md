@@ -36,3 +36,4 @@ Uma nota curta por decisão importante: o que foi decidido, por quê e o que foi
 | [0027](0027-instrucoes-em-camadas-e-skills.md) | Instruções em camadas (plataforma, empresa, projeto, agente) com versões e biblioteca de skills, entregues aos internos e pelo MCP | Aceita |
 | [0028](0028-custo-e-teto-de-gasto.md) | Custo de cada chamada ao modelo (tabela de preços no código, ajuste do administrador) e tetos por mês (empresa, agente, conta) conferidos antes de cada execução | Aceita |
 | [0029](0029-passo-a-passo-das-execucoes.md) | Passo a passo de cada execução (modelo, ferramentas, avisos, tokens, custo e tempo), por 90 dias, e quem vê os detalhes | Aceita |
+| [0030](0030-limites-e-agente-em-circulo.md) | Limites de rodadas e tempo por agente, parada por repetição e por vai e volta entre agentes, e teto a cada rodada | Proposta |
