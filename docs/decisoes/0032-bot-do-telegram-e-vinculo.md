@@ -1,7 +1,7 @@
 # 0032 Bot do Telegram e vínculo da conta por código
 
 - **Data:** 22/11/2026
-- **Situação:** proposta (aguardando o "aprovado" do Sandro)
+- **Situação:** aceita (aprovada pelo Sandro no chat em 22/11/2026)
 - **Tarefa:** M5-01
 
 ## Contexto
@@ -21,6 +21,14 @@ O M5 leva o Mago OS para o Telegram: falar com o coordenador, mandar arquivos, a
 9. **Dados pessoais.** Guardamos o número da conta e do chat, o @usuário e o nome do Telegram, marcados `[pessoal]`. O texto das mensagens não é guardado nesta tarefa; na M5-02 ele entra na conversa, como as mensagens do app.
 10. **Auditoria.** `telegram.vinculou`, `telegram.desvinculou` (com o motivo: pessoa, /sair, desligamento ou troca), `telegram.trocou_empresa` e `telegram.codigo_errado` (só quando trava), sem o código nem o número do Telegram nos detalhes.
 11. **Envio.** Um "carteiro do Telegram" no núcleo fala com a API do Telegram (`sendMessage`, `setWebHook`, `setMyCommands`, `getMe`), sem biblioteca de terceiros, com um Telegram falso para os testes (sem rede). Mensagens sempre como texto simples, sem `parse_mode`. O limite de envio do Telegram (por chat e geral) é respeitado pela fila.
+
+## Detalhes acertados na implementação
+
+- **/empresa por número:** /empresa lista as empresas numeradas e /empresa 2 troca. Os botões embaixo da mensagem chegam com a M5-04 (que precisa deles para as aprovações), e aí o /empresa ganha botões também.
+- **Aviso novo `telegram_desvinculado`:** vai para a pessoa que perdeu a conta do Telegram porque outra pessoa vinculou a mesma conta. A troca feita pela própria pessoa não gera aviso.
+- **O código aceita** o link (/start CODIGO), o código digitado e o código com espaço, hífen ou em minúsculas.
+- **Fila "telegram":** o webhook grava o número da atualização e manda para a fila (duas tentativas a mais). Texto solto, antes da M5-02, recebe a ajuda.
+- **Meu perfil › Telegram:** o cartão mostra o código, o link "Abrir o Telegram" e confere a cada 3 segundos se o bot já recebeu; com o vínculo, mostra a conta, a empresa e o botão Desvincular.
 
 ## O que foi descartado
 

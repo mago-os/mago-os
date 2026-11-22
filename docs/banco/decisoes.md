@@ -304,3 +304,11 @@ O login (`mago_acesso`) não lê papéis nem as regras da plataforma direto. As 
 - `agentes_da_parada` guarda os agentes que estavam ativos e a parada pausou: só eles voltam ao retomar, e quem já estava pausado continua pausado. O agente cadastrado durante a parada entra nela.
 - `execucoes_de_agente.parada_id` marca a execução que a parada interrompeu no meio; ao retomar, a tarefa dela volta à fila do agente numa execução nova, com os mesmos dados (quem pediu, origem, passada de onde veio e a marca de texto de outros).
 - `execucoes_esquecidas()` não acorda a fila de um agente parado: ela espera a retomada, que acorda tudo de uma vez.
+
+## 42. Telegram: vínculo da conta e controle do webhook (22/11/2026, M5-01)
+
+- `vinculos_do_telegram` liga uma conta do Telegram a uma pessoa ([decisão 0032](../decisoes/0032-bot-do-telegram-e-vinculo.md)), uma de cada lado na plataforma toda (dois índices únicos). O `empresa_id` é a empresa da conversa por lá, e a chave estrangeira composta com `vinculos` mais um gatilho garantem que a pessoa está ativa nela. A política deixa a empresa ver os vínculos dela e a pessoa ver e mexer no próprio de qualquer empresa (Meu perfil, /empresa e /sair). A API não cria vínculo direto: só `vincular_telegram()`, depois de conferir o código.
+- `codigos_do_telegram` guarda só o resumo SHA-256 do código de vínculo, com a pessoa e a empresa em que foi gerado. Um código aberto por pessoa (índice único parcial); gerar outro marca o anterior como usado. Não se apaga.
+- O esquema `telegram` guarda o que o webhook precisa antes de saber a empresa: os números das atualizações já tratadas (cada uma uma vez só, por 7 dias), os códigos errados e as mensagens por minuto de cada conta. Nenhum dado de negócio, e a API não tem acesso direto: só pelas funções `atualizacao_nova_do_telegram()`, `contar_mensagem_do_telegram()` e `codigos_errados_do_telegram()`.
+- `reconhecer_telegram()` acha a pessoa e a empresa de uma conta do Telegram só quando a pessoa, o vínculo dela e a empresa estão ativos. Daí em diante tudo roda com `comPessoa` nessa empresa, como numa sessão.
+- Desligar a pessoa da empresa do Telegram apaga o vínculo do Telegram (gatilho em `vinculos`).

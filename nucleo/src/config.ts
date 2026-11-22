@@ -30,6 +30,11 @@ export interface Config {
    * Mac, as contas de IA ficam desligadas. No Mac, sem ela, uma chave fixa só para dados falsos.
    */
   cofre: ConfigDoCofre | null;
+  /**
+   * Bot do Telegram (M5-01, decisão 0032). Variáveis MAGO_TELEGRAM_TOKEN (do BotFather) e MAGO_TELEGRAM_SEGREDO (o
+   * segredo do webhook, 32 a 256 letras, números, _ ou -), as duas ou nenhuma. Sem elas, o Telegram fica desligado.
+   */
+  telegram: { token: string; segredo: string } | null;
 }
 
 export interface ConfigDoCofre {
@@ -110,6 +115,7 @@ export function lerConfig(env: Record<string, string | undefined> = process.env)
   const acesso = lerAcesso(env, ambiente, problemas);
   const anexos = lerAnexos(env, ambiente, problemas);
   const cofre = lerCofre(env, ambiente, problemas);
+  const telegram = lerTelegram(env, problemas);
 
   if (problemas.length > 0) {
     throw new ErroDeConfig(`Configuração inválida:\n- ${problemas.join("\n- ")}`);
@@ -125,7 +131,23 @@ export function lerConfig(env: Record<string, string | undefined> = process.env)
     acesso,
     anexos,
     cofre,
+    telegram,
   };
+}
+
+function lerTelegram(env: Record<string, string | undefined>, problemas: string[]): Config["telegram"] {
+  const token = env.MAGO_TELEGRAM_TOKEN?.trim() ?? "";
+  const segredo = env.MAGO_TELEGRAM_SEGREDO?.trim() ?? "";
+  if (token === "" && segredo === "") return null;
+  if (token === "" || segredo === "") {
+    problemas.push("Telegram: informe MAGO_TELEGRAM_TOKEN e MAGO_TELEGRAM_SEGREDO juntas");
+    return null;
+  }
+  if (!/^\d{5,20}:[A-Za-z0-9_-]{30,64}$/.test(token))
+    problemas.push("MAGO_TELEGRAM_TOKEN não parece um token do BotFather (número:letras)");
+  if (!/^[A-Za-z0-9_-]{32,256}$/.test(segredo))
+    problemas.push("MAGO_TELEGRAM_SEGREDO precisa ter de 32 a 256 letras, números, _ ou -");
+  return { token, segredo };
 }
 
 function lerCofre(

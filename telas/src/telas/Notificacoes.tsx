@@ -26,6 +26,7 @@ const NOMES: Record<TipoDeAviso, string> = {
   teto_de_gasto: "Teto de gasto com IA",
   agentes_parados: "Agentes parados",
   agentes_retomados: "Agentes retomados",
+  telegram_desvinculado: "Meu Telegram passou para outra pessoa",
 };
 
 type Mensagem = { texto: string; tipo: "erro" | "ok" } | null;

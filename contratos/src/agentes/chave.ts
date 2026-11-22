@@ -126,6 +126,8 @@ export const TIPOS_DE_AVISO = [
   // M4-09: os agentes foram parados (vai para os responsáveis e os administradores) e retomados.
   "agentes_parados",
   "agentes_retomados",
+  // M5-01: a conta do Telegram da pessoa passou para outra pessoa (vai para quem perdeu).
+  "telegram_desvinculado",
 ] as const;
 export const TipoDeAviso = Type.Enum(TIPOS_DE_AVISO);
 export type TipoDeAviso = Static<typeof TipoDeAviso>;

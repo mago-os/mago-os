@@ -153,6 +153,15 @@ erDiagram
     timestamp_with_time_zone criada_em
     timestamp_with_time_zone atualizada_em
   }
+  codigos_do_telegram {
+    uuid id PK
+    uuid empresa_id FK
+    uuid pessoa_id FK
+    text resumo
+    timestamp_with_time_zone criado_em
+    timestamp_with_time_zone vence_em
+    timestamp_with_time_zone usado_em
+  }
   comentarios_de_tarefa {
     uuid id PK
     uuid empresa_id FK
@@ -542,6 +551,16 @@ erDiagram
     timestamp_with_time_zone entrou_em
     timestamp_with_time_zone desligado_em
   }
+  vinculos_do_telegram {
+    uuid id PK
+    uuid empresa_id FK
+    uuid pessoa_id FK
+    bigint telegram_id
+    bigint chat_id
+    text usuario
+    text nome
+    timestamp_with_time_zone vinculado_em
+  }
   visoes_salvas {
     uuid id PK
     uuid empresa_id FK
@@ -707,6 +726,8 @@ erDiagram
   empresas ||--o{ avisos_de_gasto : "empresa_id"
   empresas ||--o{ chaves_de_agente : "empresa_id"
   empresas ||--o{ chaves_de_dados : "empresa_id"
+  empresas ||--o{ codigos_do_telegram : "empresa_id"
+  pessoas ||--o{ codigos_do_telegram : "pessoa_id"
   empresas ||--o{ comentarios_de_tarefa : "empresa_id"
   empresas ||--o{ consumo_de_ia : "empresa_id"
   empresas ||--o{ contadores_de_agente : "empresa_id"
@@ -742,6 +763,8 @@ erDiagram
   empresas ||--o{ versoes_de_skills : "empresa_id"
   empresas ||--o{ vinculos : "empresa_id"
   pessoas ||--o{ vinculos : "pessoa_id"
+  empresas ||--o{ vinculos_do_telegram : "empresa_id"
+  pessoas ||--o{ vinculos_do_telegram : "pessoa_id"
   empresas ||--o{ visoes_salvas : "empresa_id"
   empresas ||--o{ auditoria_eventos : "empresa_id"
   pessoas ||--o{ acesso_aparelhos : "pessoa_id"
@@ -1001,6 +1024,22 @@ Isolamento por empresa (Row Level Security): ligado e forçado.
 | chave_cifrada | bytea | sim |  | sensivel | A chave de dados cifrada (número aleatório, texto cifrado e etiqueta do AES-256-GCM). |
 | criada_em | timestamp with time zone | sim | `now()` | sistema | Quando a chave foi criada. |
 | atualizada_em | timestamp with time zone | sim | `now()` | sistema | Última vez que foi cifrada de novo (troca da mestra). |
+
+### codigos_do_telegram
+
+Códigos de vínculo do Telegram (M5-01): de uso único, valem 10 minutos; só o resumo fica guardado.
+
+Isolamento por empresa (Row Level Security): ligado e forçado.
+
+| Coluna | Tipo | Obrigatória | Padrão | Marca | Descrição |
+| --- | --- | --- | --- | --- | --- |
+| id | uuid | sim | `uuidv7()` | sistema | Identificador. Chave primária. |
+| empresa_id | uuid | sim |  | sistema | Empresa ativa quando o código foi gerado. Aponta para empresas.id. |
+| pessoa_id | uuid | sim |  | sistema | Pessoa que gerou o código. Aponta para pessoas.id. |
+| resumo | text | sim |  | sensivel | Resumo SHA-256 do código (o código não é guardado). |
+| criado_em | timestamp with time zone | sim | `now()` | sistema | Quando foi gerado. |
+| vence_em | timestamp with time zone | sim |  | sistema | Até quando vale. |
+| usado_em | timestamp with time zone | não |  | sistema | Quando foi usado ou anulado (vazio: ainda vale). |
 
 ### comentarios_de_tarefa
 
@@ -1628,6 +1667,23 @@ Isolamento por empresa (Row Level Security): ligado e forçado.
 | convidado_em | timestamp with time zone | sim | `now()` | sistema | Quando a pessoa foi convidada. |
 | entrou_em | timestamp with time zone | não |  | sistema | Quando a pessoa aceitou o convite. |
 | desligado_em | timestamp with time zone | não |  | sistema | Quando a pessoa foi desligada (ou o convite foi cancelado). |
+
+### vinculos_do_telegram
+
+A conta do Telegram de cada pessoa (uma de cada lado, na plataforma toda) e a empresa da conversa por lá (M5-01).
+
+Isolamento por empresa (Row Level Security): ligado e forçado.
+
+| Coluna | Tipo | Obrigatória | Padrão | Marca | Descrição |
+| --- | --- | --- | --- | --- | --- |
+| id | uuid | sim | `uuidv7()` | sistema | Identificador. Chave primária. |
+| empresa_id | uuid | sim |  | sistema | Empresa da conversa pelo Telegram (a pessoa precisa ter vínculo ativo nela). Aponta para empresas.id. |
+| pessoa_id | uuid | sim |  | sistema | Pessoa dona da conta do Telegram. Aponta para pessoas.id. |
+| telegram_id | bigint | sim |  | pessoal | Número da conta no Telegram. |
+| chat_id | bigint | sim |  | pessoal | Número da conversa individual com o bot. |
+| usuario | text | não |  | pessoal | O @usuário no Telegram, se houver. |
+| nome | text | sim |  | pessoal | Nome que a pessoa usa no Telegram. |
+| vinculado_em | timestamp with time zone | sim | `now()` | sistema | Quando a conta foi vinculada. |
 
 ### visoes_salvas
 

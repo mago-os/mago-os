@@ -28,6 +28,7 @@
     "./avisos/notificacoes": "./src/avisos/notificacoes.ts",
     "./anexos": "./src/anexos/index.ts",
     "./busca": "./src/busca/index.ts",
+    "./telegram": "./src/telegram/index.ts",
     "./dados-da-empresa": "./src/dados-da-empresa/index.ts",
     "./layouts": "./src/layouts/index.ts",
     "./instrucoes": "./src/instrucoes/index.ts",
