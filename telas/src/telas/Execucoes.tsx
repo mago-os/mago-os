@@ -206,8 +206,11 @@ function LinhaDeExecucao({ e }: { e: ExecucaoNaLista }) {
   );
 }
 
-/** Na página da tarefa: as execuções dos agentes internos e o que os externos fizeram pelo MCP. */
-export function ExecucoesDaTarefa({ tarefaId }: { tarefaId: string }) {
+/**
+ * Na página da tarefa: as execuções dos agentes internos e o que os externos fizeram pelo MCP. Aparece sempre que a
+ * tarefa está com um agente (mesmo antes de ele começar) ou já teve execução; nas tarefas só de pessoas, não aparece.
+ */
+export function ExecucoesDaTarefa({ tarefaId, comAgente }: { tarefaId: string; comAgente: boolean }) {
   const [d, setD] = useState<{ execucoes: ExecucaoNaLista[]; externos: AtividadeExterna[] } | null>(null);
   useEffect(() => {
     void pedir<{ execucoes: ExecucaoNaLista[]; externos: AtividadeExterna[] }>(
@@ -215,18 +218,24 @@ export function ExecucoesDaTarefa({ tarefaId }: { tarefaId: string }) {
       `/tarefas/${encodeURIComponent(tarefaId)}/execucoes`,
     ).then((r) => setD(r.ok && r.dados ? r.dados : null));
   }, [tarefaId]);
-  if (!d || (d.execucoes.length === 0 && d.externos.length === 0)) return null;
+  const vazio = !d || (d.execucoes.length === 0 && d.externos.length === 0);
+  if (vazio && !comAgente) return null;
   return (
     <Card className="gap-3">
       <CardTitulo>Execuções de agentes</CardTitulo>
-      {d.execucoes.length > 0 && (
+      {vazio && (
+        <p className="text-sm text-texto-2">
+          Ainda não rodou. Quando o agente trabalhar nesta tarefa, o passo a passo aparece aqui.
+        </p>
+      )}
+      {d && d.execucoes.length > 0 && (
         <ul className="grid gap-1.5">
           {d.execucoes.map((e) => (
             <LinhaDeExecucao key={e.id} e={e} />
           ))}
         </ul>
       )}
-      {d.externos.map((a) => (
+      {d?.externos.map((a) => (
         <details key={a.agenteId} className="rounded-md border border-linha p-2 text-sm">
           <summary className="cursor-pointer">
             O que {a.agenteNome} fez pelo MCP ({a.passos.length} {a.passos.length === 1 ? "passo" : "passos"})
