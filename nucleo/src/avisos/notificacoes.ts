@@ -30,6 +30,7 @@ export const TEXTO_DO_PUSH: Record<TipoDeAviso, string> = {
   teto_de_gasto: "Um teto de gasto com IA está perto ou chegou ao fim",
   agentes_parados: "Os agentes foram parados",
   agentes_retomados: "Os agentes voltaram ao trabalho",
+  telegram_desvinculado: "O seu Telegram foi desvinculado",
 };
 
 /**

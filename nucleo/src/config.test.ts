@@ -20,7 +20,26 @@ describe("configuração", () => {
       acesso: null,
       anexos: { deposito: { tipo: "disco" }, clamav: null },
       cofre: { atual: { versao: 1, chave: expect.any(Buffer) }, anteriores: [], deTeste: true },
+      telegram: null,
     });
+  });
+
+  it("telegram: token e segredo juntos, nos formatos certos", () => {
+    const token = `123456789:${"A".repeat(35)}`;
+    const segredo = "s".repeat(40);
+    expect(
+      lerConfig({ DATABASE_URL: URL, MAGO_TELEGRAM_TOKEN: token, MAGO_TELEGRAM_SEGREDO: segredo }).telegram,
+    ).toEqual({
+      token,
+      segredo,
+    });
+    expect(() => lerConfig({ DATABASE_URL: URL, MAGO_TELEGRAM_TOKEN: token })).toThrow(/juntas/);
+    expect(() =>
+      lerConfig({ DATABASE_URL: URL, MAGO_TELEGRAM_TOKEN: "nao-e-token", MAGO_TELEGRAM_SEGREDO: segredo }),
+    ).toThrow(/BotFather/);
+    expect(() =>
+      lerConfig({ DATABASE_URL: URL, MAGO_TELEGRAM_TOKEN: token, MAGO_TELEGRAM_SEGREDO: "curto" }),
+    ).toThrow(/MAGO_TELEGRAM_SEGREDO/);
   });
 
   it("cofre: chave mestra de 32 bytes; fora do Mac, sem ela, as contas de IA ficam desligadas", () => {

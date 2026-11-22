@@ -55,6 +55,8 @@ arquivos = {
         # Cofre das contas de IA (M4-01, decisão 0021), opcional: sem a chave mestra, as contas de IA ficam desligadas.
         # Na troca da mestra, MAGO_COFRE_VERSAO sobe e a antiga vai para MAGO_COFRE_CHAVE_ANTERIOR (docs/operacao/cofre.md).
         **{k: s[k] for k in ("MAGO_COFRE_CHAVE_MESTRA", "MAGO_COFRE_VERSAO", "MAGO_COFRE_CHAVE_ANTERIOR") if s.get(k)},
+        # Telegram (M5-01), opcional: sem o token e o segredo do webhook, o bot fica desligado.
+        **{k: s[k] for k in ("MAGO_TELEGRAM_TOKEN", "MAGO_TELEGRAM_SEGREDO") if s.get(k)},
         # Anexos (M3-08), opcionais: o bucket só dos anexos no Backblaze e o ClamAV do compose (rede interna).
         **({
             "MAGO_ANEXOS_ENDPOINT": s["B2_ANEXOS_ENDPOINT"], "MAGO_ANEXOS_BUCKET": s["B2_ANEXOS_BUCKET"],

@@ -27,6 +27,8 @@ Todos os segredos do Mago OS ficam no Infisical Cloud (região EUA, https://app.
 | `MAGO_ACESSO_SEGREDO` | Segredo que assina os cookies de sessão (pelo menos 32 caracteres). Trocar derruba todas as sessões | API, parte do login (M1-03) |
 | `MAGO_GOOGLE_ID`, `MAGO_GOOGLE_SEGREDO` | ID e chave secreta do cliente OAuth "Mago OS teste" no Google Cloud (ver [acesso.md](acesso.md)). Opcionais: sem eles, só e-mail e senha | API, login com Google (M1-04) |
 | `MAGO_RESEND_CHAVE` | Chave do Resend só de envio (domínio `osmago.com`), começa com `re_`. Opcional fora da produção: sem ela, os links de senha e de convite vão para o log | API, e-mails de convite e de senha (M1-07) |
+| `MAGO_TELEGRAM_TOKEN` | Token do bot de teste do Telegram, criado pelo Sandro no @BotFather e colado por ele na web do Infisical. Opcional: sem ele, o Telegram fica desligado. Trocar: /revoke no BotFather e gravar o novo | API, bot do Telegram (M5-01) |
+| `MAGO_TELEGRAM_SEGREDO` | Segredo que o Telegram manda em cada chamada do webhook (48 caracteres, gerado com `openssl rand -hex 24`). Trocar: gravar o novo e reiniciar a API, que registra o webhook de novo | API, webhook do Telegram (M5-01) |
 | `B2_KEY_ID`, `B2_APPLICATION_KEY`, `B2_ENDPOINT`, `B2_REGION`, `B2_BUCKET` | Acesso ao bucket de backup no Backblaze B2 | pgBackRest |
 | `PGBACKREST_CIPHER_PASS` | Senha de criptografia dos backups. Sem ela, nenhum backup pode ser restaurado | pgBackRest |
 | `MAGO_CAMPAINHA_SEGREDO` | Assinatura da campainha de publicação (também em GitHub › Settings › Secrets) | Campainha na VPS e fluxo de publicação |

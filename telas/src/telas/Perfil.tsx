@@ -22,6 +22,7 @@ import { Card, CardDescricao, CardTitulo } from "@/componentes/ui/card";
 import { Aviso } from "./Acesso";
 import { AtivarDoisFatores, ConfirmarSegundoFator } from "./DoisFatores";
 import { Notificacoes } from "./Notificacoes";
+import { Telegram } from "./Telegram";
 import { usePasskeyPronta } from "./usePasskey";
 
 export const IDIOMAS = [
@@ -121,6 +122,7 @@ export function MeuPerfil() {
         aoMudar={carregar}
         aoAtivarApp={() => setAtivandoApp(true)}
       />
+      <Telegram />
       <Notificacoes />
     </main>
   );
