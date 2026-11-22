@@ -52,7 +52,7 @@ O Mago OS é um sistema operacional de agentes para empresas: pessoas e agentes 
 3. Escreva o código e os testes juntos, mexendo só nas pastas da tarefa.
 4. Rode `pnpm verificar` antes de abrir o PR.
 5. Abra um PR por tarefa, ligado ao cartão (escreva `Closes #<número da issue>` no texto do PR: o GitHub só reconhece a palavra em inglês), com um resumo simples do que mudou e como conferir. O modelo de PR já traz essa estrutura.
-6. Os testes automáticos rodam; se algo falhar, corrija e volte ao passo 4. **Nenhum merge na main sem a verificação toda verde** e nada é enviado direto para a main sem PR: hoje isso é regra, não trava do GitHub ([decisão 0005](docs/decisoes/0005-main-sem-trava-por-enquanto.md)). Se a verificação da main ficar vermelha depois de um merge, a correção vem antes de qualquer outra tarefa.
+6. Os testes automáticos rodam; se algo falhar, corrija e volte ao passo 4. **Nenhum merge na main sem a verificação toda verde** e nada é enviado direto para a main sem PR. Desde 22/11/2026 o próprio GitHub trava isso (só por PR, verificação verde e em dia com a main, [decisão 0038](docs/decisoes/0038-main-protegida-pelo-github.md)); o "ok" do Sandro no chat continua sendo a aprovação. Se a verificação da main ficar vermelha depois de um merge, a correção vem antes de qualquer outra tarefa.
 7. Uma revisão automática separada olha a mudança; corrija o que ela encontrar.
 8. O Sandro aprova o que é sensível. Ninguém aprova a própria mudança nem publica em produção.
 
