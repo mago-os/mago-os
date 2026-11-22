@@ -38,3 +38,4 @@ Uma nota curta por decisão importante: o que foi decidido, por quê e o que foi
 | [0029](0029-passo-a-passo-das-execucoes.md) | Passo a passo de cada execução (modelo, ferramentas, avisos, tokens, custo e tempo), por 90 dias, e quem vê os detalhes | Aceita |
 | [0030](0030-limites-e-agente-em-circulo.md) | Limites de rodadas e tempo por agente, parada por repetição e por vai e volta entre agentes, e teto a cada rodada | Aceita |
 | [0031](0031-parar-todos-os-agentes.md) | Parar todos os agentes, com segundo fator, motivo e retomada que devolve o trabalho a cada um | Aceita |
+| [0032](0032-bot-do-telegram-e-vinculo.md) | Um bot do Telegram por ambiente, webhook conferido por segredo e vínculo da conta por código de uso único | Proposta |
