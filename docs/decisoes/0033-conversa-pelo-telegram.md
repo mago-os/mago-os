@@ -1,7 +1,7 @@
 # 0033 Conversa com o coordenador pelo Telegram
 
 - **Data:** 22/11/2026
-- **Situação:** proposta (aguardando o "aprovado" do Sandro)
+- **Situação:** aceita (aprovada pelo Sandro no chat em 22/11/2026)
 - **Tarefa:** M5-02
 
 ## Contexto
@@ -22,6 +22,14 @@ Com o vínculo da M5-01, o bot sabe quem é a pessoa e em que empresa ela está.
 10. **Comandos novos.** /nova (conversa nova) e /tarefas (as 10 primeiras prioridades da central, com o link de cada uma). O menu do bot passa a mostrar os cinco comandos.
 11. **Uma resposta de cada vez.** Como no app, enquanto o agente responde, outro texto na mesma conversa recebe "Ainda estou respondendo a mensagem anterior".
 12. **O que ainda não entra.** Foto, arquivo, áudio e figurinha recebem "Por enquanto entendo só texto por aqui" (arquivos na M5-03). Botões de aprovação na M5-04.
+
+## Detalhes acertados na implementação
+
+- **Serviço comum:** a lógica da rota `POST /conversas/mensagens` foi para `receberMensagemDaPessoa` (`nucleo/src/agentes-internos/mensagem-da-pessoa.ts`), que o app e o Telegram chamam.
+- **O canal na gravação:** `gravarMensagem` decide o canal e a marca do Telegram no próprio insert, pela última mensagem da pessoa; o motor só ganhou dois avisos opcionais (`canais.aoRodar` e `canais.aoTerminar`), que nunca seguram a execução.
+- **Entrega em ordem:** uma entrega por vez por empresa (trava do banco); se uma mensagem falha para um chat, as seguintes do mesmo chat esperam a próxima vez, para não chegarem fora de ordem. Mensagem de quem não tem mais o Telegram naquela empresa deixa de esperar.
+- **"Digitando":** ao receber o pedido, a cada rodada pela API e a cada ferramenta (inclusive pelo Claude Code).
+- **/nova com texto:** "/nova planeja o lançamento" começa a conversa nova já com o pedido.
 
 ## O que foi descartado
 

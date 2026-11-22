@@ -6,7 +6,6 @@ import { conferir, PedidoDeMensagem } from "@mago-os/contratos";
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import type pg from "pg";
 import { origemDoPedido } from "../acesso/rotas.ts";
-import { paradaDoAgente } from "../agentes/parada.ts";
 import { garantirAgentesDeNascenca } from "../agentes/servico.ts";
 import { auditar } from "../auditoria/registrar.ts";
 import { comPessoa } from "../empresa.ts";
@@ -14,13 +13,11 @@ import { acessoDo, type Verificador } from "../permissoes/verificar.ts";
 import {
   apagarConversa,
   buscarConversa,
-  criarConversa,
-  criarExecucao,
   execucoesEmAndamento,
-  gravarMensagem,
   listarConversas,
   listarMensagens,
 } from "./dados.ts";
+import { podeFalarComEspecialista, receberMensagemDaPessoa } from "./mensagem-da-pessoa.ts";
 
 export interface OpcoesDaConversa {
   verificador: Verificador;
@@ -30,12 +27,6 @@ export interface OpcoesDaConversa {
 
 const naoEncontrada = (r: FastifyReply) =>
   r.code(404).send({ code: "CONVERSA_NAO_ENCONTRADA", message: "Conversa não encontrada." });
-
-/** Falar direto com um especialista: administrador e gestor de área (decisão de 13/11/2026). */
-function podeFalarComEspecialista(pedido: FastifyRequest): boolean {
-  const { permissoes } = acessoDo(pedido);
-  return permissoes.perfil === "administrador" || permissoes.perfil === "gestor_area";
-}
 
 export function registrarRotasDaConversa(app: FastifyInstance, o: OpcoesDaConversa): void {
   const { verificador, poolApp } = o;
@@ -56,7 +47,7 @@ export function registrarRotasDaConversa(app: FastifyInstance, o: OpcoesDaConver
             and papel = 'coordenador' and situacao <> 'desligado' limit 1`,
       );
       // Falar direto com um especialista: administrador e gestor (decisão de 13/11/2026).
-      const especialistas = podeFalarComEspecialista(pedido)
+      const especialistas = podeFalarComEspecialista(acessoDo(pedido).permissoes.perfil)
         ? (
             await c.query<{ id: string; nome: string; situacao: string }>(
               `select id, nome, situacao from agentes where empresa_id = empresa_ativa() and tipo = 'interno'
@@ -90,51 +81,17 @@ export function registrarRotasDaConversa(app: FastifyInstance, o: OpcoesDaConver
     const r = conferir(PedidoDeMensagem, pedido.body);
     if (!r.ok) return resposta.code(400).send({ code: "PEDIDO_INVALIDO", problemas: r.problemas });
     const { sessao } = acessoDo(pedido);
-    const feito = await naEmpresa(pedido, async (c) => {
-      await garantirAgentesDeNascenca(c);
-      let conversa = r.valor.conversaId ? await buscarConversa(c, r.valor.conversaId) : null;
-      if (r.valor.conversaId && !conversa) return { erro: "nao_encontrada" as const };
-      // A conversa continua com o agente dela; uma nova vai ao coordenador ou, se pedido e permitido, ao especialista.
-      const pedidoDireto = !conversa && r.valor.agenteId ? r.valor.agenteId : null;
-      const agenteId = conversa?.agenteId ?? pedidoDireto;
-      const a = await c.query<{ id: string; nome: string; situacao: string; papel: string }>(
-        `select id, nome, situacao, papel from agentes where empresa_id = empresa_ativa() and tipo = 'interno'
-            and ${agenteId ? "id = $1 and situacao <> 'desligado'" : "papel = 'coordenador' and situacao <> 'desligado'"} limit 1`,
-        agenteId ? [agenteId] : [],
-      );
-      const agente = a.rows[0];
-      if (!agente) return { erro: pedidoDireto ? ("nao_encontrada" as const) : ("sem_coordenador" as const) };
-      if (pedidoDireto && agente.papel === "especialista" && !podeFalarComEspecialista(pedido))
-        return { erro: "sem_permissao" as const };
-      if (agente.situacao !== "ativo") {
-        // Os agentes foram parados (M4-09): a pessoa lê o motivo.
-        const parada = await paradaDoAgente(c, agente.id);
-        if (parada) return { erro: "parados" as const, motivo: parada.motivo };
-        return { erro: "pausado" as const, nome: agente.nome };
-      }
-      // Uma execução de cada vez por conversa: a pessoa espera a resposta antes de mandar outra. A linha da conversa
-      // fica travada até o fim da transação, para dois envios ao mesmo tempo não criarem duas execuções.
-      if (conversa) {
-        await c.query("select 1 from conversas where id = $1 and empresa_id = empresa_ativa() for update", [
-          conversa.id,
-        ]);
-        if ((await execucoesEmAndamento(c, conversa.id)) > 0) return { erro: "ocupado" as const };
-      }
-      conversa ??= await criarConversa(c, sessao.pessoa.id, agente.id, r.valor.texto);
-      const mensagem = await gravarMensagem(
-        c,
-        conversa,
-        { tipo: "pessoa", pessoaId: sessao.pessoa.id },
-        r.valor.texto,
-      );
-      const execucao = await criarExecucao(c, {
-        agenteId: agente.id,
-        pedidoPor: sessao.pessoa.id,
-        origem: "conversa",
-        conversaId: conversa.id,
-      });
-      return { conversa, mensagem, execucaoId: execucao.id };
-    });
+    const { permissoes } = acessoDo(pedido);
+    const feito = await naEmpresa(pedido, (c) =>
+      receberMensagemDaPessoa(c, {
+        pessoaId: sessao.pessoa.id,
+        perfil: permissoes.perfil,
+        texto: r.valor.texto,
+        conversaId: r.valor.conversaId,
+        agenteId: r.valor.agenteId,
+        canal: "app",
+      }),
+    );
     if ("erro" in feito) {
       if (feito.erro === "nao_encontrada") return naoEncontrada(resposta);
       if (feito.erro === "sem_permissao")

@@ -312,3 +312,9 @@ O login (`mago_acesso`) não lê papéis nem as regras da plataforma direto. As 
 - O esquema `telegram` guarda o que o webhook precisa antes de saber a empresa: os números das atualizações já tratadas (cada uma uma vez só, por 7 dias), os códigos errados e as mensagens por minuto de cada conta. Nenhum dado de negócio, e a API não tem acesso direto: só pelas funções `atualizacao_nova_do_telegram()`, `contar_mensagem_do_telegram()` e `codigos_errados_do_telegram()`.
 - `reconhecer_telegram()` acha a pessoa e a empresa de uma conta do Telegram só quando a pessoa, o vínculo dela e a empresa estão ativos. Daí em diante tudo roda com `comPessoa` nessa empresa, como numa sessão.
 - Desligar a pessoa da empresa do Telegram apaga o vínculo do Telegram (gatilho em `vinculos`).
+
+## 43. Conversa pelo Telegram (22/11/2026, M5-02)
+
+- `conversas.canal` diz onde a conversa começou e `mensagens_de_conversa.canal` por onde cada mensagem passou ([decisão 0033](../decisoes/0033-conversa-pelo-telegram.md)). A mensagem do agente e a do sistema tomam o canal da última mensagem da pessoa na conversa, na própria gravação.
+- `mensagens_de_conversa.telegram_pendente` marca o que falta mandar ao Telegram (só pode ser verdade com o canal telegram), e `telegram_enviada_em` guarda quando foi. Um índice parcial acha as pendentes; `empresas_com_telegram_pendente()` dá à verificação a cada minuto só os ids das empresas.
+- `vinculos_do_telegram.conversa_id` é a conversa atual pelo Telegram, com chave estrangeira composta (a conversa é da mesma empresa). Apagar a conversa no app zera o campo; trocar de empresa e vincular de novo também.

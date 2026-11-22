@@ -1,6 +1,7 @@
 export * from "./aprovacoes.ts";
 export * from "./dados.ts";
 export * from "./ferramentas.ts";
+export * from "./mensagem-da-pessoa.ts";
 export * from "./motor.ts";
 export * from "./passos.ts";
 export * from "./rotas.ts";
