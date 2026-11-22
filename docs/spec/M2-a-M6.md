@@ -33,7 +33,7 @@ Pronto quando: o coordenador recebe um pedido, passa ao especialista e pede apro
 
 ## M5 Telegram e rotinas
 
-Detalhado em [M5-telegram-e-rotinas.md](M5-telegram-e-rotinas.md) (proposta em 22/11/2026), com duas tarefas a mais: M5-07 (agenda simples) e M5-08 (avisos e resumo do dia pelo Telegram).
+Detalhado em [M5-telegram-e-rotinas.md](M5-telegram-e-rotinas.md) (aprovado em 22/11/2026), com duas tarefas a mais: M5-07 (agenda simples) e M5-08 (avisos e resumo do dia pelo Telegram).
 
 Aprovado em 19/11/2026 (decisão 8 do M3): os eventos da agenda simples da Fase 1 (eventos, prazos das tarefas e alertas no app e no Telegram) entram neste marco, numa tarefa a numerar quando o M5 for detalhado.
 
