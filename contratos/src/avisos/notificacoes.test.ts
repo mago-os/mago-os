@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { conferir } from "../comum.ts";
-import { PedidoDeAssinaturaDePush, PreferenciasDeNotificacao } from "./notificacoes.ts";
+import {
+  canaisDoTipo,
+  horaDoResumo,
+  PedidoDeAssinaturaDePush,
+  PreferenciasDeNotificacao,
+} from "./notificacoes.ts";
 
 describe("notificações", () => {
   it("assinatura de push só com endereço https e as duas chaves", () => {
@@ -25,5 +30,33 @@ describe("notificações", () => {
     expect(conferir(PreferenciasDeNotificacao, { ...prefs, silencio: { de: "22h", ate: "07:00" } }).ok).toBe(
       false,
     );
+  });
+});
+
+describe("avisos pelo Telegram (M5-08)", () => {
+  const sem = { porTipo: {}, silencio: null };
+  it("por padrão, só o urgente vai pelo Telegram; o pedido de aprovação nunca (já vai com os botões)", () => {
+    expect(canaisDoTipo(sem, "mencao")).toEqual({ tela: true, push: true, telegram: true });
+    expect(canaisDoTipo(sem, "comentario")).toEqual({ tela: true, push: true, telegram: false });
+    expect(canaisDoTipo(sem, "aprovacao_pedida").telegram).toBe(false);
+    expect(
+      canaisDoTipo(
+        { porTipo: { aprovacao_pedida: { tela: true, push: true, telegram: true } }, silencio: null },
+        "aprovacao_pedida",
+      ).telegram,
+    ).toBe(false);
+    expect(
+      canaisDoTipo(
+        { porTipo: { comentario: { tela: true, push: false, telegram: true } }, silencio: null },
+        "comentario",
+      ),
+    ).toEqual({ tela: true, push: false, telegram: true });
+  });
+
+  it("o resumo do dia: ligado às 8h por padrão, na hora escolhida, ou desligado", () => {
+    expect(horaDoResumo(sem)).toBe("08:00");
+    expect(horaDoResumo({ ...sem, resumoDoDia: { hora: "07:30" } })).toBe("07:30");
+    expect(horaDoResumo({ ...sem, resumoDoDia: null })).toBeNull();
+    expect(conferir(PreferenciasDeNotificacao, { ...sem, resumoDoDia: { hora: "25:00" } }).ok).toBe(false);
   });
 });
