@@ -25,6 +25,7 @@ import { useTempoReal } from "@/tempo-real";
 import { Aviso } from "./Acesso";
 import { useAoVoltar } from "./Administrador";
 import { ExecucoesDoAgente } from "./Execucoes";
+import { LimitesDoAgente } from "./LimitesDoAgente";
 import { ModeloDoAgente } from "./ModeloDoAgente";
 import { RegrasDoAgente } from "./RegrasDoAgente";
 
@@ -397,6 +398,9 @@ export function PaginaDoAgente({
         <ChavesDoAgente agenteId={agente.id} desligado={desligado} />
       )}
       {!desligado && !editando && <RegrasDoAgente agenteId={agente.id} />}
+      {agente.tipo === "interno" && !desligado && !editando && (
+        <LimitesDoAgente agenteId={agente.id} podeEditar={podeEditar} />
+      )}
       {agente.tipo === "interno" && !editando && <ExecucoesDoAgente agenteId={agente.id} />}
       {!desligado && !editando && (podeEditar || podeDesligar) && (
         <div className="flex flex-wrap gap-2">

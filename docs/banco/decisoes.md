@@ -293,3 +293,7 @@ O login (`mago_acesso`) não lê papéis nem as regras da plataforma direto. As 
 - Parâmetros e resultados guardam até 20 mil caracteres cada (acima disso, o começo e a marca "cortado"); o banco ainda limita o tamanho de cada um.
 - O app só insere: não muda nem apaga passos. A função `apagar_passos_antigos()` roda como dona do banco, uma vez por dia, e apaga os passos com mais de 90 dias de todas as empresas. O resumo da execução continua (o custo vem do consumo, que fica).
 
+## 40. Limites de cada execução por agente (22/11/2026, M4-08)
+
+- `agentes` ganha os limites de rodadas e de minutos de cada execução, ajustados pelo administrador ([decisão 0030](../decisoes/0030-limites-e-agente-em-circulo.md)); vazio vale o padrão (30 rodadas e 10 minutos), e o banco limita a 100 rodadas e 60 minutos. A repetição e o vai e volta são conferidos pelo motor, sem tabela nova: o vai e volta olha as execuções da tarefa nas últimas 24 horas.
+

@@ -1,7 +1,7 @@
 # 0030 Limites de cada execução e agente andando em círculo
 
 - **Data:** 22/11/2026
-- **Situação:** proposta (esperando o aprovado do Sandro)
+- **Situação:** aceita (aprovada pelo Sandro no chat em 22/11/2026)
 - **Tarefa:** M4-08
 
 ## Contexto

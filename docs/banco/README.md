@@ -38,6 +38,8 @@ erDiagram
     text papel
     text especialidade
     uuid responde_a_id
+    integer limite_de_rodadas
+    integer limite_de_minutos
   }
   ajustes_de_permissao {
     uuid id PK
@@ -795,6 +797,8 @@ Isolamento por empresa (Row Level Security): ligado e forçado.
 | papel | text | não |  | empresa | Agente interno: coordenador (porta de entrada) ou especialista. |
 | especialidade | text | não |  | empresa | Especialista: a área dele (no M4, gerente_de_projetos). |
 | responde_a_id | uuid | não |  | empresa | Especialista: o coordenador a quem responde. |
+| limite_de_rodadas | integer | não |  | empresa | Agente interno: rodadas por execução (vazio: o padrão, 30). |
+| limite_de_minutos | integer | não |  | empresa | Agente interno: minutos por execução (vazio: o padrão, 10). |
 
 ### ajustes_de_permissao
 

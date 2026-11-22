@@ -72,6 +72,14 @@ test.describe("conversa com o mago", () => {
     await expect(page.getByText("Modelo de IA")).toBeVisible();
     await expect(page.getByText(/Nenhum modelo liberado/)).toBeVisible();
     await expect(page.getByRole("button", { name: "Criar chave" })).toHaveCount(0);
+    // Limites de cada execução (M4-08): o administrador ajusta e volta ao padrão.
+    await expect(page.getByText("Limites de cada execução")).toBeVisible();
+    await page.getByLabel("Rodadas").fill("40");
+    await page.getByRole("button", { name: "Salvar", exact: true }).click();
+    await expect(page.getByText("Limites salvos.")).toBeVisible();
+    await page.getByRole("button", { name: "Voltar ao padrão" }).click();
+    await expect(page.getByText("Limites de volta ao padrão.")).toBeVisible();
+    await expect(page.getByLabel("Rodadas")).toHaveValue("30");
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
   });
 });
