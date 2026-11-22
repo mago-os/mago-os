@@ -5,6 +5,7 @@ import {
   CodigoDoTelegram,
   FormatoDoCodigoDoTelegram,
   LETRAS_DO_CODIGO_DO_TELEGRAM,
+  mencaoNoComeco,
   RESPOSTAS_DO_TELEGRAM,
 } from "./telegram.ts";
 
@@ -45,13 +46,33 @@ describe("Telegram (M5-01)", () => {
     expect(conferir(AtualizacaoDoTelegram, { message: atualizacao.message }).ok).toBe(false);
   });
 
+  it("a menção a um especialista vem no começo da mensagem (M5-02)", () => {
+    expect(mencaoNoComeco("@gerente planeja o lançamento")).toEqual({
+      mencao: "gerente",
+      resto: "planeja o lançamento",
+    });
+    expect(mencaoNoComeco("@Gerente: replaneja o blog")).toEqual({
+      mencao: "Gerente",
+      resto: "replaneja o blog",
+    });
+    expect(mencaoNoComeco("planeja o lançamento com @gerente")).toBeNull();
+    expect(mencaoNoComeco("@gerente")).toBeNull();
+  });
+
   it("as respostas fixas não mudam sem querer (nenhuma diz se a conta ou o código existem)", () => {
     expect(RESPOSTAS_DO_TELEGRAM).toMatchInlineSnapshot(`
       {
         "codigoInvalido": "Esse código não vale. Gere um novo em Meu perfil, no app (ele vale 10 minutos).",
+        "conversaNova": "Pronto, conversa nova. Pode mandar o pedido.",
         "desvinculado": "Pronto, este Telegram não está mais ligado ao Mago OS.",
+        "especialistaNaoEncontrado": "Não encontrei esse agente. Mande o pedido sem a menção, para o coordenador.",
+        "ocupado": "Ainda estou respondendo a mensagem anterior. Espere a resposta e mande de novo.",
+        "semAcessoAosAgentes": "O seu perfil nesta empresa não conversa com os agentes. Fale com o administrador.",
+        "semPermissaoDeEspecialista": "Só o administrador e o gestor falam direto com um especialista. Mande o pedido sem a menção, para o coordenador.",
+        "semPrioridades": "Nada pedindo a sua atenção agora.",
         "semVinculo": "Para usar o Mago OS pelo Telegram, vincule a conta em Meu perfil, no app.",
         "soConversaIndividual": "O Mago OS só conversa com você em particular, não em grupos.",
+        "soTexto": "Por enquanto entendo só texto por aqui. Arquivos e fotos chegam em breve.",
         "travado": "Muitos códigos errados. Espere 15 minutos e gere um código novo em Meu perfil.",
       }
     `);

@@ -17,6 +17,8 @@ export interface OpcoesDaMensagem {
 export interface CarteiroDoTelegram {
   /** Manda uma mensagem de texto simples. Devolve o número da mensagem no Telegram. */
   enviar(chatId: number, texto: string, opcoes?: OpcoesDaMensagem): Promise<number>;
+  /** Mostra "digitando" na conversa (o Telegram mostra por cerca de 5 segundos). */
+  digitando(chatId: number): Promise<void>;
   /** O @ do bot (getMe). */
   quemSouEu(): Promise<string>;
   /** Liga o webhook com o segredo, só para os tipos de atualização usados. */
@@ -94,6 +96,9 @@ export function carteiroDoTelegram(
       });
       return m.message_id;
     },
+    async digitando(chatId) {
+      await chamar("sendChatAction", { chat_id: chatId, action: "typing" });
+    },
     async quemSouEu() {
       const eu = await chamar<{ username: string }>("getMe", {});
       return eu.username;
@@ -121,6 +126,9 @@ export function carteiroDoTelegram(
 export interface CarteiroFalsoDoTelegram extends CarteiroDoTelegram {
   enviadas: { chatId: number; texto: string; opcoes?: OpcoesDaMensagem }[];
   saiuDe: number[];
+  digitandoEm: number[];
+  /** Faz o próximo envio falhar (para testar a entrega que fica para depois). */
+  falharProximo: boolean;
 }
 
 /** Para os testes: guarda as mensagens em vez de mandar. */
@@ -128,9 +136,18 @@ export function carteiroFalsoDoTelegram(bot = "OsMagoTesteBot"): CarteiroFalsoDo
   const falso: CarteiroFalsoDoTelegram = {
     enviadas: [],
     saiuDe: [],
+    digitandoEm: [],
+    falharProximo: false,
     async enviar(chatId, texto, opcoes) {
+      if (falso.falharProximo) {
+        falso.falharProximo = false;
+        throw new ErroDoTelegram("sendMessage", 500, "falha de teste");
+      }
       falso.enviadas.push({ chatId, texto, ...(opcoes ? { opcoes } : {}) });
       return falso.enviadas.length;
+    },
+    async digitando(chatId) {
+      falso.digitandoEm.push(chatId);
     },
     async quemSouEu() {
       return bot;

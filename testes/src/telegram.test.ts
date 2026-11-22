@@ -255,7 +255,8 @@ describe.skipIf(!bancoDisponivel)("Telegram", () => {
     expect(ultima(222)).toMatch(/^Oi, Flora/);
     await mandar(222, "/ajuda");
     expect(ultima(222)).toMatch(/^Oi, Flora/);
-    expect(ultima(222)).not.toMatch(/\/nova/);
+    // Desde a M5-02, a ajuda mostra também /nova e /tarefas.
+    expect(ultima(222)).toMatch(/\/nova: /);
   });
 
   it("/empresa lista as empresas da pessoa e troca", async () => {

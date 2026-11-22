@@ -58,8 +58,9 @@ import { registrarRotasDosProjetos } from "./projetos/rotas.ts";
 import { criarServidor } from "./servidor.ts";
 import { registrarRotasDasTarefas } from "./tarefas/rotas.ts";
 import { carteiroDoTelegram } from "./telegram/carteiro.ts";
+import { digitandoNoTelegram, entregarNoTelegram, entregarPendentesNoTelegram } from "./telegram/conversa.ts";
 import { type BotLigado, registrarRotasDoTelegram } from "./telegram/rotas.ts";
-import { COMANDOS_LIGADOS, tratarAtualizacao } from "./telegram/servico.ts";
+import { COMANDOS_LIGADOS, type OpcoesDoTelegram, tratarAtualizacao } from "./telegram/servico.ts";
 import { registrarTempoReal } from "./tempo-real/index.ts";
 
 /** Fila da verificação de agente vivo (a cada minuto). */
@@ -77,6 +78,7 @@ const FILA_ESPACO = "anexos-espaco";
 const LIMITE_DE_AVISO_DO_ESPACO = 5 * 1024 * 1024 * 1024;
 /** Mensagens do Telegram (M5-01): o webhook responde na hora e a mensagem é tratada aqui. */
 const FILA_TELEGRAM = "telegram";
+const FILA_TELEGRAM_ENTREGAS = "telegram-entregas";
 
 async function iniciar(): Promise<void> {
   const config = lerConfig();
@@ -154,6 +156,27 @@ async function iniciar(): Promise<void> {
       ),
       ambiente: config.ambiente,
     });
+    // Telegram (M5-01, decisão 0032): sem o token, desligado.
+    let usuarioDoBot: string | null = null;
+    const bot: BotLigado | null = config.telegram
+      ? {
+          carteiro: carteiroDoTelegram(config.telegram.token),
+          segredo: config.telegram.segredo,
+          usuario: () => usuarioDoBot,
+        }
+      : null;
+    if (!bot) app.log.warn("Telegram desligado: MAGO_TELEGRAM_TOKEN não foi informado");
+    // Usado só com o bot ligado (os pontos que chamam conferem "bot" antes).
+    const opcoesDoBot = {
+      poolApp: banco.pool,
+      carteiro: bot?.carteiro as NonNullable<typeof bot>["carteiro"],
+      log: app.log,
+      conversa: {
+        catalogo: verificador.catalogo,
+        acordar: acordarAgente,
+        urlPublica: config.acesso.urlPublica,
+      },
+    };
     const opcoesDoMotor: OpcoesDoMotor = {
       poolApp: banco.pool,
       cofre,
@@ -170,6 +193,21 @@ async function iniciar(): Promise<void> {
       },
       log: app.log,
       acordar: acordarAgente,
+      // Telegram (M5-02): "digitando" a cada rodada e as respostas mandadas ao fim de cada execução.
+      ...(opcoesDoBot
+        ? {
+            canais: {
+              aoRodar: (empresaId: string, conversaId: string) => {
+                void digitandoNoTelegram(opcoesDoBot, empresaId, conversaId).catch(() => {});
+              },
+              aoTerminar: (empresaId: string) => {
+                void entregarNoTelegram(opcoesDoBot, empresaId).catch((erro) =>
+                  app.log.warn({ erro }, "Telegram: entrega ao fim da execução falhou"),
+                );
+              },
+            },
+          }
+        : {}),
     };
     registrarRotasDaConversa(app, { verificador, poolApp: banco.pool, acordar: acordarAgente });
     // Passo a passo das execuções (M4-07).
@@ -285,16 +323,6 @@ async function iniciar(): Promise<void> {
       urlPublica: config.acesso.urlPublica,
       conferirSenhasVazadas: config.acesso.conferirSenhasVazadas,
     });
-    // Telegram (M5-01, decisão 0032): sem o token, desligado.
-    let usuarioDoBot: string | null = null;
-    const bot: BotLigado | null = config.telegram
-      ? {
-          carteiro: carteiroDoTelegram(config.telegram.token),
-          segredo: config.telegram.segredo,
-          usuario: () => usuarioDoBot,
-        }
-      : null;
-    if (!bot) app.log.warn("Telegram desligado: MAGO_TELEGRAM_TOKEN não foi informado");
     registrarRotasDoTelegram(app, {
       login,
       poolAcesso: poolDoLogin,
@@ -305,13 +333,20 @@ async function iniciar(): Promise<void> {
         await fila.send(FILA_TELEGRAM, atualizacao, { retryLimit: 0 });
       },
     });
-    if (bot) {
+    if (bot && opcoesDoBot) {
       const urlDoWebhook = `${config.acesso.urlPublica}/api/telegram/webhook`;
       trabalhos.push(async () => {
         await fila.createQueue(FILA_TELEGRAM);
         await fila.work<Parameters<typeof tratarAtualizacao>[1]>(FILA_TELEGRAM, async (lote) => {
-          for (const t of lote)
-            await tratarAtualizacao({ poolApp: banco.pool, carteiro: bot.carteiro, log: app.log }, t.data);
+          for (const t of lote) await tratarAtualizacao(opcoesDoBot, t.data);
+        });
+        // A cada minuto: respostas que não chegaram ao Telegram (servidor reiniciado, Telegram fora do ar).
+        await fila.createQueue(FILA_TELEGRAM_ENTREGAS);
+        await fila.schedule(FILA_TELEGRAM_ENTREGAS, "* * * * *");
+        await fila.work(FILA_TELEGRAM_ENTREGAS, async () => {
+          const n = await entregarPendentesNoTelegram(opcoesDoBot);
+          if (n > 0)
+            app.log.info({ evento: "telegram.entregas", n }, "Respostas atrasadas entregues no Telegram");
         });
         // Ligar o webhook não segura a subida da API: se o Telegram não responder, tenta de novo a cada minuto. O
         // cartão de Meu perfil só deixa gerar código depois que o webhook ligou.

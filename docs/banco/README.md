@@ -227,6 +227,7 @@ erDiagram
     text titulo
     timestamp_with_time_zone criada_em
     timestamp_with_time_zone atualizada_em
+    text canal
   }
   empresas {
     uuid id PK
@@ -354,6 +355,10 @@ erDiagram
     uuid execucao_id
     uuid[] tarefas
     timestamp_with_time_zone criada_em
+    text canal
+    boolean telegram_pendente
+    timestamp_with_time_zone telegram_enviada_em
+    integer telegram_partes_enviadas
   }
   modelos_de_conta_de_ia {
     uuid empresa_id FK
@@ -560,6 +565,7 @@ erDiagram
     text usuario
     text nome
     timestamp_with_time_zone vinculado_em
+    uuid conversa_id
   }
   visoes_salvas {
     uuid id PK
@@ -1141,6 +1147,7 @@ Isolamento por empresa (Row Level Security): ligado e forçado.
 | titulo | text | sim |  | pessoal | Título (a primeira frase do pedido). |
 | criada_em | timestamp with time zone | sim | `now()` | sistema | Quando a conversa começou. |
 | atualizada_em | timestamp with time zone | sim | `now()` | sistema | Última mensagem. |
+| canal | text | sim | `'app'::text` | sistema | Onde a conversa começou: app ou telegram. |
 
 ### empresas
 
@@ -1352,6 +1359,10 @@ Isolamento por empresa (Row Level Security): ligado e forçado.
 | execucao_id | uuid | não |  | sistema | Execução que produziu a resposta do agente. |
 | tarefas | uuid[] | sim | `'{}'::uuid[]` | sistema | Tarefas criadas ou citadas, para a tela mostrar o link. |
 | criada_em | timestamp with time zone | sim | `now()` | sistema | Quando a mensagem foi escrita. |
+| canal | text | sim | `'app'::text` | sistema | Por onde a mensagem passou: app ou telegram (a do agente vai pelo canal da última mensagem da pessoa). |
+| telegram_pendente | boolean | sim | `false` | sistema | Falta mandar esta mensagem ao Telegram da pessoa. |
+| telegram_enviada_em | timestamp with time zone | não |  | sistema | Quando foi mandada ao Telegram. |
+| telegram_partes_enviadas | integer | sim | `0` | sistema | Partes já mandadas ao Telegram (resposta longa dividida; continua da que faltava). |
 
 ### modelos_de_conta_de_ia
 
@@ -1684,6 +1695,7 @@ Isolamento por empresa (Row Level Security): ligado e forçado.
 | usuario | text | não |  | pessoal | O @usuário no Telegram, se houver. |
 | nome | text | sim |  | pessoal | Nome que a pessoa usa no Telegram. |
 | vinculado_em | timestamp with time zone | sim | `now()` | sistema | Quando a conta foi vinculada. |
+| conversa_id | uuid | não |  | sistema | A conversa atual pelo Telegram (vazio: a próxima mensagem começa uma nova). |
 
 ### visoes_salvas
 

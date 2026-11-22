@@ -136,7 +136,11 @@ export function Conversa({ euId }: { euId: string }) {
                   "min-w-0 flex-1 truncate rounded-md px-3 py-2 text-left text-sm",
                   c.id === abertaId ? "bg-tinta text-sobre-tinta" : "hover:bg-suave",
                 )}
+                title={c.canal === "telegram" ? "Conversa pelo Telegram" : undefined}
               >
+                {c.canal === "telegram" && (
+                  <Send className="mr-1.5 inline size-3.5 align-[-2px]" aria-label="Pelo Telegram" />
+                )}
                 {c.titulo}
               </button>
               <button

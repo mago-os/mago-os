@@ -4,6 +4,7 @@
  */
 import type {
   AutorDaMensagem,
+  CanalDaConversa,
   Conversa,
   ExecucaoDeAgente,
   MensagemDeConversa,
@@ -19,6 +20,7 @@ interface LinhaDaConversa {
   pessoa_id: string;
   agente_id: string;
   titulo: string;
+  canal: CanalDaConversa;
   criada_em: Date;
   atualizada_em: Date;
 }
@@ -29,6 +31,7 @@ const paraConversa = (l: LinhaDaConversa): Conversa => ({
   pessoaId: l.pessoa_id,
   agenteId: l.agente_id,
   titulo: l.titulo,
+  canal: l.canal,
   criadaEm: l.criada_em.toISOString(),
   atualizadaEm: l.atualizada_em.toISOString(),
 });
@@ -56,12 +59,13 @@ export async function criarConversa(
   pessoaId: string,
   agenteId: string,
   titulo: string,
+  canal: CanalDaConversa = "app",
 ): Promise<Conversa> {
   const curto = titulo.replace(/\s+/g, " ").trim();
   const r = await c.query<LinhaDaConversa>(
-    `insert into conversas (empresa_id, pessoa_id, agente_id, titulo) values (empresa_ativa(), $1, $2, $3)
+    `insert into conversas (empresa_id, pessoa_id, agente_id, titulo, canal) values (empresa_ativa(), $1, $2, $3, $4)
      returning *`,
-    [pessoaId, agenteId, curto.length > 120 ? `${curto.slice(0, 117)}...` : curto],
+    [pessoaId, agenteId, curto.length > 120 ? `${curto.slice(0, 117)}...` : curto, canal],
   );
   return paraConversa(r.rows[0] as LinhaDaConversa);
 }
@@ -79,6 +83,7 @@ interface LinhaDaMensagem {
   texto: string;
   execucao_id: string | null;
   tarefas: string[];
+  canal: CanalDaConversa;
   criada_em: Date;
 }
 
@@ -93,6 +98,7 @@ const paraMensagem = (l: LinhaDaMensagem): MensagemDeConversa => ({
   texto: l.texto,
   execucaoId: l.execucao_id,
   tarefas: l.tarefas,
+  canal: l.canal,
   criadaEm: l.criada_em.toISOString(),
 });
 
@@ -109,18 +115,28 @@ export async function listarMensagens(
   return r.rows.map(paraMensagem);
 }
 
+/**
+ * Grava a mensagem. A da pessoa diz por onde chegou (app, padrão, ou telegram); a do agente e a do sistema vão pelo
+ * canal da última mensagem da pessoa na conversa (M5-02, decisão 0033), e as do Telegram ficam marcadas para o
+ * módulo do Telegram mandar.
+ */
 export async function gravarMensagem(
   c: pg.PoolClient,
   conversa: Conversa,
   autor: AutorDaMensagem,
   texto: string,
-  extras: { execucaoId?: string | null; tarefas?: string[] } = {},
+  extras: { execucaoId?: string | null; tarefas?: string[]; canal?: CanalDaConversa } = {},
 ): Promise<MensagemDeConversa> {
   const limpo = texto.trim().slice(0, 8000) || "(sem texto)";
   const r = await c.query<LinhaDaMensagem>(
-    `insert into mensagens_de_conversa (empresa_id, conversa_id, pessoa_id, autor_pessoa_id, autor_agente_id, texto,
-       execucao_id, tarefas)
-     values (empresa_ativa(), $1, $2, $3, $4, $5, $6, $7) returning *`,
+    `with canal as (
+       select coalesce($9::text, case when $3::uuid is not null then 'app' end,
+         (select m.canal from mensagens_de_conversa m where m.conversa_id = $1 and m.empresa_id = empresa_ativa()
+             and m.autor_pessoa_id is not null order by m.criada_em desc limit 1), 'app') as c)
+     insert into mensagens_de_conversa (empresa_id, conversa_id, pessoa_id, autor_pessoa_id, autor_agente_id, texto,
+       execucao_id, tarefas, canal, telegram_pendente)
+     select empresa_ativa(), $1, $2, $3, $4, $5, $6, $7, canal.c, canal.c = 'telegram' and $8 from canal
+     returning *`,
     [
       conversa.id,
       conversa.pessoaId,
@@ -129,6 +145,8 @@ export async function gravarMensagem(
       limpo,
       extras.execucaoId ?? null,
       (extras.tarefas ?? []).slice(0, 20),
+      autor.tipo !== "pessoa",
+      extras.canal ?? null,
     ],
   );
   await c.query("update conversas set atualizada_em = now() where id = $1 and empresa_id = empresa_ativa()", [

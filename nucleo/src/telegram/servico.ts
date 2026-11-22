@@ -22,6 +22,7 @@ import { auditar, type DadosDoEvento } from "../auditoria/registrar.ts";
 import { criarAviso } from "../avisos/index.ts";
 import { comEmpresa, comPessoa } from "../empresa.ts";
 import type { CarteiroDoTelegram } from "./carteiro.ts";
+import { conversarPeloTelegram, type OpcoesDaConversaPeloTelegram } from "./conversa.ts";
 
 export interface Registro {
   info(obj: unknown, msg?: string): void;
@@ -33,6 +34,8 @@ export interface OpcoesDoTelegram {
   poolApp: pg.Pool;
   carteiro: CarteiroDoTelegram;
   log: Registro;
+  /** A conversa com o coordenador (M5-02). Sem ela, o texto solto recebe a ajuda. */
+  conversa?: OpcoesDaConversaPeloTelegram;
 }
 
 /** A origem dos eventos de auditoria que nascem no Telegram. */
@@ -64,8 +67,8 @@ export function codigoDaMensagem(texto: string): { codigo: string; peloLink: boo
 /** Só as letras do contrato: texto com 0, O, 1, I ou L nunca é código (e não conta como erro). */
 const FORMATO_DO_CODIGO = new RegExp(`^[${LETRAS_DO_CODIGO_DO_TELEGRAM}]{${TAMANHO_DO_CODIGO_DO_TELEGRAM}}$`);
 
-/** Os comandos que já funcionam (o menu do bot e a ajuda mostram só estes). /nova e /tarefas chegam na M5-02. */
-export const COMANDOS_LIGADOS = COMANDOS_DO_TELEGRAM.filter((c) => !["nova", "tarefas"].includes(c.comando));
+/** Os comandos que já funcionam (o menu do bot e a ajuda mostram só estes). Desde a M5-02, todos. */
+export const COMANDOS_LIGADOS = COMANDOS_DO_TELEGRAM;
 
 /** O comando da mensagem (sem a barra e sem o @bot), e o resto. */
 export function comandoDaMensagem(texto: string): { comando: string; resto: string } | null {
@@ -153,15 +156,21 @@ export async function tratarAtualizacao(opcoes: OpcoesDoTelegram, a: Atualizacao
     await o.carteiro.enviar(m.chat.id, RESPOSTAS_DO_TELEGRAM.semVinculo);
     return;
   }
+  // Foto, arquivo, áudio, figurinha: arquivos chegam na M5-03.
+  if (!texto.trim()) {
+    await o.carteiro.enviar(m.chat.id, RESPOSTAS_DO_TELEGRAM.soTexto);
+    return;
+  }
   const cmd = comandoDaMensagem(texto);
   if (cmd?.comando === "sair") return sair(o, pessoa, m.chat.id);
   if (cmd?.comando === "empresa") return trocarEmpresa(o, pessoa, m.chat.id, cmd.resto);
-  if (!cmd || cmd.comando === "start" || cmd.comando === "ajuda") {
-    // Texto solto: a conversa com o coordenador entra na M5-02. Até lá, a ajuda.
+  if (cmd?.comando === "start" || cmd?.comando === "ajuda" || (!cmd && !o.conversa)) {
     await o.carteiro.enviar(m.chat.id, textoDaAjuda(pessoa));
     return;
   }
-  await o.carteiro.enviar(m.chat.id, `Esse comando ainda não existe por aqui. ${textoDaAjuda(pessoa)}`);
+  if (!cmd || cmd.comando === "nova" || cmd.comando === "tarefas")
+    return conversarPeloTelegram(o, pessoa, m.chat.id, texto, cmd);
+  await o.carteiro.enviar(m.chat.id, `Esse comando não existe por aqui. ${textoDaAjuda(pessoa)}`);
 }
 
 async function vincular(o: OpcoesDoTelegram, m: MensagemDoTelegram, codigo: string): Promise<void> {
@@ -310,7 +319,11 @@ async function trocarEmpresa(
     return;
   }
   await comPessoa(o.poolApp, p.pessoaId, null, (c) =>
-    c.query("update vinculos_do_telegram set empresa_id = $1 where pessoa_id = pessoa_ativa()", [escolha.id]),
+    // A conversa atual era da outra empresa: a próxima mensagem começa uma nova.
+    c.query(
+      "update vinculos_do_telegram set empresa_id = $1, conversa_id = null where pessoa_id = pessoa_ativa()",
+      [escolha.id],
+    ),
   );
   await auditar(
     o.poolApp,

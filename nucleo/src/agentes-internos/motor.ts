@@ -89,6 +89,14 @@ export interface OpcoesDoMotor {
   claudeCode?: RodarClaudeCode;
   /** Limites por execução (padrão: 30 rodadas e 10 minutos; ajuste por agente na M4-08). */
   limites?: { rodadas: number; tempoMs: number };
+  /**
+   * Canais de fora do app (M5-02): avisados a cada rodada (o Telegram mostra "digitando") e ao fim de cada execução
+   * (o Telegram manda as respostas marcadas). Nunca seguram nem derrubam a execução.
+   */
+  canais?: {
+    aoRodar(empresaId: string, conversaId: string): void;
+    aoTerminar(empresaId: string): void;
+  };
 }
 
 const LIMITES_PADRAO = { rodadas: LIMITE_PADRAO_DE_RODADAS, tempoMs: LIMITE_PADRAO_DE_MINUTOS * 60_000 };
@@ -182,6 +190,12 @@ export async function rodarExecucao(o: OpcoesDoMotor, empresaId: string, execuca
     await comEmpresa(o.poolApp, empresaId, (c) =>
       terminarExecucao(c, execucaoId, { situacao: "falhou", resumo: "Erro inesperado." }),
     ).catch(() => {});
+  } finally {
+    try {
+      o.canais?.aoTerminar(empresaId);
+    } catch {
+      // O canal cuida dos próprios erros; a verificação a cada minuto manda o que ficou.
+    }
   }
 }
 
@@ -434,6 +448,21 @@ async function rodar(o: OpcoesDoMotor, empresaId: string, execucaoId: string): P
       return null;
     });
 
+  /**
+   * O canal de fora mostra que o agente está trabalhando (o "digitando" do Telegram), só nas conversas, no máximo a
+   * cada 4 segundos (o Telegram mostra por cerca de 5).
+   */
+  let ultimoAvisoDeTrabalho = 0;
+  const avisarQueTrabalha = () => {
+    if (!execucao.conversaId || Date.now() - ultimoAvisoDeTrabalho < 4000) return;
+    ultimoAvisoDeTrabalho = Date.now();
+    try {
+      o.canais?.aoRodar(empresaId, execucao.conversaId);
+    } catch {
+      // Só um aviso visual: nunca segura a execução.
+    }
+  };
+
   /** Roda uma ferramenta e grava o passo (parâmetros, resultado ou recusa, tempo e o pedido de aprovação). */
   const conferirParada = async () => {
     const parada = await naEmpresa((c) => paradaDoAgente(c, agente.id));
@@ -445,6 +474,7 @@ async function rodar(o: OpcoesDoMotor, empresaId: string, execucaoId: string): P
     // Os agentes foram parados (M4-09): nenhuma ferramenta roda depois disso (é para isso que serve o freio), e a
     // execução termina neste passo. Uma consulta curta por ferramenta.
     await conferirParada();
+    avisarQueTrabalha();
     if (nome !== "responder" && nome !== "perguntar") {
       const assinatura = `${nome}:${jsonCanonico(entrada)}`;
       const anteriores = ultimasChamadas.slice(-(REPETICOES_PARA_PARAR - 1));
@@ -564,6 +594,7 @@ async function rodar(o: OpcoesDoMotor, empresaId: string, execucaoId: string): P
     ) => {
       const motivo = await indisponivel(m, haOutroDepois);
       if (motivo) throw new ErroDoModelo(`Modelo ${m.modelo} indisponível: ${motivo}`);
+      avisarQueTrabalha();
       const acesso = await naEmpresa(async (c) => {
         const cifrada = await chaveCifradaDaConta(c, m.contaId);
         if (!cifrada) throw new ErroDoModelo("A conta de IA não existe mais.");
@@ -708,6 +739,7 @@ async function rodar(o: OpcoesDoMotor, empresaId: string, execucaoId: string): P
     const rodarPelaApi = async (): Promise<void> => {
       for (let rodada = 0; rodada < limites.rodadas; rodada++) {
         await conferirParada();
+        avisarQueTrabalha();
         // O teto também a cada rodada (M4-08): uma execução longa não passa muito dele.
         if (rodada > 0) {
           const agora = await naEmpresa((c) =>
