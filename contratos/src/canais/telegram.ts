@@ -103,6 +103,14 @@ export const AtualizacaoDoTelegram = Type.Object({
 });
 export type AtualizacaoDoTelegram = Static<typeof AtualizacaoDoTelegram>;
 
+// Conversa pelo Telegram (M5-02, decisão 0033).
+
+/** O Telegram é contínuo: depois de 6 horas sem mensagem, o próximo pedido começa uma conversa nova. */
+export const HORAS_PARA_CONVERSA_NOVA_NO_TELEGRAM = 6;
+
+/** Prioridades que /tarefas mostra (as primeiras da central, com o link de cada uma). */
+export const MAXIMO_DE_PRIORIDADES_NO_TELEGRAM = 10;
+
 /** Comandos do bot, na ordem do menu do Telegram. /nova e /tarefas chegam na M5-02. */
 export const COMANDOS_DO_TELEGRAM = [
   { comando: "nova", descricao: "Começar uma conversa nova com o coordenador" },
@@ -119,7 +127,21 @@ export const RESPOSTAS_DO_TELEGRAM = {
   travado: "Muitos códigos errados. Espere 15 minutos e gere um código novo em Meu perfil.",
   soConversaIndividual: "O Mago OS só conversa com você em particular, não em grupos.",
   desvinculado: "Pronto, este Telegram não está mais ligado ao Mago OS.",
+  conversaNova: "Pronto, conversa nova. Pode mandar o pedido.",
+  ocupado: "Ainda estou respondendo a mensagem anterior. Espere a resposta e mande de novo.",
+  semPermissaoDeEspecialista:
+    "Só o administrador e o gestor falam direto com um especialista. Mande o pedido sem a menção, para o coordenador.",
+  especialistaNaoEncontrado: "Não encontrei esse agente. Mande o pedido sem a menção, para o coordenador.",
+  soTexto: "Por enquanto entendo só texto por aqui. Arquivos e fotos chegam em breve.",
+  semAcessoAosAgentes: "O seu perfil nesta empresa não conversa com os agentes. Fale com o administrador.",
+  semPrioridades: "Nada pedindo a sua atenção agora.",
 } as const;
+
+/** Quando os agentes foram parados (M4-09) ou o agente está pausado, a resposta leva o motivo ou o nome. */
+export const respostaDeAgentesParados = (motivo: string) =>
+  `Os agentes foram parados por um administrador: ${motivo}`;
+export const respostaDeAgentePausado = (nome: string) =>
+  `${nome} está pausado agora. O administrador escolhe o modelo de IA e liga em Agentes, no app.`;
 
 /** Ações de auditoria. */
 export const ACOES_TELEGRAM = [
@@ -128,3 +150,12 @@ export const ACOES_TELEGRAM = [
   "telegram.trocou_empresa",
   "telegram.codigo_errado",
 ] as const;
+
+/**
+ * Menção a um especialista no começo da mensagem ("@gerente planeja o lançamento"): o nome do agente, sem acento e
+ * sem diferença de maiúsculas, pelo começo de qualquer palavra do nome. Devolve o que veio depois da menção.
+ */
+export function mencaoNoComeco(texto: string): { mencao: string; resto: string } | null {
+  const m = /^@([\p{L}\p{N}_-]{2,40})[\s,:]+([\s\S]+)$/u.exec(texto.trim());
+  return m ? { mencao: m[1] as string, resto: (m[2] as string).trim() } : null;
+}

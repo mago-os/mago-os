@@ -35,6 +35,14 @@ export const AGENTES_DE_NASCENCA = [
 
 // Conversa no app (decisão 5 da spec): cada pessoa tem as próprias conversas com o coordenador.
 
+/**
+ * Por onde a pessoa escreve (M5-02, decisão 0033): no app ou pelo Telegram. A conversa é a mesma nos dois; a do
+ * Telegram aparece no app com o ícone dele, e a resposta do agente volta pelo canal da última mensagem da pessoa.
+ */
+export const CANAIS_DA_CONVERSA = ["app", "telegram"] as const;
+export const CanalDaConversa = Type.Enum(CANAIS_DA_CONVERSA, { description: "app ou telegram." });
+export type CanalDaConversa = Static<typeof CanalDaConversa>;
+
 export const Conversa = Type.Object(
   {
     id: Id,
@@ -43,6 +51,8 @@ export const Conversa = Type.Object(
     pessoaId: Id,
     agenteId: Id,
     titulo: Texto(120, "Título da conversa (a primeira frase do pedido, ou o que a pessoa escolher)."),
+    /** Onde a conversa começou (M5-02). */
+    canal: CanalDaConversa,
     criadaEm: DataHora,
     atualizadaEm: DataHora,
   },
@@ -70,6 +80,8 @@ export const MensagemDeConversa = Type.Object(
     execucaoId: OuNulo(Id),
     /** Tarefas criadas ou citadas na mensagem, para a tela mostrar o link. */
     tarefas: Type.Array(Id, { maxItems: 20 }),
+    /** Por onde a mensagem chegou ou saiu (M5-02): a resposta do agente vai pelo canal do pedido. */
+    canal: CanalDaConversa,
     criadaEm: DataHora,
   },
   { additionalProperties: false },

@@ -39,3 +39,4 @@ Uma nota curta por decisão importante: o que foi decidido, por quê e o que foi
 | [0030](0030-limites-e-agente-em-circulo.md) | Limites de rodadas e tempo por agente, parada por repetição e por vai e volta entre agentes, e teto a cada rodada | Aceita |
 | [0031](0031-parar-todos-os-agentes.md) | Parar todos os agentes, com segundo fator, motivo e retomada que devolve o trabalho a cada um | Aceita |
 | [0032](0032-bot-do-telegram-e-vinculo.md) | Um bot do Telegram por ambiente, webhook conferido por segredo e vínculo da conta por código de uso único | Aceita |
+| [0033](0033-conversa-pelo-telegram.md) | Conversa com o coordenador pelo Telegram: a mesma conversa e o mesmo motor, conversa nova depois de 6 horas ou /nova, resposta pelo canal da última mensagem | Proposta |
