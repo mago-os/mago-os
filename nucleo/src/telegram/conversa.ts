@@ -42,8 +42,10 @@ export function partesDoTexto(texto: string, maximo = MAXIMO_DA_MENSAGEM_DO_TELE
   const partes: string[] = [];
   let resto = texto.trim();
   while (resto.length > maximo) {
-    const corte = Math.max(resto.lastIndexOf("\n", maximo), resto.lastIndexOf(" ", maximo));
-    const ate = corte > maximo / 2 ? corte : maximo;
+    // Prefere quebrar numa linha; sem linha na segunda metade, num espaço; sem nenhum dos dois, no limite.
+    const linha = resto.lastIndexOf("\n", maximo);
+    const espaco = resto.lastIndexOf(" ", maximo);
+    const ate = linha > maximo / 2 ? linha : espaco > maximo / 2 ? espaco : maximo;
     partes.push(resto.slice(0, ate).trimEnd());
     resto = resto.slice(ate).trimStart();
   }
