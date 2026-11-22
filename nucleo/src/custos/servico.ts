@@ -67,7 +67,7 @@ export async function registrarConsumo(
     modelo: string;
     tokens: { entrada: number; saida: number; cache: number };
   },
-): Promise<void> {
+): Promise<string> {
   const conta = await c.query<{ credencial: string }>(
     "select credencial from contas_de_ia where id = $1 and empresa_id = empresa_ativa()",
     [d.contaId],
@@ -81,10 +81,10 @@ export async function registrarConsumo(
     saida: Math.max(0, Math.round(d.tokens.saida)),
     cache: Math.max(0, Math.round(d.tokens.cache)),
   };
-  await c.query(
+  const r = await c.query<{ id: string }>(
     `insert into consumo_de_ia (empresa_id, execucao_id, agente_id, conta_id, modelo, tokens_entrada, tokens_saida,
        tokens_cache, custo_micros, sem_preco)
-     values (empresa_ativa(), $1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+     values (empresa_ativa(), $1, $2, $3, $4, $5, $6, $7, $8, $9) returning id`,
     [
       d.execucaoId,
       d.agenteId,
@@ -97,6 +97,7 @@ export async function registrarConsumo(
       semPreco,
     ],
   );
+  return r.rows[0]?.id as string;
 }
 
 /** O teto da empresa (agenteId null) ou de um agente: o ajustado, ou o padrão; null = sem teto. */

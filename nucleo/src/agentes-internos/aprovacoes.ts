@@ -41,6 +41,7 @@ import { executar, RecusaDaFerramenta } from "../mcp/index.ts";
 import { acessoDo, permissoesNaEmpresa, type Verificador } from "../permissoes/verificar.ts";
 import { buscarConversa, buscarExecucao, type ExecucaoComInstrucoes, gravarMensagem } from "./dados.ts";
 import { executarFerramenta, responsavelDoContexto } from "./ferramentas.ts";
+import { registrarPasso } from "./passos.ts";
 
 export interface OpcoesDasAprovacoes {
   verificador: Verificador;
@@ -387,6 +388,21 @@ export function registrarRotasDasAprovacoes(app: FastifyInstance, o: OpcoesDasAp
         );
         return d;
       });
+      // A ação aprovada entra no passo a passo da execução que pediu (ou na atividade do externo na tarefa), numa
+      // transação à parte: uma falha aqui não desfaz a conclusão do pedido.
+      await comEmpresa(poolApp, sessao.empresaId, (c) =>
+        registrarPasso(c, {
+          execucaoId: aprovacao.execucaoId,
+          agenteId: aprovacao.agenteId,
+          tarefaId: aprovacao.tarefaId,
+          tipo: "ferramenta",
+          ferramenta: aprovacao.acao,
+          entrada: aprovacao.parametros,
+          resultado: erro ?? resultado,
+          erro: erro !== null,
+          aprovacaoId: aprovacao.id,
+        }),
+      ).catch((e) => pedido.log.error({ erro: e, aprovacaoId: id }, "Aprovação: o passo não foi registrado"));
       await registrar(
         pedido,
         erro ? "aprovacao.falhou" : "aprovacao.aprovou",

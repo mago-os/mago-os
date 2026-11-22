@@ -8,10 +8,12 @@ import { randomBytes, randomUUID } from "node:crypto";
 import { criarLogin, criarPoolDoLogin, embaralharSenha, registrarRotasDoLogin } from "@mago-os/nucleo/acesso";
 import { registrarRotasDosAgentes } from "@mago-os/nucleo/agentes";
 import {
+  apagarPassosAntigos,
   entregarAoAgenteInterno,
   type OpcoesDoMotor,
   registrarRotasDaConversa,
   registrarRotasDasAprovacoes,
+  registrarRotasDosPassos,
   rodarExecucao,
   verificarAprovacoesVencidas,
   verificarExecucoesEsquecidas,
@@ -185,6 +187,7 @@ describe.skipIf(!bancoDisponivel)("agentes internos", () => {
     registrarRotasDaConversa(app, { verificador, poolApp, acordar });
     registrarRotasDasTarefas(app, verificador, poolApp, { acordarAgente: acordar });
     registrarRotasDosCustos(app, verificador, poolApp);
+    registrarRotasDosPassos(app, verificador, poolApp);
     registrarRotasDosProjetos(app, verificador, poolApp);
     motor = {
       poolApp,
@@ -1490,6 +1493,88 @@ describe.skipIf(!bancoDisponivel)("agentes internos", () => {
     expect(pelaReserva.rows[0]?.passou_ao_reserva_porque).toContain("teto de gasto do mês");
     await dono.query("update contas_de_ia set teto_mensal = null where id = $1", [ids.Principal]);
     await dono.query("delete from tetos_de_gasto where empresa_id = $1", [empresaId]);
+  });
+
+  it("passo a passo (M4-07): cada passo com custo, detalhes só para quem pode, e 90 dias", async () => {
+    const ana = await como("ana@teste.invalid");
+    const flora = await como("flora@teste.invalid");
+    roteiro = [
+      () => ({
+        texto: "Vou ler a tarefa.",
+        chamadas: [{ id: "p1", nome: "ver_tarefa", entrada: { tarefaId: "" } }],
+      }),
+      () => ({ chamadas: [{ id: "p2", nome: "responder", entrada: { texto: "Li e organizei." } }] }),
+    ];
+    const t = await pedir("POST", "/tarefas", ana, { titulo: "Organizar a semana" });
+    const tarefaId = t.json().id as string;
+    // O primeiro passo pede ver_tarefa com a tarefa certa.
+    roteiro[0] = () => ({
+      texto: "Vou ler a tarefa.",
+      chamadas: [{ id: "p1", nome: "ver_tarefa", entrada: { tarefaId } }],
+    });
+    await pedir("POST", `/tarefas/${tarefaId}/responsavel`, ana, {
+      responsavel: { tipo: "agente", agenteId: ids.gerente },
+    });
+    await rodarFila();
+    const lista = (await pedir("GET", `/tarefas/${tarefaId}/execucoes`, ana)).json();
+    expect(lista.execucoes).toHaveLength(1);
+    const execucaoId = lista.execucoes[0].id as string;
+    const detalhe = (await pedir("GET", `/execucoes/${execucaoId}`, ana)).json();
+    expect(detalhe.comDetalhes).toBe(true);
+    const tipos = detalhe.passos.map(
+      (p: { tipo: string; ferramenta: string | null }) => `${p.tipo}:${p.ferramenta}`,
+    );
+    expect(tipos).toEqual([
+      "modelo:ver_tarefa",
+      "ferramenta:ver_tarefa",
+      "modelo:responder",
+      "ferramenta:responder",
+    ]);
+    expect(detalhe.passos[0]).toMatchObject({ texto: "Vou ler a tarefa.", modelo: "modelo-bom" });
+    expect(detalhe.passos[0].custo).toBeGreaterThan(0);
+    expect(detalhe.passos[1].entrada).toEqual({ tarefaId });
+    expect(detalhe.custo).toBe(detalhe.passos[0].custo + detalhe.passos[2].custo);
+    // A Flora não vê a tarefa: não vê a execução.
+    expect((await pedir("GET", `/execucoes/${execucaoId}`, flora)).statusCode).toBe(404);
+    expect((await pedir("GET", `/tarefas/${tarefaId}/execucoes`, flora)).statusCode).toBe(404);
+    // Nem como responsável pelo agente: sem ver a tarefa, não vê a execução.
+    await dono.query("update agentes set responsavel_id = $1 where id = $2", [ids.flora, ids.gerente]);
+    expect((await pedir("GET", `/execucoes/${execucaoId}`, flora)).statusCode).toBe(404);
+    expect(
+      ((await pedir("GET", `/agentes/${ids.gerente}/execucoes`, flora)).json() as { id: string }[]).some(
+        (e) => e.id === execucaoId,
+      ),
+    ).toBe(false);
+    await dono.query("update agentes set responsavel_id = $1 where id = $2", [ids.ana, ids.gerente]);
+    // Vendo a tarefa (aqui, como quem a criou), quem não pediu nem responde pelo agente vê só o resumo e os nomes
+    // dos passos.
+    await dono.query("update tarefas set criada_por_pessoa_id = $1 where id = $2", [ids.flora, tarefaId]);
+    const resumo = (await pedir("GET", `/execucoes/${execucaoId}`, flora)).json();
+    expect(resumo.comDetalhes).toBe(false);
+    expect(resumo.passos[1]).toMatchObject({
+      ferramenta: "ver_tarefa",
+      entrada: null,
+      resultado: null,
+      texto: null,
+    });
+    // As execuções do agente: a Ana (administradora) vê.
+    const doAgente = (await pedir("GET", `/agentes/${ids.gerente}/execucoes`, ana)).json() as {
+      id: string;
+    }[];
+    expect(doAgente.some((e) => e.id === execucaoId)).toBe(true);
+    // 90 dias: os passos somem, o resumo fica.
+    await dono.query(
+      "update passos_de_execucao set criado_em = now() - interval '91 days' where execucao_id = $1",
+      [execucaoId],
+    );
+    await dono.query(
+      "update execucoes_de_agente set criada_em = now() - interval '91 days', iniciada_em = now() - interval '91 days', terminada_em = now() - interval '91 days' where id = $1",
+      [execucaoId],
+    );
+    expect(await apagarPassosAntigos(poolApp)).toBeGreaterThanOrEqual(4);
+    const depois = (await pedir("GET", `/execucoes/${execucaoId}`, ana)).json();
+    expect(depois).toMatchObject({ passosApagados: true, passos: [] });
+    expect(depois.custo).toBeGreaterThan(0);
   });
 
   it("coordenador desligado por engano: nasce um novo, pausado, e o Gerente passa a responder a ele", async () => {

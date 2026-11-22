@@ -213,6 +213,15 @@ describe.skipIf(!bancoDisponivel)("servidor MCP", () => {
     );
     expect(ev.rows.map((l) => l.acao)).toEqual(["tarefa.pegou", "tarefa.comentou", "tarefa.mudou_status"]);
     expect(ev.rows.every((l) => l.ator.tipo === "agente" && l.origem.canal === "mcp")).toBe(true);
+    // O que o agente externo fez na tarefa vira passo (M4-07), sem raciocínio.
+    const passos = await dono.query<{ ferramenta: string; erro: boolean }>(
+      "select ferramenta, erro from passos_de_execucao where tarefa_id = $1 and execucao_id is null order by criado_em",
+      [tarefaId],
+    );
+    expect(passos.rows.map((p) => p.ferramenta)).toEqual(
+      expect.arrayContaining(["pegar_tarefa", "comentar", "entregar_resultado"]),
+    );
+    expect(passos.rows.find((p) => p.ferramenta === "entregar_resultado")?.erro).toBe(true);
     await cliente.close();
   });
 

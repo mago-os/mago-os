@@ -276,13 +276,18 @@ function BolhaDaMensagem({ mensagem, minha }: { mensagem: MensagemDeConversa; mi
         {/* Texto puro: o React não interpreta HTML vindo do agente. */}
         {mensagem.texto}
       </div>
-      {mensagem.tarefas.length > 0 && (
+      {(mensagem.tarefas.length > 0 || (mensagem.execucaoId && !minha)) && (
         <div className="flex flex-wrap gap-2 text-xs">
           {mensagem.tarefas.map((id, i) => (
             <a key={id} href={`/tarefas/${id}`} className="underline">
               {mensagem.tarefas.length > 1 ? `Abrir tarefa ${i + 1}` : "Abrir a tarefa"}
             </a>
           ))}
+          {mensagem.execucaoId && !minha && (
+            <a href={`/execucoes/${mensagem.execucaoId}`} className="text-texto-2 underline">
+              Ver passo a passo
+            </a>
+          )}
         </div>
       )}
     </div>

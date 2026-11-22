@@ -61,6 +61,7 @@ import {
   ferramentasDoPapel,
   responsavelDoContexto,
 } from "./ferramentas.ts";
+import { registrarPasso } from "./passos.ts";
 import { haTextoDeOutros, marcarTextoDeOutros } from "./texto-de-outros.ts";
 
 export interface OpcoesDoMotor {
@@ -339,6 +340,12 @@ async function rodar(o: OpcoesDoMotor, empresaId: string, execucaoId: string): P
     return;
   }
 
+  /** Um passo do passo a passo (M4-07). Uma falha aqui não derruba a execução. */
+  const passo = (d: Omit<Parameters<typeof registrarPasso>[1], "execucaoId" | "agenteId" | "tarefaId">) =>
+    naEmpresa((c) =>
+      registrarPasso(c, { execucaoId, agenteId: agente.id, tarefaId: execucao.tarefaId, ...d }),
+    ).catch((erro) => o.log.error({ erro, execucaoId }, "Agente interno: o passo não foi registrado"));
+
   // Os tetos de gasto do mês (M4-06): empresa ou agente no teto, a execução não começa; só a conta principal parada,
   // segue pelo reserva. Os avisos de 80% e 100% saem aqui, uma vez por mês.
   const tetos = await naEmpresa((c) =>
@@ -368,14 +375,17 @@ async function rodar(o: OpcoesDoMotor, empresaId: string, execucaoId: string): P
       o.log,
     );
     const texto = `${agente.nome} não começou: ${motivo}. O administrador pode subir o teto em Agentes › Custos.`;
+    await passo({ tipo: "sistema", texto: `Não começou: ${motivo}.` });
     await avisarNaConversa(texto, "sistema");
     if (execucao.tarefaId && execucao.origem !== "conversa")
       await pedirAjudaNaTarefa(o, empresaId, agente.id, execucao.tarefaId, texto);
     return;
   }
   const reservaPorTeto = "usarReserva" in tetos ? tetos.usarReserva : null;
-  if (reservaPorTeto && modelosDoAgenteAtual.reserva)
+  if (reservaPorTeto && modelosDoAgenteAtual.reserva) {
     modelosDoAgenteAtual = { principal: modelosDoAgenteAtual.reserva, reserva: null };
+    await passo({ tipo: "sistema", texto: `Passou ao modelo reserva: ${reservaPorTeto}.` });
+  }
   // A conta do reserva parou no teto: o agente roda sem reserva, para não cair nela no meio da execução.
   else if ("semReserva" in tetos && tetos.semReserva && modelosDoAgenteAtual.reserva)
     modelosDoAgenteAtual = { principal: modelosDoAgenteAtual.principal, reserva: null };
@@ -393,10 +403,45 @@ async function rodar(o: OpcoesDoMotor, empresaId: string, execucaoId: string): P
   };
 
   /** Cada chamada ao modelo vira um registro de consumo (M4-06). Uma falha aqui não derruba a execução. */
-  const guardarConsumo = (m: ModeloEscolhido, tokens: { entrada: number; saida: number; cache: number }) =>
+  const guardarConsumo = (
+    m: ModeloEscolhido,
+    tokens: { entrada: number; saida: number; cache: number },
+  ): Promise<string | null> =>
     naEmpresa((c) =>
       registrarConsumo(c, { execucaoId, agenteId: agente.id, contaId: m.contaId, modelo: m.modelo, tokens }),
-    ).catch((erro) => o.log.error({ erro, execucaoId }, "Agente interno: o consumo não foi registrado"));
+    ).catch((erro) => {
+      o.log.error({ erro, execucaoId }, "Agente interno: o consumo não foi registrado");
+      return null;
+    });
+
+  /** Roda uma ferramenta e grava o passo (parâmetros, resultado ou recusa, tempo e o pedido de aprovação). */
+  const executarComPasso = async (nome: string, entrada: unknown) => {
+    const t0 = Date.now();
+    try {
+      const feito = await executarFerramenta(ctx, nome, entrada);
+      const conteudo = feito.conteudo as { pedidoDeAprovacao?: string } | null;
+      await passo({
+        tipo: "ferramenta",
+        ferramenta: nome,
+        entrada,
+        resultado: feito.fim ? { texto: feito.fim.texto } : feito.conteudo,
+        duracaoMs: Date.now() - t0,
+        aprovacaoId: conteudo && typeof conteudo === "object" ? (conteudo.pedidoDeAprovacao ?? null) : null,
+      });
+      return feito;
+    } catch (erro) {
+      await passo({
+        tipo: "ferramenta",
+        ferramenta: nome,
+        entrada,
+        resultado:
+          erro instanceof RecusaDaFerramenta ? erro.message : "Não foi possível concluir a ferramenta.",
+        erro: true,
+        duracaoMs: Date.now() - t0,
+      });
+      throw erro;
+    }
+  };
 
   // A tarefa da delegação: o especialista pega (para as ferramentas do MCP valerem) e solta no fim.
   let pegou = false;
@@ -487,7 +532,7 @@ async function rodar(o: OpcoesDoMotor, empresaId: string, execucaoId: string): P
           if (fim) return { texto: "A execução já terminou. Não chame mais ferramentas.", erro: true };
           ferramentasUsadas += 1;
           try {
-            const feito = await executarFerramenta(ctx, nome, entrada);
+            const feito = await executarComPasso(nome, entrada);
             if (feito.fim) {
               fim = feito.fim;
               return { texto: "Feito. Encerre agora, sem chamar mais ferramentas.", erro: false };
@@ -516,9 +561,23 @@ async function rodar(o: OpcoesDoMotor, empresaId: string, execucaoId: string): P
           executar,
         });
         texto = r.texto;
-        await guardarConsumo(m, r.tokens);
+        // Pelo Claude Code, o Mago OS vê as ferramentas e o fim; o custo vem num número só.
+        await passo({
+          tipo: "modelo",
+          modelo: m.modelo,
+          texto: r.texto,
+          consumoId: await guardarConsumo(m, r.tokens),
+          duracaoMs: Date.now() - inicio,
+        });
       } catch (erro) {
-        if (erro instanceof ErroDoModelo && erro.tokens) await guardarConsumo(m, erro.tokens);
+        if (erro instanceof ErroDoModelo && erro.tokens)
+          await passo({
+            tipo: "modelo",
+            modelo: m.modelo,
+            texto: erro.message,
+            consumoId: await guardarConsumo(m, erro.tokens),
+            duracaoMs: Date.now() - inicio,
+          });
         // A resposta já foi dada (o Claude Code falhou só ao fechar): ela vale.
         if (!fim) {
           if (erro instanceof ErroDoModelo && erro.limiteAte)
@@ -586,6 +645,7 @@ async function rodar(o: OpcoesDoMotor, empresaId: string, execucaoId: string): P
                 );
               return { conta, cifrada, chave: await cofre.abrirChaveDeIa(c, empresaId, m.contaId, cifrada) };
             });
+            const t0 = Date.now();
             try {
               const resposta = await o.modelos.conversar(
                 {
@@ -596,7 +656,14 @@ async function rodar(o: OpcoesDoMotor, empresaId: string, execucaoId: string): P
                 },
                 { modelo: m.modelo, sistema, partes, ferramentas },
               );
-              await guardarConsumo(m, resposta.tokens);
+              await passo({
+                tipo: "modelo",
+                modelo: m.modelo,
+                texto: resposta.texto,
+                ferramenta: resposta.chamadas.map((x) => x.nome).join(", ") || null,
+                consumoId: await guardarConsumo(m, resposta.tokens),
+                duracaoMs: Date.now() - t0,
+              });
               if (resposta.credencialNova) {
                 const nova = resposta.credencialNova;
                 await naEmpresa(async (c) =>
@@ -631,6 +698,8 @@ async function rodar(o: OpcoesDoMotor, empresaId: string, execucaoId: string): P
           },
         );
         modeloUsado = r.usado;
+        if (!reserva && r.passouAoReservaPorque)
+          await passo({ tipo: "sistema", texto: `Passou ao modelo reserva: ${r.passouAoReservaPorque}.` });
         reserva = reserva ?? r.passouAoReservaPorque;
         const resposta = r.resultado;
         partes.push({ papel: "assistente", texto: resposta.texto, chamadas: resposta.chamadas });
@@ -653,7 +722,7 @@ async function rodar(o: OpcoesDoMotor, empresaId: string, execucaoId: string): P
         for (const chamada of resposta.chamadas) {
           try {
             ferramentasUsadas += 1;
-            const feito = await executarFerramenta(ctx, chamada.nome, chamada.entrada);
+            const feito = await executarComPasso(chamada.nome, chamada.entrada);
             if (feito.fim) {
               await finalizar(o, empresaId, ctx, feito.fim, avisarNaConversa);
               await encerrar("concluida", feito.fim.texto.slice(0, 2000), { modelo: modeloUsado, reserva });
@@ -693,6 +762,7 @@ async function rodar(o: OpcoesDoMotor, empresaId: string, execucaoId: string): P
           : "Erro inesperado.";
     if (!(erro instanceof ErroDoModelo) && !limite)
       o.log.error({ erro, execucaoId }, "Agente interno: erro na execução");
+    await passo({ tipo: "sistema", texto: `Não concluiu: ${texto}` });
     await encerrar(limite ? "parada" : "falhou", texto);
     await avisarNaConversa(`Não consegui concluir: ${texto}`, "sistema");
     await auditar(
