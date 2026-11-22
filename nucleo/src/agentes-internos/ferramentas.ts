@@ -13,13 +13,14 @@ import {
   type NomeDeFerramentaInterna,
   type PapelDeAgente,
   type Responsavel,
+  TAMANHO_MAXIMO_DO_ARQUIVO_DO_TELEGRAM,
   type Tarefa,
 } from "@mago-os/contratos";
 import type pg from "pg";
 import type { OpcoesDaChave } from "../agentes/chaves.ts";
 import { avaliarAcao, criarAprovacao } from "../agentes/regras.ts";
 import { agenteRecebeTarefas } from "../agentes/servico.ts";
-import { listarAnexos } from "../anexos/servico.ts";
+import { criarAnexo, excluirAnexo, listarAnexos, marcarVerificando } from "../anexos/servico.ts";
 import { auditar } from "../auditoria/registrar.ts";
 import { avisarDepois } from "../avisos/eventos.ts";
 import { buscar as buscarNoMago } from "../busca/index.ts";
@@ -163,6 +164,8 @@ function fontesDaFerramenta(
     // Nomes de pessoas e de projetos não contam (decisão 0026: texto de tarefas e anexos).
     case "procurar_pessoa":
     case "procurar_projeto":
+    // Os arquivos que a própria pessoa mandou (nome, tipo e tamanho): não é texto de outros.
+    case "arquivos_recebidos":
       return null;
     case "ver_tarefa":
       return { tarefasInteiras: tarefaDaEntrada };
@@ -623,6 +626,161 @@ async function executarSemMarca(
           itens: itens
             .slice(0, 30)
             .map((i) => ({ tipo: i.tipo, titulo: i.titulo, motivo: i.motivo, tarefaId: i.tarefaId })),
+        },
+      };
+    }
+    case "arquivos_recebidos": {
+      const arquivos = await naEmpresa(async (c) => {
+        const r = await c.query<{
+          id: string;
+          nome: string;
+          tipo: string;
+          tamanho: string | null;
+          recebido_em: Date;
+        }>(
+          `select id, nome, tipo, tamanho, recebido_em from arquivos_do_telegram
+            where empresa_id = empresa_ativa() and pessoa_id = $1 and situacao = 'esperando' and vence_em > now()
+            order by recebido_em desc limit 20`,
+          [pessoaId],
+        );
+        return r.rows;
+      });
+      return {
+        conteudo: {
+          arquivos: arquivos.map((a) => ({
+            id: a.id,
+            nome: a.nome,
+            tipo: a.tipo,
+            tamanho: a.tamanho === null ? null : Number(a.tamanho),
+            recebidoEm: a.recebido_em.toISOString(),
+          })),
+        },
+      };
+    }
+    case "anexar_arquivo": {
+      const anexos = ctx.opcoesMcp.anexos ?? null;
+      const telegram = ctx.opcoesMcp.telegram ?? null;
+      if (!anexos || !telegram) throw new RecusaDaFerramenta("Os anexos não estão ligados neste ambiente.");
+      const arquivoId = entrada.arquivoId as string;
+      const tarefaId = entrada.tarefaId as string;
+      // 1. O arquivo é de quem pediu e ainda espera; a tarefa é das que quem pediu (e o responsável) pode editar.
+      const arquivo = await naEmpresa(async (c) => {
+        const r = await c.query<{
+          nome: string;
+          tipo: string;
+          id_no_telegram: string;
+          situacao: string;
+          vale: boolean;
+        }>(
+          `select nome, tipo, id_no_telegram, situacao, vence_em > now() as vale from arquivos_do_telegram
+            where id = $1 and empresa_id = empresa_ativa() and pessoa_id = $2`,
+          [arquivoId, pessoaId],
+        );
+        const a = r.rows[0];
+        if (!a)
+          throw new RecusaDaFerramenta(
+            "Arquivo não encontrado entre os que quem pediu mandou pelo Telegram (veja arquivos_recebidos).",
+          );
+        if (a.situacao === "anexado") throw new RecusaDaFerramenta("Esse arquivo já foi anexado.");
+        // Aprovado depois das 24 horas: a aprovação segurou o arquivo (ele não venceu enquanto esperava a decisão).
+        if (a.situacao === "vencido" || (!a.vale && !opcoes.aprovada))
+          throw new RecusaDaFerramenta(
+            "Esse arquivo passou das 24 horas e venceu. Peça à pessoa para mandar de novo pelo Telegram.",
+          );
+        await tarefaDeQuemPediu(c, tarefaId, "editar");
+        return a;
+      });
+      // 2. Baixa do Telegram fora da transação (pode demorar).
+      let dados: Buffer;
+      try {
+        dados = await telegram.baixar(arquivo.id_no_telegram);
+      } catch (erro) {
+        ctx.log.warn({ erro, arquivoId }, "Telegram: o arquivo não foi baixado");
+        throw new RecusaDaFerramenta(
+          "Não consegui pegar o arquivo no Telegram agora. Peça à pessoa para mandar de novo.",
+        );
+      }
+      if (dados.length === 0 || dados.length > TAMANHO_MAXIMO_DO_ARQUIVO_DO_TELEGRAM)
+        throw new RecusaDaFerramenta("O arquivo veio vazio ou maior que 20 MB.");
+      // 3. Vira anexo em "enviando", como no app; o arquivo deixa de esperar (uma vez só, mesmo com duas chamadas).
+      const anexo = await naEmpresa(async (c) => {
+        await tarefaDeQuemPediu(c, tarefaId, "editar");
+        const travado = await c.query<{ situacao: string }>(
+          "select situacao from arquivos_do_telegram where id = $1 and empresa_id = empresa_ativa() for update",
+          [arquivoId],
+        );
+        const agora = travado.rows[0]?.situacao;
+        if (agora === "vencido")
+          throw new RecusaDaFerramenta(
+            "Esse arquivo passou das 24 horas e venceu. Peça à pessoa para mandar de novo pelo Telegram.",
+          );
+        if (agora !== "esperando") throw new RecusaDaFerramenta("Esse arquivo já foi anexado.");
+        const novo = await criarAnexo(c, {
+          tarefaId,
+          comentarioId: null,
+          nome: arquivo.nome,
+          tipo: arquivo.tipo,
+          tamanho: dados.length,
+          pessoaId,
+        });
+        await c.query(
+          "update arquivos_do_telegram set situacao = 'anexado', anexo_id = $2 where id = $1 and empresa_id = empresa_ativa()",
+          [arquivoId, novo.id],
+        );
+        return novo;
+      });
+      // 4. Grava na quarentena e manda para o antivírus. Se gravar falhar, o arquivo volta a esperar.
+      try {
+        await anexos.deposito.gravar(anexo.caminho, dados, anexo.tipo);
+        await naEmpresa((c) => marcarVerificando(c, anexo.id));
+      } catch (erro) {
+        ctx.log.error({ erro, arquivoId }, "Telegram: o arquivo não foi gravado no depósito");
+        // O que chegou à quarentena não pode ficar perdido no depósito.
+        await anexos.deposito
+          .apagar(anexo.caminho)
+          .catch(() =>
+            naEmpresa((c) =>
+              c.query("insert into arquivos_para_apagar (empresa_id, caminho) values (empresa_ativa(), $1)", [
+                anexo.caminho,
+              ]),
+            ).catch(() => {}),
+          );
+        await naEmpresa(async (c) => {
+          await c.query(
+            "update arquivos_do_telegram set situacao = 'esperando', anexo_id = null where id = $1 and empresa_id = empresa_ativa()",
+            [arquivoId],
+          );
+          await excluirAnexo(c, anexo.id);
+        });
+        throw new RecusaDaFerramenta("Não consegui guardar o arquivo agora. Tente de novo em instantes.");
+      }
+      telegram.acordarAnexos();
+      // O anexo é da pessoa (foi ela quem mandou), pelo Telegram, com o agente que anexou nos detalhes.
+      await auditar(
+        ctx.poolApp,
+        {
+          empresaId: ctx.empresaId,
+          ator: { tipo: "pessoa", pessoaId },
+          acao: "anexo.enviou",
+          alvo: { tipo: "tarefa", id: tarefaId },
+          origem: { canal: "telegram", ip: null, aparelho: "Telegram" },
+          rastreio: null,
+          detalhes: {
+            anexoId: anexo.id,
+            tipo: anexo.tipo,
+            tamanho: anexo.tamanho,
+            agenteId: ctx.agente.id,
+            execucaoId,
+          },
+        },
+        ctx.log,
+      );
+      return {
+        conteudo: {
+          anexoId: anexo.id,
+          tarefaId,
+          situacao: "verificando",
+          aviso: "O arquivo está passando pelo antivírus e aparece na tarefa em instantes.",
         },
       };
     }

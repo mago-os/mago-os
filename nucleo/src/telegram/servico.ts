@@ -10,17 +10,22 @@ import {
   type AtualizacaoDoTelegram,
   CODIGOS_ERRADOS_DO_TELEGRAM,
   COMANDOS_DO_TELEGRAM,
+  extensaoBloqueada,
+  HORAS_PARA_ANEXAR_O_ARQUIVO_DO_TELEGRAM,
   LETRAS_DO_CODIGO_DO_TELEGRAM,
   MENSAGENS_POR_MINUTO_DO_TELEGRAM,
   type MensagemDoTelegram,
   MINUTOS_DA_TRAVA_DO_TELEGRAM,
   RESPOSTAS_DO_TELEGRAM,
   TAMANHO_DO_CODIGO_DO_TELEGRAM,
+  TAMANHO_MAXIMO_DO_ARQUIVO_DO_TELEGRAM,
+  textoDoArquivoParaOAgente,
 } from "@mago-os/contratos";
 import type pg from "pg";
 import { auditar, type DadosDoEvento } from "../auditoria/registrar.ts";
 import { criarAviso } from "../avisos/index.ts";
 import { comEmpresa, comPessoa } from "../empresa.ts";
+import { permissoesNaEmpresa } from "../permissoes/verificar.ts";
 import type { CarteiroDoTelegram } from "./carteiro.ts";
 import { conversarPeloTelegram, type OpcoesDaConversaPeloTelegram } from "./conversa.ts";
 
@@ -156,7 +161,13 @@ export async function tratarAtualizacao(opcoes: OpcoesDoTelegram, a: Atualizacao
     await o.carteiro.enviar(m.chat.id, RESPOSTAS_DO_TELEGRAM.semVinculo);
     return;
   }
-  // Foto, arquivo, áudio, figurinha: arquivos chegam na M5-03.
+  // Foto, documento, áudio, vídeo (M5-03): o arquivo espera uma tarefa, e o coordenador decide onde anexar.
+  if (m.sticker || m.animation) {
+    await o.carteiro.enviar(m.chat.id, RESPOSTAS_DO_TELEGRAM.figurinha);
+    return;
+  }
+  const arquivo = arquivoDaMensagem(m);
+  if (arquivo) return receberArquivo(o, pessoa, m, arquivo);
   if (!texto.trim()) {
     await o.carteiro.enviar(m.chat.id, RESPOSTAS_DO_TELEGRAM.soTexto);
     return;
@@ -171,6 +182,94 @@ export async function tratarAtualizacao(opcoes: OpcoesDoTelegram, a: Atualizacao
   if (!cmd || cmd.comando === "nova" || cmd.comando === "tarefas")
     return conversarPeloTelegram(o, pessoa, m.chat.id, texto, cmd);
   await o.carteiro.enviar(m.chat.id, `Esse comando não existe por aqui. ${textoDaAjuda(pessoa)}`);
+}
+
+export interface ArquivoDaMensagem {
+  idNoTelegram: string;
+  nome: string;
+  tipo: string;
+  tamanho: number | null;
+}
+
+const FORMATO_DO_TIPO = /^[a-z0-9.+-]+\/[a-z0-9.+-]+$/;
+
+/** Tipos (MIME) que rodam programa: valem como a lista de extensões, para o documento que chega sem nome. */
+const TIPOS_QUE_RODAM_PROGRAMA =
+  /(msdownload|msdos-program|x-executable|x-sh\b|x-bat|x-msi|ms-installer|portable-executable|java-archive|android\.package-archive|apple-diskimage|x-ms-shortcut)/;
+
+/** O arquivo é de um tipo que roda programa, pelo nome ou pelo tipo. */
+export function arquivoQueRodaPrograma(a: Pick<ArquivoDaMensagem, "nome" | "tipo">): boolean {
+  return extensaoBloqueada(a.nome) || TIPOS_QUE_RODAM_PROGRAMA.test(a.tipo);
+}
+
+/** O arquivo da mensagem (a maior versão da foto), com nome e tipo, ou nulo se a mensagem não tem arquivo. */
+export function arquivoDaMensagem(m: MensagemDoTelegram, agora = new Date()): ArquivoDaMensagem | null {
+  const quando = agora.toISOString().slice(0, 19).replace(/[-:]/g, "").replace("T", "-");
+  const opcoes = [
+    { a: m.photo?.at(-1), nome: `foto-${quando}.jpg`, tipo: "image/jpeg" },
+    { a: m.document, nome: `arquivo-${quando}`, tipo: "application/octet-stream" },
+    { a: m.audio, nome: `audio-${quando}.mp3`, tipo: "audio/mpeg" },
+    { a: m.voice, nome: `audio-${quando}.ogg`, tipo: "audio/ogg" },
+    { a: m.video, nome: `video-${quando}.mp4`, tipo: "video/mp4" },
+    { a: m.video_note, nome: `video-${quando}.mp4`, tipo: "video/mp4" },
+  ];
+  const achado = opcoes.find((x) => x.a);
+  if (!achado?.a) return null;
+  const nomeDoAparelho = achado.a.file_name
+    ?.replace(/[\r\n/\\]/g, "_")
+    .trim()
+    .slice(0, 200);
+  const tipoDoAparelho = achado.a.mime_type?.toLowerCase();
+  return {
+    idNoTelegram: achado.a.file_id,
+    nome: nomeDoAparelho || achado.nome,
+    tipo:
+      tipoDoAparelho && FORMATO_DO_TIPO.test(tipoDoAparelho) && tipoDoAparelho.length <= 120
+        ? tipoDoAparelho
+        : achado.tipo,
+    tamanho: achado.a.file_size ?? null,
+  };
+}
+
+/** Registra o arquivo (esperando por 24 horas) e passa ao coordenador a legenda com os dados dele. */
+async function receberArquivo(
+  o: OpcoesDoTelegram,
+  p: PessoaDoTelegram,
+  m: MensagemDoTelegram,
+  a: ArquivoDaMensagem,
+): Promise<void> {
+  if ((a.tamanho ?? 0) > TAMANHO_MAXIMO_DO_ARQUIVO_DO_TELEGRAM) {
+    await o.carteiro.enviar(m.chat.id, RESPOSTAS_DO_TELEGRAM.arquivoGrande);
+    return;
+  }
+  if (arquivoQueRodaPrograma(a)) {
+    await o.carteiro.enviar(m.chat.id, RESPOSTAS_DO_TELEGRAM.tipoBloqueado);
+    return;
+  }
+  // O arquivo só fica guardado para quem conversa com os agentes (senão, a conversa recusaria logo depois).
+  const permissoes = o.conversa
+    ? await permissoesNaEmpresa(o.poolApp, p.pessoaId, p.empresaId, o.conversa.catalogo)
+    : null;
+  if (!permissoes || (permissoes.modulos.get("agentes")?.acoes.ver ?? "nada") === "nada") {
+    await o.carteiro.enviar(
+      m.chat.id,
+      o.conversa
+        ? RESPOSTAS_DO_TELEGRAM.semAcessoAosAgentes
+        : "A conversa pelo Telegram ainda não está ligada neste ambiente.",
+    );
+    return;
+  }
+  const id = await comPessoa(o.poolApp, p.pessoaId, p.empresaId, async (c) => {
+    const r = await c.query<{ id: string }>(
+      `insert into arquivos_do_telegram (empresa_id, pessoa_id, nome, tipo, tamanho, id_no_telegram, vence_em)
+       values (empresa_ativa(), pessoa_ativa(), $1, $2, $3, $4, now() + make_interval(hours => $5)) returning id`,
+      [a.nome, a.tipo, a.tamanho, a.idNoTelegram, HORAS_PARA_ANEXAR_O_ARQUIVO_DO_TELEGRAM],
+    );
+    return r.rows[0]?.id as string;
+  });
+  const legenda = m.caption?.trim() ?? "";
+  const dados = textoDoArquivoParaOAgente({ id, nome: a.nome, tipo: a.tipo, tamanho: a.tamanho });
+  await conversarPeloTelegram(o, p, m.chat.id, legenda ? `${legenda}\n\n${dados}` : dados, null, a);
 }
 
 async function vincular(o: OpcoesDoTelegram, m: MensagemDoTelegram, codigo: string): Promise<void> {

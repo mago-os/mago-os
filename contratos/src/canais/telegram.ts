@@ -87,12 +87,33 @@ export const UsuarioDoTelegram = Type.Object({
 });
 export type UsuarioDoTelegram = Static<typeof UsuarioDoTelegram>;
 
+/** Um arquivo como o Telegram descreve (M5-03): o file_id serve para baixar; o tamanho pode não vir. */
+const ArquivoNoTelegram = Type.Object({
+  file_id: Type.String({ minLength: 1, maxLength: 300 }),
+  file_unique_id: Type.String({ minLength: 1, maxLength: 100 }),
+  file_size: Type.Optional(Type.Integer({ minimum: 0 })),
+  file_name: Type.Optional(Type.String()),
+  mime_type: Type.Optional(Type.String()),
+});
+
 export const MensagemDoTelegram = Type.Object({
   message_id: Type.Integer(),
   date: Type.Integer(),
   chat: Type.Object({ id: NumeroDoTelegram, type: Type.String() }),
   from: Type.Optional(UsuarioDoTelegram),
   text: Type.Optional(Type.String()),
+  /** A legenda de uma foto ou arquivo (conta como texto da pessoa). */
+  caption: Type.Optional(Type.String()),
+  /** A foto vem em vários tamanhos; o Mago OS usa o maior. */
+  photo: Type.Optional(Type.Array(ArquivoNoTelegram)),
+  document: Type.Optional(ArquivoNoTelegram),
+  audio: Type.Optional(ArquivoNoTelegram),
+  voice: Type.Optional(ArquivoNoTelegram),
+  video: Type.Optional(ArquivoNoTelegram),
+  video_note: Type.Optional(ArquivoNoTelegram),
+  /** Figurinha e GIF não viram anexo. */
+  sticker: Type.Optional(Type.Object({})),
+  animation: Type.Optional(Type.Object({})),
 });
 export type MensagemDoTelegram = Static<typeof MensagemDoTelegram>;
 
@@ -110,6 +131,43 @@ export const HORAS_PARA_CONVERSA_NOVA_NO_TELEGRAM = 6;
 
 /** Prioridades que /tarefas mostra (as primeiras da central, com o link de cada uma). */
 export const MAXIMO_DE_PRIORIDADES_NO_TELEGRAM = 10;
+
+// Arquivos pelo Telegram (M5-03, decisão 0034).
+
+/** O Telegram deixa um bot baixar arquivos de até 20 MB (abaixo dos 25 MB dos anexos). */
+export const TAMANHO_MAXIMO_DO_ARQUIVO_DO_TELEGRAM = 20 * 1024 * 1024;
+
+/** O arquivo espera a tarefa por até 24 horas; depois, vence (nada foi baixado, nada a apagar). */
+export const HORAS_PARA_ANEXAR_O_ARQUIVO_DO_TELEGRAM = 24;
+
+/** esperando: recebido, sem tarefa; anexado: virou anexo (o antivírus confere); vencido: passou das 24 horas. */
+export const SITUACOES_DO_ARQUIVO_DO_TELEGRAM = ["esperando", "anexado", "vencido"] as const;
+
+/** O arquivo recebido, como o agente e a tela veem (sem o file_id do Telegram). */
+export const ArquivoDoTelegram = Type.Object(
+  {
+    id: Id,
+    nome: Type.String({ minLength: 1, maxLength: 200 }),
+    tipo: Type.String({ pattern: "^[a-z0-9.+-]+/[a-z0-9.+-]+$", maxLength: 120 }),
+    tamanho: OuNulo(Type.Integer({ minimum: 0, maximum: TAMANHO_MAXIMO_DO_ARQUIVO_DO_TELEGRAM })),
+    situacao: Type.Enum(SITUACOES_DO_ARQUIVO_DO_TELEGRAM),
+    /** O anexo que ele virou, quando anexado. */
+    anexoId: OuNulo(Id),
+    recebidoEm: DataHora,
+    venceEm: DataHora,
+  },
+  { additionalProperties: false, description: "Arquivo mandado pelo Telegram, esperando uma tarefa." },
+);
+export type ArquivoDoTelegram = Static<typeof ArquivoDoTelegram>;
+
+/** Como a mensagem com o arquivo chega ao agente: só os dados do arquivo, nunca o conteúdo. */
+export const textoDoArquivoParaOAgente = (a: {
+  id: string;
+  nome: string;
+  tipo: string;
+  tamanho: number | null;
+}) =>
+  `[Arquivo recebido pelo Telegram, esperando uma tarefa: ${a.nome} (${a.tipo}${a.tamanho === null ? "" : `, ${Math.max(1, Math.round(a.tamanho / 1024))} KB`}), id ${a.id}]`;
 
 /** Comandos do bot, na ordem do menu do Telegram. /nova e /tarefas chegam na M5-02. */
 export const COMANDOS_DO_TELEGRAM = [
@@ -132,10 +190,22 @@ export const RESPOSTAS_DO_TELEGRAM = {
   semPermissaoDeEspecialista:
     "Só o administrador e o gestor falam direto com um especialista. Mande o pedido sem a menção, para o coordenador.",
   especialistaNaoEncontrado: "Não encontrei esse agente. Mande o pedido sem a menção, para o coordenador.",
-  soTexto: "Por enquanto entendo só texto por aqui. Arquivos e fotos chegam em breve.",
+  soTexto: "Por aqui entendo texto, fotos, documentos, áudios e vídeos. Esse tipo de mensagem ainda não.",
   semAcessoAosAgentes: "O seu perfil nesta empresa não conversa com os agentes. Fale com o administrador.",
   semPrioridades: "Nada pedindo a sua atenção agora.",
+  arquivoGrande:
+    "Esse arquivo passa de 20 MB, o limite do Telegram para o Mago OS receber. Mande pelo app, na tarefa.",
+  tipoBloqueado:
+    "Esse tipo de arquivo não é aceito (pode rodar um programa). Mande outro formato, como PDF ou imagem.",
+  figurinha: "Figurinhas e GIFs não viram anexo. Mande foto, documento, áudio ou vídeo.",
 } as const;
+
+/** O arquivo chegou com o agente ainda respondendo: ele espera, e a pessoa diz depois onde anexar. */
+export const respostaDeArquivoEsperando = (nome: string) =>
+  `Recebi ${nome}. Ele fica esperando por 24 horas: quando eu terminar a resposta anterior, diga em qual tarefa anexar.`;
+/** O antivírus bloqueou o arquivo que virou anexo (ele foi apagado). */
+export const respostaDeArquivoBloqueado = (nome: string) =>
+  `O antivírus bloqueou ${nome}, e o arquivo foi apagado. Ele não entrou na tarefa.`;
 
 /** Quando os agentes foram parados (M4-09) ou o agente está pausado, a resposta leva o motivo ou o nome. */
 export const respostaDeAgentesParados = (motivo: string) =>

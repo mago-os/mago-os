@@ -96,6 +96,20 @@ erDiagram
     timestamp_with_time_zone vence_em
     boolean por_texto_de_outros
   }
+  arquivos_do_telegram {
+    uuid id PK
+    uuid empresa_id FK
+    uuid pessoa_id
+    text nome
+    text tipo
+    bigint tamanho
+    text id_no_telegram
+    text situacao
+    uuid anexo_id
+    timestamp_with_time_zone recebido_em
+    timestamp_with_time_zone vence_em
+    timestamp_with_time_zone antivirus_conferido_em
+  }
   arquivos_para_apagar {
     uuid id PK
     uuid empresa_id FK
@@ -725,6 +739,7 @@ erDiagram
   pessoas ||--o{ ajustes_de_permissao : "feito_por"
   empresas ||--o{ anexos : "empresa_id"
   empresas ||--o{ aprovacoes : "empresa_id"
+  empresas ||--o{ arquivos_do_telegram : "empresa_id"
   empresas ||--o{ arquivos_para_apagar : "empresa_id"
   empresas ||--o{ assinaturas_de_push : "empresa_id"
   acesso_aparelhos ||--o{ assinaturas_de_push : "aparelho_id"
@@ -931,6 +946,27 @@ Isolamento por empresa (Row Level Security): ligado e forçado.
 | criada_em | timestamp with time zone | sim | `now()` | sistema | Quando o agente pediu. |
 | vence_em | timestamp with time zone | sim | `(now() + '24:00:00'::interval)` | sistema | Depois disso, sem decisão, o pedido vence e a ação não acontece. |
 | por_texto_de_outros | boolean | sim | `false` | sistema | Pedido porque o agente leu texto de outra pessoa antes (a regra dizia executa). |
+
+### arquivos_do_telegram
+
+Arquivos mandados pelo Telegram, esperando uma tarefa por até 24 horas (M5-03). Ao anexar, viram anexo comum.
+
+Isolamento por empresa (Row Level Security): ligado e forçado.
+
+| Coluna | Tipo | Obrigatória | Padrão | Marca | Descrição |
+| --- | --- | --- | --- | --- | --- |
+| id | uuid | sim | `uuidv7()` | sistema | Identificador (vai ao agente para anexar). Chave primária. |
+| empresa_id | uuid | sim |  | sistema | Empresa da conversa pelo Telegram. Aponta para empresas.id. |
+| pessoa_id | uuid | sim |  | sistema | Quem mandou o arquivo. |
+| nome | text | sim |  | empresa | Nome do arquivo (o do aparelho, ou foto-<data>.jpg). |
+| tipo | text | sim |  | sistema | Tipo do arquivo (MIME). |
+| tamanho | bigint | não |  | sistema | Bytes, quando o Telegram informa. |
+| id_no_telegram | text | sim |  | sensivel | Número do arquivo no Telegram (com ele e o token do bot, dá para baixar). |
+| situacao | text | sim | `'esperando'::text` | sistema | esperando (sem tarefa), anexado (virou anexo) ou vencido (passou das 24 horas). |
+| anexo_id | uuid | não |  | sistema | O anexo que o arquivo virou. |
+| recebido_em | timestamp with time zone | sim | `now()` | sistema | Quando chegou. |
+| vence_em | timestamp with time zone | sim |  | sistema | Até quando espera uma tarefa. |
+| antivirus_conferido_em | timestamp with time zone | não |  | sistema | Quando o resultado do antivírus do anexo foi conferido (e, se bloqueou, avisado no Telegram). |
 
 ### arquivos_para_apagar
 

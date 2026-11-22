@@ -119,6 +119,10 @@ async function iniciar(): Promise<void> {
           app.log.error({ erro, execucaoId }, "Fila dos agentes internos não recebeu o trabalho"),
         );
     };
+    /** Acorda a fila dos anexos (o antivírus), do app e do Telegram. */
+    const acordarFilaDosAnexos = () => {
+      void fila.send(FILA_ANEXOS, {}).catch((erro) => app.log.warn({ erro }, "Fila dos anexos não acordou"));
+    };
     registrarRotasDasTarefas(app, verificador, banco.pool, { acordarAgente });
     registrarRotasDosProjetos(app, verificador, banco.pool);
     registrarRotaDaBusca(app, verificador, banco.pool);
@@ -190,6 +194,13 @@ async function iniciar(): Promise<void> {
         log: app.log,
         origem: { canal: "sistema", ip: null, aparelho: null },
         anexos: servicosDosAnexos,
+        // Arquivos mandados pelo Telegram (M5-03): a ferramenta anexar_arquivo baixa e acorda o antivírus.
+        telegram: bot
+          ? {
+              baixar: (id: string) => bot.carteiro.baixarArquivo(id),
+              acordarAnexos: acordarFilaDosAnexos,
+            }
+          : null,
       },
       log: app.log,
       acordar: acordarAgente,
@@ -259,11 +270,7 @@ async function iniciar(): Promise<void> {
       verificador,
       poolApp: banco.pool,
       servicos: servicosDosAnexos,
-      acordarFila: () => {
-        void fila
-          .send(FILA_ANEXOS, {})
-          .catch((erro) => app.log.warn({ erro }, "Fila dos anexos não acordou"));
-      },
+      acordarFila: acordarFilaDosAnexos,
     });
     if (depositoLocal) await registrarDepositoLocal(app, depositoLocal);
     registrarRotasDosAvisos(app, verificador, banco.pool, config.acesso.vapid?.publica ?? null);
