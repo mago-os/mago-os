@@ -21,7 +21,7 @@ import {
 } from "@mago-os/contratos";
 import type pg from "pg";
 import type { OpcoesDaChave } from "../agentes/chaves.ts";
-import { devolverAFila, paradaDoAgente } from "../agentes/parada.ts";
+import { devolverAFila, haParadaAtiva, paradaDoAgente, travarParadas } from "../agentes/parada.ts";
 import { criarAprovacao, jsonCanonico } from "../agentes/regras.ts";
 import { auditar } from "../auditoria/registrar.ts";
 import { criarAviso } from "../avisos/index.ts";
@@ -248,7 +248,7 @@ async function rodar(o: OpcoesDoMotor, empresaId: string, execucaoId: string): P
     // toda a fila do agente espera a retomada.
     if (a.rows[0]?.situacao === "pausado") {
       if (execucao.origem === "tarefa") return null;
-      if (await paradaDoAgente(c, execucao.agenteId)) return null;
+      if (await haParadaAtiva(c)) return null;
     }
     await iniciarExecucao(c, execucaoId);
     const especialistas = await c.query<{ id: string; nome: string }>(
@@ -436,13 +436,14 @@ async function rodar(o: OpcoesDoMotor, empresaId: string, execucaoId: string): P
 
   /** Roda uma ferramenta e grava o passo (parâmetros, resultado ou recusa, tempo e o pedido de aprovação). */
   const conferirParada = async () => {
-    const paradaId = await naEmpresa((c) => paradaDoAgente(c, agente.id));
-    if (paradaId) throw new ParadaDaEmpresa(paradaId);
+    const parada = await naEmpresa((c) => paradaDoAgente(c, agente.id));
+    if (parada) throw new ParadaDaEmpresa(parada.id);
   };
   // As últimas chamadas (ferramenta e parâmetros), para parar o agente que repete a mesma coisa (M4-08).
   const ultimasChamadas: string[] = [];
   const executarComPasso = async (nome: string, entrada: unknown) => {
-    // Os agentes foram parados (M4-09): a ferramenta não roda, e a execução termina neste passo.
+    // Os agentes foram parados (M4-09): nenhuma ferramenta roda depois disso (é para isso que serve o freio), e a
+    // execução termina neste passo. Uma consulta curta por ferramenta.
     await conferirParada();
     if (nome !== "responder" && nome !== "perguntar") {
       const assinatura = `${nome}:${jsonCanonico(entrada)}`;
@@ -868,8 +869,16 @@ async function rodar(o: OpcoesDoMotor, empresaId: string, execucaoId: string): P
           "update execucoes_de_agente set parada_id = $2 where id = $1 and empresa_id = empresa_ativa()",
           [execucaoId, erro.paradaId],
         );
-        // Retomado enquanto este passo terminava: a tarefa volta à fila agora (a retomada não viu esta execução).
-        return (await paradaDoAgente(c, agente.id)) ? [] : devolverAFila(c, erro.paradaId, [agente.id]);
+        // A trava das paradas: uma retomada ao mesmo tempo espera esta marca, ou já terminou e não a viu. No segundo
+        // caso, a tarefa volta à fila agora (e só acorda com o agente ativo).
+        await travarParadas(c);
+        if (await paradaDoAgente(c, agente.id)) return [];
+        const novas = await devolverAFila(c, erro.paradaId, [agente.id]);
+        const ativo = await c.query(
+          "select 1 from agentes where id = $1 and empresa_id = empresa_ativa() and situacao = 'ativo'",
+          [agente.id],
+        );
+        return (ativo.rowCount ?? 0) > 0 ? novas.map((e) => e.id) : [];
       });
       for (const id of devolvidas) o.acordar(empresaId, id);
       await avisarNaConversa(

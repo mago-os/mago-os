@@ -143,7 +143,9 @@ test.describe("parar todos os agentes", () => {
     await expect(page.getByRole("heading", { name: /, Alice!$/ })).toBeVisible();
 
     await page.goto("/agentes");
+    await expect(page.getByRole("link", { name: /Coordenador/ })).toBeVisible();
     await page.getByRole("button", { name: "Cadastrar" }).click();
+    await expect(page.getByLabel("Pessoa responsável")).toHaveValue(/.+/);
     await page.getByLabel("Nome").fill("Hermes");
     await page.getByRole("button", { name: "Cadastrar agente" }).click();
     await expect(page.getByRole("heading", { name: "Hermes" })).toBeVisible();

@@ -2,7 +2,7 @@
 -- 1. paradas_de_agentes: cada parada da empresa (motivo, quem parou, quando terminou). Uma ativa por empresa.
 -- 2. agentes_da_parada: os agentes que estavam ativos e a parada pausou (só eles voltam ao retomar).
 -- 3. execucoes_de_agente.parada_id: a parada que interrompeu a execução (a tarefa volta à fila ao retomar).
--- 4. execucoes_esquecidas() não acorda a fila de um agente parado: ela espera a retomada.
+-- 4. execucoes_esquecidas() não acorda a fila de um agente pausado enquanto a empresa está parada: ela espera a retomada.
 -- 5. Dois tipos de aviso novos.
 -- Explicado em docs/banco/decisoes.md, seção 41.
 
@@ -77,8 +77,8 @@ CREATE OR REPLACE FUNCTION public.execucoes_esquecidas()
       JOIN public.agentes g ON g.id = e.agente_id AND g.empresa_id = e.empresa_id
      WHERE (e.situacao = 'na_fila' AND e.criada_em < now() - interval '2 minutes'
             AND NOT (g.situacao = 'pausado' AND (e.origem = 'tarefa' OR EXISTS (
-              SELECT 1 FROM public.agentes_da_parada p
-               WHERE p.empresa_id = g.empresa_id AND p.agente_id = g.id AND p.retomado_em IS NULL))))
+              SELECT 1 FROM public.paradas_de_agentes p
+               WHERE p.empresa_id = g.empresa_id AND p.retomada_em IS NULL))))
         OR (e.situacao = 'rodando' AND e.iniciada_em < now() - interval '15 minutes')
      LIMIT 100
   $$;

@@ -6,6 +6,7 @@ import { conferir, PedidoDeMensagem } from "@mago-os/contratos";
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import type pg from "pg";
 import { origemDoPedido } from "../acesso/rotas.ts";
+import { paradaDoAgente } from "../agentes/parada.ts";
 import { garantirAgentesDeNascenca } from "../agentes/servico.ts";
 import { auditar } from "../auditoria/registrar.ts";
 import { comPessoa } from "../empresa.ts";
@@ -107,12 +108,8 @@ export function registrarRotasDaConversa(app: FastifyInstance, o: OpcoesDaConver
         return { erro: "sem_permissao" as const };
       if (agente.situacao !== "ativo") {
         // Os agentes foram parados (M4-09): a pessoa lê o motivo.
-        const parada = await c.query<{ motivo: string }>(
-          `select p.motivo from agentes_da_parada d join paradas_de_agentes p on p.id = d.parada_id and p.empresa_id = d.empresa_id
-            where d.empresa_id = empresa_ativa() and d.agente_id = $1 and d.retomado_em is null limit 1`,
-          [agente.id],
-        );
-        if (parada.rows[0]) return { erro: "parados" as const, motivo: parada.rows[0].motivo };
+        const parada = await paradaDoAgente(c, agente.id);
+        if (parada) return { erro: "parados" as const, motivo: parada.motivo };
         return { erro: "pausado" as const, nome: agente.nome };
       }
       // Uma execução de cada vez por conversa: a pessoa espera a resposta antes de mandar outra. A linha da conversa

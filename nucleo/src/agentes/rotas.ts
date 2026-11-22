@@ -27,8 +27,8 @@ import { comPessoa } from "../empresa.ts";
 import { acessoDo, type Verificador } from "../permissoes/verificar.ts";
 import { pessoaAtivaNaEmpresa } from "../tarefas/servico.ts";
 import { autenticarAgente, criarChave, listarChaves, revogarChave } from "./chaves.ts";
-import { entrarNaParada, paradaDoAgente, retomarDaParada } from "./parada.ts";
-import { respostaDaRetomada } from "./rotas-da-parada.ts";
+import { entrarNaParada, haParadaAtiva, paradaDoAgente, retomarDaParada } from "./parada.ts";
+import { auditarRetomada, pedeConfirmacao, respostaDaRetomada } from "./rotas-da-parada.ts";
 import {
   alcanceCobreAgente,
   buscarAgente,
@@ -177,10 +177,7 @@ export function registrarRotasDosAgentes(app: FastifyInstance, o: OpcoesDosAgent
         message: "Os agentes foram parados todos juntos. Só quem pode parar e retomar todos retoma este.",
       });
     if (!podeFazerAcaoPerigosa(sessao.estado.dois, sessao.estado.confirmadoEm, sessao.metodo))
-      return resposta.code(403).send({
-        code: "CONFIRMACAO_NECESSARIA",
-        message: "Por segurança, confirme com o código do app ou com a passkey antes de retomar o agente.",
-      });
+      return pedeConfirmacao(resposta);
     const feito = await naEmpresa(pedido, (c) =>
       retomarDaParada(c, {
         pessoaId: sessao.pessoa.id,
@@ -191,19 +188,12 @@ export function registrarRotasDosAgentes(app: FastifyInstance, o: OpcoesDosAgent
     );
     const erro = respostaDaRetomada(resposta, feito);
     if (erro || "erro" in feito) return erro;
-    await auditar(
-      poolApp,
-      {
-        empresaId: sessao.empresaId,
-        ator: { tipo: "pessoa", pessoaId: sessao.pessoa.id },
-        acao: "agentes.retomou",
-        alvo: { tipo: "parada_de_agentes", id: feito.parada.id },
-        origem: origemDoPedido(pedido),
-        rastreio: pedido.id,
-        detalhes: { agentes: feito.retomados, terminou: feito.terminou },
-      },
-      pedido.log,
-    );
+    await auditarRetomada(poolApp, pedido, {
+      empresaId: sessao.empresaId,
+      pessoaId: sessao.pessoa.id,
+      paradaId: feito.parada.id,
+      detalhes: { agentes: feito.retomados, naoVoltaram: feito.naoVoltaram, terminou: feito.terminou },
+    });
     for (const e of feito.acordar) o.acordar?.(sessao.empresaId, e);
     return naEmpresa(pedido, (c) => buscarAgente(c, id));
   }
@@ -214,11 +204,24 @@ export function registrarRotasDosAgentes(app: FastifyInstance, o: OpcoesDosAgent
       const { id } = pedido.params as { id: string };
       // Durante uma parada (M4-09), o agente dela volta pela retomada da parada (com o segundo fator), e a tarefa que
       // ela interrompeu volta à fila dele.
+      // Um agente pausado antes da parada (ou que ficou de fora dela) não liga enquanto ela durar.
       if (para === "ativo") {
         const naParada = await naEmpresa(pedido, async (c) =>
-          (await agenteAlcancado(c, pedido, id)) ? paradaDoAgente(c, id) : null,
+          (await agenteAlcancado(c, pedido, id))
+            ? (await paradaDoAgente(c, id))
+              ? ("dele" as const)
+              : (await haParadaAtiva(c))
+                ? ("da_empresa" as const)
+                : null
+            : null,
         );
-        if (naParada) return retomarAgenteDaParada(pedido, resposta, id);
+        if (naParada === "dele") return retomarAgenteDaParada(pedido, resposta, id);
+        if (naParada === "da_empresa")
+          return resposta.code(409).send({
+            code: "AGENTES_PARADOS",
+            message:
+              "Os agentes estão parados. Retome a parada pelo aviso no topo antes de ligar este agente.",
+          });
       }
       const feito = await naEmpresa(pedido, async (c) => {
         const atual = await agenteAlcancado(c, pedido, id);

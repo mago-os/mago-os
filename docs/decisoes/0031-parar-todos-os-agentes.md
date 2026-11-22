@@ -24,6 +24,17 @@ Um agente pode sair do controle (instrução errada, modelo com problema, chave 
 7. **Auditoria:** `agentes.parou_todos` (com o motivo e quantos agentes) e `agentes.retomou` (quais agentes).
 8. **Não é ferramenta de agente:** é ação de segurança, como as de alto risco. Nenhum agente para ou retoma.
 
+## Detalhes acertados na implementação
+
+- **Permissão:** parar e retomar todos usam a ação "excluir" do módulo Agentes (a mesma de desligar agentes) com alcance na empresa toda, em vez de uma ação nova. Por padrão, só o administrador.
+- **Nenhuma ferramenta roda depois da parada:** o motor confere antes de cada rodada e de cada ferramenta (pela API e pelo Claude Code).
+- **A tarefa que estava rodando** fica "em andamento", sem voltar para "a fazer"; a trava do agente sai, para uma pessoa poder assumir durante a parada.
+- **Durante a parada**, uma tarefa nova não vai para agente (agente pausado não recebe tarefa), a conversa responde com o motivo, e nenhum agente pausado liga pela página dele, a não ser pela retomada da parada.
+- **Parar de novo** com a parada aberta (depois de retomar só parte dos agentes) para outra vez os que voltaram.
+- **Parada do Dono sobre uma parada da empresa:** a parada passa a ser dele (só ele retoma).
+- **Retomada que encontra um agente interno sem modelo** (ou desligado no meio): ele sai da parada sem voltar a ativo, e a tarefa interrompida espera na fila dele até ser ligado (a do desligado não volta).
+- **Na plataforma,** uma empresa com problema não impede as outras: a resposta diz quais falharam.
+
 ## Consequências
 
 - Contrato novo em `contratos/src/agentes/parada.ts` e dois tipos de aviso (`agentes_parados`, `agentes_retomados`).

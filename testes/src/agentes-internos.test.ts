@@ -1850,17 +1850,29 @@ describe.skipIf(!bancoDisponivel)("agentes internos", () => {
     ).toEqual([interrompida, esperando].sort());
     expect((await pedir("GET", "/agentes/parada", ana)).json().parada).not.toBeNull();
 
+    // O que já estava pausado antes não liga enquanto a parada durar.
+    const fora = await pedir("POST", `/agentes/${jaPausado.id}/retomar`, ana);
+    expect(fora.statusCode).toBe(409);
+    expect(fora.json().code).toBe("AGENTES_PARADOS");
+    // Parar de novo com a parada aberta: o Gerente, que já tinha voltado, para outra vez.
+    const deNovo = await pedir("POST", "/agentes/parar-todos", ana, { motivo: "O Gerente voltou a errar" });
+    expect(deNovo.statusCode).toBe(201);
+    expect(
+      (await dono.query("select situacao from agentes where id = $1", [ids.gerente])).rows[0]?.situacao,
+    ).toBe("pausado");
+
     // Retomar todos: voltam os da parada (e o novo); o que já estava pausado continua pausado.
     const todos = await pedir("POST", "/agentes/retomar-todos", ana, { agenteIds: null });
     expect(todos.statusCode).toBe(200);
     expect(todos.json().retomadaEm).not.toBeNull();
     const fim = await dono.query<{ id: string; situacao: string }>(
       "select id, situacao from agentes where id = any($1::uuid[])",
-      [[ids.coordenador, externo.id, novo.id, jaPausado.id]],
+      [[ids.coordenador, ids.gerente, externo.id, novo.id, jaPausado.id]],
     );
     const situacao = Object.fromEntries(fim.rows.map((a) => [a.id, a.situacao]));
     expect(situacao).toEqual({
       [ids.coordenador as string]: "ativo",
+      [ids.gerente as string]: "ativo",
       [externo.id]: "ativo",
       [novo.id]: "ativo",
       [jaPausado.id]: "pausado",
@@ -1873,6 +1885,7 @@ describe.skipIf(!bancoDisponivel)("agentes internos", () => {
     expect(auditoria.rows.map((a) => a.acao)).toEqual([
       "agentes.parou_todos",
       "agentes.retomou",
+      "agentes.parou_todos",
       "agentes.retomou",
     ]);
 

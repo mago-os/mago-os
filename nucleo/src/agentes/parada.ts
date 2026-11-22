@@ -11,42 +11,50 @@ import type pg from "pg";
 import { criarAviso } from "../avisos/index.ts";
 import { mudarSituacao } from "./servico.ts";
 
-/** A parada ativa que pausou este agente (nulo: o agente não está parado por uma parada). */
-export async function paradaDoAgente(c: pg.PoolClient, agenteId: string): Promise<string | null> {
-  const r = await c.query<{ parada_id: string }>(
-    `select parada_id from agentes_da_parada
-      where empresa_id = empresa_ativa() and agente_id = $1 and retomado_em is null limit 1`,
-    [agenteId],
-  );
-  return r.rows[0]?.parada_id ?? null;
-}
-
-/** A parada ativa da empresa, com os agentes dela. */
-export async function paradaAtiva(c: pg.PoolClient): Promise<Parada | null> {
-  const p = await c.query<{
-    id: string;
-    motivo: string;
-    parada_por: string;
-    parada_por_nome: string;
-    da_plataforma: boolean;
-    parada_em: Date;
-  }>(
-    `select id, motivo, parada_por, parada_por_nome, da_plataforma, parada_em from paradas_de_agentes
-      where empresa_id = empresa_ativa() and retomada_em is null`,
-  );
-  const parada = p.rows[0];
-  if (!parada) return null;
-  return { ...cabecalho(parada), agentes: await agentesDaParada(c, parada.id) };
-}
-
-function cabecalho(p: {
+/** Uma linha de paradas_de_agentes, como as consultas leem. */
+interface LinhaDaParada {
   id: string;
   motivo: string;
   parada_por: string;
   parada_por_nome: string;
   da_plataforma: boolean;
   parada_em: Date;
-}): Omit<Parada, "agentes"> {
+}
+const COLUNAS = "id, motivo, parada_por, parada_por_nome, da_plataforma, parada_em";
+
+/** A parada ativa que pausou este agente, com o motivo (nulo: o agente não está parado por uma parada). */
+export async function paradaDoAgente(
+  c: pg.PoolClient,
+  agenteId: string,
+): Promise<{ id: string; motivo: string } | null> {
+  const r = await c.query<{ id: string; motivo: string }>(
+    `select p.id, p.motivo from agentes_da_parada d
+       join paradas_de_agentes p on p.id = d.parada_id and p.empresa_id = d.empresa_id
+      where d.empresa_id = empresa_ativa() and d.agente_id = $1 and d.retomado_em is null limit 1`,
+    [agenteId],
+  );
+  return r.rows[0] ?? null;
+}
+
+/** Há uma parada ativa na empresa? */
+export async function haParadaAtiva(c: pg.PoolClient): Promise<boolean> {
+  const r = await c.query(
+    "select 1 from paradas_de_agentes where empresa_id = empresa_ativa() and retomada_em is null",
+  );
+  return (r.rowCount ?? 0) > 0;
+}
+
+/** A parada ativa da empresa, com os agentes dela. */
+export async function paradaAtiva(c: pg.PoolClient): Promise<Parada | null> {
+  const p = await c.query<LinhaDaParada>(
+    `select ${COLUNAS} from paradas_de_agentes where empresa_id = empresa_ativa() and retomada_em is null`,
+  );
+  const parada = p.rows[0];
+  if (!parada) return null;
+  return { ...cabecalho(parada), agentes: await agentesDaParada(c, parada.id) };
+}
+
+function cabecalho(p: LinhaDaParada): Omit<Parada, "agentes"> {
   return {
     id: p.id,
     motivo: p.motivo,
@@ -83,64 +91,70 @@ async function agentesDaParada(c: pg.PoolClient, paradaId: string): Promise<Agen
   }));
 }
 
-/** Uma parada de cada vez por empresa: dois cliques ao mesmo tempo não criam duas. */
-async function travarParadas(c: pg.PoolClient): Promise<void> {
+/**
+ * Uma parada de cada vez por empresa: dois cliques ao mesmo tempo não criam duas. O motor também trava ao marcar a
+ * execução que a parada interrompeu, para a retomada ao mesmo tempo não perder a tarefa dela.
+ */
+export async function travarParadas(c: pg.PoolClient): Promise<void> {
   await c.query("select pg_advisory_xact_lock(hashtextextended('paradas:' || empresa_ativa()::text, 0))");
 }
 
 /**
- * Para todos os agentes ativos da empresa. Devolve a parada nova, ou a que já estava ativa (jaParada).
- * Os responsáveis pelos agentes e os administradores recebem o aviso.
+ * Para todos os agentes ativos da empresa. Com uma parada já ativa (depois de uma retomada de parte dos agentes), os
+ * ativos entram nela e param de novo; jaParada diz que nenhum agente parou agora. Os responsáveis pelos agentes e os
+ * administradores recebem o aviso.
  */
 export async function pararTodos(
   c: pg.PoolClient,
   d: { pessoaId: string; nome: string; motivo: string; daPlataforma: boolean },
-): Promise<{ parada: Parada; jaParada: boolean }> {
+): Promise<{ parada: Parada; jaParada: boolean; pausados: number }> {
   await travarParadas(c);
-  const atual = await paradaAtiva(c);
-  if (atual) {
+  const atual = await c.query<LinhaDaParada>(
+    `select ${COLUNAS} from paradas_de_agentes where empresa_id = empresa_ativa() and retomada_em is null`,
+  );
+  let parada = atual.rows[0];
+  if (parada) {
     // O Dono para quando a empresa já tinha parado: a parada passa a ser dele (só ele retoma).
-    if (d.daPlataforma && !atual.daPlataforma) {
+    if (d.daPlataforma && !parada.da_plataforma) {
       await c.query(
         "update paradas_de_agentes set da_plataforma = true where id = $1 and empresa_id = empresa_ativa()",
-        [atual.id],
+        [parada.id],
       );
-      return { parada: { ...atual, daPlataforma: true }, jaParada: true };
+      parada = { ...parada, da_plataforma: true };
     }
-    return { parada: atual, jaParada: true };
+  } else {
+    const p = await c.query<LinhaDaParada>(
+      `insert into paradas_de_agentes (empresa_id, motivo, parada_por, parada_por_nome, da_plataforma)
+       values (empresa_ativa(), $1, $2, $3, $4) returning ${COLUNAS}`,
+      [d.motivo.trim(), d.pessoaId, d.nome.slice(0, 200), d.daPlataforma],
+    );
+    parada = p.rows[0] as LinhaDaParada;
   }
-  const p = await c.query<{
-    id: string;
-    motivo: string;
-    parada_por: string;
-    parada_por_nome: string;
-    da_plataforma: boolean;
-    parada_em: Date;
-  }>(
-    `insert into paradas_de_agentes (empresa_id, motivo, parada_por, parada_por_nome, da_plataforma)
-     values (empresa_ativa(), $1, $2, $3, $4)
-     returning id, motivo, parada_por, parada_por_nome, da_plataforma, parada_em`,
-    [d.motivo.trim(), d.pessoaId, d.nome.slice(0, 200), d.daPlataforma],
-  );
-  const parada = p.rows[0] as (typeof p.rows)[number];
   const pausados = await c.query<{ id: string; responsavel_id: string }>(
     `with ativos as (
        select id from agentes where empresa_id = empresa_ativa() and situacao = 'ativo' for update
      ), guardados as (
        insert into agentes_da_parada (empresa_id, parada_id, agente_id)
        select empresa_ativa(), $1, id from ativos
+       on conflict (empresa_id, parada_id, agente_id) do update set retomado_em = null, retomado_por = null
      )
      update agentes a set situacao = 'pausado', atualizado_em = now()
        from ativos where a.id = ativos.id and a.empresa_id = empresa_ativa()
      returning a.id, a.responsavel_id`,
     [parada.id],
   );
-  await avisar(c, {
-    tipo: "agentes_parados",
-    texto: `Os agentes foram parados por ${d.nome}: ${d.motivo.trim()}`,
-    responsaveis: pausados.rows.map((a) => a.responsavel_id),
-  });
-  return { parada: { ...cabecalho(parada), agentes: await agentesDaParada(c, parada.id) }, jaParada: false };
+  const jaParada = atual.rows.length > 0 && pausados.rows.length === 0;
+  if (!jaParada)
+    await avisar(c, {
+      tipo: "agentes_parados",
+      texto: `Os agentes foram parados por ${d.nome}: ${d.motivo.trim()}`,
+      responsaveis: pausados.rows.map((a) => a.responsavel_id),
+    });
+  return {
+    parada: { ...cabecalho(parada), agentes: await agentesDaParada(c, parada.id) },
+    jaParada,
+    pausados: pausados.rows.length,
+  };
 }
 
 /** O aviso vai para os responsáveis pelos agentes e para os administradores (uma vez para cada pessoa). */
@@ -167,6 +181,8 @@ export type ResultadoDaRetomada =
   | {
       parada: Parada;
       retomados: string[];
+      /** Saíram da parada sem voltar a ativo (interno sem modelo de IA, ou desligado no meio). */
+      naoVoltaram: string[];
       /** Execuções para acordar: a tarefa interrompida que voltou à fila e a fila que esperou. */
       acordar: string[];
       terminou: boolean;
@@ -189,16 +205,8 @@ export async function retomarDaParada(
   },
 ): Promise<ResultadoDaRetomada> {
   await travarParadas(c);
-  const p = await c.query<{
-    id: string;
-    motivo: string;
-    parada_por: string;
-    parada_por_nome: string;
-    da_plataforma: boolean;
-    parada_em: Date;
-  }>(
-    `select id, motivo, parada_por, parada_por_nome, da_plataforma, parada_em from paradas_de_agentes
-      where empresa_id = empresa_ativa() and retomada_em is null`,
+  const p = await c.query<LinhaDaParada>(
+    `select ${COLUNAS} from paradas_de_agentes where empresa_id = empresa_ativa() and retomada_em is null`,
   );
   const parada = p.rows[0];
   if (!parada) return { erro: "sem_parada" };
@@ -228,7 +236,11 @@ export async function retomarDaParada(
       where empresa_id = empresa_ativa() and parada_id = $1 and agente_id = any($2::uuid[])`,
     [parada.id, ids, d.pessoaId],
   );
-  const novas = await devolverAFila(c, parada.id, retomados);
+  // A tarefa interrompida volta à fila de todos os que saíram da parada (menos os desligados); só a dos que voltaram a
+  // ativo é acordada agora, a dos outros espera o agente ser ligado.
+  const novas = (await devolverAFila(c, parada.id, ids))
+    .filter((e) => retomados.includes(e.agenteId))
+    .map((e) => e.id);
   const fila = await c.query<{ id: string }>(
     `select id from execucoes_de_agente
       where empresa_id = empresa_ativa() and agente_id = any($1::uuid[]) and situacao = 'na_fila'`,
@@ -260,6 +272,7 @@ export async function retomarDaParada(
       agentes,
     },
     retomados,
+    naoVoltaram: ids.filter((id) => !retomados.includes(id)),
     acordar: [...new Set([...novas, ...fila.rows.map((r) => r.id)])],
     terminou,
   };
@@ -268,31 +281,32 @@ export async function retomarDaParada(
 /**
  * A tarefa que a parada interrompeu volta à fila do agente (uma vez, e só se ele não tem outra aberta nela). A
  * execução nova repete a original (quem pediu, a origem, a marca de texto de outros e a passada de onde veio).
- * Devolve as execuções novas, para acordar.
+ * Agente desligado não ganha execução. Devolve as execuções novas, para acordar.
  */
 export async function devolverAFila(
   c: pg.PoolClient,
   paradaId: string,
   agenteIds: string[],
-): Promise<string[]> {
+): Promise<{ id: string; agenteId: string }[]> {
   if (agenteIds.length === 0) return [];
-  const novas = await c.query<{ id: string }>(
+  const novas = await c.query<{ id: string; agente_id: string }>(
     `insert into execucoes_de_agente (empresa_id, agente_id, pedido_por, origem, tarefa_id, execucao_mae_id, instrucoes,
        leu_texto_de_outros)
      select distinct on (e.agente_id, e.tarefa_id) e.empresa_id, e.agente_id, e.pedido_por, e.origem, e.tarefa_id,
             e.execucao_mae_id, e.instrucoes, e.leu_texto_de_outros
        from execucoes_de_agente e
        join tarefas t on t.id = e.tarefa_id and t.empresa_id = e.empresa_id
+       join agentes a on a.id = e.agente_id and a.empresa_id = e.empresa_id and a.situacao <> 'desligado'
       where e.empresa_id = empresa_ativa() and e.parada_id = $1 and e.agente_id = any($2::uuid[])
         and e.origem <> 'conversa' and t.status not in ('concluida', 'cancelada')
         and not exists (select 1 from execucoes_de_agente o
                          where o.empresa_id = e.empresa_id and o.agente_id = e.agente_id and o.tarefa_id = e.tarefa_id
                            and o.situacao in ('na_fila', 'rodando'))
       order by e.agente_id, e.tarefa_id, e.criada_em desc
-     returning id`,
+     returning id, agente_id`,
     [paradaId, agenteIds],
   );
-  return novas.rows.map((r) => r.id);
+  return novas.rows.map((r) => ({ id: r.id, agenteId: r.agente_id }));
 }
 
 /** Agente cadastrado durante a parada nasce pausado e entra nela (volta junto com os outros). */

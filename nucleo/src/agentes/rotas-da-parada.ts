@@ -23,7 +23,7 @@ export interface OpcoesDaParada {
   acordar(empresaId: string, execucaoId: string): void;
 }
 
-const pedeConfirmacao = (r: FastifyReply) =>
+export const pedeConfirmacao = (r: FastifyReply) =>
   r.code(403).send({
     code: "CONFIRMACAO_NECESSARIA",
     message:
@@ -32,6 +32,37 @@ const pedeConfirmacao = (r: FastifyReply) =>
 
 const invalido = (r: FastifyReply, problemas: unknown) =>
   r.code(400).send({ code: "PEDIDO_INVALIDO", message: "Confira os dados do pedido.", problemas });
+
+/** Auditoria da retomada (pela parada, pela página do agente ou pelo Dono). */
+export function auditarRetomada(
+  poolApp: pg.Pool,
+  pedido: FastifyRequest,
+  d: { empresaId: string; pessoaId: string; paradaId: string; detalhes: Record<string, unknown> },
+) {
+  return auditar(
+    poolApp,
+    {
+      empresaId: d.empresaId,
+      ator: { tipo: "pessoa", pessoaId: d.pessoaId },
+      acao: "agentes.retomou",
+      alvo: { tipo: "parada_de_agentes", id: d.paradaId },
+      origem: origemDoPedido(pedido),
+      rastreio: pedido.id,
+      detalhes: d.detalhes,
+    },
+    pedido.log,
+  );
+}
+
+/** Parar e retomar todos valem para a empresa inteira: só com o alcance "tudo" (o administrador, por padrão). */
+export function alcanceDaEmpresaToda(pedido: FastifyRequest, resposta: FastifyReply): boolean {
+  if (acessoDo(pedido).alcance === "tudo") return true;
+  void resposta.code(403).send({
+    code: "SEM_PERMISSAO",
+    message: "Parar e retomar todos os agentes é de quem pode desligar qualquer agente da empresa.",
+  });
+  return false;
+}
 
 export function respostaDaRetomada(r: FastifyReply, feito: ResultadoDaRetomada) {
   if ("erro" in feito) {
@@ -94,6 +125,7 @@ export function registrarRotasDaParada(app: FastifyInstance, o: OpcoesDaParada):
     "/agentes/parar-todos",
     { preHandler: verificador.exigir("agentes", "excluir") },
     async (pedido, resposta) => {
+      if (!alcanceDaEmpresaToda(pedido, resposta)) return resposta;
       const r = conferir(PedidoDeParada, pedido.body);
       if (!r.ok) return invalido(resposta, r.problemas);
       if (!segundoFatorRecente(pedido)) return pedeConfirmacao(resposta);
@@ -112,7 +144,7 @@ export function registrarRotasDaParada(app: FastifyInstance, o: OpcoesDaParada):
           .send({ code: "JA_PARADOS", message: "Os agentes já estão parados.", parada: feito.parada });
       await registrar(pedido, "agentes.parou_todos", feito.parada, {
         motivo: r.valor.motivo.trim(),
-        agentes: feito.parada.agentes.length,
+        agentes: feito.pausados,
       });
       return resposta.code(201).send(feito.parada);
     },
@@ -122,6 +154,7 @@ export function registrarRotasDaParada(app: FastifyInstance, o: OpcoesDaParada):
     "/agentes/retomar-todos",
     { preHandler: verificador.exigir("agentes", "excluir") },
     async (pedido, resposta) => {
+      if (!alcanceDaEmpresaToda(pedido, resposta)) return resposta;
       const r = conferir(PedidoDeRetomada, pedido.body);
       if (!r.ok) return invalido(resposta, r.problemas);
       if (!segundoFatorRecente(pedido)) return pedeConfirmacao(resposta);
@@ -138,6 +171,7 @@ export function registrarRotasDaParada(app: FastifyInstance, o: OpcoesDaParada):
       if (erro || "erro" in feito) return erro;
       await registrar(pedido, "agentes.retomou", feito.parada, {
         agentes: feito.retomados,
+        naoVoltaram: feito.naoVoltaram,
         terminou: feito.terminou,
       });
       for (const id of feito.acordar) o.acordar(sessao.empresaId, id);
@@ -233,24 +267,30 @@ export function registrarRotasDaParadaDaPlataforma(
       return pedeConfirmacao(resposta);
     let empresas = 0;
     let agentes = 0;
+    // Uma empresa com problema não deixa as outras sem o freio: segue, e a resposta diz quais falharam.
+    const falharam: string[] = [];
     for (const e of await empresasAtivas(sessao.pessoa.id)) {
-      const feito = await comEmpresa(poolApp, e.id, (c) =>
-        pararTodos(c, {
-          pessoaId: sessao.pessoa.id,
-          nome: sessao.pessoa.nome,
-          motivo: r.valor.motivo,
-          daPlataforma: true,
-        }),
-      );
-      if (feito.jaParada) continue;
-      empresas += 1;
-      agentes += feito.parada.agentes.length;
-      await auditarNaEmpresa(pedido, sessao, e.id, "agentes.parou_todos", feito.parada, {
-        motivo: r.valor.motivo.trim(),
-        agentes: feito.parada.agentes.length,
-      });
+      try {
+        const feito = await comEmpresa(poolApp, e.id, (c) =>
+          pararTodos(c, {
+            pessoaId: sessao.pessoa.id,
+            nome: sessao.pessoa.nome,
+            motivo: r.valor.motivo,
+            daPlataforma: true,
+          }),
+        );
+        empresas += 1;
+        agentes += feito.pausados;
+        await auditarNaEmpresa(pedido, sessao, e.id, "agentes.parou_todos", feito.parada, {
+          motivo: r.valor.motivo.trim(),
+          agentes: feito.pausados,
+        });
+      } catch (erro) {
+        pedido.log.error({ erro, empresaId: e.id }, "Parar todos da plataforma: a empresa falhou");
+        falharam.push(e.nome);
+      }
     }
-    return resposta.code(201).send({ empresas, agentes });
+    return resposta.code(falharam.length > 0 ? 500 : 201).send({ empresas, agentes, falharam });
   });
 
   app.post("/plataforma/agentes/retomar-todos", async (pedido, resposta) => {
@@ -260,25 +300,32 @@ export function registrarRotasDaParadaDaPlataforma(
       return pedeConfirmacao(resposta);
     let empresas = 0;
     let agentes = 0;
+    const falharam: string[] = [];
     for (const e of await empresasAtivas(sessao.pessoa.id)) {
-      const feito = await comEmpresa(poolApp, e.id, (c) =>
-        retomarDaParada(c, {
-          pessoaId: sessao.pessoa.id,
-          nome: sessao.pessoa.nome,
-          agenteIds: null,
-          comoDono: true,
-          soDaPlataforma: true,
-        }),
-      );
-      if ("erro" in feito) continue;
-      empresas += 1;
-      agentes += feito.retomados.length;
-      await auditarNaEmpresa(pedido, sessao, e.id, "agentes.retomou", feito.parada, {
-        agentes: feito.retomados,
-        terminou: feito.terminou,
-      });
-      for (const id of feito.acordar) o.acordar(e.id, id);
+      try {
+        const feito = await comEmpresa(poolApp, e.id, (c) =>
+          retomarDaParada(c, {
+            pessoaId: sessao.pessoa.id,
+            nome: sessao.pessoa.nome,
+            agenteIds: null,
+            comoDono: true,
+            soDaPlataforma: true,
+          }),
+        );
+        if ("erro" in feito) continue;
+        empresas += 1;
+        agentes += feito.retomados.length;
+        await auditarNaEmpresa(pedido, sessao, e.id, "agentes.retomou", feito.parada, {
+          agentes: feito.retomados,
+          naoVoltaram: feito.naoVoltaram,
+          terminou: feito.terminou,
+        });
+        for (const id of feito.acordar) o.acordar(e.id, id);
+      } catch (erro) {
+        pedido.log.error({ erro, empresaId: e.id }, "Retomar da plataforma: a empresa falhou");
+        falharam.push(e.nome);
+      }
     }
-    return { empresas, agentes };
+    return resposta.code(falharam.length > 0 ? 500 : 200).send({ empresas, agentes, falharam });
   });
 }
