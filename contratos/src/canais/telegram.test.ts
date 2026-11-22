@@ -87,7 +87,8 @@ describe("Telegram (M5-01)", () => {
     const id = "0193a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5b";
     expect(DADOS_DOS_BOTOES.aprovar.exec(`ap:a:${id}`)?.[1]).toBe(id);
     expect(DADOS_DOS_BOTOES.recusar.exec(`ap:r:${id}`)?.[1]).toBe(id);
-    expect(DADOS_DOS_BOTOES.empresa.exec("em:2")?.[1]).toBe("2");
+    expect(DADOS_DOS_BOTOES.empresa.exec(`em:${id}`)?.[1]).toBe(id);
+    expect(DADOS_DOS_BOTOES.empresa.test("em:2")).toBe(false);
     expect(DADOS_DOS_BOTOES.aprovar.test(`ap:x:${id}`)).toBe(false);
     expect(`ap:a:${id}`.length).toBeLessThanOrEqual(64);
     const botao = {

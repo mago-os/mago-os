@@ -76,6 +76,10 @@ export async function cuidarDasAprovacoesNoTelegram(
   const urlPublica = o.conversa?.urlPublica ?? "";
   // 1. Reserva os envios (uma linha por pedido e pessoa: dois cuidados ao mesmo tempo não mandam duas vezes).
   const novos = await comEmpresa(o.poolApp, empresaId, async (c) => {
+    // Reserva presa (a API caiu entre reservar e mandar): solta, para mandar de novo.
+    await c.query(
+      "delete from aprovacoes_no_telegram where empresa_id = empresa_ativa() and mensagem_id is null and enviada_em < now() - interval '5 minutes'",
+    );
     const r = await c.query<{
       aprovacao_id: string;
       pessoa_id: string;
@@ -135,20 +139,27 @@ export async function cuidarDasAprovacoesNoTelegram(
     }
   }
 
-  // 2. As mensagens dos pedidos que já não estão pendentes: o texto ganha a decisão e perde os botões.
+  // 2. As mensagens dos pedidos que terminaram: o texto ganha a decisão e perde os botões. Aprovado e ainda rodando
+  // (sem resultado) espera, para não mostrar "aprovado" de uma ação que ainda pode falhar. Só marca depois de editar.
   const decididos = await comEmpresa(o.poolApp, empresaId, async (c) => {
-    const r = await c.query<{ aprovacao_id: string; chat_id: string; mensagem_id: string }>(
-      `update aprovacoes_no_telegram n set atualizada_em = now()
-         from aprovacoes p
-        where n.empresa_id = empresa_ativa() and p.empresa_id = n.empresa_id and p.id = n.aprovacao_id
-          and n.atualizada_em is null and n.mensagem_id is not null
-          and (p.situacao <> 'pendente' or p.vence_em <= now())
-       returning n.aprovacao_id, n.chat_id, n.mensagem_id`,
+    const r = await c.query<{
+      aprovacao_id: string;
+      pessoa_id: string;
+      chat_id: string;
+      mensagem_id: string;
+    }>(
+      `select n.aprovacao_id, n.pessoa_id, n.chat_id, n.mensagem_id from aprovacoes_no_telegram n
+         join aprovacoes p on p.empresa_id = n.empresa_id and p.id = n.aprovacao_id
+        where n.empresa_id = empresa_ativa() and n.atualizada_em is null and n.mensagem_id is not null
+          and (p.situacao in ('recusada', 'vencida', 'falhou') or (p.situacao = 'aprovada' and p.resultado is not null)
+               or (p.situacao = 'pendente' and p.vence_em <= now()))
+        limit 50`,
     );
     const saida: {
       aprovacao: Aprovacao;
       agente: string;
       decidiu: string | null;
+      pessoaId: string;
       chatId: number;
       mensagemId: number;
     }[] = [];
@@ -163,6 +174,7 @@ export async function cuidarDasAprovacoesNoTelegram(
         aprovacao: a,
         agente: await nomeDoAgente(c, a.agenteId),
         decidiu: quem ?? null,
+        pessoaId: n.pessoa_id,
         chatId: Number(n.chat_id),
         mensagemId: Number(n.mensagem_id),
       });
@@ -183,23 +195,49 @@ export async function cuidarDasAprovacoesNoTelegram(
       parametros: d.aprovacao.parametros,
       venceEm: d.aprovacao.venceEm,
     })}\n\n${linha}`;
-    await o.carteiro
-      .editar(d.chatId, d.mensagemId, texto)
-      .then(() => {
-        atualizadas++;
-      })
-      .catch((erro) => o.log.warn({ erro }, "Telegram: a mensagem do pedido não foi atualizada"));
+    try {
+      await o.carteiro.editar(d.chatId, d.mensagemId, texto);
+    } catch (erro) {
+      // Fica para a próxima verificação (a mensagem continua com os botões, que respondem com a decisão).
+      o.log.warn({ erro }, "Telegram: a mensagem do pedido não foi atualizada");
+      continue;
+    }
+    await comEmpresa(o.poolApp, empresaId, (c) =>
+      c.query(
+        "update aprovacoes_no_telegram set atualizada_em = now() where empresa_id = empresa_ativa() and aprovacao_id = $1 and pessoa_id = $2",
+        [d.aprovacao.id, d.pessoaId],
+      ),
+    );
+    atualizadas++;
   }
   return { mandadas, atualizadas };
 }
 
-/** Travado: 3 códigos errados nos últimos 15 minutos. */
+/** Travado: 3 códigos errados (15 minutos a contar do terceiro), ou o 2FA do login travado. */
 async function travado(poolApp: pg.Pool, pessoaId: string): Promise<boolean> {
-  const r = await poolApp.query<{ n: number }>("select erros_de_codigo_no_telegram($1, false, $2) as n", [
+  const r = await poolApp.query<{ t: boolean }>("select aprovacoes_travadas_no_telegram($1) as t", [
     pessoaId,
-    MINUTOS_DA_TRAVA_DAS_APROVACOES,
   ]);
-  return (r.rows[0]?.n ?? 0) >= ERROS_DE_CODIGO_NA_APROVACAO;
+  return r.rows[0]?.t === true;
+}
+
+/** A pessoa administra a empresa ativa (a mesma regra do app para decidir qualquer pedido). */
+async function administra(c: pg.PoolClient): Promise<boolean> {
+  const v = await c.query<{ perfil: string }>(
+    "select perfil from vinculos where empresa_id = empresa_ativa() and pessoa_id = pessoa_ativa() and situacao = 'ativo'",
+  );
+  return v.rows[0]?.perfil === "administrador";
+}
+
+/** A empresa de um pedido mandado a esta pessoa (o botão vale mesmo depois de ela trocar a empresa do Telegram). */
+async function empresaDoPedido(poolApp: pg.Pool, p: PessoaDoTelegram, aprovacaoId: string): Promise<string> {
+  const r = await comPessoa(poolApp, p.pessoaId, null, (c) =>
+    c.query<{ empresa_id: string }>(
+      "select empresa_id from aprovacoes_no_telegram where aprovacao_id = $1 and pessoa_id = pessoa_ativa()",
+      [aprovacaoId],
+    ),
+  );
+  return r.rows[0]?.empresa_id ?? p.empresaId;
 }
 
 /** O toque em Aprovar ou Recusar. Responde sempre ao botão (senão o Telegram mostra o relógio). */
@@ -219,13 +257,10 @@ export async function tocarBotaoDeAprovacao(
     await o.carteiro.enviar(p.chatId, "As aprovações pelo Telegram ainda não estão ligadas neste ambiente.");
     return true;
   }
-  const visto = await comPessoa(o.poolApp, p.pessoaId, p.empresaId, async (c) => {
+  const empresaId = await empresaDoPedido(o.poolApp, p, aprovacaoId);
+  const visto = await comPessoa(o.poolApp, p.pessoaId, empresaId, async (c) => {
     const a = await buscarAprovacao(c, aprovacaoId);
-    const vinculo = await c.query<{ perfil: string }>(
-      "select perfil from vinculos where empresa_id = empresa_ativa() and pessoa_id = pessoa_ativa() and situacao = 'ativo'",
-    );
-    if (!a || !(await podeDecidir(c, a, p.pessoaId, vinculo.rows[0]?.perfil === "administrador")))
-      return null;
+    if (!a || !(await podeDecidir(c, a, p.pessoaId, await administra(c)))) return null;
     // A conferência que a pessoa viu na mensagem (ou a de agora, se o pedido chegou por outro caminho).
     const enviado = await c.query<{ conferencia: string }>(
       "select conferencia from aprovacoes_no_telegram where empresa_id = empresa_ativa() and aprovacao_id = $1 and pessoa_id = pessoa_ativa()",
@@ -257,12 +292,14 @@ export async function tocarBotaoDeAprovacao(
       return true;
     }
   }
-  await comPessoa(o.poolApp, p.pessoaId, p.empresaId, (c) =>
+  // Um pedido aberto por pessoa: tocar em outro botão troca o anterior.
+  await comPessoa(o.poolApp, p.pessoaId, null, (c) =>
+    c.query("delete from pedidos_de_codigo_no_telegram where pessoa_id = pessoa_ativa()"),
+  );
+  await comPessoa(o.poolApp, p.pessoaId, empresaId, (c) =>
     c.query(
       `insert into pedidos_de_codigo_no_telegram (empresa_id, pessoa_id, aprovacao_id, acao, conferencia, vale_ate)
-       values (empresa_ativa(), pessoa_ativa(), $1, $2, $3, now() + make_interval(mins => $4))
-       on conflict (empresa_id, pessoa_id) do update set aprovacao_id = excluded.aprovacao_id, acao = excluded.acao,
-         conferencia = excluded.conferencia, aberto_em = now(), vale_ate = excluded.vale_ate`,
+       values (empresa_ativa(), pessoa_ativa(), $1, $2, $3, now() + make_interval(mins => $4))`,
       [aprovacaoId, aprovar ? "aprovar" : "recusar", visto.conferencia, MINUTOS_PARA_MANDAR_O_CODIGO],
     ),
   );
@@ -284,25 +321,25 @@ export async function receberCodigoOuMotivo(
 ): Promise<boolean> {
   const ap = o.conversa?.aprovacoes;
   if (!ap) return false;
-  const pedido = await comPessoa(o.poolApp, p.pessoaId, p.empresaId, async (c) => {
+  // O pedido aberto é da empresa do pedido de aprovação, que pode não ser a do Telegram agora.
+  const pedido = await comPessoa(o.poolApp, p.pessoaId, null, async (c) => {
     const r = await c.query<{
+      empresa_id: string;
       aprovacao_id: string;
       acao: "aprovar" | "recusar";
       conferencia: string;
       vale: boolean;
     }>(
-      `select aprovacao_id, acao, conferencia, vale_ate > now() as vale from pedidos_de_codigo_no_telegram
-        where empresa_id = empresa_ativa() and pessoa_id = pessoa_ativa()`,
+      `select empresa_id, aprovacao_id, acao, conferencia, vale_ate > now() as vale from pedidos_de_codigo_no_telegram
+        where pessoa_id = pessoa_ativa()`,
     );
     return r.rows[0] ?? null;
   });
   if (!pedido) return false;
   const texto = (m.text ?? "").trim();
   const fechar = () =>
-    comPessoa(o.poolApp, p.pessoaId, p.empresaId, (c) =>
-      c.query(
-        "delete from pedidos_de_codigo_no_telegram where empresa_id = empresa_ativa() and pessoa_id = pessoa_ativa()",
-      ),
+    comPessoa(o.poolApp, p.pessoaId, null, (c) =>
+      c.query("delete from pedidos_de_codigo_no_telegram where pessoa_id = pessoa_ativa()"),
     );
   const pareceCodigo = /^\d{6}$/.test(texto.replace(/\s/g, ""));
   if (!pedido.vale) {
@@ -316,14 +353,9 @@ export async function receberCodigoOuMotivo(
   }
   const log = o.log as unknown as FastifyBaseLogger;
   const decidir = (decisao: "aprovar" | "recusar", motivo?: string) =>
-    comPessoa(o.poolApp, p.pessoaId, p.empresaId, async (c) => {
-      const v = await c.query<{ perfil: string }>(
-        "select perfil from vinculos where empresa_id = empresa_ativa() and pessoa_id = pessoa_ativa() and situacao = 'ativo'",
-      );
-      return v.rows[0]?.perfil === "administrador";
-    }).then((administrador) =>
+    comPessoa(o.poolApp, p.pessoaId, pedido.empresa_id, administra).then((administrador) =>
       decidirAprovacao(ap.decidir, {
-        empresaId: p.empresaId,
+        empresaId: pedido.empresa_id,
         pessoaId: p.pessoaId,
         administrador,
         aprovacaoId: pedido.aprovacao_id,
@@ -354,11 +386,15 @@ export async function receberCodigoOuMotivo(
         : `${feito}: ${r.aprovacao.resumo}`,
     );
     // A mensagem do pedido mostra a decisão logo (sem esperar a verificação a cada minuto).
-    await cuidarDasAprovacoesNoTelegram(o, p.empresaId).catch(() => ({ mandadas: 0, atualizadas: 0 }));
+    await cuidarDasAprovacoesNoTelegram(o, pedido.empresa_id).catch(() => ({ mandadas: 0, atualizadas: 0 }));
   };
 
   if (pedido.acao === "recusar") {
-    if (!texto) return false;
+    // Um comando no meio (/ajuda, /empresa) desiste da recusa e segue como comando.
+    if (!texto || texto.startsWith("/")) {
+      await fechar();
+      return false;
+    }
     await fechar();
     const motivo = /^sem motivo\.?$/i.test(texto) ? "Sem motivo." : texto.slice(0, 1000);
     await contar(await decidir("recusar", motivo), "Recusado");
@@ -384,14 +420,14 @@ export async function receberCodigoOuMotivo(
   }
   if (conferido !== "certo") {
     // Código repetido conta como errado: quem leu o chat não aprova com ele.
-    const r = await o.poolApp.query<{ n: number }>("select erros_de_codigo_no_telegram($1, true, $2) as n", [
-      p.pessoaId,
-      MINUTOS_DA_TRAVA_DAS_APROVACOES,
-    ]);
+    const r = await o.poolApp.query<{ n: number }>(
+      "select erros_de_codigo_no_telegram($1, true, $2, $3) as n",
+      [p.pessoaId, MINUTOS_DA_TRAVA_DAS_APROVACOES, ERROS_DE_CODIGO_NA_APROVACAO],
+    );
     const erros = r.rows[0]?.n ?? 0;
     if (erros >= ERROS_DE_CODIGO_NA_APROVACAO) {
       await fechar();
-      await comEmpresa(o.poolApp, p.empresaId, (c) =>
+      await comEmpresa(o.poolApp, pedido.empresa_id, (c) =>
         criarAviso(c, {
           pessoaId: p.pessoaId,
           tipo: "telegram_aprovacoes_travadas",

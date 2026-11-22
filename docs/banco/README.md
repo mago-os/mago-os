@@ -430,7 +430,7 @@ erDiagram
     timestamp_with_time_zone criado_em
   }
   pedidos_de_codigo_no_telegram {
-    uuid empresa_id PK
+    uuid empresa_id FK
     uuid pessoa_id PK
     uuid aprovacao_id
     text acao
@@ -1513,13 +1513,13 @@ Isolamento por empresa (Row Level Security): ligado e forçado.
 
 ### pedidos_de_codigo_no_telegram
 
-O toque em Aprovar ou Recusar no Telegram (M5-04): por 5 minutos, a próxima mensagem é o código ou o motivo.
+O toque em Aprovar ou Recusar no Telegram (M5-04): por 5 minutos, a próxima mensagem é o código ou o motivo. Um por pessoa.
 
 Isolamento por empresa (Row Level Security): ligado e forçado.
 
 | Coluna | Tipo | Obrigatória | Padrão | Marca | Descrição |
 | --- | --- | --- | --- | --- | --- |
-| empresa_id | uuid | sim |  | sistema | Empresa. Chave primária. |
+| empresa_id | uuid | sim |  | sistema | Empresa do pedido de aprovação. Aponta para empresas.id. |
 | pessoa_id | uuid | sim |  | sistema | Quem tocou no botão. Chave primária. |
 | aprovacao_id | uuid | sim |  | sistema | O pedido de aprovação. |
 | acao | text | sim |  | sistema | aprovar (espera o código) ou recusar (o motivo). |

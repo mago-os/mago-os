@@ -194,13 +194,13 @@ export const ERROS_DE_CODIGO_NA_APROVACAO = 3;
 export const MINUTOS_DA_TRAVA_DAS_APROVACOES = 15;
 
 /**
- * O que cada botão leva: "ap:a:<id>" aprova, "ap:r:<id>" recusa o pedido de aprovação <id>; "em:<n>" troca para a
- * empresa de número n da lista do /empresa. Botão com dado fora destes formatos é ignorado.
+ * O que cada botão leva: "ap:a:<id>" aprova, "ap:r:<id>" recusa o pedido de aprovação <id>; "em:<id>" troca para a
+ * empresa <id> (o id, não a posição na lista: um botão antigo nunca leva a outra empresa). Botão com dado fora destes formatos é ignorado.
  */
 export const DADOS_DOS_BOTOES = {
   aprovar: /^ap:a:([0-9a-f-]{36})$/,
   recusar: /^ap:r:([0-9a-f-]{36})$/,
-  empresa: /^em:(\d{1,3})$/,
+  empresa: /^em:([0-9a-f-]{36})$/,
 } as const;
 
 /** O pedido de aprovação como chega no Telegram: o mesmo resumo e os mesmos parâmetros da tela, só como texto. */

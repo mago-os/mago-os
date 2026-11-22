@@ -272,8 +272,8 @@ describe.skipIf(!bancoDisponivel)("Telegram", () => {
     await mandar(777, "/empresa");
     const lista = carteiro.enviadas.filter((m) => m.chatId === 777).at(-1);
     expect(lista?.opcoes?.botoes).toEqual([
-      [{ texto: "4xpert", dados: "em:1" }],
-      [{ texto: "Nolask", dados: "em:2" }],
+      [{ texto: "4xpert", dados: `em:${empresaId}` }],
+      [{ texto: "Nolask", dados: `em:${OUTRA}` }],
     ]);
     numero += 1;
     await app.inject({
@@ -286,7 +286,7 @@ describe.skipIf(!bancoDisponivel)("Telegram", () => {
           id: "q1",
           from: { id: 777, is_bot: false, first_name: "Conta 777" },
           message: { message_id: 1, chat: { id: 777, type: "private" } },
-          data: "em:1",
+          data: `em:${empresaId}`,
         },
       }),
     });

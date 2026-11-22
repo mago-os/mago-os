@@ -220,10 +220,15 @@ async function iniciar(): Promise<void> {
                 void digitandoNoTelegram(opcoesDoBot, empresaId, conversaId).catch(() => {});
               },
               aoTerminar: (empresaId: string) => {
-                void entregarNoTelegram(opcoesDoBot, empresaId)
-                  // Pedidos de aprovação que a execução abriu (M5-04) vão logo, sem esperar o minuto.
-                  .then(() => cuidarDasAprovacoesNoTelegram(opcoesDoBot, empresaId))
-                  .catch((erro) => app.log.warn({ erro }, "Telegram: entrega ao fim da execução falhou"));
+                // As respostas e os pedidos de aprovação que a execução abriu (M5-04) vão logo, cada um por si.
+                void Promise.allSettled([
+                  entregarNoTelegram(opcoesDoBot, empresaId),
+                  cuidarDasAprovacoesNoTelegram(opcoesDoBot, empresaId),
+                ]).then((r) => {
+                  for (const x of r)
+                    if (x.status === "rejected")
+                      app.log.warn({ erro: x.reason }, "Telegram: entrega ao fim da execução falhou");
+                });
               },
             },
           }

@@ -433,7 +433,10 @@ async function trocarEmpresa(
     await o.carteiro.enviar(chatId, `Você só está na ${p.empresaNome}.`);
     return;
   }
-  const escolha = /^\d{1,3}$/.test(resto) ? empresas[Number(resto) - 1] : undefined;
+  // Pelo número da lista (/empresa 2) ou pelo id (o botão).
+  const escolha = /^\d{1,3}$/.test(resto)
+    ? empresas[Number(resto) - 1]
+    : empresas.find((e) => e.id === resto);
   if (!escolha) {
     const lista = empresas.map((e, i) => `${i + 1}. ${e.nome}${e.id === p.empresaId ? " (agora)" : ""}`);
     await o.carteiro.enviar(
@@ -441,7 +444,7 @@ async function trocarEmpresa(
       ["Em qual empresa você quer conversar? Toque nela (ou mande /empresa e o número).", "", ...lista].join(
         "\n",
       ),
-      { botoes: empresas.map((e, i) => [{ texto: e.nome.slice(0, 60), dados: `em:${i + 1}` }]) },
+      { botoes: empresas.map((e) => [{ texto: e.nome.slice(0, 60), dados: `em:${e.id}` }]) },
     );
     return;
   }

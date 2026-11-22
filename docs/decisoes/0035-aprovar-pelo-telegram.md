@@ -29,6 +29,11 @@ Os pedidos de aprovação dos agentes (M4-03) hoje se decidem só no app. A M5-0
 - **Outra mensagem no meio:** com o pedido de código aberto, uma mensagem que não é um código de 6 dígitos fecha o pedido e segue como conversa. Código mandado depois dos 5 minutos é apagado e recebe "o tempo acabou".
 - **Mensagem do pedido atualizada** com a decisão (de quem decidiu, pelo app ou pelo Telegram) ou com o vencimento, na verificação a cada minuto e logo depois da decisão pelo Telegram.
 - **Aviso da trava** em `telegram_aprovacoes_travadas`, com a orientação de trocar a senha se não foi a pessoa.
+- **A trava conta do terceiro erro** (15 minutos a partir dele, não uma janela que vai andando), e respeita também a trava do 2FA do login: com o login travado por códigos errados, o Telegram não aceita código.
+- **O botão vale para a empresa do pedido:** quem está em duas empresas e trocou a do Telegram ainda aprova o pedido que chegou da outra. O pedido de código aberto é um por pessoa.
+- **Recusa com um comando no meio** (/ajuda, /empresa): desiste da recusa e o comando roda.
+- **Mensagem do pedido:** "aprovado" só aparece depois que a ação terminou (se falhar, aparece "não deu certo"); a mensagem só fica marcada como atualizada depois que o Telegram aceitou a edição; reserva de envio presa (a API caiu no meio) é solta depois de 5 minutos.
+- **/empresa:** o botão leva o id da empresa (não a posição na lista), para um botão antigo nunca levar a outra empresa.
 
 ## O que foi descartado
 
