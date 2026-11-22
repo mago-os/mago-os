@@ -8,8 +8,10 @@
 import { createHash, randomInt } from "node:crypto";
 import {
   type AtualizacaoDoTelegram,
+  type BotaoTocadoNoTelegram,
   CODIGOS_ERRADOS_DO_TELEGRAM,
   COMANDOS_DO_TELEGRAM,
+  DADOS_DOS_BOTOES,
   extensaoBloqueada,
   HORAS_PARA_ANEXAR_O_ARQUIVO_DO_TELEGRAM,
   LETRAS_DO_CODIGO_DO_TELEGRAM,
@@ -26,6 +28,7 @@ import { auditar, type DadosDoEvento } from "../auditoria/registrar.ts";
 import { criarAviso } from "../avisos/index.ts";
 import { comEmpresa, comPessoa } from "../empresa.ts";
 import { permissoesNaEmpresa } from "../permissoes/verificar.ts";
+import { receberCodigoOuMotivo, tocarBotaoDeAprovacao } from "./aprovacoes.ts";
 import type { CarteiroDoTelegram } from "./carteiro.ts";
 import { conversarPeloTelegram, type OpcoesDaConversaPeloTelegram } from "./conversa.ts";
 
@@ -129,8 +132,6 @@ export function textoDaAjuda(p: PessoaDoTelegram): string {
  * (vincular e as travas não podem rodar duas vezes), e o pior caso é a resposta não chegar.
  */
 export async function tratarAtualizacao(opcoes: OpcoesDoTelegram, a: AtualizacaoDoTelegram): Promise<void> {
-  const m = a.message;
-  if (!m?.from || m.from.is_bot) return;
   const carteiro = opcoes.carteiro;
   const o: OpcoesDoTelegram = {
     ...opcoes,
@@ -143,6 +144,9 @@ export async function tratarAtualizacao(opcoes: OpcoesDoTelegram, a: Atualizacao
         }),
     },
   };
+  if (a.callback_query) return tocarBotao(o, a.callback_query);
+  const m = a.message;
+  if (!m?.from || m.from.is_bot) return;
   if (m.chat.type !== "private") {
     await o.carteiro.enviar(m.chat.id, RESPOSTAS_DO_TELEGRAM.soConversaIndividual);
     await o.carteiro.sairDoChat(m.chat.id).catch(() => {});
@@ -161,6 +165,8 @@ export async function tratarAtualizacao(opcoes: OpcoesDoTelegram, a: Atualizacao
     await o.carteiro.enviar(m.chat.id, RESPOSTAS_DO_TELEGRAM.semVinculo);
     return;
   }
+  // Com um toque em Aprovar ou Recusar aberto (M5-04), a mensagem é o código ou o motivo.
+  if (await receberCodigoOuMotivo(o, pessoa, m)) return;
   // Foto, documento, áudio, vídeo (M5-03): o arquivo espera uma tarefa, e o coordenador decide onde anexar.
   if (m.sticker || m.animation) {
     await o.carteiro.enviar(m.chat.id, RESPOSTAS_DO_TELEGRAM.figurinha);
@@ -270,6 +276,29 @@ async function receberArquivo(
   const legenda = m.caption?.trim() ?? "";
   const dados = textoDoArquivoParaOAgente({ id, nome: a.nome, tipo: a.tipo, tamanho: a.tamanho });
   await conversarPeloTelegram(o, p, m.chat.id, legenda ? `${legenda}\n\n${dados}` : dados, null, a);
+}
+
+/** O toque num botão (M5-04): aprovar, recusar ou trocar de empresa. Só de conta vinculada, em conversa individual. */
+async function tocarBotao(o: OpcoesDoTelegram, b: BotaoTocadoNoTelegram): Promise<void> {
+  if (b.from.is_bot) return;
+  if (b.message && b.message.chat.type !== "private") {
+    await o.carteiro.responderBotao(b.id).catch(() => {});
+    return;
+  }
+  const n = await o.poolApp.query<{ n: number }>("select contar_mensagem_do_telegram($1) as n", [b.from.id]);
+  if ((n.rows[0]?.n ?? 0) > MENSAGENS_POR_MINUTO_DO_TELEGRAM) return;
+  const pessoa = await reconhecerTelegram(o.poolApp, b.from.id);
+  if (!pessoa) {
+    await o.carteiro.responderBotao(b.id, RESPOSTAS_DO_TELEGRAM.semVinculo).catch(() => {});
+    return;
+  }
+  const empresa = DADOS_DOS_BOTOES.empresa.exec(b.data ?? "");
+  if (empresa) {
+    await o.carteiro.responderBotao(b.id).catch(() => {});
+    return trocarEmpresa(o, pessoa, pessoa.chatId, empresa[1] as string);
+  }
+  if (await tocarBotaoDeAprovacao(o, pessoa, b)) return;
+  await o.carteiro.responderBotao(b.id).catch(() => {});
 }
 
 async function vincular(o: OpcoesDoTelegram, m: MensagemDoTelegram, codigo: string): Promise<void> {
@@ -409,7 +438,10 @@ async function trocarEmpresa(
     const lista = empresas.map((e, i) => `${i + 1}. ${e.nome}${e.id === p.empresaId ? " (agora)" : ""}`);
     await o.carteiro.enviar(
       chatId,
-      ["Em qual empresa você quer conversar? Mande /empresa e o número.", "", ...lista].join("\n"),
+      ["Em qual empresa você quer conversar? Toque nela (ou mande /empresa e o número).", "", ...lista].join(
+        "\n",
+      ),
+      { botoes: empresas.map((e, i) => [{ texto: e.nome.slice(0, 60), dados: `em:${i + 1}` }]) },
     );
     return;
   }

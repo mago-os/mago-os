@@ -31,6 +31,9 @@ import { catalogoDeModulos, criarVerificador } from "@mago-os/nucleo/permissoes"
 import {
   type CarteiroFalsoDoTelegram,
   carteiroFalsoDoTelegram,
+  codigoDoPasso,
+  criarAutenticador,
+  cuidarDasAprovacoesNoTelegram,
   entregarNoTelegram,
   entregarPendentesNoTelegram,
   type OpcoesDoTelegram,
@@ -249,6 +252,12 @@ describe.skipIf(!bancoDisponivel)("conversa pelo Telegram", () => {
         aoTerminar: (empresa) => terminadas.push(empresa),
       },
     };
+    // Aprovar pelo Telegram (M5-04): o serviço de decidir do app e o autenticador com o segredo de teste.
+    if (opcoesDoBot.conversa)
+      opcoesDoBot.conversa.aprovacoes = {
+        decidir: { poolApp, catalogo: catalogoDeModulos(), opcoesMcp: motor.opcoesMcp, acordar },
+        autenticador: criarAutenticador({ poolAcesso, poolApp, abrir: async () => "segredo-do-app-da-ana" }),
+      };
     await app.ready();
 
     // Liga o coordenador e o Gerente de projetos com o modelo falso.
@@ -283,8 +292,10 @@ describe.skipIf(!bancoDisponivel)("conversa pelo Telegram", () => {
     await banco?.apagar();
   });
 
-  beforeEach(() => {
+  beforeEach(async () => {
     carteiro.enviadas.length = 0;
+    // O limite de 30 mensagens por minuto por conta é da M5-01; aqui os testes mandam muitas em seguida.
+    await dono.query("delete from telegram.mensagens_por_minuto");
   });
 
   it("o pedido pelo Telegram cria a tarefa e a resposta volta ao chat, com o link", async () => {
@@ -662,5 +673,131 @@ describe.skipIf(!bancoDisponivel)("conversa pelo Telegram", () => {
     await entregarPendentesNoTelegram(opcoesDoBot);
     const v = await dono.query("select situacao from arquivos_do_telegram where id = $1", [ids.voz]);
     expect(v.rows[0]?.situacao).toBe("vencido");
+  });
+
+  // Aprovar pelo Telegram (M5-04). O autenticador é o de verdade, com um segredo de teste "aberto" pela função falsa.
+  const SEGREDO_DO_APP = "segredo-do-app-da-ana";
+  const codigoDeAgora = (desloca = 0) =>
+    codigoDoPasso(Buffer.from(SEGREDO_DO_APP), Math.floor(Date.now() / 30_000) + desloca);
+  async function tocar(conta: number, dados: string) {
+    numero += 1;
+    await tratarAtualizacao(opcoesDoBot, {
+      update_id: numero,
+      callback_query: {
+        id: `q${numero}`,
+        from: { id: conta, is_bot: false, first_name: `Conta ${conta}` },
+        message: { message_id: 1, chat: { id: conta, type: "private" } },
+        data: dados,
+      },
+    } as AtualizacaoDoTelegram);
+  }
+  /** O agente pede para mudar a prioridade (a regra pede aprovação) e o pedido vai ao Telegram. */
+  async function pedirAprovacao(prioridade: string): Promise<string> {
+    roteiro = [
+      () => ({
+        chamadas: [{ id: "m1", nome: "mudar_prazo", entrada: { tarefaId: ids.tarefa, prioridade } }],
+      }),
+      () => ({ chamadas: [{ id: "r", nome: "responder", entrada: { texto: "Pedi a aprovação." } }] }),
+    ];
+    await mandar(ANA, `/nova põe prioridade ${prioridade}`);
+    await rodarEEntregar();
+    await cuidarDasAprovacoesNoTelegram(opcoesDoBot, empresaId);
+    const a = await dono.query<{ id: string }>(
+      "select id from aprovacoes where acao = 'mudar_prazo' and situacao = 'pendente' order by criada_em desc limit 1",
+    );
+    return a.rows[0]?.id as string;
+  }
+
+  it("o pedido de aprovação chega no Telegram com os botões, e sem app autenticador só dá para recusar", async () => {
+    ids.aprovacao = await pedirAprovacao("alta");
+    const msg = carteiro.enviadas.find((m) => m.texto.includes("pede a sua aprovação"));
+    expect(msg?.chatId).toBe(ANA);
+    expect(msg?.texto).toContain("prioridade alta");
+    expect(msg?.opcoes?.botoes?.[0]).toEqual([
+      { texto: "Aprovar", dados: `ap:a:${ids.aprovacao}` },
+      { texto: "Recusar", dados: `ap:r:${ids.aprovacao}` },
+    ]);
+    expect(msg?.opcoes?.botoes?.[1]?.[0]).toEqual({
+      texto: "Abrir no app",
+      url: `${SITE}/aprovacoes/${ids.aprovacao}`,
+    });
+    // Mandar de novo não repete.
+    carteiro.enviadas.length = 0;
+    await cuidarDasAprovacoesNoTelegram(opcoesDoBot, empresaId);
+    expect(doChat(ANA)).toEqual([]);
+    await tocar(ANA, `ap:a:${ids.aprovacao}`);
+    expect(doChat(ANA).at(-1)).toMatch(/^Você não usa app autenticador/);
+  });
+
+  it("aprovar pede o código; o errado conta, o certo aprova, apaga o código e atualiza o pedido", async () => {
+    await dono.query(
+      "insert into acesso.dois_fatores (pessoa_id, segredo, codigos_recuperacao, verificado) values ($1, 'cifrado', 'x', true)",
+      [ids.ana],
+    );
+    await tocar(ANA, `ap:a:${ids.aprovacao}`);
+    expect(doChat(ANA).at(-1)).toMatch(/^Para aprovar ".*", mande agora o código de 6 dígitos/);
+    await mandar(ANA, "000000" === codigoDeAgora() ? "111111" : "000000");
+    expect(doChat(ANA).at(-1)).toBe(
+      "Código errado. Restam 2 tentativas antes de travar as aprovações por 15 minutos.",
+    );
+    const apagadasAntes = carteiro.apagadas.length;
+    await mandar(ANA, codigoDeAgora());
+    expect(carteiro.apagadas.length).toBe(apagadasAntes + 1);
+    expect(doChat(ANA).at(-1)).toMatch(/^Aprovado: /);
+    const t = await dono.query("select prioridade from tarefas where id = $1", [ids.tarefa]);
+    expect(t.rows[0]?.prioridade).toBe("alta");
+    const a = await dono.query("select situacao, decidida_por from aprovacoes where id = $1", [
+      ids.aprovacao,
+    ]);
+    expect(a.rows[0]).toEqual({ situacao: "aprovada", decidida_por: ids.ana });
+    expect(carteiro.editadas.at(-1)?.texto).toMatch(/Ana Admin decidiu: aprovado\.$/);
+    const ev = await dono.query(
+      "select detalhes->>'canal' as canal from auditoria.eventos where acao = 'aprovacao.aprovou' order by sequencia desc limit 1",
+    );
+    expect(ev.rows[0]?.canal).toBe("telegram");
+    const aviso = await dono.query(
+      "select 1 from avisos where pessoa_id = $1 and tipo = 'aprovacao_decidida' and texto like '%pelo Telegram%'",
+      [ids.ana],
+    );
+    expect(aviso.rowCount).toBeGreaterThan(0);
+    // O botão de um pedido já decidido só diz o que aconteceu.
+    await tocar(ANA, `ap:a:${ids.aprovacao}`);
+    expect(doChat(ANA).at(-1)).toBe("Esse pedido já foi aprovado.");
+  });
+
+  it("o mesmo código não vale duas vezes, e três erros travam as aprovações pelo Telegram", async () => {
+    const usado = codigoDeAgora();
+    ids.aprovacao2 = await pedirAprovacao("baixa");
+    await tocar(ANA, `ap:a:${ids.aprovacao2}`);
+    await mandar(ANA, usado);
+    expect(doChat(ANA).at(-1)).toMatch(/^Código errado/);
+    await mandar(ANA, "999999" === codigoDeAgora() ? "888888" : "999999");
+    await mandar(ANA, "777777" === codigoDeAgora() ? "666666" : "777777");
+    expect(doChat(ANA).at(-1)).toMatch(/^Muitos códigos errados/);
+    const aviso = await dono.query(
+      "select 1 from avisos where pessoa_id = $1 and tipo = 'telegram_aprovacoes_travadas'",
+      [ids.ana],
+    );
+    expect(aviso.rowCount).toBe(1);
+    await tocar(ANA, `ap:a:${ids.aprovacao2}`);
+    expect(doChat(ANA).at(-1)).toMatch(/^Muitos códigos errados/);
+    const a = await dono.query("select situacao from aprovacoes where id = $1", [ids.aprovacao2]);
+    expect(a.rows[0]?.situacao).toBe("pendente");
+  });
+
+  it("recusar pede o motivo e recusa; outra conversa no meio cancela o pedido de código", async () => {
+    await tocar(ANA, `ap:r:${ids.aprovacao2}`);
+    expect(doChat(ANA).at(-1)).toBe("Mande numa mensagem o motivo da recusa (ou escreva: sem motivo).");
+    await mandar(ANA, "Baixa não, deixa alta.");
+    expect(doChat(ANA).at(-1)).toMatch(/^Recusado: /);
+    const a = await dono.query("select situacao, observacao from aprovacoes where id = $1", [ids.aprovacao2]);
+    expect(a.rows[0]).toEqual({ situacao: "recusada", observacao: "Baixa não, deixa alta." });
+    const t = await dono.query("select prioridade from tarefas where id = $1", [ids.tarefa]);
+    expect(t.rows[0]?.prioridade).toBe("alta");
+  });
+
+  it("quem não pode decidir não decide pelo botão", async () => {
+    await tocar(FLORA, `ap:a:${ids.aprovacao}`);
+    expect(doChat(FLORA).at(-1)).toBe("Não encontrei esse pedido entre os que você pode decidir.");
   });
 });

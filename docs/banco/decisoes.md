@@ -324,3 +324,11 @@ O login (`mago_acesso`) não lê papéis nem as regras da plataforma direto. As 
 - `arquivos_do_telegram` guarda o arquivo mandado pelo Telegram enquanto ele espera uma tarefa, por até 24 horas ([decisão 0034](../decisoes/0034-arquivos-pelo-telegram.md)): nome, tipo, tamanho e o número do arquivo no Telegram (`[sensivel]`, porque com ele e o token do bot dá para baixar). Nada é baixado nessa hora.
 - Ao anexar, o arquivo vira um anexo comum (`anexos`, M3-08), em nome da pessoa que mandou, e passa pelo antivírus. A situação "anexado" exige o anexo; se o anexo for apagado (a tarefa foi excluída), um gatilho deixa o arquivo como "vencido".
 - `antivirus_conferido_em` marca que o resultado do antivírus do anexo já foi conferido, uma vez só (o bloqueado é avisado no Telegram). `empresas_com_telegram_pendente()` passa a achar também os arquivos vencidos (menos os que têm pedido de aprovação para anexar esperando decisão) e os anexos a conferir.
+
+## 45. Aprovar pelo Telegram (22/11/2026, M5-04)
+
+- `aprovacoes_no_telegram` guarda cada pedido de aprovação mandado ao Telegram de cada pessoa ([decisão 0035](../decisoes/0035-aprovar-pelo-telegram.md)), com a conferência que a mensagem mostrou: aprovar pelo Telegram aprova exatamente isso. A linha é criada antes de mandar (dois cuidados ao mesmo tempo não mandam duas vezes) e apagada se o envio falhar. `atualizada_em` marca que a mensagem já foi editada com a decisão.
+- `pedidos_de_codigo_no_telegram` é o toque em Aprovar ou Recusar: um por pessoa e empresa, por 5 minutos, com a conferência vista.
+- No esquema `telegram`, `erros_de_codigo` conta os códigos errados por pessoa (3 em 15 minutos travam as aprovações pelo Telegram) e `passos_do_autenticador` guarda o último passo de 30 segundos aceito por pessoa: `usar_passo_do_autenticador()` só aceita um passo mais novo, e o mesmo código não vale duas vezes.
+- O segredo do app autenticador continua só em `acesso.dois_fatores`: o núcleo lê pelo papel do login e abre com a função do Better Auth, na hora de conferir.
+- `empresas_com_telegram_pendente()` acha também os pedidos a mandar e as mensagens a atualizar. Aviso novo `telegram_aprovacoes_travadas`.

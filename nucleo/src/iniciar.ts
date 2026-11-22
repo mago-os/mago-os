@@ -2,6 +2,7 @@
  * Ponto de partida da API. Rodar com o rastreio carregado antes:
  *   node --import ./src/rastreio.ts src/iniciar.ts
  */
+import { symmetricDecrypt } from "better-auth/crypto";
 import { carteiroDoLog, carteiroResend } from "./acesso/carteiro.ts";
 import { criarLogin, criarPoolDoLogin } from "./acesso/login.ts";
 import { registrarRotasDoLogin } from "./acesso/rotas.ts";
@@ -57,8 +58,15 @@ import { criarVerificador } from "./permissoes/verificar.ts";
 import { registrarRotasDosProjetos } from "./projetos/rotas.ts";
 import { criarServidor } from "./servidor.ts";
 import { registrarRotasDasTarefas } from "./tarefas/rotas.ts";
+import { cuidarDasAprovacoesNoTelegram } from "./telegram/aprovacoes.ts";
+import { criarAutenticador } from "./telegram/autenticador.ts";
 import { carteiroDoTelegram } from "./telegram/carteiro.ts";
-import { digitandoNoTelegram, entregarNoTelegram, entregarPendentesNoTelegram } from "./telegram/conversa.ts";
+import {
+  digitandoNoTelegram,
+  entregarNoTelegram,
+  entregarPendentesNoTelegram,
+  type OpcoesDaConversaPeloTelegram,
+} from "./telegram/conversa.ts";
 import { type BotLigado, registrarRotasDoTelegram } from "./telegram/rotas.ts";
 import { COMANDOS_LIGADOS, type OpcoesDoTelegram, tratarAtualizacao } from "./telegram/servico.ts";
 import { registrarTempoReal } from "./tempo-real/index.ts";
@@ -212,9 +220,10 @@ async function iniciar(): Promise<void> {
                 void digitandoNoTelegram(opcoesDoBot, empresaId, conversaId).catch(() => {});
               },
               aoTerminar: (empresaId: string) => {
-                void entregarNoTelegram(opcoesDoBot, empresaId).catch((erro) =>
-                  app.log.warn({ erro }, "Telegram: entrega ao fim da execução falhou"),
-                );
+                void entregarNoTelegram(opcoesDoBot, empresaId)
+                  // Pedidos de aprovação que a execução abriu (M5-04) vão logo, sem esperar o minuto.
+                  .then(() => cuidarDasAprovacoesNoTelegram(opcoesDoBot, empresaId))
+                  .catch((erro) => app.log.warn({ erro }, "Telegram: entrega ao fim da execução falhou"));
               },
             },
           }
@@ -232,6 +241,24 @@ async function iniciar(): Promise<void> {
       opcoesMcp: opcoesDoMotor.opcoesMcp,
       acordar: acordarAgente,
     });
+    // Aprovar pelo Telegram (M5-04): o mesmo serviço de decidir do app e o código do app autenticador.
+    const conversaDoBot: OpcoesDaConversaPeloTelegram | undefined = opcoesDoBot?.conversa;
+    if (conversaDoBot) {
+      const segredoDoLogin = (await login.$context).secretConfig;
+      conversaDoBot.aprovacoes = {
+        decidir: {
+          poolApp: banco.pool,
+          catalogo: verificador.catalogo,
+          opcoesMcp: opcoesDoMotor.opcoesMcp,
+          acordar: acordarAgente,
+        },
+        autenticador: criarAutenticador({
+          poolAcesso: poolDoLogin,
+          poolApp: banco.pool,
+          abrir: (cifrado) => symmetricDecrypt({ key: segredoDoLogin, data: cifrado }),
+        }),
+      };
+    }
     trabalhos.push(async () => {
       await fila.createQueue(FILA_AGENTES_INTERNOS);
       await fila.work<{ empresaId: string; execucaoId: string }>(

@@ -23,6 +23,7 @@ import { paraBusca } from "../busca/index.ts";
 import { comEmpresa, comPessoa } from "../empresa.ts";
 import { permissoesNaEmpresa } from "../permissoes/verificar.ts";
 import { listarPrioridades } from "../tarefas/prioridades.ts";
+import { cuidarDasAprovacoesNoTelegram, type OpcoesDasAprovacoesNoTelegram } from "./aprovacoes.ts";
 import { cuidarDosArquivosDoTelegram } from "./arquivos.ts";
 import { MAXIMO_DA_MENSAGEM_DO_TELEGRAM } from "./carteiro.ts";
 import type { OpcoesDoTelegram, PessoaDoTelegram } from "./servico.ts";
@@ -34,6 +35,8 @@ export interface OpcoesDaConversaPeloTelegram {
   acordar(empresaId: string, execucaoId: string): void;
   /** Endereço do site, para os links das tarefas (ex.: https://teste.osmago.com). */
   urlPublica: string;
+  /** Aprovar pelo Telegram (M5-04). Sem isto, os botões de aprovação respondem que não estão ligados. */
+  aprovacoes?: OpcoesDasAprovacoesNoTelegram;
 }
 
 /** Depois de 1 hora, a resposta que não chegou ao Telegram fica só no app. */
@@ -285,6 +288,10 @@ export async function entregarPendentesNoTelegram(
       o.log.error({ erro, empresaId: e.empresa_id }, "Telegram: entrega da empresa falhou");
       return 0;
     });
+    // Aprovações (M5-04): os pedidos a mandar e as mensagens a atualizar com a decisão.
+    await cuidarDasAprovacoesNoTelegram(o, e.empresa_id).catch((erro) =>
+      o.log.error({ erro, empresaId: e.empresa_id }, "Telegram: cuidar das aprovações da empresa falhou"),
+    );
     // Arquivos (M5-03): os vencidos e os bloqueios pelo antivírus a avisar.
     await cuidarDosArquivosDoTelegram(o, e.empresa_id).catch((erro) =>
       o.log.error({ erro, empresaId: e.empresa_id }, "Telegram: cuidar dos arquivos da empresa falhou"),

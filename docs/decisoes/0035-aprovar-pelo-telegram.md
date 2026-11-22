@@ -1,7 +1,7 @@
 # 0035 Aprovar pelo Telegram, com botões e o código do app autenticador
 
 - **Data:** 22/11/2026
-- **Situação:** proposta (aguardando o "aprovado" do Sandro)
+- **Situação:** aceita (aprovada pelo Sandro no chat em 22/11/2026)
 - **Tarefa:** M5-04
 
 ## Contexto
@@ -21,6 +21,14 @@ Os pedidos de aprovação dos agentes (M4-03) hoje se decidem só no app. A M5-0
 9. **O bot nunca pede código fora disso.** Só depois do toque em Aprovar, e só para aquele pedido. A ajuda do bot já diz isso (M5-01), e o texto do pedido também.
 10. **Fora do Telegram, sempre.** As ações de segurança (parar e retomar os agentes, pessoas, permissões) e editar os parâmetros antes de aprovar continuam só no app.
 11. **/empresa com botões.** Como prometido na decisão 0032, a lista do /empresa ganha um botão por empresa (o número continua valendo).
+
+## Detalhes acertados na implementação
+
+- **Serviço comum:** `decidirAprovacao` (`nucleo/src/agentes-internos/aprovacoes.ts`) é chamado pela rota do app e pelo Telegram; a auditoria leva o canal nos detalhes, e a conversa do agente diz "aprovou pelo Telegram".
+- **O código:** conta própria do padrão (RFC 6238, HMAC-SHA1, 30 segundos, 6 dígitos), aceitando o passo anterior e o seguinte, como o login. O segredo é aberto com a função do Better Auth e o segredo do login. Código repetido conta como errado.
+- **Outra mensagem no meio:** com o pedido de código aberto, uma mensagem que não é um código de 6 dígitos fecha o pedido e segue como conversa. Código mandado depois dos 5 minutos é apagado e recebe "o tempo acabou".
+- **Mensagem do pedido atualizada** com a decisão (de quem decidiu, pelo app ou pelo Telegram) ou com o vencimento, na verificação a cada minuto e logo depois da decisão pelo Telegram.
+- **Aviso da trava** em `telegram_aprovacoes_travadas`, com a orientação de trocar a senha se não foi a pessoa.
 
 ## O que foi descartado
 

@@ -18,6 +18,12 @@ export interface OpcoesDaMensagem {
 export interface CarteiroDoTelegram {
   /** Manda uma mensagem de texto simples. Devolve o número da mensagem no Telegram. */
   enviar(chatId: number, texto: string, opcoes?: OpcoesDaMensagem): Promise<number>;
+  /** Troca o texto de uma mensagem do bot (e tira os botões, se não vierem outros). M5-04. */
+  editar(chatId: number, mensagemId: number, texto: string, opcoes?: OpcoesDaMensagem): Promise<void>;
+  /** Apaga uma mensagem do chat (a do código do autenticador). */
+  apagar(chatId: number, mensagemId: number): Promise<void>;
+  /** Responde ao toque num botão (o Telegram para de mostrar o relógio; o texto aparece no alto, por um instante). */
+  responderBotao(botaoId: string, texto?: string): Promise<void>;
   /** Mostra "digitando" na conversa (o Telegram mostra por cerca de 5 segundos). */
   digitando(chatId: number): Promise<void>;
   /** O @ do bot (getMe). */
@@ -105,6 +111,24 @@ export function carteiroDoTelegram(
     async digitando(chatId) {
       await chamar("sendChatAction", { chat_id: chatId, action: "typing" });
     },
+    async editar(chatId, mensagemId, texto, opcoes) {
+      await chamar("editMessageText", {
+        chat_id: chatId,
+        message_id: mensagemId,
+        text: texto.slice(0, MAXIMO_DA_MENSAGEM_DO_TELEGRAM),
+        link_preview_options: { is_disabled: true },
+        reply_markup: teclado(opcoes?.botoes) ?? { inline_keyboard: [] },
+      });
+    },
+    async apagar(chatId, mensagemId) {
+      await chamar("deleteMessage", { chat_id: chatId, message_id: mensagemId });
+    },
+    async responderBotao(botaoId, texto) {
+      await chamar("answerCallbackQuery", {
+        callback_query_id: botaoId,
+        ...(texto ? { text: texto.slice(0, 200) } : {}),
+      });
+    },
     async quemSouEu() {
       const eu = await chamar<{ username: string }>("getMe", {});
       return eu.username;
@@ -153,6 +177,9 @@ export interface CarteiroFalsoDoTelegram extends CarteiroDoTelegram {
   falharProximo: boolean;
   /** Os arquivos que o "Telegram" tem, pelo número de cada um. */
   arquivos: Map<string, Buffer>;
+  editadas: { chatId: number; mensagemId: number; texto: string; opcoes?: OpcoesDaMensagem }[];
+  apagadas: { chatId: number; mensagemId: number }[];
+  botoesRespondidos: { botaoId: string; texto?: string }[];
 }
 
 /** Para os testes: guarda as mensagens em vez de mandar. */
@@ -163,6 +190,9 @@ export function carteiroFalsoDoTelegram(bot = "OsMagoTesteBot"): CarteiroFalsoDo
     digitandoEm: [],
     falharProximo: false,
     arquivos: new Map(),
+    editadas: [],
+    apagadas: [],
+    botoesRespondidos: [],
     async enviar(chatId, texto, opcoes) {
       if (falso.falharProximo) {
         falso.falharProximo = false;
@@ -173,6 +203,15 @@ export function carteiroFalsoDoTelegram(bot = "OsMagoTesteBot"): CarteiroFalsoDo
     },
     async digitando(chatId) {
       falso.digitandoEm.push(chatId);
+    },
+    async editar(chatId, mensagemId, texto, opcoes) {
+      falso.editadas.push({ chatId, mensagemId, texto, ...(opcoes ? { opcoes } : {}) });
+    },
+    async apagar(chatId, mensagemId) {
+      falso.apagadas.push({ chatId, mensagemId });
+    },
+    async responderBotao(botaoId, texto) {
+      falso.botoesRespondidos.push({ botaoId, ...(texto ? { texto } : {}) });
     },
     async quemSouEu() {
       return bot;
