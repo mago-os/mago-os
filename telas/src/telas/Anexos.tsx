@@ -29,10 +29,22 @@ export function tamanhoLegivel(bytes: number): string {
 export type AnexoNaTela = Anexo & { enviadoPorNome?: string };
 
 /** "22/11 às 19:32, por Sandro, pelo Telegram" (M5-03b). */
-export function quandoEQuem(a: AnexoNaTela): string {
+export function quandoEQuem(a: AnexoNaTela, agora = new Date()): string {
   const d = new Date(a.enviadoEm);
-  const quando = `${d.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" })} às ${d.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}`;
-  const quem = a.enviadoPorNome ? `, por ${a.enviadoPorNome.split(" ")[0]}` : "";
+  // O ano só quando não é o deste ano. A hora é a do aparelho (como o resto das telas).
+  const dia = d.toLocaleDateString("pt-BR", {
+    day: "2-digit",
+    month: "2-digit",
+    ...(d.getFullYear() !== agora.getFullYear() ? { year: "numeric" } : {}),
+  });
+  const quando = `${dia} às ${d.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}`;
+  // Pessoa pelo primeiro nome; agente pelo nome inteiro.
+  const nome = a.enviadoPorNome
+    ? a.enviadoPor.tipo === "pessoa"
+      ? (a.enviadoPorNome.split(" ")[0] ?? a.enviadoPorNome)
+      : a.enviadoPorNome
+    : null;
+  const quem = nome ? `, por ${nome}` : "";
   return `${quando}${quem}${a.canal === "telegram" ? ", pelo Telegram" : ""}`;
 }
 
@@ -152,8 +164,17 @@ function DescricaoDoAnexo({
   const [editando, setEditando] = useState(false);
   const [texto, setTexto] = useState(anexo.descricao ?? "");
   const [erro, setErro] = useState<string | null>(null);
+  const [salvando, setSalvando] = useState(false);
+  function abrirEdicao() {
+    setTexto(anexo.descricao ?? "");
+    setErro(null);
+    setEditando(true);
+  }
   async function salvar() {
+    if (salvando) return;
+    setSalvando(true);
     const r = await descreverAnexo(anexo.tarefaId, anexo.id, texto.trim() || null);
+    setSalvando(false);
     if (!r.ok) {
       setErro(r.mensagem ?? "Não foi possível salvar.");
       return;
@@ -175,10 +196,17 @@ function DescricaoDoAnexo({
           className="w-full rounded-md border border-linha bg-fundo p-1.5 text-sm"
         />
         <div className="flex gap-1.5">
-          <Button size="pequeno" onClick={() => void salvar()}>
+          <Button size="pequeno" disabled={salvando} onClick={() => void salvar()}>
             Salvar
           </Button>
-          <Button size="pequeno" variant="contorno" onClick={() => setEditando(false)}>
+          <Button
+            size="pequeno"
+            variant="contorno"
+            onClick={() => {
+              setEditando(false);
+              setErro(null);
+            }}
+          >
             Cancelar
           </Button>
         </div>
@@ -190,7 +218,7 @@ function DescricaoDoAnexo({
       {anexo.descricao ? (
         <p className="whitespace-pre-wrap text-xs text-texto">{anexo.descricao}</p>
       ) : pode ? (
-        <button type="button" className="text-xs text-texto-2 underline" onClick={() => setEditando(true)}>
+        <button type="button" className="text-xs text-texto-2 underline" onClick={abrirEdicao}>
           Escrever uma descrição
         </button>
       ) : null}
@@ -198,10 +226,7 @@ function DescricaoDoAnexo({
         <button
           type="button"
           aria-label={`Mudar a descrição de ${anexo.nome}`}
-          onClick={() => {
-            setTexto(anexo.descricao ?? "");
-            setEditando(true);
-          }}
+          onClick={abrirEdicao}
           className="text-texto-2 hover:text-tinta"
         >
           <Pencil className="size-3" />

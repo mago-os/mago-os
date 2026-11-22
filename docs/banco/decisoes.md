@@ -335,5 +335,5 @@ O login (`mago_acesso`) não lê papéis nem as regras da plataforma direto. As 
 
 ## 46. Descrição e canal do anexo (22/11/2026, M5-03b)
 
-- `anexos.descricao` (opcional, até 500 caracteres) diz o que é o arquivo ([decisão 0036](../decisoes/0036-descricao-do-anexo.md)); a API só pode mudar essa coluna, além das da M3-08. `anexos.canal` diz se o anexo entrou pelo app ou pelo Telegram (os que vieram do Telegram antes da migração foram acertados por `arquivos_do_telegram`).
+- `anexos.descricao` (opcional, até 500 caracteres) diz o que é o arquivo ([decisão 0036](../decisoes/0036-descricao-do-anexo.md)); a API só pode mudar essa coluna, além das da M3-08. `anexos.canal` diz se o anexo entrou pelo app ou pelo Telegram (os que vieram do Telegram antes da migração foram acertados por `arquivos_do_telegram`). `anexos.descrito_por_pessoa_id` guarda quem escreveu a descrição, que para os agentes conta como texto de outros quando não é de quem pediu.
 - Índices de trigramas no nome e na descrição, para o Ctrl+K achar anexos.

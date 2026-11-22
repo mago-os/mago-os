@@ -144,17 +144,20 @@ export async function criarAnexo(
   return paraAnexo(r.rows[0] as LinhaDoAnexo);
 }
 
-/** Escreve, troca ou tira (nulo) a descrição do anexo (M5-03b). */
+/** Escreve, troca ou tira (nulo) a descrição do anexo (M5-03b), guardando quem escreveu. Devolve o anexo. */
 export async function descreverAnexo(
   c: pg.PoolClient,
   anexoId: string,
   descricao: string | null,
-): Promise<void> {
+  pessoaId: string,
+): Promise<AnexoComCaminho | null> {
   const limpa = descricao?.trim() || null;
-  await c.query("update anexos set descricao = $2 where id = $1 and empresa_id = empresa_ativa()", [
-    anexoId,
-    limpa ? limpa.slice(0, MAXIMO_DA_DESCRICAO_DO_ANEXO) : null,
-  ]);
+  const r = await c.query<LinhaDoAnexo>(
+    `update anexos set descricao = $2, descrito_por_pessoa_id = case when $2::text is null then null else $3::uuid end
+      where id = $1 and empresa_id = empresa_ativa() returning ${COLUNAS}`,
+    [anexoId, limpa ? limpa.slice(0, MAXIMO_DA_DESCRICAO_DO_ANEXO) : null, pessoaId],
+  );
+  return r.rows[0] ? paraAnexo(r.rows[0]) : null;
 }
 
 /** O arquivo chegou inteiro: vai para o antivírus. */

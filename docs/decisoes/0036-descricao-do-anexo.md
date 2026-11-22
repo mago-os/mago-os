@@ -16,6 +16,13 @@ Depois de testar a M5-03, o Sandro perguntou se o anexo não deveria ter uma des
 4. **Por onde entrou:** o anexo guarda o canal (app ou telegram). A tela mostra "22/11 às 19:32, por Sandro, pelo Telegram".
 5. **Busca:** o Ctrl+K passa a achar anexos pelo nome e pela descrição (grupo novo "Anexos"), só dos disponíveis e das tarefas que a pessoa vê. O agente vê a descrição junto com o nome (ver_tarefa e o MCP).
 
+## Detalhes acertados na implementação
+
+- **Quem escreveu a descrição** fica guardado (`descrito_por_pessoa_id`). Para os agentes, a descrição escrita por outra pessoa conta como texto de outros (M4-04), como o comentário: depois de ler, o que muda dados pede aprovação.
+- **O agente interno** vê no ver_tarefa o nome e a descrição de cada anexo; o externo, pelo MCP, recebe o anexo inteiro (com a descrição e o canal).
+- **Busca:** o trecho aparece só quando o achado foi na descrição, e a ordem pesa o nome e a descrição.
+- **Tela:** o ano aparece só quando não é o deste ano; pessoa pelo primeiro nome, agente pelo nome inteiro; quem edita a tarefa também descreve os anexos dos comentários.
+
 ## Consequências
 
 - Contratos: `descricao` e `canal` no `Anexo`, `PedidoDeDescricaoDoAnexo`, `descricao` no envio, `anexo` nos tipos da busca e o campo novo de `anexar_arquivo` (descrição congelada nova). A assinatura do `ver_tarefa` do MCP muda (o anexo traz a descrição e o canal).

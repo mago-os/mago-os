@@ -265,6 +265,9 @@ describe.skipIf(!bancoDisponivel)("anexos", () => {
     const ana = await como("ana@teste.invalid");
     const mudou = await pedir("POST", url, ana, { descricao: "Contrato DFO assinado em 22/11" });
     expect(mudou.json().anexo.descricao).toBe("Contrato DFO assinado em 22/11");
+    // Quem escreveu fica guardado: para os agentes, a descrição da Ana é texto de outros para o Fabio (M4-04).
+    const por = await dono.query("select descrito_por_pessoa_id from anexos where id = $1", [id]);
+    expect(por.rows[0]?.descrito_por_pessoa_id).toBe(ids.ana);
     expect((await pedir("POST", url, await como("otto@teste.invalid"), { descricao: "x" })).statusCode).toBe(
       404,
     );

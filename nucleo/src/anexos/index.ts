@@ -16,7 +16,7 @@ import { auditar } from "../auditoria/registrar.ts";
 import { comPessoa } from "../empresa.ts";
 import { filtroDoAlcance } from "../permissoes/calcular.ts";
 import { acessoDo, type Verificador } from "../permissoes/verificar.ts";
-import { buscarComentario, buscarTarefa, type Quem } from "../tarefas/servico.ts";
+import { buscarComentario, buscarTarefa, nomesCitados, type Quem } from "../tarefas/servico.ts";
 import { type DepositoEmDisco, disposicao, podeVerNaTela } from "./deposito.ts";
 import {
   buscarAnexo,
@@ -98,18 +98,14 @@ export function registrarRotasDosAnexos(app: FastifyInstance, o: OpcoesDosAnexos
       if (!quem || !(await buscarTarefa(c, quem, id))) return null;
       const lista = (await listarAnexos(c, id)).map(semCaminho);
       // O nome de quem enviou (M5-03b: "por Sandro, pelo Telegram").
-      const ids = [
-        ...new Set(lista.flatMap((a) => (a.enviadoPor.tipo === "pessoa" ? [a.enviadoPor.pessoaId] : []))),
-      ];
-      const agentes = [
-        ...new Set(lista.flatMap((a) => (a.enviadoPor.tipo === "agente" ? [a.enviadoPor.agenteId] : []))),
-      ];
-      const n = await c.query<{ id: string; nome: string }>(
-        `select id, nome from pessoas where id = any($1::uuid[])
-         union all select id, nome from agentes where empresa_id = empresa_ativa() and id = any($2::uuid[])`,
-        [ids, agentes],
+      const ids = lista.flatMap((a) =>
+        a.enviadoPor.tipo === "pessoa"
+          ? [a.enviadoPor.pessoaId]
+          : a.enviadoPor.tipo === "agente"
+            ? [a.enviadoPor.agenteId]
+            : [],
       );
-      return { anexos: lista, nomes: Object.fromEntries(n.rows.map((x) => [x.id, x.nome])) };
+      return { anexos: lista, nomes: await nomesCitados(c, ids) };
     });
     if (!anexos)
       return resposta.code(404).send({ code: "TAREFA_NAO_ENCONTRADA", message: "Tarefa não encontrada." });
@@ -230,16 +226,16 @@ export function registrarRotasDosAnexos(app: FastifyInstance, o: OpcoesDosAnexos
       if (!anexo) return null;
       const meu = anexo.enviadoPor.tipo === "pessoa" && anexo.enviadoPor.pessoaId === sessao.pessoa.id;
       if (!meu && !(quemEdita && (await buscarTarefa(c, quemEdita, id)))) return { recusa: true as const };
-      await descreverAnexo(c, anexo.id, r.valor.descricao);
-      return { anexo: await buscarAnexo(c, id, anexoId) };
+      return { anexo: await descreverAnexo(c, anexo.id, r.valor.descricao, sessao.pessoa.id) };
     });
-    if (!feito?.anexo && !(feito && "recusa" in feito)) return naoEncontrado(resposta);
+    if (!feito) return naoEncontrado(resposta);
     if ("recusa" in feito)
       return resposta
         .code(403)
         .send({ code: "SEM_PERMISSAO", message: "Só quem enviou ou quem edita a tarefa muda a descrição." });
+    if (!feito.anexo) return naoEncontrado(resposta);
     await registrar(pedido, "anexo.descreveu", id, { anexoId, tirou: r.valor.descricao === null });
-    return { anexo: semCaminho(feito.anexo as NonNullable<typeof feito.anexo>) };
+    return { anexo: semCaminho(feito.anexo) };
   });
 
   app.delete("/tarefas/:id/anexos/:anexoId", ver, async (pedido, resposta) => {

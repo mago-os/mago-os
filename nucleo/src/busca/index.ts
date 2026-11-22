@@ -121,18 +121,22 @@ export async function buscar(
          from anexos x join tarefas t on t.id = x.tarefa_id and t.empresa_id = x.empresa_id
         where x.empresa_id = empresa_ativa() and x.situacao = 'disponivel' and ${alcance.sql}
           and (${acha("x.nome")} or para_busca(x.descricao) like ${CONTEM})
-        order by ${nota("x.nome")} desc, x.enviado_em desc
+        order by greatest(${nota("x.nome")}, case when para_busca(x.descricao) like ${CONTEM} then 1 else 0 end) desc,
+                 x.enviado_em desc
         limit ${RESULTADOS_POR_TIPO}`,
       [bruto, ...alcance.valores],
     );
-    for (const x of r.rows)
+    for (const x of r.rows) {
+      // O trecho só quando o achado foi na descrição (no nome, o título já mostra).
+      const naDescricao = x.descricao && !paraBusca(x.nome).includes(q) && paraBusca(x.descricao).includes(q);
       resultados.push({
         tipo: "anexo",
         id: x.id,
         titulo: x.nome,
-        trecho: x.descricao ? trecho(x.descricao, texto) : null,
+        trecho: naDescricao && x.descricao ? trecho(x.descricao, texto) : null,
         link: `/tarefas/${x.tarefa_id}`,
       });
+    }
   }
 
   if (onde.projetos && quer("projeto")) {

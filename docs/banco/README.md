@@ -75,6 +75,7 @@ erDiagram
     text achado_do_antivirus
     text descricao
     text canal
+    uuid descrito_por_pessoa_id
   }
   aprovacoes {
     uuid id PK
@@ -942,6 +943,7 @@ Isolamento por empresa (Row Level Security): ligado e forçado.
 | achado_do_antivirus | text | não |  | sistema | O que o antivírus achou, quando bloqueou (nome da ameaça). |
 | descricao | text | não |  | empresa | O que é o arquivo, numa frase (opcional). |
 | canal | text | sim | `'app'::text` | sistema | Por onde o anexo entrou: app ou telegram. |
+| descrito_por_pessoa_id | uuid | não |  | sistema | Quem escreveu a descrição por último (vazio: quem enviou, ou o agente que anexou). Conta como texto de outros. |
 
 ### aprovacoes
 

@@ -490,7 +490,10 @@ async function executarSemMarca(
             responsavel: s.responsavel,
           })),
           checklist: await listarChecklist(c, tarefa.id),
-          anexos: (await listarAnexos(c, tarefa.id, true)).map((a) => a.nome),
+          // M5-03b: o nome e, quando há, a descrição (o conteúdo do arquivo nunca vai ao agente).
+          anexos: (await listarAnexos(c, tarefa.id, true)).map((a) =>
+            a.descricao ? { nome: a.nome, descricao: a.descricao } : a.nome,
+          ),
           nomes,
         };
       });
