@@ -3,7 +3,8 @@
 --    que já existem não vão.
 -- 2. vinculos_do_telegram.resumo_do_dia_em: o último dia (no fuso da pessoa) em que o resumo foi.
 -- 3. marcar_resumo_do_dia_no_telegram(): a verificação do sistema marca o dia (a política do vínculo é da pessoa).
--- 4. empresas_com_telegram_pendente() acha também os avisos esperando e os resumos do dia por mandar.
+-- 4. empresas_com_telegram_pendente() acha também os avisos esperando; empresas_com_telegram() dá a lista para o
+--    resumo do dia, num laço próprio.
 -- Explicado em docs/banco/decisoes.md, seção 47.
 
 -- Up Migration
@@ -23,10 +24,18 @@ CREATE FUNCTION public.marcar_resumo_do_dia_no_telegram(pessoa uuid, dia date) R
   LANGUAGE sql SECURITY DEFINER SET search_path = public, pg_temp
   AS $$
     UPDATE public.vinculos_do_telegram SET resumo_do_dia_em = dia
-     WHERE empresa_id = public.empresa_ativa() AND pessoa_id = pessoa
+     WHERE empresa_id = public.empresa_ativa() AND pessoa_id = pessoa AND public.pessoa_ativa() IS NULL
   $$;
 COMMENT ON FUNCTION public.marcar_resumo_do_dia_no_telegram(uuid, date) IS
-  'Marca o dia em que o resumo do dia foi pelo Telegram (na empresa ativa).';
+  'Marca o dia em que o resumo do dia foi pelo Telegram (na empresa ativa). Só o sistema (sem pessoa no pedido).';
+
+-- As empresas com alguém no Telegram (só ids), para a verificação do resumo do dia.
+CREATE FUNCTION public.empresas_com_telegram() RETURNS TABLE (empresa_id uuid)
+  LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public, pg_temp
+  AS $$ SELECT DISTINCT t.empresa_id FROM public.vinculos_do_telegram t $$;
+COMMENT ON FUNCTION public.empresas_com_telegram() IS 'Empresas com pelo menos um Telegram vinculado. Só ids.';
+REVOKE EXECUTE ON FUNCTION public.empresas_com_telegram() FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.empresas_com_telegram() TO mago_app;
 REVOKE EXECUTE ON FUNCTION public.marcar_resumo_do_dia_no_telegram(uuid, date) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.marcar_resumo_do_dia_no_telegram(uuid, date) TO mago_app;
 
@@ -63,10 +72,6 @@ CREATE OR REPLACE FUNCTION public.empresas_com_telegram_pendente() RETURNS TABLE
      WHERE n.mensagem_id IS NULL AND n.enviada_em < now() - interval '5 minutes'
     UNION
     SELECT a.empresa_id FROM public.avisos a WHERE a.telegram_pendente
-    UNION
-    SELECT t.empresa_id FROM public.vinculos_do_telegram t JOIN public.pessoas s ON s.id = t.pessoa_id
-     WHERE t.resumo_do_dia_em IS DISTINCT FROM (now() AT TIME ZONE coalesce(
-             (SELECT z.name FROM pg_timezone_names z WHERE z.name = s.fuso_horario), 'UTC'))::date
     LIMIT 100
   $$;
 
@@ -105,6 +110,7 @@ CREATE OR REPLACE FUNCTION public.empresas_com_telegram_pendente() RETURNS TABLE
      WHERE n.mensagem_id IS NULL AND n.enviada_em < now() - interval '5 minutes'
     LIMIT 100
   $$;
+DROP FUNCTION public.empresas_com_telegram();
 DROP FUNCTION public.marcar_resumo_do_dia_no_telegram(uuid, date);
 ALTER TABLE public.vinculos_do_telegram DROP COLUMN resumo_do_dia_em;
 DROP INDEX public.avisos_para_o_telegram;

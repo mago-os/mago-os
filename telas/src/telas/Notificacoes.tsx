@@ -123,8 +123,16 @@ export function Notificacoes() {
 
   // Os padrões vêm do contrato (no Telegram, por padrão, só o urgente; M5-08).
   const canais = (t: TipoDeAviso) => canaisDoTipo(prefs, t);
-  const mudar = (t: TipoDeAviso, canal: "tela" | "push" | "telegram", valor: boolean) =>
-    void salvar({ ...prefs, porTipo: { ...prefs.porTipo, [t]: { ...canais(t), [canal]: valor } } });
+  // Grava só o que a pessoa mudou: o Telegram sem escolha continua seguindo o padrão do tipo.
+  const mudar = (t: TipoDeAviso, canal: "tela" | "push" | "telegram", valor: boolean) => {
+    const atual = prefs.porTipo[t];
+    const base = {
+      tela: atual?.tela ?? true,
+      push: atual?.push ?? true,
+      ...(atual?.telegram !== undefined ? { telegram: atual.telegram } : {}),
+    };
+    void salvar({ ...prefs, porTipo: { ...prefs.porTipo, [t]: { ...base, [canal]: valor } } });
+  };
   const resumo = horaDoResumo(prefs);
 
   return (

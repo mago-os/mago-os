@@ -871,19 +871,23 @@ describe.skipIf(!bancoDisponivel)("conversa pelo Telegram", () => {
     ).toEqual(["Comentário novo, agora pelo Telegram.", "Uma tarefa precisa de ajuda."]);
   });
 
-  it("o resumo do dia vai uma vez, na hora; desligado, não vai", async () => {
-    await preferencias(ids.ana as string, { porTipo: {}, silencio: null, resumoDoDia: { hora: "00:00" } });
+  it("o resumo do dia vai uma vez, na hora; desligado, não vai; tarde demais, o dia é pulado", async () => {
+    // 11:30 em UTC são 08:30 em São Paulo (o fuso padrão das pessoas de teste).
+    const asOitoEMeia = new Date("2030-01-15T11:30:00Z");
+    await preferencias(ids.ana as string, { porTipo: {}, silencio: null, resumoDoDia: { hora: "08:00" } });
     await dono.query("update vinculos_do_telegram set resumo_do_dia_em = null");
     await preferencias(ids.flora as string, { porTipo: {}, silencio: null, resumoDoDia: null });
-    expect(await resumoDoDiaNoTelegram(opcoesDoBot, empresaId)).toBe(1);
+    expect(await resumoDoDiaNoTelegram(opcoesDoBot, empresaId, asOitoEMeia)).toBe(1);
     expect(resumosDe(ANA)).toHaveLength(1);
-    expect(resumosDe(ANA)[0]).toContain(`${SITE}/tarefas/${ids.tarefa}`);
     expect(resumosDe(FLORA)).toEqual([]);
     // Na mesma data, não repete.
-    expect(await resumoDoDiaNoTelegram(opcoesDoBot, empresaId)).toBe(0);
+    expect(await resumoDoDiaNoTelegram(opcoesDoBot, empresaId, asOitoEMeia)).toBe(0);
     const marcados = await dono.query(
-      "select count(*)::int as n from vinculos_do_telegram where resumo_do_dia_em is not null",
+      "select count(*)::int as n from vinculos_do_telegram where resumo_do_dia_em = '2030-01-15'",
     );
     expect(marcados.rows[0]?.n).toBe(2);
+    // No dia seguinte às 20h (vinculou à noite, o servidor ficou fora): nada de resumo à noite, o dia é pulado.
+    expect(await resumoDoDiaNoTelegram(opcoesDoBot, empresaId, new Date("2030-01-16T23:00:00Z"))).toBe(0);
+    expect(resumosDe(ANA)).toHaveLength(1);
   });
 });

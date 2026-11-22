@@ -97,10 +97,12 @@ export function canaisDoTipo(p: PreferenciasDeNotificacao, tipo: TipoDeAviso): R
   const escolhido = p.porTipo[tipo];
   const foraDoTelegram = (AVISOS_FORA_DO_TELEGRAM as readonly string[]).includes(tipo);
   const urgente = (AVISOS_URGENTES_NO_TELEGRAM as readonly string[]).includes(tipo);
+  // Quem desligou o sino e o push de um tipo antes de existir o Telegram não quer o tipo em lugar nenhum.
+  const desligouTudo = escolhido?.tela === false && escolhido?.push === false;
   return {
     tela: escolhido?.tela ?? true,
     push: escolhido?.push ?? true,
-    telegram: !foraDoTelegram && (escolhido?.telegram ?? urgente),
+    telegram: !foraDoTelegram && (escolhido?.telegram ?? (urgente && !desligouTudo)),
   };
 }
 

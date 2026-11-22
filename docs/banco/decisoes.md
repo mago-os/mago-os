@@ -342,4 +342,4 @@ O login (`mago_acesso`) não lê papéis nem as regras da plataforma direto. As 
 
 - `avisos.telegram_pendente` marca o aviso novo para a verificação do Telegram ([decisão 0037](../decisoes/0037-avisos-e-resumo-pelo-telegram.md)): o padrão da coluna é verdadeiro só para os avisos criados depois da migração (os antigos não vão). A verificação confere o tipo nas preferências, o vínculo do Telegram na empresa e o silêncio, desmarca e só então manda; depois de 12 horas, desiste.
 - `vinculos_do_telegram.resumo_do_dia_em` guarda o último dia (no fuso da pessoa) em que o resumo foi, ou foi pulado por estar desligado. A verificação do sistema não tem pessoa no pedido, e a política do vínculo é da pessoa: por isso marca pelo `marcar_resumo_do_dia_no_telegram()`.
-- `empresas_com_telegram_pendente()` acha também os avisos esperando e as pessoas cujo resumo do dia ainda não foi hoje (o fuso inválido vira UTC).
+- `empresas_com_telegram_pendente()` acha também os avisos esperando; o resumo do dia percorre `empresas_com_telegram()`, num laço próprio. `marcar_resumo_do_dia_no_telegram()` só funciona sem pessoa no pedido (a verificação do sistema).

@@ -53,6 +53,12 @@ describe("avisos pelo Telegram (M5-08)", () => {
     ).toEqual({ tela: true, push: false, telegram: true });
   });
 
+  it("quem desligou o sino e o push de um tipo antes do Telegram não recebe por ele", () => {
+    expect(
+      canaisDoTipo({ porTipo: { mencao: { tela: false, push: false } }, silencio: null }, "mencao").telegram,
+    ).toBe(false);
+  });
+
   it("o resumo do dia: ligado às 8h por padrão, na hora escolhida, ou desligado", () => {
     expect(horaDoResumo(sem)).toBe("08:00");
     expect(horaDoResumo({ ...sem, resumoDoDia: { hora: "07:30" } })).toBe("07:30");

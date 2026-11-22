@@ -23,6 +23,10 @@ Os avisos (M3-06) chegam no sino e no push. O plano pede que o urgente também c
 - **Avisos antigos não vão:** só os criados depois da M5-08 ficam marcados para o Telegram.
 - **Marca antes de mandar,** como o push: um aviso que falhar no Telegram não é repetido (fica no sino e no push).
 - **Resumo desligado ou mandado** marca o dia; antes da hora ou no silêncio, espera a próxima verificação. O texto diz "Resumo do dia" (a hora é escolhida pela pessoa, então não diz "bom dia").
+- **Janela de 2 horas:** depois da hora escolhida, o resumo ainda vai por 2 horas; mais tarde (vinculou à noite, o servidor ficou fora), o dia é pulado, para nunca chegar resumo de madrugada.
+- **A mesma lista da central:** o resumo é montado no contexto da própria pessoa, com o que ela adiou ou resolveu, e uma verificação por vez por empresa (nada vai duas vezes).
+- **Laço próprio:** o resumo percorre as empresas com alguém no Telegram (`empresas_com_telegram()`), separado das pendências do Telegram, para não tirar lugar delas.
+- **Preferência antiga:** quem já tinha desligado o sino e o push de um tipo não recebe esse tipo pelo Telegram.
 - **Tela:** a coluna Telegram mostra um traço nos tipos que nunca vão por lá; o resumo do dia tem a caixa de ligar e a hora.
 
 ## O que foi descartado

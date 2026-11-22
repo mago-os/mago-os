@@ -195,15 +195,23 @@ async function mandarPrioridades(
     await o.carteiro.enviar(chatId, RESPOSTAS_DO_TELEGRAM.semPrioridades);
     return;
   }
+  for (const parte of partesDoTexto(`Prioridades de hoje:\n\n${textoDasPrioridades(itens, conv.urlPublica)}`))
+    await o.carteiro.enviar(chatId, parte);
+}
+
+/** As prioridades como vão pelo Telegram (no /tarefas e no resumo do dia): as 10 primeiras, cada uma com o link. */
+export function textoDasPrioridades(
+  itens: { titulo: string; motivo: string; link: string }[],
+  urlPublica: string,
+): string {
   const linhas = itens
     .slice(0, MAXIMO_DE_PRIORIDADES_NO_TELEGRAM)
-    .map((i, n) => `${n + 1}. ${i.titulo}\n${i.motivo}\n${conv.urlPublica}${i.link}`);
+    .map((i, n) => `${n + 1}. ${i.titulo}\n${i.motivo}\n${urlPublica}${i.link}`);
   const mais =
     itens.length > MAXIMO_DE_PRIORIDADES_NO_TELEGRAM
       ? `\n\nE mais ${itens.length - MAXIMO_DE_PRIORIDADES_NO_TELEGRAM} no app.`
       : "";
-  for (const parte of partesDoTexto(`Prioridades de hoje:\n\n${linhas.join("\n\n")}${mais}`))
-    await o.carteiro.enviar(chatId, parte);
+  return `${linhas.join("\n\n")}${mais}`;
 }
 
 /**
@@ -293,18 +301,23 @@ export async function entregarPendentesNoTelegram(
     await cuidarDasAprovacoesNoTelegram(o, e.empresa_id).catch((erro) =>
       o.log.error({ erro, empresaId: e.empresa_id }, "Telegram: cuidar das aprovações da empresa falhou"),
     );
-    // Avisos e resumo do dia (M5-08).
+    // Avisos (M5-08).
     await avisarNoTelegram(o, e.empresa_id).catch((erro) =>
       o.log.error({ erro, empresaId: e.empresa_id }, "Telegram: os avisos da empresa falharam"),
-    );
-    await resumoDoDiaNoTelegram(o, e.empresa_id).catch((erro) =>
-      o.log.error({ erro, empresaId: e.empresa_id }, "Telegram: o resumo do dia da empresa falhou"),
     );
     // Arquivos (M5-03): os vencidos e os bloqueios pelo antivírus a avisar.
     await cuidarDosArquivosDoTelegram(o, e.empresa_id).catch((erro) =>
       o.log.error({ erro, empresaId: e.empresa_id }, "Telegram: cuidar dos arquivos da empresa falhou"),
     );
   }
+  // O resumo do dia (M5-08), num laço próprio: as empresas com alguém no Telegram, sem tirar lugar das pendências.
+  const comTelegram = await o.poolApp.query<{ empresa_id: string }>(
+    "select empresa_id from empresas_com_telegram()",
+  );
+  for (const e of comTelegram.rows)
+    await resumoDoDiaNoTelegram(o, e.empresa_id).catch((erro) =>
+      o.log.error({ erro, empresaId: e.empresa_id }, "Telegram: o resumo do dia da empresa falhou"),
+    );
   return total;
 }
 
