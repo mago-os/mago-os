@@ -788,7 +788,10 @@ export function PaginaDaTarefa({
         aoMudar={() => void anexosDaTarefa.recarregar()}
       />
 
-      <ExecucoesDaTarefa tarefaId={tarefa.id} />
+      <ExecucoesDaTarefa
+        tarefaId={tarefa.id}
+        comAgente={tarefa.responsavel?.tipo === "agente" || tarefa.trava?.por.tipo === "agente"}
+      />
 
       <LinhaDoTempo
         anexos={anexosDaTarefa.anexos}

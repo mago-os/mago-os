@@ -55,6 +55,22 @@ test.describe("passo a passo", () => {
     // Uma execução do Gerente numa tarefa, com dois passos e o custo, direto no banco (o motor grava assim).
     const tarefa = await page.request.post("/api/tarefas", { data: { titulo: "Planejar o lançamento" } });
     const tarefaId = (await tarefa.json()).id as string;
+    // Tarefa só de pessoas: o quadro não aparece.
+    await page.goto(`/tarefas/${tarefaId}`);
+    await expect(page.getByRole("heading", { name: "Planejar o lançamento" })).toBeVisible();
+    await expect(page.getByText("Execuções de agentes")).toHaveCount(0);
+    // Com um agente e sem execução ainda: o quadro aparece, dizendo que ainda não rodou.
+    const c0 = new pg.Client({ connectionString: BANCO_DONO });
+    await c0.connect();
+    await c0.query(
+      `update tarefas set responsavel_pessoa_id = null,
+              responsavel_agente_id = (select id from agentes where empresa_id = $1 and papel = 'especialista')
+        where id = $2`,
+      [admin.empresaId, tarefaId],
+    );
+    await c0.end();
+    await page.reload();
+    await expect(page.getByText(/Ainda não rodou/)).toBeVisible();
     const c = new pg.Client({ connectionString: BANCO_DONO });
     await c.connect();
     const e = await c.query<{ id: string; agente_id: string; pedido_por: string }>(
