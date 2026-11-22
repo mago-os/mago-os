@@ -614,7 +614,29 @@ async function rodar(o: OpcoesDoMotor, empresaId: string, execucaoId: string): P
         });
       } catch (erro) {
         if (erro instanceof LimiteDaExecucao) throw erro;
-        if (erro instanceof ErroDoModelo && erro.tokens)
+        if (parouNoMeio) throw parouNoMeio;
+        // O limite de rodadas e o de tempo, pelo Claude Code, também param como limite (M4-08).
+        if (erro instanceof ErroDoModelo && !fim) {
+          if (erro.tokens)
+            await passo({
+              tipo: "modelo",
+              modelo: m.modelo,
+              texto: erro.message,
+              consumoId: await guardarConsumo(m, erro.tokens),
+              duracaoMs: Date.now() - inicio,
+            });
+          if (/limite de rodadas/.test(erro.message))
+            throw new LimiteDaExecucao(
+              `Passou do limite de ${limites.rodadas} rodadas da execução.`,
+              "rodadas",
+            );
+          if (/tempo máximo/.test(erro.message))
+            throw new LimiteDaExecucao(
+              `Passou do tempo máximo da execução (${Math.round(limites.tempoMs / 60_000)} minutos).`,
+              "tempo",
+            );
+        }
+        if (erro instanceof ErroDoModelo && erro.tokens && fim)
           await passo({
             tipo: "modelo",
             modelo: m.modelo,
@@ -683,7 +705,15 @@ async function rodar(o: OpcoesDoMotor, empresaId: string, execucaoId: string): P
               },
             ),
           );
-          if (agora.parar) throw new LimiteDaExecucao(`Parou no meio: ${agora.parar}.`, "teto");
+          if (!("usarReserva" in agora) || agora.parar)
+            throw new LimiteDaExecucao(`Parou no meio: ${agora.parar}.`, "teto");
+          // A conta principal chegou ao limite no meio: segue pelo reserva; a do reserva chegou: sem reserva.
+          if (agora.usarReserva && modelosDoAgenteAtual.reserva) {
+            modelosDoAgenteAtual = { principal: modelosDoAgenteAtual.reserva, reserva: null };
+            reserva = reserva ?? agora.usarReserva;
+            await passo({ tipo: "sistema", texto: `Passou ao modelo reserva: ${agora.usarReserva}.` });
+          } else if (agora.semReserva && modelosDoAgenteAtual.reserva)
+            modelosDoAgenteAtual = { principal: modelosDoAgenteAtual.principal, reserva: null };
         }
         if (Date.now() - inicio > limites.tempoMs)
           throw new LimiteDaExecucao(
@@ -862,19 +892,20 @@ async function rodar(o: OpcoesDoMotor, empresaId: string, execucaoId: string): P
         o.log,
       );
     }
-    await auditar(
-      o.poolApp,
-      {
-        empresaId,
-        ator: { tipo: "agente", agenteId: agente.id },
-        acao: "agente.falhou",
-        alvo: { tipo: "agente", id: agente.id },
-        origem: o.opcoesMcp.origem,
-        rastreio: null,
-        detalhes: { execucaoId, motivo: texto.slice(0, 300) },
-      },
-      o.log,
-    );
+    if (!(erro instanceof LimiteDaExecucao))
+      await auditar(
+        o.poolApp,
+        {
+          empresaId,
+          ator: { tipo: "agente", agenteId: agente.id },
+          acao: "agente.falhou",
+          alvo: { tipo: "agente", id: agente.id },
+          origem: o.opcoesMcp.origem,
+          rastreio: null,
+          detalhes: { execucaoId, motivo: texto.slice(0, 300) },
+        },
+        o.log,
+      );
   } finally {
     if (pegou && execucao.tarefaId) {
       const tarefaId = execucao.tarefaId;
@@ -882,14 +913,7 @@ async function rodar(o: OpcoesDoMotor, empresaId: string, execucaoId: string): P
         const t = await buscarTarefa(c, { tipo: "agente", agenteId: agente.id, comoGerente: true }, tarefaId);
         if (t?.trava?.por.tipo !== "agente" || t.trava.por.agenteId !== agente.id) return;
         // Parado pelo núcleo, a tarefa já foi para "precisa de ajuda": solta sem voltar o status para "a fazer".
-        if (t.status === "precisa_de_ajuda")
-          await c.query(
-            `update tarefas set travada_por_pessoa_id = null, travada_por_agente_id = null, travada_em = null,
-                    atualizada_em = now()
-              where id = $1 and empresa_id = empresa_ativa()`,
-            [tarefaId],
-          );
-        else await tirarTrava(c, tarefaId);
+        await tirarTrava(c, tarefaId, { manterStatus: t.status === "precisa_de_ajuda" });
       }).catch((erro) => o.log.error({ erro, execucaoId }, "Agente interno: não soltou a tarefa"));
     }
   }
@@ -934,8 +958,9 @@ async function textoDeOutrosNoComeco(
 }
 
 /**
- * Vai e volta (M4-08): as últimas execuções da tarefa (sem as de conversa), nas últimas 24 horas, alternam entre os
- * mesmos dois agentes por PASSADAS_PARA_PARAR passadas (contando esta).
+ * Vai e volta (M4-08): a corrente de passadas (cada execução criada pela anterior, por delegação ou atribuição de um
+ * agente) da tarefa, nas últimas 24 horas, alterna entre os mesmos dois agentes por PASSADAS_PARA_PARAR passadas.
+ * Duas execuções independentes do mesmo par (revisar e delegar de novo) não contam: só a tarefa passada de mão em mão.
  */
 async function vaiEVolta(
   o: OpcoesDoMotor,
@@ -944,17 +969,23 @@ async function vaiEVolta(
 ): Promise<boolean> {
   const r = await comEmpresa(o.poolApp, empresaId, (c) =>
     c.query<{ agente_id: string }>(
-      `select agente_id from execucoes_de_agente
-        where empresa_id = empresa_ativa() and tarefa_id = $1 and origem <> 'conversa'
-          and criada_em > now() - interval '24 hours' and criada_em <= (select criada_em from execucoes_de_agente where id = $2)
-        order by criada_em desc, id desc limit $3`,
-      [execucao.tarefaId, execucao.id, PASSADAS_PARA_PARAR + 1],
+      `with recursive corrente as (
+         select id, agente_id, execucao_mae_id, tarefa_id, criada_em, 1 as n from execucoes_de_agente
+          where id = $1 and empresa_id = empresa_ativa()
+         union all
+         select e.id, e.agente_id, e.execucao_mae_id, e.tarefa_id, e.criada_em, c.n + 1
+           from execucoes_de_agente e join corrente c on e.id = c.execucao_mae_id
+          where e.empresa_id = empresa_ativa() and e.tarefa_id = c.tarefa_id and e.criada_em > now() - interval '24 hours'
+            and c.n <= $2
+       )
+       select agente_id from corrente order by n`,
+      [execucao.id, PASSADAS_PARA_PARAR + 1],
     ),
   );
   const a = r.rows.map((l) => l.agente_id);
   if (a.length < PASSADAS_PARA_PARAR + 1) return false;
   const [x, y] = a;
-  return x !== y && a.every((id, i) => id === (i % 2 === 0 ? x : y));
+  return x !== y && a.slice(0, PASSADAS_PARA_PARAR + 1).every((id, i) => id === (i % 2 === 0 ? x : y));
 }
 
 /** Parou antes de começar (teto): a tarefa vai para "precisa de ajuda", com um comentário explicando. */

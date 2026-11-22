@@ -16,7 +16,8 @@ export async function entregarAoAgenteInterno(
   quemAtribuiu: Autor,
   tarefaId: string,
   acordar?: (empresaId: string, execucaoId: string) => void,
-  opcoes: { leuTextoDeOutros?: boolean } = {},
+  /** execucaoMaeId: a execução do agente interno que passou a tarefa (para a detecção de vai e volta, M4-08). */
+  opcoes: { leuTextoDeOutros?: boolean; execucaoMaeId?: string | null } = {},
 ): Promise<string | null> {
   const id = await comEmpresa(poolApp, empresaId, async (c) => {
     // Duas atribuições ao mesmo tempo não criam duas execuções.
@@ -51,6 +52,7 @@ export async function entregarAoAgenteInterno(
       origem: "tarefa",
       tarefaId,
       leuTextoDeOutros: opcoes.leuTextoDeOutros ?? false,
+      execucaoMaeId: opcoes.execucaoMaeId ?? null,
     });
     return agente.situacao === "ativo" ? e.id : null;
   });

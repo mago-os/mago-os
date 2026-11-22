@@ -21,6 +21,15 @@ Desde a M4-02, cada execução tem um limite fixo de 30 rodadas e 10 minutos. A 
 5. **Teto a cada rodada:** a M4-06 confere o teto só antes de começar e deixou para cá a conferência no meio. Recomendo conferir o teto da empresa e do agente também antes de cada rodada (pela API); pelo Claude Code, que roda tudo de uma vez, continua só no começo.
 6. **Agentes externos:** rodam na máquina deles, então os limites e a detecção não se aplicam a eles.
 
+## Detalhes acertados na implementação
+
+- **Vai e volta pela corrente de passadas:** conta só a mesma tarefa passando de um agente interno para outro (cada execução guarda de qual execução veio). Duas execuções soltas do mesmo par, como uma pessoa atribuindo de novo, não contam.
+- **Repetição:** os parâmetros são comparados em JSON com as chaves em ordem, então a mesma chamada com os campos trocados de lugar conta como repetida.
+- **Pelo Claude Code:** o limite de rodadas e de tempo também vale; ao passar, a execução para do mesmo jeito (tarefa em "precisa de ajuda" e aviso ao responsável). A repetição é conferida a cada ferramenta que ele chama.
+- **Teto no meio:** se o teto acabar e houver modelo reserva, a execução segue nele; sem reserva, para.
+- **A tarefa fica em "precisa de ajuda"** depois que a execução termina (a trava sai sem voltar a tarefa para "a fazer").
+- **Na tela:** um número igual ao padrão é guardado como padrão; se o padrão mudar um dia, o agente acompanha.
+
 ## Consequências
 
 - Contrato novo em `contratos/src/agentes/limites.ts`.

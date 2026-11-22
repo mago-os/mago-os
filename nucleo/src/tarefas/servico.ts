@@ -732,12 +732,17 @@ export async function pegarTarefa(c: pg.PoolClient, quem: Quem, tarefaId: string
 }
 
 /** Soltar (quem pegou) ou destravar (administrador): volta para A fazer, sem trava e sem resultado. */
-export async function tirarTrava(c: pg.PoolClient, tarefaId: string): Promise<Tarefa> {
+/** Solta a tarefa (volta para "a fazer"; com manterStatus, o status fica, como no "precisa de ajuda" da M4-08). */
+export async function tirarTrava(
+  c: pg.PoolClient,
+  tarefaId: string,
+  opcoes: { manterStatus?: boolean } = {},
+): Promise<Tarefa> {
   const r = await c.query<LinhaDaTarefa>(
-    `update tarefas t set status = 'a_fazer', travada_por_pessoa_id = null, travada_por_agente_id = null,
-            travada_em = null, atualizada_em = now()
+    `update tarefas t set status = case when $2 then t.status else 'a_fazer' end, travada_por_pessoa_id = null,
+            travada_por_agente_id = null, travada_em = null, atualizada_em = now()
       where t.id = $1 and t.empresa_id = empresa_ativa() returning ${COLUNAS}`,
-    [tarefaId],
+    [tarefaId, opcoes.manterStatus ?? false],
   );
   return linhaParaTarefa(r.rows[0] as LinhaDaTarefa);
 }

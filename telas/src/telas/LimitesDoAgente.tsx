@@ -34,9 +34,16 @@ export function LimitesDoAgente({ agenteId, podeEditar }: { agenteId: string; po
     const r = await pedir<Limites>(
       "POST",
       caminho,
-      padrao ? { rodadas: null, minutos: null } : { rodadas: Number(rodadas), minutos: Number(minutos) },
+      padrao
+        ? { rodadas: null, minutos: null }
+        : {
+            // O valor igual ao padrão fica como padrão (se o padrão mudar um dia, o agente acompanha).
+            rodadas: Number(rodadas) === LIMITE_PADRAO_DE_RODADAS ? null : Number(rodadas),
+            minutos: Number(minutos) === LIMITE_PADRAO_DE_MINUTOS ? null : Number(minutos),
+          },
     );
-    if (!r.ok || !r.dados) return setMensagem({ tipo: "erro", texto: r.mensagem ?? "" });
+    if (!r.ok || !r.dados)
+      return setMensagem({ tipo: "erro", texto: r.mensagem || "Confira os números e tente de novo." });
     mostrar(r.dados);
     setMensagem({ tipo: "ok", texto: padrao ? "Limites de volta ao padrão." : "Limites salvos." });
   }
@@ -63,6 +70,7 @@ export function LimitesDoAgente({ agenteId, podeEditar }: { agenteId: string; po
             Rodadas
             <input
               type="number"
+              required
               min={1}
               max={MAXIMO_DE_RODADAS}
               value={rodadas}
@@ -74,6 +82,7 @@ export function LimitesDoAgente({ agenteId, podeEditar }: { agenteId: string; po
             Minutos
             <input
               type="number"
+              required
               min={1}
               max={MAXIMO_DE_MINUTOS}
               value={minutos}

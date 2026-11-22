@@ -1655,22 +1655,32 @@ describe.skipIf(!bancoDisponivel)("agentes internos", () => {
     expect((await execucaoDa(cara))?.resumo).toContain("Parou no meio");
     await pedir("POST", `/custos/tetos/agente/${ids.gerente}`, ana, { teto: null });
 
-    // Vai e volta: Gerente, Coordenador, Gerente e de novo o Gerente recebendo a mesma tarefa: não começa.
+    // Vai e volta: Coordenador passa ao Gerente, que passa ao Coordenador, que passa de novo ao Gerente (uma corrente
+    // de passadas): o Gerente não começa. Duas execuções soltas do mesmo par não contam.
     const bola = await novaTarefa("Tarefa pingue-pongue");
+    let mae: string | null = null;
     for (const [agente, minutos] of [
       [ids.coordenador, 30],
       [ids.gerente, 20],
       [ids.coordenador, 10],
-    ] as const)
-      await dono.query(
-        `insert into execucoes_de_agente (empresa_id, agente_id, pedido_por, origem, tarefa_id, situacao, iniciada_em,
-           terminada_em, criada_em)
-         values ($1, $2, $3, 'tarefa', $4, 'concluida', now() - make_interval(mins => $5), now() - make_interval(mins => $5),
-                 now() - make_interval(mins => $5))`,
-        [empresaId, agente, ids.ana, bola, minutos],
+    ] as const) {
+      const r: { rows: { id: string }[] } = await dono.query<{ id: string }>(
+        `insert into execucoes_de_agente (empresa_id, agente_id, pedido_por, origem, tarefa_id, execucao_mae_id, situacao,
+           iniciada_em, terminada_em, criada_em)
+         values ($1, $2, $3, $4, $5, $6, 'concluida', now() - make_interval(mins => $7), now() - make_interval(mins => $7),
+                 now() - make_interval(mins => $7))
+         returning id`,
+        [empresaId, agente, ids.ana, mae ? "delegacao" : "tarefa", bola, mae, minutos],
       );
+      mae = r.rows[0]?.id ?? null;
+    }
+    const quarta = await dono.query<{ id: string }>(
+      `insert into execucoes_de_agente (empresa_id, agente_id, pedido_por, origem, tarefa_id, execucao_mae_id)
+       values ($1, $2, $3, 'delegacao', $4, $5) returning id`,
+      [empresaId, ids.gerente, ids.ana, bola, mae],
+    );
     roteiro = [() => ({ chamadas: [{ id: "b1", nome: "responder", entrada: { texto: "Peguei." } }] })];
-    await passarAoGerente(bola);
+    fila.push({ empresaId, execucaoId: quarta.rows[0]?.id as string });
     await rodarFila();
     const e4 = await execucaoDa(bola);
     expect(e4?.situacao).toBe("parada");

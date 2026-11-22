@@ -247,7 +247,10 @@ async function executarSemMarca(
       { tipo: "pessoa", pessoaId },
       tarefaId,
       (_empresa, id) => ctx.acordar(id),
-      { leuTextoDeOutros: ctx.execucao.leuTextoDeOutros },
+      {
+        leuTextoDeOutros: ctx.execucao.leuTextoDeOutros,
+        execucaoMaeId: ctx.semExecucao ? null : ctx.execucao.id,
+      },
     ).catch((erro) => ctx.log.error({ erro, tarefaId }, "Tarefa do agente interno: não entrou na fila"));
 
   // A menor das duas permissões (M4-04): quem pediu e o responsável pelo agente (quando não é a mesma pessoa).
