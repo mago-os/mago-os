@@ -43,7 +43,12 @@ import { avisarDepois } from "../avisos/eventos.ts";
 import { comEmpresa } from "../empresa.ts";
 import { montarInstrucoes, skillsDoAgente } from "../instrucoes/servico.ts";
 import { buscarItem, editarItem, listarChecklist } from "../tarefas/checklist.ts";
-import { acontecimentoDaAcao, mencoesPendentes, registrarAcontecimento } from "../tarefas/linha-do-tempo.ts";
+import {
+  acontecimentoDaAcao,
+  mencoesDoTexto,
+  mencoesPendentes,
+  registrarAcontecimento,
+} from "../tarefas/linha-do-tempo.ts";
 import { recorrerSePreciso } from "../tarefas/planejamento.ts";
 import {
   autorDe,
@@ -429,7 +434,10 @@ export async function executar(
       const comentario = await naEmpresa(async (c) => {
         // Comenta onde vê: as tarefas dele, as do projeto que gerencia e as em que foi mencionado (M3-05).
         const tarefa = await buscarTarefa(c, { ...quem, comoGerente: true }, e.tarefaId, true);
-        return tarefa ? comentar(c, autorDe(quem), tarefa.id, e.texto) : null;
+        // As menções escritas no texto ("@Ana") avisam a pessoa, como as escolhidas na tela.
+        return tarefa
+          ? comentar(c, autorDe(quem), tarefa.id, e.texto, { mencoes: await mencoesDoTexto(c, e.texto) })
+          : null;
       });
       if (!comentario) throw naoAchou();
       await registrar("tarefa.comentou", e.tarefaId, { comentarioId: comentario.id });

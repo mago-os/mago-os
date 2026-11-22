@@ -106,6 +106,52 @@ export async function mencoesPendentes(c: pg.PoolClient, agenteId: string): Prom
   return r.rows.map((l) => l.tarefa_id);
 }
 
+const semAcento = (t: string) =>
+  t
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+
+/**
+ * As menções escritas no texto ("@Ana", "@Ana Souza", "@Gerente de projetos"), para quem comenta sem a tela que escolhe
+ * da lista: os agentes, pelo MCP ou de dentro. Vale o nome inteiro, ou o primeiro nome quando só uma pessoa ou agente
+ * ativo da empresa tem esse primeiro nome. Sem diferença de acento ou maiúscula.
+ */
+export async function mencoesDoTexto(c: pg.PoolClient, texto: string): Promise<Responsavel[]> {
+  if (!texto.includes("@")) return [];
+  const r = await c.query<{ tipo: "pessoa" | "agente"; id: string; nome: string }>(
+    `select 'pessoa' as tipo, p.id, p.nome from vinculos v join pessoas p on p.id = v.pessoa_id
+      where v.empresa_id = empresa_ativa() and v.situacao = 'ativo'
+     union all
+     select 'agente', a.id, a.nome from agentes a where a.empresa_id = empresa_ativa() and a.situacao <> 'desligado'`,
+  );
+  const normal = semAcento(texto);
+  // Depois do @ e do nome vem o fim do texto, um espaço ou uma pontuação (não o meio de outra palavra).
+  const mencionou = (nome: string) => {
+    const alvo = `@${semAcento(nome.trim())}`;
+    let i = normal.indexOf(alvo);
+    while (i >= 0) {
+      const depois = normal.charAt(i + alvo.length);
+      if (!depois || !/[\p{L}\p{N}_]/u.test(depois)) return true;
+      i = normal.indexOf(alvo, i + 1);
+    }
+    return false;
+  };
+  const primeiro = (nome: string) => semAcento(nome.trim().split(/\s+/)[0] ?? "");
+  const contagem = new Map<string, number>();
+  for (const x of r.rows) contagem.set(primeiro(x.nome), (contagem.get(primeiro(x.nome)) ?? 0) + 1);
+  const mencoes: Responsavel[] = [];
+  for (const x of r.rows) {
+    const peloPrimeiro =
+      contagem.get(primeiro(x.nome)) === 1 && mencionou(x.nome.trim().split(/\s+/)[0] ?? "");
+    if (mencionou(x.nome) || peloPrimeiro)
+      mencoes.push(
+        x.tipo === "pessoa" ? { tipo: "pessoa", pessoaId: x.id } : { tipo: "agente", agenteId: x.id },
+      );
+  }
+  return mencoes.slice(0, 20);
+}
+
 /** As pessoas e agentes mencionados existem e estão ativos nesta empresa. */
 export async function mencionaveis(c: pg.PoolClient, mencoes: Responsavel[]): Promise<boolean> {
   if (mencoes.length === 0) return true;

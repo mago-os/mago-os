@@ -33,7 +33,7 @@ import { filtroDoAlcance } from "../permissoes/calcular.ts";
 import { type PermissoesNaEmpresa, permissoesNaEmpresa } from "../permissoes/verificar.ts";
 import { buscarProjeto, listarProjetos } from "../projetos/servico.ts";
 import { criarItem, listarChecklist } from "../tarefas/checklist.ts";
-import { acontecimentoDaAcao, registrarAcontecimento } from "../tarefas/linha-do-tempo.ts";
+import { acontecimentoDaAcao, mencoesDoTexto, registrarAcontecimento } from "../tarefas/linha-do-tempo.ts";
 import { fusoDaEmpresa, planejar, recusaDoPlanejamento } from "../tarefas/planejamento.ts";
 import { listarPrioridades } from "../tarefas/prioridades.ts";
 import {
@@ -504,7 +504,11 @@ async function executarSemMarca(
       const { tarefa, comentario } = await naEmpresa(async (c) => {
         // Comentar pede só "ver", como na tela (M2-02).
         const t = await tarefaDeQuemPediu(c, tarefaId, "ver");
-        const feito = await comentar(c, agenteQuem, tarefaId, entrada.texto as string);
+        // As menções escritas no texto ("@Ana") avisam a pessoa, como as escolhidas na tela.
+        const texto = entrada.texto as string;
+        const feito = await comentar(c, agenteQuem, tarefaId, texto, {
+          mencoes: await mencoesDoTexto(c, texto),
+        });
         return { tarefa: t, comentario: feito };
       });
       await registrar("tarefa.comentou", tarefaId, { comentarioId: comentario.id });

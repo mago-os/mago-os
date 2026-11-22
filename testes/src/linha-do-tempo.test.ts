@@ -11,6 +11,7 @@ import {
   buscarTarefa,
   comentar,
   listarComentarios,
+  mencoesDoTexto,
   mencoesPendentes,
   registrarRotasDasTarefas,
 } from "@mago-os/nucleo/tarefas";
@@ -273,5 +274,21 @@ describe.skipIf(!bancoDisponivel)("linha do tempo", () => {
     } finally {
       await app.end();
     }
+  });
+
+  it("o @nome escrito no texto vira menção: nome inteiro ou primeiro nome sem repetição, sem acento", async () => {
+    const achar = (texto: string) =>
+      comEmpresa(poolApp, empresaId, async (c) =>
+        (await mencoesDoTexto(c, texto)).map((m) => (m.tipo === "pessoa" ? m.pessoaId : m.agenteId)).sort(),
+      );
+    expect(await achar("@Ana, confira a minuta.")).toEqual([ids.ana]);
+    expect(await achar("pedi ao @fábio func e à @Flora")).toEqual([ids.fabio, ids.flora].sort());
+    expect(await achar("@Anabela e ana@teste.invalid não são menção")).toEqual([]);
+    expect(await achar("@Otto é de outra empresa")).toEqual([]);
+    expect(await achar("sem arroba")).toEqual([]);
+    // Dois com o mesmo primeiro nome: só o nome inteiro vale.
+    ids.ana2 = await criarPessoa("Ana Beatriz", "ana2@teste.invalid", "funcionario", "comercial");
+    expect(await achar("@Ana, confira")).toEqual([]);
+    expect(await achar("@Ana Beatriz e @Ana Admin")).toEqual([ids.ana, ids.ana2].sort());
   });
 });

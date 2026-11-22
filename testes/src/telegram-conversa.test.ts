@@ -890,4 +890,33 @@ describe.skipIf(!bancoDisponivel)("conversa pelo Telegram", () => {
     expect(await resumoDoDiaNoTelegram(opcoesDoBot, empresaId, new Date("2030-01-16T23:00:00Z"))).toBe(0);
     expect(resumosDe(ANA)).toHaveLength(1);
   });
+
+  it("o @nome que o agente escreve no comentário vira menção e avisa pelo Telegram", async () => {
+    await dono.query("update avisos set telegram_pendente = false");
+    await preferencias(ids.ana as string, { porTipo: {}, silencio: null });
+    roteiro = [
+      () => ({
+        chamadas: [
+          { id: "c1", nome: "comentar", entrada: { tarefaId: ids.tarefa, texto: "@Ana, confira a minuta." } },
+        ],
+      }),
+      () => ({ chamadas: [{ id: "r", nome: "responder", entrada: { texto: "Comentei." } }] }),
+    ];
+    await mandar(ANA, "/nova comenta na tarefa do contrato mencionando @Ana: confira a minuta");
+    await rodarEEntregar();
+    const m = await dono.query<{ pessoa_id: string }>(
+      `select m.pessoa_id from mencoes_de_comentario m join comentarios_de_tarefa c on c.id = m.comentario_id
+        where c.texto = '@Ana, confira a minuta.'`,
+    );
+    expect(m.rows.map((x) => x.pessoa_id)).toEqual([ids.ana]);
+    const aviso = await dono.query("select tipo from avisos where pessoa_id = $1 and telegram_pendente", [
+      ids.ana,
+    ]);
+    expect(aviso.rows.map((x) => x.tipo)).toContain("mencao");
+    carteiro.enviadas.length = 0;
+    await avisarNoTelegram(opcoesDoBot, empresaId);
+    expect(doChat(ANA)).toEqual([
+      `Você foi mencionado na tarefa "Revisar o contrato da DFO".\n\n${SITE}/tarefas/${ids.tarefa}`,
+    ]);
+  });
 });
