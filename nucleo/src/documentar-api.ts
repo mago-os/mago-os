@@ -229,6 +229,12 @@ export const ROTAS: Rota[] = [
     oQueFaz: "Link de 5 minutos para baixar ou ver um anexo liberado pelo antivírus.",
   },
   {
+    metodo: "POST",
+    caminho: "/tarefas/:id/anexos/:anexoId/descricao",
+    permissao: "tarefas.ver (quem enviou) ou tarefas.editar",
+    oQueFaz: "Escreve, troca ou tira a descrição do anexo (M5-03b).",
+  },
+  {
     metodo: "DELETE",
     caminho: "/tarefas/:id/anexos/:anexoId",
     permissao: "tarefas.ver (quem enviou) ou tarefas.excluir (tudo)",

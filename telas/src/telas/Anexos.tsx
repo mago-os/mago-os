@@ -2,13 +2,18 @@
  * Anexos da tarefa e dos comentários (M3-08): anexar pelo botão, arrastando, ou tirando foto no celular; a situação
  * do antivírus; prévia de imagens; abrir ou baixar por link de 5 minutos.
  */
-import { type Anexo, extensaoBloqueada, TAMANHO_MAXIMO_DO_ANEXO } from "@mago-os/contratos";
-import { Camera, FileText, Paperclip, Trash2 } from "lucide-react";
+import {
+  type Anexo,
+  extensaoBloqueada,
+  MAXIMO_DA_DESCRICAO_DO_ANEXO,
+  TAMANHO_MAXIMO_DO_ANEXO,
+} from "@mago-os/contratos";
+import { Camera, FileText, Paperclip, Pencil, Send, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/componentes/ui/button";
 import { Card, CardTitulo } from "@/componentes/ui/card";
 import { cn } from "@/lib/utils";
-import { enviarAnexo, excluirAnexo, linkDoAnexo, listarAnexos } from "@/tarefas";
+import { descreverAnexo, enviarAnexo, excluirAnexo, linkDoAnexo, listarAnexos } from "@/tarefas";
 import { useTempoReal } from "@/tempo-real";
 import { Aviso } from "./Acesso";
 
@@ -20,14 +25,37 @@ export function tamanhoLegivel(bytes: number): string {
   return `${(bytes / 1024 / 1024).toFixed(1).replace(".", ",")} MB`;
 }
 
+/** O anexo na tela, com o nome de quem enviou (M5-03b). */
+export type AnexoNaTela = Anexo & { enviadoPorNome?: string };
+
+/** "22/11 às 19:32, por Sandro, pelo Telegram" (M5-03b). */
+export function quandoEQuem(a: AnexoNaTela): string {
+  const d = new Date(a.enviadoEm);
+  const quando = `${d.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" })} às ${d.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}`;
+  const quem = a.enviadoPorNome ? `, por ${a.enviadoPorNome.split(" ")[0]}` : "";
+  return `${quando}${quem}${a.canal === "telegram" ? ", pelo Telegram" : ""}`;
+}
+
 /** Os anexos da tarefa, sempre atualizados pelo tempo real (o antivírus muda a situação sozinho). */
 export function useAnexos(tarefaId: string) {
-  const [anexos, setAnexos] = useState<Anexo[]>([]);
+  const [anexos, setAnexos] = useState<AnexoNaTela[]>([]);
   const [ligados, setLigados] = useState(true);
   const recarregar = useCallback(async () => {
     const r = await listarAnexos(tarefaId);
     if (r.ok && r.dados) {
-      setAnexos(r.dados.anexos);
+      const nomes = r.dados.nomes ?? {};
+      setAnexos(
+        r.dados.anexos.map((a) => {
+          const id =
+            a.enviadoPor.tipo === "pessoa"
+              ? a.enviadoPor.pessoaId
+              : a.enviadoPor.tipo === "agente"
+                ? a.enviadoPor.agenteId
+                : null;
+          const nome = id ? nomes[id] : undefined;
+          return nome ? { ...a, enviadoPorNome: nome } : a;
+        }),
+      );
       setLigados(r.dados.ligados);
     }
   }, [tarefaId]);
@@ -111,15 +139,90 @@ function Previa({ anexo }: { anexo: Anexo }) {
 
 const ehImagem = (tipo: string) => /^image\/(png|jpeg|gif|webp)$/.test(tipo);
 
+/** A descrição do anexo, com o lápis para escrever ou trocar (quem enviou, ou quem edita a tarefa). */
+function DescricaoDoAnexo({
+  anexo,
+  pode,
+  aoMudar,
+}: {
+  anexo: AnexoNaTela;
+  pode: boolean;
+  aoMudar: () => void;
+}) {
+  const [editando, setEditando] = useState(false);
+  const [texto, setTexto] = useState(anexo.descricao ?? "");
+  const [erro, setErro] = useState<string | null>(null);
+  async function salvar() {
+    const r = await descreverAnexo(anexo.tarefaId, anexo.id, texto.trim() || null);
+    if (!r.ok) {
+      setErro(r.mensagem ?? "Não foi possível salvar.");
+      return;
+    }
+    setErro(null);
+    setEditando(false);
+    aoMudar();
+  }
+  if (editando)
+    return (
+      <div className="grid gap-1">
+        <textarea
+          value={texto}
+          onChange={(e) => setTexto(e.target.value)}
+          maxLength={MAXIMO_DA_DESCRICAO_DO_ANEXO}
+          rows={2}
+          aria-label={`Descrição de ${anexo.nome}`}
+          placeholder="O que é este arquivo"
+          className="w-full rounded-md border border-linha bg-fundo p-1.5 text-sm"
+        />
+        <div className="flex gap-1.5">
+          <Button size="pequeno" onClick={() => void salvar()}>
+            Salvar
+          </Button>
+          <Button size="pequeno" variant="contorno" onClick={() => setEditando(false)}>
+            Cancelar
+          </Button>
+        </div>
+        {erro && <p className="text-xs text-perigo">{erro}</p>}
+      </div>
+    );
+  return (
+    <div className="flex items-start gap-1">
+      {anexo.descricao ? (
+        <p className="whitespace-pre-wrap text-xs text-texto">{anexo.descricao}</p>
+      ) : pode ? (
+        <button type="button" className="text-xs text-texto-2 underline" onClick={() => setEditando(true)}>
+          Escrever uma descrição
+        </button>
+      ) : null}
+      {pode && anexo.descricao && (
+        <button
+          type="button"
+          aria-label={`Mudar a descrição de ${anexo.nome}`}
+          onClick={() => {
+            setTexto(anexo.descricao ?? "");
+            setEditando(true);
+          }}
+          className="text-texto-2 hover:text-tinta"
+        >
+          <Pencil className="size-3" />
+        </button>
+      )}
+    </div>
+  );
+}
+
 export function ListaDeAnexos({
   anexos,
   euId,
   podeExcluirTodos,
+  podeDescrever = false,
   aoMudar,
 }: {
-  anexos: Anexo[];
+  anexos: AnexoNaTela[];
   euId: string;
   podeExcluirTodos: boolean;
+  /** Pode escrever a descrição de qualquer anexo (quem edita a tarefa); quem enviou sempre pode. */
+  podeDescrever?: boolean;
   aoMudar: () => void;
 }) {
   if (anexos.length === 0) return null;
@@ -133,7 +236,7 @@ export function ListaDeAnexos({
       {anexos.map((a) => {
         const meu = a.enviadoPor.tipo === "pessoa" && a.enviadoPor.pessoaId === euId;
         return (
-          <li key={a.id} className="flex items-center gap-3 rounded-md border border-linha p-2">
+          <li key={a.id} className="flex items-start gap-3 rounded-md border border-linha p-2">
             {a.situacao === "disponivel" && ehImagem(a.tipo) ? (
               <button type="button" onClick={() => void abrir(a)} aria-label={`Abrir ${a.nome}`}>
                 <Previa anexo={a} />
@@ -167,6 +270,13 @@ export function ListaDeAnexos({
                     ? "Bloqueado pelo antivírus (o arquivo foi apagado)"
                     : tamanhoLegivel(a.tamanho)}
               </span>
+              <span className="flex items-center gap-1 text-xs text-texto-2">
+                {a.canal === "telegram" && <Send className="size-3" aria-hidden />}
+                {quandoEQuem(a)}
+              </span>
+              {a.situacao !== "bloqueado" && (
+                <DescricaoDoAnexo anexo={a} pode={meu || podeDescrever} aoMudar={aoMudar} />
+              )}
             </div>
             {(meu || podeExcluirTodos) && (
               <Button
@@ -282,7 +392,13 @@ export function AnexosDaTarefa({
           </p>
         ) : null
       ) : (
-        <ListaDeAnexos anexos={daTarefa} euId={euId} podeExcluirTodos={podeExcluirTodos} aoMudar={aoMudar} />
+        <ListaDeAnexos
+          anexos={daTarefa}
+          euId={euId}
+          podeExcluirTodos={podeExcluirTodos}
+          podeDescrever={podeAnexar}
+          aoMudar={aoMudar}
+        />
       )}
     </Card>
   );

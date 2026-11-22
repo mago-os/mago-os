@@ -12,6 +12,14 @@ describe("busca", () => {
   });
 
   it("os grupos aparecem nesta ordem", () => {
-    expect(TIPOS_DE_RESULTADO).toEqual(["tarefa", "comentario", "projeto", "espaco", "pessoa", "agente"]);
+    expect(TIPOS_DE_RESULTADO).toEqual([
+      "tarefa",
+      "comentario",
+      "anexo",
+      "projeto",
+      "espaco",
+      "pessoa",
+      "agente",
+    ]);
   });
 });

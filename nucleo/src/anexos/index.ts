@@ -6,6 +6,7 @@ import {
   conferir,
   extensaoBloqueada,
   MINUTOS_DO_LINK_DE_ANEXO,
+  PedidoDeDescricaoDoAnexo,
   PedidoDeEnvioDeAnexo,
 } from "@mago-os/contratos";
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
@@ -20,6 +21,7 @@ import { type DepositoEmDisco, disposicao, podeVerNaTela } from "./deposito.ts";
 import {
   buscarAnexo,
   criarAnexo,
+  descreverAnexo,
   espacoDaEmpresa,
   excluirAnexo,
   listarAnexos,
@@ -94,11 +96,24 @@ export function registrarRotasDosAnexos(app: FastifyInstance, o: OpcoesDosAnexos
     const quem = quemPara(pedido, "ver");
     const anexos = await naEmpresa(pedido, async (c) => {
       if (!quem || !(await buscarTarefa(c, quem, id))) return null;
-      return (await listarAnexos(c, id)).map(semCaminho);
+      const lista = (await listarAnexos(c, id)).map(semCaminho);
+      // O nome de quem enviou (M5-03b: "por Sandro, pelo Telegram").
+      const ids = [
+        ...new Set(lista.flatMap((a) => (a.enviadoPor.tipo === "pessoa" ? [a.enviadoPor.pessoaId] : []))),
+      ];
+      const agentes = [
+        ...new Set(lista.flatMap((a) => (a.enviadoPor.tipo === "agente" ? [a.enviadoPor.agenteId] : []))),
+      ];
+      const n = await c.query<{ id: string; nome: string }>(
+        `select id, nome from pessoas where id = any($1::uuid[])
+         union all select id, nome from agentes where empresa_id = empresa_ativa() and id = any($2::uuid[])`,
+        [ids, agentes],
+      );
+      return { anexos: lista, nomes: Object.fromEntries(n.rows.map((x) => [x.id, x.nome])) };
     });
     if (!anexos)
       return resposta.code(404).send({ code: "TAREFA_NAO_ENCONTRADA", message: "Tarefa não encontrada." });
-    return { anexos, ligados: o.servicos !== null };
+    return { ...anexos, ligados: o.servicos !== null };
   });
 
   // Pede o link para enviar: confere permissão, tipo e tamanho, cria o anexo em "enviando".
@@ -133,6 +148,7 @@ export function registrarRotasDosAnexos(app: FastifyInstance, o: OpcoesDosAnexos
           tipo: r.valor.tipo,
           tamanho: r.valor.tamanho,
           pessoaId: sessao.pessoa.id,
+          descricao: r.valor.descricao ?? null,
         }),
       };
     });
@@ -198,6 +214,32 @@ export function registrarRotasDosAnexos(app: FastifyInstance, o: OpcoesDosAnexos
     const link = servicos.deposito.linkDeDownload(anexo.caminho, anexo.nome, anexo.tipo, SEGUNDOS);
     await registrar(pedido, "anexo.baixou", id, { anexoId: anexo.id });
     return { url: link.url, expiraEm: link.expiraEm.toISOString() };
+  });
+
+  // Descrição do anexo (M5-03b): quem mandou, ou quem pode editar a tarefa.
+  app.post("/tarefas/:id/anexos/:anexoId/descricao", ver, async (pedido, resposta) => {
+    const { id, anexoId } = pedido.params as { id: string; anexoId: string };
+    const r = conferir(PedidoDeDescricaoDoAnexo, pedido.body);
+    if (!r.ok) return resposta.code(400).send({ code: "PEDIDO_INVALIDO", problemas: r.problemas });
+    const { sessao } = acessoDo(pedido);
+    const quemVe = quemPara(pedido, "ver");
+    const quemEdita = quemPara(pedido, "editar");
+    const feito = await naEmpresa(pedido, async (c) => {
+      if (!quemVe || !(await buscarTarefa(c, quemVe, id))) return null;
+      const anexo = await buscarAnexo(c, id, anexoId, { paraMudar: true });
+      if (!anexo) return null;
+      const meu = anexo.enviadoPor.tipo === "pessoa" && anexo.enviadoPor.pessoaId === sessao.pessoa.id;
+      if (!meu && !(quemEdita && (await buscarTarefa(c, quemEdita, id)))) return { recusa: true as const };
+      await descreverAnexo(c, anexo.id, r.valor.descricao);
+      return { anexo: await buscarAnexo(c, id, anexoId) };
+    });
+    if (!feito?.anexo && !(feito && "recusa" in feito)) return naoEncontrado(resposta);
+    if ("recusa" in feito)
+      return resposta
+        .code(403)
+        .send({ code: "SEM_PERMISSAO", message: "Só quem enviou ou quem edita a tarefa muda a descrição." });
+    await registrar(pedido, "anexo.descreveu", id, { anexoId, tirou: r.valor.descricao === null });
+    return { anexo: semCaminho(feito.anexo as NonNullable<typeof feito.anexo>) };
   });
 
   app.delete("/tarefas/:id/anexos/:anexoId", ver, async (pedido, resposta) => {

@@ -73,6 +73,8 @@ erDiagram
     timestamp_with_time_zone enviado_em
     timestamp_with_time_zone verificado_em
     text achado_do_antivirus
+    text descricao
+    text canal
   }
   aprovacoes {
     uuid id PK
@@ -938,6 +940,8 @@ Isolamento por empresa (Row Level Security): ligado e forçado.
 | enviado_em | timestamp with time zone | sim | `now()` | sistema | Quando o envio começou. |
 | verificado_em | timestamp with time zone | não |  | sistema | Quando o antivírus terminou. |
 | achado_do_antivirus | text | não |  | sistema | O que o antivírus achou, quando bloqueou (nome da ameaça). |
+| descricao | text | não |  | empresa | O que é o arquivo, numa frase (opcional). |
+| canal | text | sim | `'app'::text` | sistema | Por onde o anexo entrou: app ou telegram. |
 
 ### aprovacoes
 

@@ -9,7 +9,7 @@ import { FERRAMENTAS_MCP } from "./ferramentas.ts";
 
 const ASSINATURAS: Record<string, string> = {
   minhas_tarefas: "6efe7b459b843e3d",
-  ver_tarefa: "67594070b14aed9b",
+  ver_tarefa: "ac3f64f3a161cebc",
   pegar_tarefa: "71a249660a993115",
   soltar_tarefa: "480ec264ab6227fd",
   comentar: "1df5a94d7000fc2f",

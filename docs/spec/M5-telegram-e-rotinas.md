@@ -1,6 +1,6 @@
 # Spec da Fase 1: M5 Telegram e rotinas
 
-Parte da [spec da Fase 1](README.md). Estado em 22/11/2026: **aprovado** pelo Sandro, com todas as 16 recomendações. Em construção: M5-01, M5-02 e M5-03 prontas e no ar em 22/11/2026 (a M5-02 testada pelo Sandro no mesmo dia).
+Parte da [spec da Fase 1](README.md). Estado em 22/11/2026: **aprovado** pelo Sandro, com todas as 16 recomendações. Em construção: M5-01, M5-02 e M5-03 prontas, no ar e testadas pelo Sandro em 22/11/2026; M5-04 pronta no mesmo dia. A M5-03b entrou em 22/11/2026, pedida pelo Sandro.
 
 **Pronto quando:** o Sandro vincula o Telegram dele por código e escreve ao bot "cria uma tarefa para revisar o contrato da DFO até sexta". O coordenador cria a tarefa, que aparece no app, e a conversa fica também no app. Ele manda uma foto pelo Telegram e ela vira anexo da tarefa, depois de passar pelo antivírus. O Gerente de projetos pede uma aprovação, o pedido chega no Telegram com botões, e o Sandro aprova com o código do app autenticador. Uma rotina "toda segunda às 8h, o Gerente de projetos resume as tarefas atrasadas" roda sozinha no horário e o resumo chega no Telegram. Uma rotina por evento ("quando uma tarefa do projeto Blog for concluída, criar a tarefa de revisão") dispara sozinha. Um evento da agenda avisa 10 minutos antes no app e no Telegram. Os testes provam que uma conta do Telegram só fala pela pessoa vinculada, que uma empresa não vê o Telegram nem as rotinas da outra, e que uma rotina não faz o que o dono dela não poderia fazer.
 
@@ -9,6 +9,7 @@ Parte da [spec da Fase 1](README.md). Estado em 22/11/2026: **aprovado** pelo Sa
 | M5-01 | Bot do Telegram e vincular a conta por código | M4 | M |
 | M5-02 | Falar com o coordenador e criar tarefas pelo Telegram | M5-01 | M |
 | M5-03 | Enviar arquivos pelo Telegram | M5-02 | P |
+| M5-03b | Descrição do anexo, e quando, quem e por onde ele entrou (entrou em 22/11/2026, pedida pelo Sandro) | M5-03 | P |
 | M5-04 | Aprovar com botões e código do app autenticador | M5-01 | M |
 | M5-08 | Avisos e resumo do dia pelo Telegram (proposta nova, decisão 8) | M5-01 | P |
 | M5-05 | Rotinas por horário | M4 | M |
@@ -62,6 +63,18 @@ Pronto quando: o Sandro escreve ao bot "cria uma tarefa para revisar o contrato 
 - [ ] Testes: arquivo acima do limite é recusado com aviso, arquivo infectado não vira anexo, e o anexo só entra em tarefa que a pessoa pode editar
 
 Pronto quando: o Sandro manda uma foto ao bot com a legenda "anexa na tarefa do contrato da DFO" e a foto aparece na tarefa.
+
+### M5-03b Descrição do anexo, e quando, quem e por onde ele entrou
+
+Entrou em 22/11/2026, pedida pelo Sandro depois do teste da M5-03 ("aprovado M5-03b"). Decisão 0036.
+
+- [ ] Descrição opcional do anexo, até 500 caracteres, só texto: escrevem e mudam quem enviou e quem pode editar a tarefa
+- [ ] Pelo Telegram, o coordenador escreve a descrição a partir da legenda (campo novo em `anexar_arquivo`), sem ler o conteúdo
+- [ ] A tela mostra a data e a hora, quem enviou e se veio pelo Telegram ("22/11 às 19:32, por Sandro, pelo Telegram")
+- [ ] O Ctrl+K acha anexos pelo nome e pela descrição; o agente vê a descrição junto com o nome
+- [ ] Testes: quem pode e quem não pode mudar, a busca acha pela descrição, e o anexo do Telegram chega com a descrição e o canal
+
+Pronto quando: o Sandro manda uma foto pelo Telegram com a legenda "anexa na tarefa do contrato da DFO", e o anexo aparece na tarefa com uma descrição, a data, a hora e "pelo Telegram".
 
 ### M5-04 Aprovar com botões e código do app autenticador
 
