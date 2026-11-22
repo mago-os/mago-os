@@ -25,6 +25,7 @@ import type pg from "pg";
 import { auditar, type DadosDoEvento } from "../auditoria/registrar.ts";
 import { criarAviso } from "../avisos/index.ts";
 import { comEmpresa, comPessoa } from "../empresa.ts";
+import { permissoesNaEmpresa } from "../permissoes/verificar.ts";
 import type { CarteiroDoTelegram } from "./carteiro.ts";
 import { conversarPeloTelegram, type OpcoesDaConversaPeloTelegram } from "./conversa.ts";
 
@@ -192,6 +193,15 @@ export interface ArquivoDaMensagem {
 
 const FORMATO_DO_TIPO = /^[a-z0-9.+-]+\/[a-z0-9.+-]+$/;
 
+/** Tipos (MIME) que rodam programa: valem como a lista de extensões, para o documento que chega sem nome. */
+const TIPOS_QUE_RODAM_PROGRAMA =
+  /(msdownload|msdos-program|x-executable|x-sh\b|x-bat|x-msi|ms-installer|portable-executable|java-archive|android\.package-archive|apple-diskimage|x-ms-shortcut)/;
+
+/** O arquivo é de um tipo que roda programa, pelo nome ou pelo tipo. */
+export function arquivoQueRodaPrograma(a: Pick<ArquivoDaMensagem, "nome" | "tipo">): boolean {
+  return extensaoBloqueada(a.nome) || TIPOS_QUE_RODAM_PROGRAMA.test(a.tipo);
+}
+
 /** O arquivo da mensagem (a maior versão da foto), com nome e tipo, ou nulo se a mensagem não tem arquivo. */
 export function arquivoDaMensagem(m: MensagemDoTelegram, agora = new Date()): ArquivoDaMensagem | null {
   const quando = agora.toISOString().slice(0, 19).replace(/[-:]/g, "").replace("T", "-");
@@ -232,8 +242,21 @@ async function receberArquivo(
     await o.carteiro.enviar(m.chat.id, RESPOSTAS_DO_TELEGRAM.arquivoGrande);
     return;
   }
-  if (extensaoBloqueada(a.nome)) {
+  if (arquivoQueRodaPrograma(a)) {
     await o.carteiro.enviar(m.chat.id, RESPOSTAS_DO_TELEGRAM.tipoBloqueado);
+    return;
+  }
+  // O arquivo só fica guardado para quem conversa com os agentes (senão, a conversa recusaria logo depois).
+  const permissoes = o.conversa
+    ? await permissoesNaEmpresa(o.poolApp, p.pessoaId, p.empresaId, o.conversa.catalogo)
+    : null;
+  if (!permissoes || (permissoes.modulos.get("agentes")?.acoes.ver ?? "nada") === "nada") {
+    await o.carteiro.enviar(
+      m.chat.id,
+      o.conversa
+        ? RESPOSTAS_DO_TELEGRAM.semAcessoAosAgentes
+        : "A conversa pelo Telegram ainda não está ligada neste ambiente.",
+    );
     return;
   }
   const id = await comPessoa(o.poolApp, p.pessoaId, p.empresaId, async (c) => {

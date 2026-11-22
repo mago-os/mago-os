@@ -202,7 +202,16 @@ export async function resumoDaAcao(
       partes.push(p.prioridade ? `prioridade ${String(p.prioridade)}` : "tirar a prioridade");
     frase = `Mudar${naTarefa}: ${partes.join(" e ")}`;
   } else if (acao === "mudar_status") frase = `Mudar o status de${naTarefa} para ${String(p.status)}`;
-  else if (acao === "criar_tarefa" || acao === "criar_subtarefa")
+  else if (acao === "anexar_arquivo") {
+    const id = typeof p.arquivoId === "string" && FORMATO_UUID.test(p.arquivoId) ? p.arquivoId : null;
+    const a = id
+      ? await c.query<{ nome: string }>(
+          "select nome from arquivos_do_telegram where id = $1 and empresa_id = empresa_ativa()",
+          [id],
+        )
+      : null;
+    frase = `Anexar “${(a?.rows[0]?.nome ?? "um arquivo").slice(0, 100)}”, mandado pelo Telegram, em${naTarefa || " uma tarefa"}`;
+  } else if (acao === "criar_tarefa" || acao === "criar_subtarefa")
     frase = `${nomeDaAcao}: “${String(p.titulo).slice(0, 120)}”`;
   else frase = `${nomeDaAcao}${naTarefa}`;
   return frase.slice(0, 300);

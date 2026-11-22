@@ -108,7 +108,7 @@ erDiagram
     uuid anexo_id
     timestamp_with_time_zone recebido_em
     timestamp_with_time_zone vence_em
-    timestamp_with_time_zone bloqueio_avisado_em
+    timestamp_with_time_zone antivirus_conferido_em
   }
   arquivos_para_apagar {
     uuid id PK
@@ -966,7 +966,7 @@ Isolamento por empresa (Row Level Security): ligado e forçado.
 | anexo_id | uuid | não |  | sistema | O anexo que o arquivo virou. |
 | recebido_em | timestamp with time zone | sim | `now()` | sistema | Quando chegou. |
 | vence_em | timestamp with time zone | sim |  | sistema | Até quando espera uma tarefa. |
-| bloqueio_avisado_em | timestamp with time zone | não |  | sistema | Quando o bot avisou que o antivírus bloqueou o anexo (vazio: não bloqueou, ou falta avisar). |
+| antivirus_conferido_em | timestamp with time zone | não |  | sistema | Quando o resultado do antivírus do anexo foi conferido (e, se bloqueou, avisado no Telegram). |
 
 ### arquivos_para_apagar
 

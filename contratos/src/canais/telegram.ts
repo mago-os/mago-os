@@ -190,7 +190,7 @@ export const RESPOSTAS_DO_TELEGRAM = {
   semPermissaoDeEspecialista:
     "Só o administrador e o gestor falam direto com um especialista. Mande o pedido sem a menção, para o coordenador.",
   especialistaNaoEncontrado: "Não encontrei esse agente. Mande o pedido sem a menção, para o coordenador.",
-  soTexto: "Por enquanto entendo só texto por aqui. Arquivos e fotos chegam em breve.",
+  soTexto: "Por aqui entendo texto, fotos, documentos, áudios e vídeos. Esse tipo de mensagem ainda não.",
   semAcessoAosAgentes: "O seu perfil nesta empresa não conversa com os agentes. Fale com o administrador.",
   semPrioridades: "Nada pedindo a sua atenção agora.",
   arquivoGrande:

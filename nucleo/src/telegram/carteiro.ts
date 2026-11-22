@@ -5,6 +5,7 @@
  *
  * O token do bot nunca aparece no log: os erros levam só o nome do método e a descrição que o Telegram devolveu.
  */
+import { TAMANHO_MAXIMO_DO_ARQUIVO_DO_TELEGRAM } from "@mago-os/contratos";
 
 /** Um botão embaixo da mensagem (M5-04 em diante): ou abre um endereço, ou devolve os dados ao bot. */
 export type BotaoDoTelegram = { texto: string; url: string } | { texto: string; dados: string };
@@ -61,7 +62,7 @@ function teclado(botoes: BotaoDoTelegram[][] | undefined) {
 }
 
 /** O Telegram não deixa um bot baixar mais que isto. */
-const LIMITE_PARA_BAIXAR = 20 * 1024 * 1024;
+const LIMITE_PARA_BAIXAR = TAMANHO_MAXIMO_DO_ARQUIVO_DO_TELEGRAM;
 
 export function carteiroDoTelegram(
   token: string,

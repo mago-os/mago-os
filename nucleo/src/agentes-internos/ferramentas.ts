@@ -665,16 +665,27 @@ async function executarSemMarca(
       const tarefaId = entrada.tarefaId as string;
       // 1. O arquivo é de quem pediu e ainda espera; a tarefa é das que quem pediu (e o responsável) pode editar.
       const arquivo = await naEmpresa(async (c) => {
-        const r = await c.query<{ nome: string; tipo: string; id_no_telegram: string }>(
-          `select nome, tipo, id_no_telegram from arquivos_do_telegram
-            where id = $1 and empresa_id = empresa_ativa() and pessoa_id = $2 and situacao = 'esperando'
-              and vence_em > now()`,
+        const r = await c.query<{
+          nome: string;
+          tipo: string;
+          id_no_telegram: string;
+          situacao: string;
+          vale: boolean;
+        }>(
+          `select nome, tipo, id_no_telegram, situacao, vence_em > now() as vale from arquivos_do_telegram
+            where id = $1 and empresa_id = empresa_ativa() and pessoa_id = $2`,
           [arquivoId, pessoaId],
         );
         const a = r.rows[0];
         if (!a)
           throw new RecusaDaFerramenta(
-            "Arquivo não encontrado entre os que quem pediu mandou pelo Telegram e ainda esperam (veja arquivos_recebidos).",
+            "Arquivo não encontrado entre os que quem pediu mandou pelo Telegram (veja arquivos_recebidos).",
+          );
+        if (a.situacao === "anexado") throw new RecusaDaFerramenta("Esse arquivo já foi anexado.");
+        // Aprovado depois das 24 horas: a aprovação segurou o arquivo (ele não venceu enquanto esperava a decisão).
+        if (a.situacao === "vencido" || (!a.vale && !opcoes.aprovada))
+          throw new RecusaDaFerramenta(
+            "Esse arquivo passou das 24 horas e venceu. Peça à pessoa para mandar de novo pelo Telegram.",
           );
         await tarefaDeQuemPediu(c, tarefaId, "editar");
         return a;
@@ -694,12 +705,16 @@ async function executarSemMarca(
       // 3. Vira anexo em "enviando", como no app; o arquivo deixa de esperar (uma vez só, mesmo com duas chamadas).
       const anexo = await naEmpresa(async (c) => {
         await tarefaDeQuemPediu(c, tarefaId, "editar");
-        const travado = await c.query(
-          `select 1 from arquivos_do_telegram where id = $1 and empresa_id = empresa_ativa() and situacao = 'esperando'
-              for update`,
+        const travado = await c.query<{ situacao: string }>(
+          "select situacao from arquivos_do_telegram where id = $1 and empresa_id = empresa_ativa() for update",
           [arquivoId],
         );
-        if ((travado.rowCount ?? 0) === 0) throw new RecusaDaFerramenta("Esse arquivo já foi anexado.");
+        const agora = travado.rows[0]?.situacao;
+        if (agora === "vencido")
+          throw new RecusaDaFerramenta(
+            "Esse arquivo passou das 24 horas e venceu. Peça à pessoa para mandar de novo pelo Telegram.",
+          );
+        if (agora !== "esperando") throw new RecusaDaFerramenta("Esse arquivo já foi anexado.");
         const novo = await criarAnexo(c, {
           tarefaId,
           comentarioId: null,
@@ -720,6 +735,16 @@ async function executarSemMarca(
         await naEmpresa((c) => marcarVerificando(c, anexo.id));
       } catch (erro) {
         ctx.log.error({ erro, arquivoId }, "Telegram: o arquivo não foi gravado no depósito");
+        // O que chegou à quarentena não pode ficar perdido no depósito.
+        await anexos.deposito
+          .apagar(anexo.caminho)
+          .catch(() =>
+            naEmpresa((c) =>
+              c.query("insert into arquivos_para_apagar (empresa_id, caminho) values (empresa_ativa(), $1)", [
+                anexo.caminho,
+              ]),
+            ).catch(() => {}),
+          );
         await naEmpresa(async (c) => {
           await c.query(
             "update arquivos_do_telegram set situacao = 'esperando', anexo_id = null where id = $1 and empresa_id = empresa_ativa()",

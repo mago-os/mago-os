@@ -12,20 +12,24 @@ export async function cuidarDosArquivosDoTelegram(
   empresaId: string,
 ): Promise<{ vencidos: number; avisados: number }> {
   const { vencidos, bloqueados } = await comEmpresa(o.poolApp, empresaId, async (c) => {
+    // Com um pedido de aprovação para anexar esperando decisão, o arquivo não vence (a aprovação vale 24 horas).
     const v = await c.query(
-      `update arquivos_do_telegram set situacao = 'vencido'
-        where empresa_id = empresa_ativa() and situacao = 'esperando' and vence_em < now()`,
+      `update arquivos_do_telegram a set situacao = 'vencido'
+        where a.empresa_id = empresa_ativa() and a.situacao = 'esperando' and a.vence_em < now()
+          and not exists (select 1 from aprovacoes p where p.empresa_id = a.empresa_id and p.acao = 'anexar_arquivo'
+                            and p.situacao = 'pendente' and p.parametros ->> 'arquivoId' = a.id::text)`,
     );
-    // Marca antes de mandar: um aviso que não chegar não é repetido a cada minuto (o anexo bloqueado já está no app).
-    const b = await c.query<{ nome: string; chat_id: string | null }>(
-      `update arquivos_do_telegram a set bloqueio_avisado_em = now()
+    // O antivírus já decidiu: os limpos só ficam conferidos; os bloqueados, conferidos e avisados. Marca antes de
+    // mandar: um aviso que não chegar não é repetido a cada minuto (o anexo bloqueado já está no app).
+    const b = await c.query<{ nome: string; chat_id: string | null; bloqueado: boolean }>(
+      `update arquivos_do_telegram a set antivirus_conferido_em = now()
          from anexos x
          left join vinculos_do_telegram t on t.empresa_id = x.empresa_id and t.pessoa_id = x.enviado_por_pessoa_id
         where a.empresa_id = empresa_ativa() and x.empresa_id = a.empresa_id and x.id = a.anexo_id
-          and a.situacao = 'anexado' and a.bloqueio_avisado_em is null and x.situacao = 'bloqueado'
-       returning a.nome, t.chat_id`,
+          and a.situacao = 'anexado' and a.antivirus_conferido_em is null and x.situacao in ('bloqueado', 'disponivel')
+       returning a.nome, t.chat_id, x.situacao = 'bloqueado' as bloqueado`,
     );
-    return { vencidos: v.rowCount ?? 0, bloqueados: b.rows };
+    return { vencidos: v.rowCount ?? 0, bloqueados: b.rows.filter((x) => x.bloqueado) };
   });
   let avisados = 0;
   for (const b of bloqueados) {

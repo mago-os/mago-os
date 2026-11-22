@@ -96,7 +96,7 @@ describe("Telegram (M5-01)", () => {
         "semPrioridades": "Nada pedindo a sua atenção agora.",
         "semVinculo": "Para usar o Mago OS pelo Telegram, vincule a conta em Meu perfil, no app.",
         "soConversaIndividual": "O Mago OS só conversa com você em particular, não em grupos.",
-        "soTexto": "Por enquanto entendo só texto por aqui. Arquivos e fotos chegam em breve.",
+        "soTexto": "Por aqui entendo texto, fotos, documentos, áudios e vídeos. Esse tipo de mensagem ainda não.",
         "tipoBloqueado": "Esse tipo de arquivo não é aceito (pode rodar um programa). Mande outro formato, como PDF ou imagem.",
         "travado": "Muitos códigos errados. Espere 15 minutos e gere um código novo em Meu perfil.",
       }

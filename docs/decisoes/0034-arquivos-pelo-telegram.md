@@ -23,7 +23,11 @@ Pelo Telegram a pessoa manda foto de um documento, um PDF ou um áudio e diz "an
 - **Nome e tipo:** o nome vem do aparelho quando o Telegram manda (documento e áudio); senão, foto-<data>.jpg, audio-<data>.ogg, video-<data>.mp4. O tipo vem do Telegram quando é válido; senão, o padrão de cada um.
 - **Anexar em três passos:** confere o arquivo e a tarefa; baixa do Telegram fora da transação; cria o anexo e marca o arquivo como anexado numa transação só (dois pedidos ao mesmo tempo anexam uma vez). Se gravar no depósito falhar, o anexo some e o arquivo volta a esperar.
 - **Auditoria:** `anexo.enviou` com a pessoa como autora, o canal Telegram e o agente que anexou nos detalhes.
-- **Verificação a cada minuto:** a mesma das respostas do Telegram (fila "telegram-entregas") vence os arquivos esperando há mais de 24 horas e avisa os bloqueios.
+- **Verificação a cada minuto:** a mesma das respostas do Telegram (fila "telegram-entregas") vence os arquivos esperando há mais de 24 horas e confere o resultado do antivírus de cada anexo uma vez (o bloqueado é avisado no Telegram; o limpo só fica conferido).
+- **Aprovação segura o arquivo:** com um pedido de aprovação para anexar esperando decisão, o arquivo não vence; aprovado depois das 24 horas, ele ainda é anexado. O pedido de aprovação mostra o nome do arquivo.
+- **Tipo que roda programa:** além do nome, o tipo (MIME) também é conferido, para o documento que chega sem nome.
+- **Quem não conversa com os agentes** recebe a recusa antes de o arquivo ser guardado.
+- **Gravar no depósito falhou:** o que chegou à quarentena é apagado (ou fica na lista de arquivos a apagar), o anexo some e o arquivo volta a esperar.
 
 ## O que foi descartado
 

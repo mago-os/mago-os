@@ -483,7 +483,7 @@ describe.skipIf(!bancoDisponivel)("conversa pelo Telegram", () => {
   it("mensagem sem texto nem arquivo recebe o aviso de que só entende texto", async () => {
     await mandar(ANA, null);
     expect(doChat(ANA)).toEqual([
-      "Por enquanto entendo só texto por aqui. Arquivos e fotos chegam em breve.",
+      "Por aqui entendo texto, fotos, documentos, áudios e vídeos. Esse tipo de mensagem ainda não.",
     ]);
   });
 
@@ -539,6 +539,15 @@ describe.skipIf(!bancoDisponivel)("conversa pelo Telegram", () => {
     ]);
     const arq = await dono.query("select situacao from arquivos_do_telegram where id = $1", [ids.arquivo]);
     expect(arq.rows[0]?.situacao).toBe("anexado");
+    // O antivírus liberou: o arquivo fica conferido, sem aviso no Telegram.
+    carteiro.enviadas.length = 0;
+    await entregarPendentesNoTelegram(opcoesDoBot);
+    expect(doChat(ANA)).toEqual([]);
+    const conferido = await dono.query(
+      "select antivirus_conferido_em is not null as ok from arquivos_do_telegram where id = $1",
+      [ids.arquivo],
+    );
+    expect(conferido.rows[0]?.ok).toBe(true);
   });
 
   it("o arquivo bloqueado pelo antivírus é avisado no Telegram, uma vez", async () => {
@@ -583,9 +592,14 @@ describe.skipIf(!bancoDisponivel)("conversa pelo Telegram", () => {
     await mandar(ANA, null, {
       document: { file_id: "y", file_unique_id: "y", file_size: 10, file_name: "instalar.exe" },
     });
+    // Documento sem nome, com tipo de programa: recusado pelo tipo.
+    await mandar(ANA, null, {
+      document: { file_id: "w", file_unique_id: "w", file_size: 10, mime_type: "application/x-msdownload" },
+    });
     await mandar(ANA, null, { sticker: { file_id: "z" } });
     expect(doChat(ANA)).toEqual([
       "Esse arquivo passa de 20 MB, o limite do Telegram para o Mago OS receber. Mande pelo app, na tarefa.",
+      "Esse tipo de arquivo não é aceito (pode rodar um programa). Mande outro formato, como PDF ou imagem.",
       "Esse tipo de arquivo não é aceito (pode rodar um programa). Mande outro formato, como PDF ou imagem.",
       "Figurinhas e GIFs não viram anexo. Mande foto, documento, áudio ou vídeo.",
     ]);

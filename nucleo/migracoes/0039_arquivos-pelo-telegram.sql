@@ -1,7 +1,7 @@
 -- M5-03: arquivos mandados pelo Telegram (contrato em contratos/src/canais/telegram.ts, decisão 0034).
 -- 1. arquivos_do_telegram: o arquivo recebido espera uma tarefa por até 24 horas, sem ser baixado. Ao anexar, vira
 --    um anexo comum (M3-08), que passa pelo antivírus; o bloqueio é avisado no Telegram uma vez.
--- 2. empresas_com_telegram_pendente() passa a achar também os arquivos vencidos e os bloqueios a avisar.
+-- 2. empresas_com_telegram_pendente() passa a achar também os arquivos vencidos e os anexos com o antivírus a conferir.
 -- Explicado em docs/banco/decisoes.md, seção 44.
 
 -- Up Migration
@@ -18,7 +18,7 @@ CREATE TABLE public.arquivos_do_telegram (
   anexo_id uuid,
   recebido_em timestamptz NOT NULL DEFAULT now(),
   vence_em timestamptz NOT NULL,
-  bloqueio_avisado_em timestamptz,
+  antivirus_conferido_em timestamptz,
   CONSTRAINT arquivos_do_telegram_vence_depois CHECK (vence_em > recebido_em),
   CONSTRAINT arquivos_do_telegram_anexado CHECK ((situacao = 'anexado') = (anexo_id IS NOT NULL)),
   CONSTRAINT arquivos_do_telegram_da_pessoa FOREIGN KEY (empresa_id, pessoa_id)
@@ -39,7 +39,7 @@ CREATE TRIGGER arquivo_do_telegram_sem_anexo BEFORE UPDATE OF anexo_id ON public
 CREATE INDEX arquivos_do_telegram_esperando ON public.arquivos_do_telegram (empresa_id, pessoa_id, recebido_em DESC)
   WHERE situacao = 'esperando';
 CREATE INDEX arquivos_do_telegram_a_avisar ON public.arquivos_do_telegram (empresa_id)
-  WHERE situacao = 'anexado' AND bloqueio_avisado_em IS NULL;
+  WHERE situacao = 'anexado' AND antivirus_conferido_em IS NULL;
 COMMENT ON TABLE public.arquivos_do_telegram IS
   'Arquivos mandados pelo Telegram, esperando uma tarefa por até 24 horas (M5-03). Ao anexar, viram anexo comum.';
 COMMENT ON COLUMN public.arquivos_do_telegram.id IS '[sistema] Identificador (vai ao agente para anexar).';
@@ -55,8 +55,8 @@ COMMENT ON COLUMN public.arquivos_do_telegram.situacao IS
 COMMENT ON COLUMN public.arquivos_do_telegram.anexo_id IS '[sistema] O anexo que o arquivo virou.';
 COMMENT ON COLUMN public.arquivos_do_telegram.recebido_em IS '[sistema] Quando chegou.';
 COMMENT ON COLUMN public.arquivos_do_telegram.vence_em IS '[sistema] Até quando espera uma tarefa.';
-COMMENT ON COLUMN public.arquivos_do_telegram.bloqueio_avisado_em IS
-  '[sistema] Quando o bot avisou que o antivírus bloqueou o anexo (vazio: não bloqueou, ou falta avisar).';
+COMMENT ON COLUMN public.arquivos_do_telegram.antivirus_conferido_em IS
+  '[sistema] Quando o resultado do antivírus do anexo foi conferido (e, se bloqueou, avisado no Telegram).';
 ALTER TABLE public.arquivos_do_telegram ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.arquivos_do_telegram FORCE ROW LEVEL SECURITY;
 CREATE POLICY arquivos_do_telegram_da_empresa_ativa ON public.arquivos_do_telegram
@@ -71,10 +71,13 @@ CREATE OR REPLACE FUNCTION public.empresas_com_telegram_pendente() RETURNS TABLE
     UNION
     SELECT a.empresa_id FROM public.arquivos_do_telegram a
      WHERE a.situacao = 'esperando' AND a.vence_em < now()
+       AND NOT EXISTS (SELECT 1 FROM public.aprovacoes p WHERE p.empresa_id = a.empresa_id
+                        AND p.acao = 'anexar_arquivo' AND p.situacao = 'pendente'
+                        AND p.parametros ->> 'arquivoId' = a.id::text)
     UNION
     SELECT a.empresa_id FROM public.arquivos_do_telegram a JOIN public.anexos x
         ON x.id = a.anexo_id AND x.empresa_id = a.empresa_id
-     WHERE a.situacao = 'anexado' AND a.bloqueio_avisado_em IS NULL AND x.situacao = 'bloqueado'
+     WHERE a.situacao = 'anexado' AND a.antivirus_conferido_em IS NULL AND x.situacao IN ('bloqueado', 'disponivel')
     LIMIT 100
   $$;
 

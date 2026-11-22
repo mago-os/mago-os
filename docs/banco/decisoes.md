@@ -323,4 +323,4 @@ O login (`mago_acesso`) não lê papéis nem as regras da plataforma direto. As 
 
 - `arquivos_do_telegram` guarda o arquivo mandado pelo Telegram enquanto ele espera uma tarefa, por até 24 horas ([decisão 0034](../decisoes/0034-arquivos-pelo-telegram.md)): nome, tipo, tamanho e o número do arquivo no Telegram (`[sensivel]`, porque com ele e o token do bot dá para baixar). Nada é baixado nessa hora.
 - Ao anexar, o arquivo vira um anexo comum (`anexos`, M3-08), em nome da pessoa que mandou, e passa pelo antivírus. A situação "anexado" exige o anexo; se o anexo for apagado (a tarefa foi excluída), um gatilho deixa o arquivo como "vencido".
-- `bloqueio_avisado_em` marca o aviso de bloqueio pelo antivírus no Telegram, uma vez só. `empresas_com_telegram_pendente()` passa a achar também os arquivos vencidos e os bloqueios a avisar.
+- `antivirus_conferido_em` marca que o resultado do antivírus do anexo já foi conferido, uma vez só (o bloqueado é avisado no Telegram). `empresas_com_telegram_pendente()` passa a achar também os arquivos vencidos (menos os que têm pedido de aprovação para anexar esperando decisão) e os anexos a conferir.
