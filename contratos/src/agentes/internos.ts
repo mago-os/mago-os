@@ -296,6 +296,20 @@ export const FERRAMENTAS_INTERNAS = [
     papeis: ["coordenador", "especialista"],
   },
   {
+    nome: "arquivos_recebidos",
+    descricao:
+      "Lista os arquivos que quem pediu mandou pelo Telegram e que ainda esperam uma tarefa (até 24 horas), com o id, o nome, o tipo e o tamanho. O conteúdo dos arquivos não é lido. Use quando a pessoa falar de um arquivo que mandou.",
+    entrada: Type.Object({}, { additionalProperties: false }),
+    papeis: ["coordenador", "especialista"],
+  },
+  {
+    nome: "anexar_arquivo",
+    descricao:
+      "Anexa a uma tarefa um arquivo que quem pediu mandou pelo Telegram (o id vem na mensagem ou em arquivos_recebidos). O arquivo passa pelo antivírus antes de aparecer na tarefa. Se não estiver claro em qual tarefa anexar, pergunte à pessoa antes.",
+    entrada: Type.Object({ arquivoId: Id, tarefaId: Id }, { additionalProperties: false }),
+    papeis: ["coordenador", "especialista"],
+  },
+  {
     nome: "pegar_skill",
     descricao:
       "Lê o texto de uma das suas skills (a lista, com quando usar cada uma, vem nas suas instruções). Leia antes de fazer o trabalho que ela ensina. Uma skill não dá permissão nenhuma.",

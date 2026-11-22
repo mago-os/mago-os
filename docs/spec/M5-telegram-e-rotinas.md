@@ -1,6 +1,6 @@
 # Spec da Fase 1: M5 Telegram e rotinas
 
-Parte da [spec da Fase 1](README.md). Estado em 22/11/2026: **aprovado** pelo Sandro, com todas as 16 recomendações.
+Parte da [spec da Fase 1](README.md). Estado em 22/11/2026: **aprovado** pelo Sandro, com todas as 16 recomendações. Em construção: M5-01 e M5-02 prontas e no ar em 22/11/2026.
 
 **Pronto quando:** o Sandro vincula o Telegram dele por código e escreve ao bot "cria uma tarefa para revisar o contrato da DFO até sexta". O coordenador cria a tarefa, que aparece no app, e a conversa fica também no app. Ele manda uma foto pelo Telegram e ela vira anexo da tarefa, depois de passar pelo antivírus. O Gerente de projetos pede uma aprovação, o pedido chega no Telegram com botões, e o Sandro aprova com o código do app autenticador. Uma rotina "toda segunda às 8h, o Gerente de projetos resume as tarefas atrasadas" roda sozinha no horário e o resumo chega no Telegram. Uma rotina por evento ("quando uma tarefa do projeto Blog for concluída, criar a tarefa de revisão") dispara sozinha. Um evento da agenda avisa 10 minutos antes no app e no Telegram. Os testes provam que uma conta do Telegram só fala pela pessoa vinculada, que uma empresa não vê o Telegram nem as rotinas da outra, e que uma rotina não faz o que o dono dela não poderia fazer.
 

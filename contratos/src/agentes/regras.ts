@@ -93,6 +93,21 @@ export const CATALOGO_DE_ACOES: readonly AcaoDoCatalogo[] = [
     padraoInterno: "executa",
     padraoExterno: null,
   },
+  // Arquivos mandados pelo Telegram (M5-03): ver os que esperam e anexar numa tarefa que quem pediu pode editar.
+  {
+    acao: "arquivos_recebidos",
+    nome: "Ver os arquivos recebidos pelo Telegram",
+    mudaDados: false,
+    padraoInterno: "executa",
+    padraoExterno: null,
+  },
+  {
+    acao: "anexar_arquivo",
+    nome: "Anexar arquivo recebido pelo Telegram",
+    mudaDados: true,
+    padraoInterno: "executa",
+    padraoExterno: null,
+  },
   {
     acao: "ver_custos",
     nome: "Ver os custos",

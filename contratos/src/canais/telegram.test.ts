@@ -7,6 +7,7 @@ import {
   LETRAS_DO_CODIGO_DO_TELEGRAM,
   mencaoNoComeco,
   RESPOSTAS_DO_TELEGRAM,
+  textoDoArquivoParaOAgente,
 } from "./telegram.ts";
 
 describe("Telegram (M5-01)", () => {
@@ -59,13 +60,36 @@ describe("Telegram (M5-01)", () => {
     expect(mencaoNoComeco("@gerente")).toBeNull();
   });
 
+  it("a mensagem com arquivo é aceita, e o agente recebe só os dados do arquivo (M5-03)", () => {
+    const foto = {
+      update_id: 11,
+      message: {
+        message_id: 6,
+        date: 1795355865,
+        chat: { id: 1, type: "private" },
+        from: { id: 1, is_bot: false, first_name: "S" },
+        caption: "anexa na tarefa do contrato",
+        photo: [
+          { file_id: "p", file_unique_id: "u", file_size: 1000, width: 90, height: 90 },
+          { file_id: "g", file_unique_id: "v", file_size: 90000, width: 1280, height: 960 },
+        ],
+      },
+    };
+    expect(conferir(AtualizacaoDoTelegram, foto).ok).toBe(true);
+    expect(
+      textoDoArquivoParaOAgente({ id: "abc", nome: "foto.jpg", tipo: "image/jpeg", tamanho: 90000 }),
+    ).toBe("[Arquivo recebido pelo Telegram, esperando uma tarefa: foto.jpg (image/jpeg, 88 KB), id abc]");
+  });
+
   it("as respostas fixas não mudam sem querer (nenhuma diz se a conta ou o código existem)", () => {
     expect(RESPOSTAS_DO_TELEGRAM).toMatchInlineSnapshot(`
       {
+        "arquivoGrande": "Esse arquivo passa de 20 MB, o limite do Telegram para o Mago OS receber. Mande pelo app, na tarefa.",
         "codigoInvalido": "Esse código não vale. Gere um novo em Meu perfil, no app (ele vale 10 minutos).",
         "conversaNova": "Pronto, conversa nova. Pode mandar o pedido.",
         "desvinculado": "Pronto, este Telegram não está mais ligado ao Mago OS.",
         "especialistaNaoEncontrado": "Não encontrei esse agente. Mande o pedido sem a menção, para o coordenador.",
+        "figurinha": "Figurinhas e GIFs não viram anexo. Mande foto, documento, áudio ou vídeo.",
         "ocupado": "Ainda estou respondendo a mensagem anterior. Espere a resposta e mande de novo.",
         "semAcessoAosAgentes": "O seu perfil nesta empresa não conversa com os agentes. Fale com o administrador.",
         "semPermissaoDeEspecialista": "Só o administrador e o gestor falam direto com um especialista. Mande o pedido sem a menção, para o coordenador.",
@@ -73,6 +97,7 @@ describe("Telegram (M5-01)", () => {
         "semVinculo": "Para usar o Mago OS pelo Telegram, vincule a conta em Meu perfil, no app.",
         "soConversaIndividual": "O Mago OS só conversa com você em particular, não em grupos.",
         "soTexto": "Por enquanto entendo só texto por aqui. Arquivos e fotos chegam em breve.",
+        "tipoBloqueado": "Esse tipo de arquivo não é aceito (pode rodar um programa). Mande outro formato, como PDF ou imagem.",
         "travado": "Muitos códigos errados. Espere 15 minutos e gere um código novo em Meu perfil.",
       }
     `);
