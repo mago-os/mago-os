@@ -297,3 +297,10 @@ O login (`mago_acesso`) não lê papéis nem as regras da plataforma direto. As 
 
 - `agentes` ganha os limites de rodadas e de minutos de cada execução, ajustados pelo administrador ([decisão 0030](../decisoes/0030-limites-e-agente-em-circulo.md)); vazio vale o padrão (30 rodadas e 10 minutos), e o banco limita a 100 rodadas e 60 minutos. A repetição e o vai e volta são conferidos pelo motor, sem tabela nova: o vai e volta olha as execuções da tarefa nas últimas 24 horas.
 
+
+## 41. Parar todos os agentes (22/11/2026, M4-09)
+
+- `paradas_de_agentes` guarda cada parada da empresa ([decisão 0031](../decisoes/0031-parar-todos-os-agentes.md)): o motivo, quem parou (o nome fica guardado, porque o Dono da plataforma pode não ter vínculo com a empresa), se foi o Dono e quando terminou. Um índice único parcial garante uma parada ativa por empresa, e a trava por empresa evita duas ao mesmo tempo.
+- `agentes_da_parada` guarda os agentes que estavam ativos e a parada pausou: só eles voltam ao retomar, e quem já estava pausado continua pausado. O agente cadastrado durante a parada entra nela.
+- `execucoes_de_agente.parada_id` marca a execução que a parada interrompeu no meio; ao retomar, a tarefa dela volta à fila do agente numa execução nova, com os mesmos dados (quem pediu, origem, passada de onde veio e a marca de texto de outros).
+- `execucoes_esquecidas()` não acorda a fila de um agente parado: ela espera a retomada, que acorda tudo de uma vez.

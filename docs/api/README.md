@@ -438,6 +438,12 @@ Todas com o prefixo `/api` no site, menos `/mcp`, que fica em `https://teste.osm
 | GET | `/agentes/:id/execucoes` | agentes.ver | As execuções recentes de um agente interno (todas para o responsável e o administrador; as próprias para os outros). |
 | GET | `/agentes/:id/limites` | agentes.ver | Os limites de cada execução do agente interno: rodadas e minutos (M4-08), e se foram ajustados. |
 | POST | `/agentes/:id/limites` | agentes.editar | Muda os limites do agente interno (null volta ao padrão: 30 rodadas e 10 minutos). |
+| GET | `/agentes/parada` | agentes.ver | A parada ativa da empresa (Parar todos os agentes, M4-09), com os agentes dela, ou null. |
+| POST | `/agentes/parar-todos` | agentes.excluir | Para todos os agentes ativos da empresa, com o motivo e o segundo fator recente. As tarefas ficam como estavam. |
+| POST | `/agentes/retomar-todos` | agentes.excluir | Retoma os agentes da parada (todos, com agenteIds null, ou os escolhidos), com o segundo fator recente. A tarefa interrompida volta à fila. |
+| GET | `/plataforma/agentes/paradas` | Dono da plataforma | As empresas com os agentes parados. |
+| POST | `/plataforma/agentes/parar-todos` | Dono da plataforma | Para os agentes de todas as empresas ativas (com o motivo e o segundo fator recente). Só o Dono retoma. |
+| POST | `/plataforma/agentes/retomar-todos` | Dono da plataforma | Retoma os agentes das paradas feitas pelo Dono, em todas as empresas (com o segundo fator recente). |
 | GET | `/custos` | contas_de_ia.ver | O painel de custos do mês (query: mes=AAAA-MM): total, hoje, por agente, por conta, por dia e os modelos sem preço (M4-06). |
 | POST | `/custos/tetos/empresa` | contas_de_ia.editar | Muda o teto de gasto da empresa por mês (null: sem teto). |
 | POST | `/custos/tetos/agente/:id` | contas_de_ia.editar | Muda o teto de gasto de um agente interno por mês (null: sem teto). |
@@ -763,6 +769,24 @@ Recebe:
 
 - `rodadas` (integer ou null, obrigatório)
 - `minutos` (integer ou null, obrigatório)
+
+### POST `/agentes/parar-todos`
+
+Recebe:
+
+- `motivo` (string, obrigatório): Por que os agentes estão sendo parados.
+
+### POST `/agentes/retomar-todos`
+
+Recebe:
+
+- `agenteIds` (lista de id ou null, obrigatório)
+
+### POST `/plataforma/agentes/parar-todos`
+
+Recebe:
+
+- `motivo` (string, obrigatório): Por que os agentes estão sendo parados.
 
 ### POST `/custos/tetos/empresa`
 

@@ -109,3 +109,61 @@ test.describe("central de agentes", () => {
     await expect(page.getByText(/passou para a pessoa responsável/)).toBeVisible();
   });
 });
+
+// Numa empresa própria: parar todos os agentes não pode cair no meio do outro teste.
+test.describe("parar todos os agentes", () => {
+  let admin: PessoaDeTeste;
+
+  test.beforeAll(async () => {
+    admin = await criarPessoaDeTeste(`parada-${test.info().project.name}`, {
+      nome: "Alice Admin",
+      perfil: "administrador",
+    });
+  });
+
+  test.afterAll(async () => {
+    const c = new pg.Client({ connectionString: BANCO_DONO });
+    await c.connect();
+    await c.query("delete from avisos where empresa_id = $1", [admin.empresaId]);
+    await c.query("delete from paradas_de_agentes where empresa_id = $1", [admin.empresaId]);
+    await c.query("delete from agentes where empresa_id = $1 and papel = 'especialista'", [admin.empresaId]);
+    await c.query("delete from agentes where empresa_id = $1", [admin.empresaId]);
+    await c.end();
+    await admin.limpar();
+  });
+
+  test("para todos os agentes com o motivo e retoma pelo aviso no topo (M4-09)", async ({ page }) => {
+    await autenticadorVirtual(page);
+    await ipProprio(page);
+    await page.goto("/entrar");
+    await page.getByLabel("E-mail").fill(admin.email);
+    await page.getByLabel("Senha").fill(SENHA);
+    await page.getByRole("button", { name: "Entrar", exact: true }).click();
+    await page.getByRole("button", { name: "Usar passkey (recomendado)" }).click();
+    await expect(page.getByRole("heading", { name: /, Alice!$/ })).toBeVisible();
+
+    await page.goto("/agentes");
+    await expect(page.getByRole("link", { name: /Coordenador/ })).toBeVisible();
+    await page.getByRole("button", { name: "Cadastrar" }).click();
+    await expect(page.getByLabel("Pessoa responsável")).toHaveValue(/.+/);
+    await page.getByLabel("Nome").fill("Hermes");
+    await page.getByRole("button", { name: "Cadastrar agente" }).click();
+    await expect(page.getByRole("heading", { name: "Hermes" })).toBeVisible();
+
+    await page.goto("/agentes");
+    await page.getByRole("button", { name: "Parar todos os agentes" }).click();
+    await page.getByLabel("Motivo").fill("Teste do freio de emergência");
+    await page.getByRole("button", { name: "Parar agora" }).click();
+    const aviso = page.getByRole("alert").filter({ hasText: "Os agentes estão parados" });
+    await expect(aviso).toBeVisible();
+    await expect(aviso.getByText("Motivo: Teste do freio de emergência")).toBeVisible();
+    await expect(aviso.getByRole("button", { name: "Retomar Hermes" })).toBeVisible();
+    await page.getByRole("link", { name: /Hermes/ }).click();
+    await expect(page.getByText("Pausado").first()).toBeVisible();
+
+    await aviso.getByRole("button", { name: "Retomar todos" }).click();
+    await expect(aviso).toHaveCount(0);
+    await page.reload();
+    await expect(page.getByRole("button", { name: "Pausar" })).toBeVisible();
+  });
+});

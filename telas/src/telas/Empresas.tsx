@@ -17,6 +17,7 @@ import { Campo } from "@/componentes/ui/campo";
 import { Card, CardDescricao, CardTitulo } from "@/componentes/ui/card";
 import { Aviso } from "./Acesso";
 import { useAoVoltar } from "./Administrador";
+import { ParadaDaPlataforma } from "./Parada";
 
 type Mensagem = { texto: string; tipo: "erro" | "ok" } | null;
 
@@ -69,6 +70,7 @@ export function Empresas() {
           As contas do Mago OS. Você vê só o cadastro: o que acontece dentro de cada conta é dela.
         </p>
       </div>
+      <ParadaDaPlataforma />
       {!convidando && (
         <Button className="justify-self-start" onClick={() => setConvidando(true)}>
           Convidar nova conta

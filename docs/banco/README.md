@@ -41,6 +41,13 @@ erDiagram
     integer limite_de_rodadas
     integer limite_de_minutos
   }
+  agentes_da_parada {
+    uuid empresa_id PK
+    uuid parada_id PK
+    uuid agente_id PK
+    timestamp_with_time_zone retomado_em
+    uuid retomado_por
+  }
   ajustes_de_permissao {
     uuid id PK
     uuid empresa_id FK
@@ -276,6 +283,7 @@ erDiagram
     timestamp_with_time_zone iniciada_em
     timestamp_with_time_zone terminada_em
     boolean leu_texto_de_outros
+    uuid parada_id
   }
   itens_de_checklist {
     uuid id PK
@@ -353,6 +361,16 @@ erDiagram
     uuid pessoa_id PK
     text papel
     timestamp_with_time_zone concedido_em
+  }
+  paradas_de_agentes {
+    uuid id PK
+    uuid empresa_id FK
+    text motivo
+    uuid parada_por
+    text parada_por_nome
+    boolean da_plataforma
+    timestamp_with_time_zone parada_em
+    timestamp_with_time_zone retomada_em
   }
   passos_de_execucao {
     uuid id PK
@@ -676,6 +694,7 @@ erDiagram
   }
   empresas ||--o{ acontecimentos_de_tarefa : "empresa_id"
   empresas ||--o{ agentes : "empresa_id"
+  empresas ||--o{ agentes_da_parada : "empresa_id"
   empresas ||--o{ ajustes_de_permissao : "empresa_id"
   vinculos ||--o{ ajustes_de_permissao : "vinculo_id"
   pessoas ||--o{ ajustes_de_permissao : "feito_por"
@@ -707,6 +726,7 @@ erDiagram
   empresas ||--o{ mensagens_de_conversa : "empresa_id"
   empresas ||--o{ modelos_de_conta_de_ia : "empresa_id"
   pessoas ||--o{ papeis_plataforma : "pessoa_id"
+  empresas ||--o{ paradas_de_agentes : "empresa_id"
   empresas ||--o{ passos_de_execucao : "empresa_id"
   consumo_de_ia ||--o{ passos_de_execucao : "consumo_id"
   empresas ||--o{ preferencias_de_notificacao : "empresa_id"
@@ -799,6 +819,20 @@ Isolamento por empresa (Row Level Security): ligado e forçado.
 | responde_a_id | uuid | não |  | empresa | Especialista: o coordenador a quem responde. |
 | limite_de_rodadas | integer | não |  | empresa | Agente interno: rodadas por execução (vazio: o padrão, 30). |
 | limite_de_minutos | integer | não |  | empresa | Agente interno: minutos por execução (vazio: o padrão, 10). |
+
+### agentes_da_parada
+
+Os agentes que estavam ativos e a parada pausou (só eles voltam ao retomar).
+
+Isolamento por empresa (Row Level Security): ligado e forçado.
+
+| Coluna | Tipo | Obrigatória | Padrão | Marca | Descrição |
+| --- | --- | --- | --- | --- | --- |
+| empresa_id | uuid | sim |  | sistema | Empresa. Chave primária. |
+| parada_id | uuid | sim |  | sistema | A parada. Chave primária. |
+| agente_id | uuid | sim |  | sistema | O agente pausado pela parada. Chave primária. |
+| retomado_em | timestamp with time zone | não |  | sistema | Quando voltou ao trabalho (vazio: continua parado). |
+| retomado_por | uuid | não |  | sistema | Pessoa que retomou. |
 
 ### ajustes_de_permissao
 
@@ -1175,6 +1209,7 @@ Isolamento por empresa (Row Level Security): ligado e forçado.
 | iniciada_em | timestamp with time zone | não |  | sistema | Quando começou a rodar. |
 | terminada_em | timestamp with time zone | não |  | sistema | Quando terminou. |
 | leu_texto_de_outros | boolean | sim | `false` | sistema | Leu texto de outra pessoa ou de agente externo: o que muda dados pede aprovação (M4-04). |
+| parada_id | uuid | não |  | sistema | A parada que interrompeu a execução no meio (a tarefa volta à fila ao retomar). |
 
 ### itens_de_checklist
 
@@ -1308,6 +1343,23 @@ Isolamento por empresa (Row Level Security): ligado e forçado.
 | pessoa_id | uuid | sim |  | sistema | Pessoa que tem o papel. Chave primária. |
 | papel | text | sim |  | sistema | dono: Dono da plataforma. |
 | concedido_em | timestamp with time zone | sim | `now()` | sistema | Quando o papel foi dado. |
+
+### paradas_de_agentes
+
+Cada vez que todos os agentes da empresa foram parados (M4-09).
+
+Isolamento por empresa (Row Level Security): ligado e forçado.
+
+| Coluna | Tipo | Obrigatória | Padrão | Marca | Descrição |
+| --- | --- | --- | --- | --- | --- |
+| id | uuid | sim | `gen_random_uuid()` | sistema | Identificador. Chave primária. |
+| empresa_id | uuid | sim |  | sistema | Empresa. Aponta para empresas.id. |
+| motivo | text | sim |  | empresa | Por que os agentes foram parados. |
+| parada_por | uuid | sim |  | sistema | Pessoa que parou (administrador da empresa ou Dono da plataforma, que pode não ter vínculo). |
+| parada_por_nome | text | sim |  | pessoal | Nome de quem parou, no momento da parada. |
+| da_plataforma | boolean | sim | `false` | sistema | Parada pelo Dono da plataforma: só ele retoma. |
+| parada_em | timestamp with time zone | sim | `now()` | sistema | Quando parou. |
+| retomada_em | timestamp with time zone | não |  | sistema | Quando o último agente da parada voltou (vazio: a parada continua). |
 
 ### passos_de_execucao
 

@@ -28,6 +28,7 @@ describe("documentação da API", () => {
       "custos/rotas.ts",
       "agentes-internos/rotas-dos-passos.ts",
       "agentes-internos/rotas-dos-limites.ts",
+      "agentes/rotas-da-parada.ts",
       "mcp/index.ts",
     ];
     const noCodigo = new Set<string>();

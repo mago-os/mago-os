@@ -6,7 +6,11 @@
  */
 import { randomBytes, randomUUID } from "node:crypto";
 import { criarLogin, criarPoolDoLogin, embaralharSenha, registrarRotasDoLogin } from "@mago-os/nucleo/acesso";
-import { registrarRotasDosAgentes } from "@mago-os/nucleo/agentes";
+import {
+  registrarRotasDaParada,
+  registrarRotasDaParadaDaPlataforma,
+  registrarRotasDosAgentes,
+} from "@mago-os/nucleo/agentes";
 import {
   apagarPassosAntigos,
   entregarAoAgenteInterno,
@@ -65,6 +69,8 @@ describe.skipIf(!bancoDisponivel)("agentes internos", () => {
   const fila: { empresaId: string; execucaoId: string }[] = [];
   const ids: Record<string, string> = {};
   let roteiro: Parameters<typeof modelosFalsos>[0] = [];
+  /** Roda antes de cada resposta do modelo falso (ex.: parar os agentes no meio de uma execução). */
+  let antesDoModelo: (() => Promise<void>) | null = null;
   const modelos = modelosFalsos([]);
   let motor: OpcoesDoMotor;
   const errosDoMotor: string[] = [];
@@ -169,9 +175,13 @@ describe.skipIf(!bancoDisponivel)("agentes internos", () => {
     app = Fastify({ logger: { level: "error" } });
     registrarRotasDoLogin(app, login, poolAcesso);
     const verificador = criarVerificador(login, poolAcesso, poolApp, catalogoDeModulos());
-    registrarRotasDosAgentes(app, { verificador, poolApp, carteiro, urlPublica: SITE } as Parameters<
-      typeof registrarRotasDosAgentes
-    >[1]);
+    registrarRotasDosAgentes(app, {
+      verificador,
+      poolApp,
+      carteiro,
+      urlPublica: SITE,
+      acordar: (empresa: string, execucaoId: string) => fila.push({ empresaId: empresa, execucaoId }),
+    } as Parameters<typeof registrarRotasDosAgentes>[1]);
     const cofre = criarCofre({ atual: { versao: 1, chave: randomBytes(32) }, anteriores: [] });
     registrarRotasDasContasDeIa(app, {
       verificador,
@@ -190,12 +200,19 @@ describe.skipIf(!bancoDisponivel)("agentes internos", () => {
     registrarRotasDosCustos(app, verificador, poolApp);
     registrarRotasDosPassos(app, verificador, poolApp);
     registrarRotasDosLimites(app, verificador, poolApp);
+    registrarRotasDaParada(app, { verificador, poolApp, acordar });
+    registrarRotasDaParadaDaPlataforma(app, { login, poolAcesso, poolApp, acordar });
     registrarRotasDosProjetos(app, verificador, poolApp);
     motor = {
       poolApp,
       cofre,
       modelos: {
-        conversar: (a, p) => {
+        conversar: async (a, p) => {
+          if (antesDoModelo) {
+            const antes = antesDoModelo;
+            antesDoModelo = null;
+            await antes();
+          }
           // O roteiro de cada teste é trocado sem recriar o motor.
           const passo = roteiro.shift();
           return modelosFalsos(passo ? [passo] : [])
@@ -1685,6 +1702,249 @@ describe.skipIf(!bancoDisponivel)("agentes internos", () => {
     const e4 = await execucaoDa(bola);
     expect(e4?.situacao).toBe("parada");
     expect(e4?.resumo).toContain("passou entre os mesmos dois agentes 3 vezes");
+  });
+
+  it("parar todos os agentes (M4-09): termina no passo atual, a fila espera, e a retomada devolve o trabalho", async () => {
+    const ana = await como("ana@teste.invalid");
+    await dono.query("update agentes set situacao = 'ativo' where id = any($1::uuid[])", [
+      [ids.coordenador, ids.gerente],
+    ]);
+    const novoExterno = async (nome: string) => {
+      const r = await pedir("POST", "/agentes", ana, { nome, responsavelId: ids.ana });
+      expect(r.statusCode).toBe(201);
+      return r.json() as { id: string; situacao: string };
+    };
+    const externo = await novoExterno("Externo da Parada");
+    const jaPausado = await novoExterno("Externo Já Pausado");
+    expect((await pedir("POST", `/agentes/${jaPausado.id}/pausar`, ana)).statusCode).toBe(200);
+
+    // Sem o segundo fator recente, não para.
+    await dono.query(
+      "update acesso.sessoes set dois_fatores_em = now() - interval '2 hours' where pessoa_id = $1",
+      [ids.ana],
+    );
+    const semConfirmar = await pedir("POST", "/agentes/parar-todos", ana, { motivo: "Teste" });
+    expect(semConfirmar.statusCode).toBe(403);
+    expect(semConfirmar.json().code).toBe("CONFIRMACAO_NECESSARIA");
+    await dono.query("update acesso.sessoes set dois_fatores_em = now() where pessoa_id = $1", [ids.ana]);
+    expect((await pedir("POST", "/agentes/parar-todos", ana, { motivo: " " })).statusCode).toBe(400);
+
+    // O Gerente trabalha numa tarefa; os agentes são parados enquanto o modelo responde: a ferramenta não roda.
+    const t = await pedir("POST", "/tarefas", ana, {
+      titulo: "Tarefa que a parada interrompe",
+      responsavel: { tipo: "agente", agenteId: ids.gerente },
+    });
+    const interrompida = t.json().id as string;
+    let parada: { id: string; motivo: string; agentes: { agenteId: string }[] } | null = null;
+    antesDoModelo = async () => {
+      const r = await pedir("POST", "/agentes/parar-todos", ana, { motivo: "Agente mandando coisa errada" });
+      expect(r.statusCode).toBe(201);
+      parada = r.json();
+    };
+    roteiro = [
+      () => ({
+        chamadas: [
+          { id: "p1", nome: "comentar", entrada: { tarefaId: interrompida, texto: "Não devia sair." } },
+        ],
+      }),
+    ];
+    await rodarFila();
+    expect(parada).not.toBeNull();
+    const naParada = (parada as unknown as { agentes: { agenteId: string }[] }).agentes.map(
+      (a) => a.agenteId,
+    );
+    expect(naParada).toEqual(expect.arrayContaining([ids.coordenador, ids.gerente, externo.id]));
+    expect(naParada).not.toContain(jaPausado.id);
+    const execucao = await dono.query<{ situacao: string; parada_id: string | null }>(
+      "select situacao, parada_id from execucoes_de_agente where tarefa_id = $1",
+      [interrompida],
+    );
+    expect(execucao.rows).toEqual([
+      { situacao: "parada", parada_id: (parada as unknown as { id: string }).id },
+    ]);
+    const tarefa = await dono.query<{ status: string }>("select status from tarefas where id = $1", [
+      interrompida,
+    ]);
+    // Fica como estava na hora da parada (em andamento), sem voltar para "a fazer"; a trava sai.
+    expect(tarefa.rows[0]?.status).toBe("em_andamento");
+    expect(
+      (
+        await dono.query(
+          "select 1 from comentarios_de_tarefa where tarefa_id = $1 and texto = 'Não devia sair.'",
+          [interrompida],
+        )
+      ).rowCount,
+    ).toBe(0);
+    const situacoes = await dono.query<{ id: string; situacao: string }>(
+      "select id, situacao from agentes where id = any($1::uuid[])",
+      [[ids.coordenador, ids.gerente, externo.id, jaPausado.id]],
+    );
+    expect(situacoes.rows.every((a) => a.situacao === "pausado")).toBe(true);
+    expect(
+      (await dono.query("select 1 from avisos where pessoa_id = $1 and tipo = 'agentes_parados'", [ids.ana]))
+        .rowCount,
+    ).toBe(1);
+    expect((await pedir("POST", "/agentes/parar-todos", ana, { motivo: "De novo" })).json().code).toBe(
+      "JA_PARADOS",
+    );
+    const ativa = (await pedir("GET", "/agentes/parada", ana)).json().parada;
+    expect(ativa.motivo).toBe("Agente mandando coisa errada");
+
+    // Durante a parada: a conversa explica, a tarefa nova espera na fila e o agente novo nasce pausado.
+    const conversa = await pedir("POST", "/conversas/mensagens", ana, { texto: "oi" });
+    expect(conversa.statusCode).toBe(409);
+    expect(conversa.json().code).toBe("AGENTES_PARADOS");
+    const recusada = await pedir("POST", "/tarefas", ana, {
+      titulo: "Tarefa para agente parado",
+      responsavel: { tipo: "agente", agenteId: ids.gerente },
+    });
+    expect(recusada.statusCode).not.toBe(201);
+    // Uma delegação que já estava na fila espera a retomada (nem o motor nem a varredura dos esquecidos a encerram).
+    const t2 = await pedir("POST", "/tarefas", ana, { titulo: "Tarefa que espera a retomada" });
+    const esperando = t2.json().id as string;
+    await dono.query(
+      "update tarefas set responsavel_pessoa_id = null, responsavel_agente_id = $2 where id = $1",
+      [esperando, ids.gerente],
+    );
+    const naFila = await dono.query<{ id: string }>(
+      `insert into execucoes_de_agente (empresa_id, agente_id, pedido_por, origem, tarefa_id, instrucoes, criada_em)
+       values ($1, $2, $3, 'delegacao', $4, 'Organize esta tarefa.', now() - interval '5 minutes') returning id`,
+      [empresaId, ids.gerente, ids.ana, esperando],
+    );
+    fila.push({ empresaId, execucaoId: naFila.rows[0]?.id as string });
+    await rodarFila();
+    expect(
+      (await dono.query("select situacao from execucoes_de_agente where tarefa_id = $1", [esperando])).rows[0]
+        ?.situacao,
+    ).toBe("na_fila");
+    expect(
+      (
+        await dono.query("select execucao_id from execucoes_esquecidas() where execucao_id = $1", [
+          naFila.rows[0]?.id,
+        ])
+      ).rowCount,
+    ).toBe(0);
+    const novo = await novoExterno("Externo Novo na Parada");
+    expect(novo.situacao).toBe("pausado");
+
+    // Retomar só o Gerente (pela página dele): a tarefa interrompida volta à fila e a que esperou anda.
+    roteiro = [
+      () => ({
+        chamadas: [{ id: "r1", nome: "responder", entrada: { texto: "Continuei depois da parada." } }],
+      }),
+      () => ({ chamadas: [{ id: "r2", nome: "responder", entrada: { texto: "Peguei a que esperou." } }] }),
+    ];
+    const gerente = await pedir("POST", `/agentes/${ids.gerente}/retomar`, ana);
+    expect(gerente.statusCode).toBe(200);
+    expect(gerente.json().situacao).toBe("ativo");
+    await rodarFila();
+    const depois = await dono.query<{ tarefa_id: string; situacao: string }>(
+      "select tarefa_id, situacao from execucoes_de_agente where tarefa_id = any($1::uuid[]) order by criada_em",
+      [[interrompida, esperando]],
+    );
+    expect(
+      depois.rows
+        .filter((e) => e.situacao === "concluida")
+        .map((e) => e.tarefa_id)
+        .sort(),
+    ).toEqual([interrompida, esperando].sort());
+    expect((await pedir("GET", "/agentes/parada", ana)).json().parada).not.toBeNull();
+
+    // O que já estava pausado antes não liga enquanto a parada durar.
+    const fora = await pedir("POST", `/agentes/${jaPausado.id}/retomar`, ana);
+    expect(fora.statusCode).toBe(409);
+    expect(fora.json().code).toBe("AGENTES_PARADOS");
+    // Parar de novo com a parada aberta: o Gerente, que já tinha voltado, para outra vez.
+    const deNovo = await pedir("POST", "/agentes/parar-todos", ana, { motivo: "O Gerente voltou a errar" });
+    expect(deNovo.statusCode).toBe(201);
+    expect(
+      (await dono.query("select situacao from agentes where id = $1", [ids.gerente])).rows[0]?.situacao,
+    ).toBe("pausado");
+
+    // Retomar todos: voltam os da parada (e o novo); o que já estava pausado continua pausado.
+    const todos = await pedir("POST", "/agentes/retomar-todos", ana, { agenteIds: null });
+    expect(todos.statusCode).toBe(200);
+    expect(todos.json().retomadaEm).not.toBeNull();
+    const fim = await dono.query<{ id: string; situacao: string }>(
+      "select id, situacao from agentes where id = any($1::uuid[])",
+      [[ids.coordenador, ids.gerente, externo.id, novo.id, jaPausado.id]],
+    );
+    const situacao = Object.fromEntries(fim.rows.map((a) => [a.id, a.situacao]));
+    expect(situacao).toEqual({
+      [ids.coordenador as string]: "ativo",
+      [ids.gerente as string]: "ativo",
+      [externo.id]: "ativo",
+      [novo.id]: "ativo",
+      [jaPausado.id]: "pausado",
+    });
+    expect((await pedir("GET", "/agentes/parada", ana)).json().parada).toBeNull();
+    const auditoria = await dono.query<{ acao: string }>(
+      "select acao from auditoria.eventos where empresa_id = $1 and acao in ('agentes.parou_todos', 'agentes.retomou') order by sequencia",
+      [empresaId],
+    );
+    expect(auditoria.rows.map((a) => a.acao)).toEqual([
+      "agentes.parou_todos",
+      "agentes.retomou",
+      "agentes.parou_todos",
+      "agentes.retomou",
+    ]);
+
+    // Parada do Dono da plataforma: o administrador da empresa não retoma.
+    expect((await pedir("POST", "/agentes/parar-todos", ana, { motivo: "Outra parada" })).statusCode).toBe(
+      201,
+    );
+    await dono.query(
+      "update paradas_de_agentes set da_plataforma = true where empresa_id = $1 and retomada_em is null",
+      [empresaId],
+    );
+    const doDono = await pedir("POST", "/agentes/retomar-todos", ana, { agenteIds: null });
+    expect(doDono.statusCode).toBe(403);
+    expect(doDono.json().code).toBe("PARADA_DA_PLATAFORMA");
+    await dono.query(
+      "update paradas_de_agentes set da_plataforma = false where empresa_id = $1 and retomada_em is null",
+      [empresaId],
+    );
+    expect((await pedir("POST", "/agentes/retomar-todos", ana, { agenteIds: null })).statusCode).toBe(200);
+    await dono.query("update agentes set situacao = 'pausado' where id = any($1::uuid[])", [
+      [externo.id, novo.id],
+    ]);
+  });
+
+  it("parar todos pelo Dono da plataforma (M4-09): para as duas empresas, e só ele retoma", async () => {
+    const ana = await como("ana@teste.invalid");
+    const otto = await como("otto@teste.invalid");
+    const outro = await dono.query<{ id: string }>(
+      `insert into agentes (empresa_id, nome, responsavel_id) values ($1, 'Agente da Outra', $2) returning id`,
+      [OUTRA, ids.otto],
+    );
+    expect(
+      (await pedir("POST", "/plataforma/agentes/parar-todos", ana, { motivo: "Incidente" })).statusCode,
+    ).toBe(403);
+    await dono.query("insert into papeis_plataforma (pessoa_id, papel) values ($1, 'dono')", [ids.ana]);
+    const parou = await pedir("POST", "/plataforma/agentes/parar-todos", ana, {
+      motivo: "Incidente na plataforma",
+    });
+    expect(parou.statusCode).toBe(201);
+    expect(parou.json().empresas).toBe(2);
+    expect(
+      (await dono.query("select situacao from agentes where id = $1", [outro.rows[0]?.id])).rows[0]?.situacao,
+    ).toBe("pausado");
+    const paradas = (await pedir("GET", "/plataforma/agentes/paradas", ana)).json().paradas as unknown[];
+    expect(paradas).toHaveLength(2);
+    // O administrador da outra empresa vê a parada, mas não retoma.
+    const naOutra = (await pedir("GET", "/agentes/parada", otto)).json().parada;
+    expect(naOutra.daPlataforma).toBe(true);
+    expect((await pedir("POST", "/agentes/retomar-todos", otto, { agenteIds: null })).json().code).toBe(
+      "PARADA_DA_PLATAFORMA",
+    );
+    const retomou = await pedir("POST", "/plataforma/agentes/retomar-todos", ana);
+    expect(retomou.statusCode).toBe(200);
+    expect(retomou.json().empresas).toBe(2);
+    expect(
+      (await dono.query("select situacao from agentes where id = $1", [outro.rows[0]?.id])).rows[0]?.situacao,
+    ).toBe("ativo");
+    expect((await pedir("GET", "/agentes/parada", otto)).json().parada).toBeNull();
+    await dono.query("delete from papeis_plataforma where pessoa_id = $1", [ids.ana]);
   });
 
   it("coordenador desligado por engano: nasce um novo, pausado, e o Gerente passa a responder a ele", async () => {

@@ -39,6 +39,7 @@ import { PaginaDaExecucao } from "./telas/Execucoes";
 import { Instrucoes } from "./telas/Instrucoes";
 import { NovaConta } from "./telas/NovaConta";
 import { Paineis } from "./telas/Paineis";
+import { AvisoDaParada } from "./telas/Parada";
 import { MeuPerfil } from "./telas/Perfil";
 import { CentralDePrioridades, Prioridades } from "./telas/Prioridades";
 import { PaginaDoProjeto, Projetos } from "./telas/Projetos";
@@ -237,6 +238,7 @@ export function App() {
       <Agentes
         podeCadastrar={pode("agentes", "criar")}
         podeContasDeIa={pode("contas_de_ia", "ver")}
+        podeParar={pode("agentes", "excluir")}
         euId={sessao.pessoa.id}
       />
     );
@@ -368,6 +370,7 @@ export function App() {
     >
       <AvisosDeAcesso avisos={avisos} aoResponder={() => void carregarAvisos()} />
       {temEmpresaAtiva && <AvisosDoMago />}
+      {temEmpresaAtiva && pode("agentes", "excluir") && <AvisoDaParada />}
       {conteudo}
     </Casca>
   );

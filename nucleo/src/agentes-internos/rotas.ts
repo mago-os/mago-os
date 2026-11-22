@@ -6,6 +6,7 @@ import { conferir, PedidoDeMensagem } from "@mago-os/contratos";
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import type pg from "pg";
 import { origemDoPedido } from "../acesso/rotas.ts";
+import { paradaDoAgente } from "../agentes/parada.ts";
 import { garantirAgentesDeNascenca } from "../agentes/servico.ts";
 import { auditar } from "../auditoria/registrar.ts";
 import { comPessoa } from "../empresa.ts";
@@ -105,7 +106,12 @@ export function registrarRotasDaConversa(app: FastifyInstance, o: OpcoesDaConver
       if (!agente) return { erro: pedidoDireto ? ("nao_encontrada" as const) : ("sem_coordenador" as const) };
       if (pedidoDireto && agente.papel === "especialista" && !podeFalarComEspecialista(pedido))
         return { erro: "sem_permissao" as const };
-      if (agente.situacao !== "ativo") return { erro: "pausado" as const, nome: agente.nome };
+      if (agente.situacao !== "ativo") {
+        // Os agentes foram parados (M4-09): a pessoa lê o motivo.
+        const parada = await paradaDoAgente(c, agente.id);
+        if (parada) return { erro: "parados" as const, motivo: parada.motivo };
+        return { erro: "pausado" as const, nome: agente.nome };
+      }
       // Uma execução de cada vez por conversa: a pessoa espera a resposta antes de mandar outra. A linha da conversa
       // fica travada até o fim da transação, para dois envios ao mesmo tempo não criarem duas execuções.
       if (conversa) {
@@ -135,6 +141,11 @@ export function registrarRotasDaConversa(app: FastifyInstance, o: OpcoesDaConver
         return resposta.code(403).send({
           code: "SEM_PERMISSAO",
           message: "Só o administrador e o gestor falam direto com um especialista. Fale com o coordenador.",
+        });
+      if (feito.erro === "parados")
+        return resposta.code(409).send({
+          code: "AGENTES_PARADOS",
+          message: `Os agentes foram parados por um administrador: ${feito.motivo}`,
         });
       if (feito.erro === "ocupado")
         return resposta

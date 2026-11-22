@@ -27,6 +27,7 @@ import { useAoVoltar } from "./Administrador";
 import { ExecucoesDoAgente } from "./Execucoes";
 import { LimitesDoAgente } from "./LimitesDoAgente";
 import { ModeloDoAgente } from "./ModeloDoAgente";
+import { PararTodosOsAgentes } from "./Parada";
 import { RegrasDoAgente } from "./RegrasDoAgente";
 
 type Mensagem = { texto: string; tipo: "erro" | "ok" } | null;
@@ -70,10 +71,13 @@ function usePessoasAtivas() {
 export function Agentes({
   podeCadastrar,
   podeContasDeIa = false,
+  podeParar = false,
   euId,
 }: {
   podeCadastrar: boolean;
   podeContasDeIa?: boolean;
+  /** Parar todos os agentes (M4-09): quem pode desligar agentes. */
+  podeParar?: boolean;
   euId: string;
 }) {
   const [agentes, setAgentes] = useState<AgenteNaLista[] | null>(null);
@@ -162,6 +166,7 @@ export function Agentes({
           </li>
         ))}
       </ul>
+      {podeParar && agentes && agentes.length > 0 && <PararTodosOsAgentes />}
     </main>
   );
 }

@@ -7,6 +7,7 @@ import { criarLogin, criarPoolDoLogin } from "./acesso/login.ts";
 import { registrarRotasDoLogin } from "./acesso/rotas.ts";
 import { verificarAgentesVivos } from "./agentes/chaves.ts";
 import { registrarRotasDoAgente, registrarRotasDosAgentes } from "./agentes/rotas.ts";
+import { registrarRotasDaParada, registrarRotasDaParadaDaPlataforma } from "./agentes/rotas-da-parada.ts";
 import {
   apagarPassosAntigos,
   type OpcoesDoMotor,
@@ -130,8 +131,11 @@ async function iniciar(): Promise<void> {
       poolApp: banco.pool,
       carteiro,
       urlPublica: config.acesso.urlPublica,
+      acordar: acordarAgente,
     };
     registrarRotasDosAgentes(app, opcoesDosAgentes);
+    // Parar todos os agentes (M4-09).
+    registrarRotasDaParada(app, { verificador, poolApp: banco.pool, acordar: acordarAgente });
     // Contas de IA (M4-01): sem a chave mestra fora do Mac, ficam desligadas.
     if (!config.cofre) app.log.warn("Contas de IA desligadas: MAGO_COFRE_CHAVE_MESTRA não foi informada");
     else if (config.cofre.deTeste) app.log.warn("Cofre com a chave fixa do Mac: só para dados falsos");
@@ -275,6 +279,12 @@ async function iniciar(): Promise<void> {
       carteiro,
       urlPublica: config.acesso.urlPublica,
       conferirSenhasVazadas: config.acesso.conferirSenhasVazadas,
+    });
+    registrarRotasDaParadaDaPlataforma(app, {
+      login,
+      poolAcesso: poolDoLogin,
+      poolApp: banco.pool,
+      acordar: acordarAgente,
     });
     registrarRotasDasContas(app, {
       login,
