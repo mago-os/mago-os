@@ -106,50 +106,56 @@ export async function mencoesPendentes(c: pg.PoolClient, agenteId: string): Prom
   return r.rows.map((l) => l.tarefa_id);
 }
 
-const semAcento = (t: string) =>
-  t
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase();
+/** Sem acento, em minúsculas e sem espaço nas pontas: para comparar nomes. */
+export const semAcento = (t: string) => t.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().trim();
+
+const MAXIMO_DE_MENCOES_NO_TEXTO = 20;
 
 /**
- * As menções escritas no texto ("@Ana", "@Ana Souza", "@Gerente de projetos"), para quem comenta sem a tela que escolhe
- * da lista: os agentes, pelo MCP ou de dentro. Vale o nome inteiro, ou o primeiro nome quando só uma pessoa ou agente
- * ativo da empresa tem esse primeiro nome. Sem diferença de acento ou maiúscula.
+ * As pessoas mencionadas no texto ("@Ana", "@Ana Souza"), para quem comenta sem a tela que escolhe da lista: os
+ * agentes, pelo MCP ou de dentro. Vale o nome inteiro, ou o primeiro nome quando só uma pessoa ativa da empresa tem
+ * esse primeiro nome. No mesmo @ vale o nome mais longo ("@Ana Beatriz" não menciona a "Ana"), e nome que serve para
+ * duas pessoas não menciona ninguém. Sem diferença de acento ou maiúscula; o @ no meio de uma palavra (um e-mail) não
+ * conta. Só pessoas: mencionar um agente abre a tarefa para ele (M3-05), e isso fica com quem escolhe na tela. Na ordem
+ * do texto, até 20.
  */
 export async function mencoesDoTexto(c: pg.PoolClient, texto: string): Promise<Responsavel[]> {
   if (!texto.includes("@")) return [];
-  const r = await c.query<{ tipo: "pessoa" | "agente"; id: string; nome: string }>(
-    `select 'pessoa' as tipo, p.id, p.nome from vinculos v join pessoas p on p.id = v.pessoa_id
-      where v.empresa_id = empresa_ativa() and v.situacao = 'ativo'
-     union all
-     select 'agente', a.id, a.nome from agentes a where a.empresa_id = empresa_ativa() and a.situacao <> 'desligado'`,
+  const r = await c.query<{ id: string; nome: string }>(
+    `select p.id, p.nome from vinculos v join pessoas p on p.id = v.pessoa_id
+      where v.empresa_id = empresa_ativa() and v.situacao = 'ativo'`,
   );
-  const normal = semAcento(texto);
-  // Depois do @ e do nome vem o fim do texto, um espaço ou uma pontuação (não o meio de outra palavra).
-  const mencionou = (nome: string) => {
-    const alvo = `@${semAcento(nome.trim())}`;
-    let i = normal.indexOf(alvo);
-    while (i >= 0) {
-      const depois = normal.charAt(i + alvo.length);
-      if (!depois || !/[\p{L}\p{N}_]/u.test(depois)) return true;
-      i = normal.indexOf(alvo, i + 1);
-    }
-    return false;
+  const inteiros = new Map<string, string[]>();
+  const primeiros = new Map<string, string[]>();
+  const juntar = (m: Map<string, string[]>, chave: string, id: string) => {
+    if (chave) m.set(chave, [...(m.get(chave) ?? []), id]);
   };
-  const primeiro = (nome: string) => semAcento(nome.trim().split(/\s+/)[0] ?? "");
-  const contagem = new Map<string, number>();
-  for (const x of r.rows) contagem.set(primeiro(x.nome), (contagem.get(primeiro(x.nome)) ?? 0) + 1);
-  const mencoes: Responsavel[] = [];
-  for (const x of r.rows) {
-    const peloPrimeiro =
-      contagem.get(primeiro(x.nome)) === 1 && mencionou(x.nome.trim().split(/\s+/)[0] ?? "");
-    if (mencionou(x.nome) || peloPrimeiro)
-      mencoes.push(
-        x.tipo === "pessoa" ? { tipo: "pessoa", pessoaId: x.id } : { tipo: "agente", agenteId: x.id },
-      );
+  for (const p of r.rows) {
+    const inteiro = semAcento(p.nome).replace(/\s+/g, " ");
+    juntar(inteiros, inteiro, p.id);
+    juntar(primeiros, inteiro.split(" ")[0] ?? "", p.id);
   }
-  return mencoes.slice(0, 20);
+  // Do nome mais longo para o mais curto; no mesmo tamanho, o nome inteiro antes do primeiro nome.
+  const chaves = [
+    ...[...inteiros].map(([chave, ids]) => ({ chave, ids, inteiro: 1 })),
+    ...[...primeiros].map(([chave, ids]) => ({ chave, ids, inteiro: 0 })),
+  ].sort((a, b) => b.chave.length - a.chave.length || b.inteiro - a.inteiro);
+  const letra = /[\p{L}\p{N}_]/u;
+  const normal = semAcento(texto).replace(/\s+/g, " ");
+  const achados: string[] = [];
+  for (let i = normal.indexOf("@"); i >= 0; i = normal.indexOf("@", i + 1)) {
+    if (achados.length >= MAXIMO_DE_MENCOES_NO_TEXTO) break;
+    // Um e-mail (ana@empresa.com) não é menção.
+    if (i > 0 && /[\p{L}\p{N}_.+-]/u.test(normal.charAt(i - 1))) continue;
+    const resto = normal.slice(i + 1);
+    // Depois do nome vem o fim do texto, um espaço ou uma pontuação (não o meio de outra palavra).
+    const achada = chaves.find(
+      ({ chave }) => resto.startsWith(chave) && !letra.test(resto.charAt(chave.length)),
+    );
+    const id = achada?.ids.length === 1 ? achada.ids[0] : undefined;
+    if (id && !achados.includes(id)) achados.push(id);
+  }
+  return achados.map((pessoaId) => ({ tipo: "pessoa", pessoaId }));
 }
 
 /** As pessoas e agentes mencionados existem e estão ativos nesta empresa. */

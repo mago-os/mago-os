@@ -276,19 +276,27 @@ describe.skipIf(!bancoDisponivel)("linha do tempo", () => {
     }
   });
 
-  it("o @nome escrito no texto vira menção: nome inteiro ou primeiro nome sem repetição, sem acento", async () => {
+  it("o @nome escrito no texto vira menção de pessoa: nome inteiro, primeiro nome sem repetição, sem acento", async () => {
     const achar = (texto: string) =>
       comEmpresa(poolApp, empresaId, async (c) =>
-        (await mencoesDoTexto(c, texto)).map((m) => (m.tipo === "pessoa" ? m.pessoaId : m.agenteId)).sort(),
+        (await mencoesDoTexto(c, texto)).map((m) => (m.tipo === "pessoa" ? m.pessoaId : m.agenteId)),
       );
     expect(await achar("@Ana, confira a minuta.")).toEqual([ids.ana]);
-    expect(await achar("pedi ao @fábio func e à @Flora")).toEqual([ids.fabio, ids.flora].sort());
+    // Na ordem do texto, cada pessoa uma vez.
+    expect(await achar("pedi à @Flora e ao @fábio func; @flora de novo")).toEqual([ids.flora, ids.fabio]);
     expect(await achar("@Anabela e ana@teste.invalid não são menção")).toEqual([]);
+    expect(await achar("mande para joao@ana.com.br")).toEqual([]);
     expect(await achar("@Otto é de outra empresa")).toEqual([]);
+    // Agente não: a menção abriria a tarefa para ele.
+    expect(await achar("@Claude no Mac, veja")).toEqual([]);
     expect(await achar("sem arroba")).toEqual([]);
     // Dois com o mesmo primeiro nome: só o nome inteiro vale.
     ids.ana2 = await criarPessoa("Ana Beatriz", "ana2@teste.invalid", "funcionario", "comercial");
     expect(await achar("@Ana, confira")).toEqual([]);
-    expect(await achar("@Ana Beatriz e @Ana Admin")).toEqual([ids.ana, ids.ana2].sort());
+    expect(await achar("@Ana Beatriz e @Ana Admin")).toEqual([ids.ana2, ids.ana]);
+    // Quem se chama só "Ana": "@Ana" é ela, e "@Ana Beatriz" continua sendo a outra (vale o nome mais longo).
+    ids.ana3 = await criarPessoa("Ana", "ana3@teste.invalid", "funcionario", "comercial");
+    expect(await achar("@Ana, confira")).toEqual([ids.ana3]);
+    expect(await achar("@Ana Beatriz, confira")).toEqual([ids.ana2]);
   });
 });

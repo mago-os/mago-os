@@ -33,7 +33,12 @@ import { filtroDoAlcance } from "../permissoes/calcular.ts";
 import { type PermissoesNaEmpresa, permissoesNaEmpresa } from "../permissoes/verificar.ts";
 import { buscarProjeto, listarProjetos } from "../projetos/servico.ts";
 import { criarItem, listarChecklist } from "../tarefas/checklist.ts";
-import { acontecimentoDaAcao, mencoesDoTexto, registrarAcontecimento } from "../tarefas/linha-do-tempo.ts";
+import {
+  acontecimentoDaAcao,
+  mencoesDoTexto,
+  registrarAcontecimento,
+  semAcento,
+} from "../tarefas/linha-do-tempo.ts";
 import { fusoDaEmpresa, planejar, recusaDoPlanejamento } from "../tarefas/planejamento.ts";
 import { listarPrioridades } from "../tarefas/prioridades.ts";
 import {
@@ -512,6 +517,12 @@ async function executarSemMarca(
         return { tarefa: t, comentario: feito };
       });
       await registrar("tarefa.comentou", tarefaId, { comentarioId: comentario.id });
+      if (comentario.mencoes.length > 0)
+        await registrar("tarefa.mencionou", tarefaId, {
+          comentarioId: comentario.id,
+          pessoas: comentario.mencoes.length,
+          agentes: 0,
+        });
       await avisarDepois(
         ctx.poolApp,
         ctx.empresaId,
@@ -522,13 +533,7 @@ async function executarSemMarca(
       return { conteudo: { comentarioId: comentario.id } };
     }
     case "procurar_pessoa": {
-      const sem = (t: string) =>
-        t
-          .normalize("NFD")
-          .replace(/[\u0300-\u036f]/g, "")
-          .toLowerCase()
-          .trim();
-      const procurado = sem(entrada.nome as string);
+      const procurado = semAcento(entrada.nome as string);
       const feito = await naEmpresa(async (c) => {
         // Pessoas pelo alcance de quem pediu (o mesmo da tela Pessoas) e do responsável pelo agente; agentes, todos os
         // ativos (todos veem agentes).
@@ -560,7 +565,9 @@ async function executarSemMarca(
           ...agentes.rows.map((a) => ({ tipo: "agente" as const, id: a.id, nome: a.nome, area: null })),
         ];
       });
-      return { conteudo: { encontrados: feito.filter((x) => sem(x.nome).includes(procurado)).slice(0, 10) } };
+      return {
+        conteudo: { encontrados: feito.filter((x) => semAcento(x.nome).includes(procurado)).slice(0, 10) },
+      };
     }
     case "mudar_prazo": {
       const tarefaId = entrada.tarefaId as string;
@@ -828,13 +835,7 @@ async function executarSemMarca(
     case "listar_tarefas": {
       const quem = quemPediu(ctx.permissoes, pessoaId, "ver");
       if (!quem) throw new RecusaDaFerramenta("Quem pediu não vê tarefas.");
-      const sem = (t: string) =>
-        t
-          .normalize("NFD")
-          .replace(/[\u0300-\u036f]/g, "")
-          .toLowerCase()
-          .trim();
-      const texto = typeof entrada.texto === "string" ? sem(entrada.texto) : null;
+      const texto = typeof entrada.texto === "string" ? semAcento(entrada.texto) : null;
       const limite = typeof entrada.limite === "number" ? entrada.limite : 30;
       const feito = await naEmpresa(async (c) => {
         const todas = await listarTarefas(c, quem, {
@@ -845,7 +846,7 @@ async function executarSemMarca(
         });
         const filtradas = await soAsDoResponsavel(
           c,
-          texto ? todas.filter((t) => sem(t.titulo).includes(texto)) : todas,
+          texto ? todas.filter((t) => semAcento(t.titulo).includes(texto)) : todas,
           (t) => t.id,
         );
         const lista = filtradas.slice(0, limite);
@@ -884,13 +885,7 @@ async function executarSemMarca(
     case "procurar_projeto": {
       const ver = ctx.permissoes.modulos.get("projetos")?.acoes.ver ?? "nada";
       if (ver === "nada") throw new RecusaDaFerramenta("Quem pediu não vê projetos.");
-      const sem = (t: string) =>
-        t
-          .normalize("NFD")
-          .replace(/[\u0300-\u036f]/g, "")
-          .toLowerCase()
-          .trim();
-      const procurado = sem(entrada.nome as string);
+      const procurado = semAcento(entrada.nome as string);
       const projetos = await naEmpresa(async (c) => {
         const meus = await listarProjetos(c, pessoaId, ver === "tudo" ? "todos" : "membro", {
           arquivados: false,
@@ -907,7 +902,7 @@ async function executarSemMarca(
         );
         return meus.filter((p) => dele.has(p.id));
       });
-      const achados = projetos.filter((p) => sem(p.nome).includes(procurado)).slice(0, 10);
+      const achados = projetos.filter((p) => semAcento(p.nome).includes(procurado)).slice(0, 10);
       return { conteudo: { projetos: achados.map((p) => ({ id: p.id, nome: p.nome })) } };
     }
     case "criar_tarefa": {

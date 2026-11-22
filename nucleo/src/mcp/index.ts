@@ -85,6 +85,7 @@ export class RecusaDaFerramenta extends Error {
 export type AcaoDeTarefa =
   | (typeof ACOES_TAREFAS)[number]
   | (typeof ACOES_CHECKLIST)[number]
+  | "tarefa.mencionou"
   | "tarefa.recorreu";
 
 export function registrarServidorMcp(app: FastifyInstance, o: OpcoesDoMcp): void {
@@ -441,6 +442,12 @@ export async function executar(
       });
       if (!comentario) throw naoAchou();
       await registrar("tarefa.comentou", e.tarefaId, { comentarioId: comentario.id });
+      if (comentario.mencoes.length > 0)
+        await registrar("tarefa.mencionou", e.tarefaId, {
+          comentarioId: comentario.id,
+          pessoas: comentario.mencoes.length,
+          agentes: 0,
+        });
       const comentada = await naEmpresa((c) => buscarTarefa(c, { ...quem, comoGerente: true }, e.tarefaId));
       if (comentada) {
         await avisarDepois(

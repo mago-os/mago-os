@@ -909,6 +909,11 @@ describe.skipIf(!bancoDisponivel)("conversa pelo Telegram", () => {
         where c.texto = '@Ana, confira a minuta.'`,
     );
     expect(m.rows.map((x) => x.pessoa_id)).toEqual([ids.ana]);
+    const auditoria = await dono.query(
+      "select 1 from auditoria.eventos where acao = 'tarefa.mencionou' and alvo->>'id' = $1",
+      [ids.tarefa],
+    );
+    expect(auditoria.rowCount).toBe(1);
     const aviso = await dono.query("select tipo from avisos where pessoa_id = $1 and telegram_pendente", [
       ids.ana,
     ]);
