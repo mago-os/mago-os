@@ -118,9 +118,25 @@ export const MensagemDoTelegram = Type.Object({
 export type MensagemDoTelegram = Static<typeof MensagemDoTelegram>;
 
 /** Uma atualização do webhook. Cada update_id é tratado uma vez só. */
+/** O toque num botão embaixo de uma mensagem do bot (M5-04). */
+export const BotaoTocadoNoTelegram = Type.Object({
+  id: Type.String({ minLength: 1, maxLength: 100 }),
+  from: UsuarioDoTelegram,
+  message: Type.Optional(
+    Type.Object({
+      message_id: Type.Integer(),
+      chat: Type.Object({ id: NumeroDoTelegram, type: Type.String() }),
+    }),
+  ),
+  /** O que o botão leva (até 64 bytes, no formato de DADOS_DOS_BOTOES). */
+  data: Type.Optional(Type.String({ maxLength: 64 })),
+});
+export type BotaoTocadoNoTelegram = Static<typeof BotaoTocadoNoTelegram>;
+
 export const AtualizacaoDoTelegram = Type.Object({
   update_id: Type.Integer({ minimum: 0 }),
   message: Type.Optional(MensagemDoTelegram),
+  callback_query: Type.Optional(BotaoTocadoNoTelegram),
 });
 export type AtualizacaoDoTelegram = Static<typeof AtualizacaoDoTelegram>;
 
@@ -169,6 +185,43 @@ export const textoDoArquivoParaOAgente = (a: {
 }) =>
   `[Arquivo recebido pelo Telegram, esperando uma tarefa: ${a.nome} (${a.tipo}${a.tamanho === null ? "" : `, ${Math.max(1, Math.round(a.tamanho / 1024))} KB`}), id ${a.id}]`;
 
+// Aprovar pelo Telegram (M5-04, decisão 0035).
+
+/** Depois de tocar em Aprovar, a pessoa tem 5 minutos para mandar o código do app autenticador. */
+export const MINUTOS_PARA_MANDAR_O_CODIGO = 5;
+/** Três códigos errados travam as aprovações pelo Telegram dessa pessoa por 15 minutos (e avisam no app). */
+export const ERROS_DE_CODIGO_NA_APROVACAO = 3;
+export const MINUTOS_DA_TRAVA_DAS_APROVACOES = 15;
+
+/**
+ * O que cada botão leva: "ap:a:<id>" aprova, "ap:r:<id>" recusa o pedido de aprovação <id>; "em:<id>" troca para a
+ * empresa <id> (o id, não a posição na lista: um botão antigo nunca leva a outra empresa). Botão com dado fora destes formatos é ignorado.
+ */
+export const DADOS_DOS_BOTOES = {
+  aprovar: /^ap:a:([0-9a-f-]{36})$/,
+  recusar: /^ap:r:([0-9a-f-]{36})$/,
+  empresa: /^em:([0-9a-f-]{36})$/,
+} as const;
+
+/** O pedido de aprovação como chega no Telegram: o mesmo resumo e os mesmos parâmetros da tela, só como texto. */
+export function textoDaAprovacaoNoTelegram(a: {
+  agente: string;
+  resumo: string;
+  motivo: string | null;
+  parametros: Record<string, unknown>;
+  venceEm: string;
+}): string {
+  const linhas = [`${a.agente} pede a sua aprovação:`, a.resumo];
+  if (a.motivo) linhas.push("", `Por quê: ${a.motivo}`);
+  const parametros = JSON.stringify(a.parametros, null, 1);
+  linhas.push("", `Parâmetros: ${parametros.length > 1500 ? `${parametros.slice(0, 1500)}...` : parametros}`);
+  linhas.push(
+    "",
+    `Vence em ${a.venceEm.slice(0, 16).replace("T", " ")} (UTC). Editar os parâmetros, só no app.`,
+  );
+  return linhas.join("\n");
+}
+
 /** Comandos do bot, na ordem do menu do Telegram. /nova e /tarefas chegam na M5-02. */
 export const COMANDOS_DO_TELEGRAM = [
   { comando: "nova", descricao: "Começar uma conversa nova com o coordenador" },
@@ -198,7 +251,23 @@ export const RESPOSTAS_DO_TELEGRAM = {
   tipoBloqueado:
     "Esse tipo de arquivo não é aceito (pode rodar um programa). Mande outro formato, como PDF ou imagem.",
   figurinha: "Figurinhas e GIFs não viram anexo. Mande foto, documento, áudio ou vídeo.",
+  pecaOMotivo: "Mande numa mensagem o motivo da recusa (ou escreva: sem motivo).",
+  semAutenticador:
+    "Você não usa app autenticador, então este pedido se aprova só no app. Toque em Abrir no app. Recusar dá para fazer por aqui.",
+  aprovacoesTravadas:
+    "Muitos códigos errados. As aprovações pelo Telegram ficam travadas por 15 minutos. Aprove pelo app, se precisar.",
+  foraDoTempo: "O tempo para mandar o código acabou. Toque em Aprovar de novo.",
+  pedidoNaoEncontrado: "Não encontrei esse pedido entre os que você pode decidir.",
 } as const;
+
+/** Toque em Aprovar: o bot pede o código (só dentro de uma aprovação aberta pelo botão). */
+export const respostaPedindoCodigo = (resumo: string) =>
+  `Para aprovar "${resumo}", mande agora o código de 6 dígitos do seu app autenticador. Ele vale por ${MINUTOS_PARA_MANDAR_O_CODIGO} minutos. A mensagem com o código é apagada em seguida.`;
+export const respostaDeCodigoErrado = (restam: number) =>
+  `Código errado. ${restam === 1 ? "Resta 1 tentativa" : `Restam ${restam} tentativas`} antes de travar as aprovações por 15 minutos.`;
+/** O pedido já não está pendente (decidido por outra pessoa, ou venceu). */
+export const respostaDePedidoJaDecidido = (situacao: string) =>
+  situacao === "vencida" ? "Esse pedido venceu: a ação não aconteceu." : `Esse pedido já foi ${situacao}.`;
 
 /** O arquivo chegou com o agente ainda respondendo: ele espera, e a pessoa diz depois onde anexar. */
 export const respostaDeArquivoEsperando = (nome: string) =>

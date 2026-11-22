@@ -27,6 +27,7 @@ const NOMES: Record<TipoDeAviso, string> = {
   agentes_parados: "Agentes parados",
   agentes_retomados: "Agentes retomados",
   telegram_desvinculado: "Meu Telegram passou para outra pessoa",
+  telegram_aprovacoes_travadas: "Aprovações pelo Telegram travadas por código errado",
 };
 
 type Mensagem = { texto: string; tipo: "erro" | "ok" } | null;

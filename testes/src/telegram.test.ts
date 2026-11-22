@@ -268,6 +268,30 @@ describe.skipIf(!bancoDisponivel)("Telegram", () => {
     expect(ultima(777)).toBe("Pronto. Agora você está na Nolask.");
     await mandar(777, "/ajuda");
     expect(ultima(777)).toMatch(/^Oi, Sandro\. Você está na Nolask\./);
+    // Com botões (M5-04): a lista traz um botão por empresa, e o toque troca.
+    await mandar(777, "/empresa");
+    const lista = carteiro.enviadas.filter((m) => m.chatId === 777).at(-1);
+    expect(lista?.opcoes?.botoes).toEqual([
+      [{ texto: "4xpert", dados: `em:${empresaId}` }],
+      [{ texto: "Nolask", dados: `em:${OUTRA}` }],
+    ]);
+    numero += 1;
+    await app.inject({
+      method: "POST",
+      url: "/telegram/webhook",
+      headers: { "content-type": "application/json", "x-telegram-bot-api-secret-token": SEGREDO },
+      payload: JSON.stringify({
+        update_id: numero,
+        callback_query: {
+          id: "q1",
+          from: { id: 777, is_bot: false, first_name: "Conta 777" },
+          message: { message_id: 1, chat: { id: 777, type: "private" } },
+          data: `em:${empresaId}`,
+        },
+      }),
+    });
+    expect(ultima(777)).toBe("Pronto. Agora você está na 4xpert.");
+    await mandar(777, "/empresa 2");
     // A Flora só está numa empresa.
     await mandar(222, "/empresa");
     expect(ultima(222)).toBe("Você só está na 4xpert.");

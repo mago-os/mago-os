@@ -96,6 +96,16 @@ erDiagram
     timestamp_with_time_zone vence_em
     boolean por_texto_de_outros
   }
+  aprovacoes_no_telegram {
+    uuid empresa_id PK
+    uuid aprovacao_id PK
+    uuid pessoa_id PK
+    bigint chat_id
+    bigint mensagem_id
+    text conferencia
+    timestamp_with_time_zone enviada_em
+    timestamp_with_time_zone atualizada_em
+  }
   arquivos_do_telegram {
     uuid id PK
     uuid empresa_id FK
@@ -419,6 +429,15 @@ erDiagram
     uuid aprovacao_id
     timestamp_with_time_zone criado_em
   }
+  pedidos_de_codigo_no_telegram {
+    uuid empresa_id FK
+    uuid pessoa_id PK
+    uuid aprovacao_id
+    text acao
+    text conferencia
+    timestamp_with_time_zone aberto_em
+    timestamp_with_time_zone vale_ate
+  }
   pessoas {
     uuid id PK
     text nome
@@ -739,6 +758,7 @@ erDiagram
   pessoas ||--o{ ajustes_de_permissao : "feito_por"
   empresas ||--o{ anexos : "empresa_id"
   empresas ||--o{ aprovacoes : "empresa_id"
+  empresas ||--o{ aprovacoes_no_telegram : "empresa_id"
   empresas ||--o{ arquivos_do_telegram : "empresa_id"
   empresas ||--o{ arquivos_para_apagar : "empresa_id"
   empresas ||--o{ assinaturas_de_push : "empresa_id"
@@ -771,6 +791,7 @@ erDiagram
   empresas ||--o{ paradas_de_agentes : "empresa_id"
   empresas ||--o{ passos_de_execucao : "empresa_id"
   consumo_de_ia ||--o{ passos_de_execucao : "consumo_id"
+  empresas ||--o{ pedidos_de_codigo_no_telegram : "empresa_id"
   empresas ||--o{ preferencias_de_notificacao : "empresa_id"
   empresas ||--o{ projetos : "empresa_id"
   empresas ||--o{ regras_de_agente : "empresa_id"
@@ -946,6 +967,23 @@ Isolamento por empresa (Row Level Security): ligado e forçado.
 | criada_em | timestamp with time zone | sim | `now()` | sistema | Quando o agente pediu. |
 | vence_em | timestamp with time zone | sim | `(now() + '24:00:00'::interval)` | sistema | Depois disso, sem decisão, o pedido vence e a ação não acontece. |
 | por_texto_de_outros | boolean | sim | `false` | sistema | Pedido porque o agente leu texto de outra pessoa antes (a regra dizia executa). |
+
+### aprovacoes_no_telegram
+
+Pedidos de aprovação mandados ao Telegram de cada pessoa (M5-04), com a conferência que ela viu.
+
+Isolamento por empresa (Row Level Security): ligado e forçado.
+
+| Coluna | Tipo | Obrigatória | Padrão | Marca | Descrição |
+| --- | --- | --- | --- | --- | --- |
+| empresa_id | uuid | sim |  | sistema | Empresa. Chave primária. |
+| aprovacao_id | uuid | sim |  | sistema | O pedido de aprovação. Chave primária. |
+| pessoa_id | uuid | sim |  | sistema | Quem recebeu no Telegram. Chave primária. |
+| chat_id | bigint | sim |  | pessoal | A conversa do Telegram da pessoa. |
+| mensagem_id | bigint | não |  | sistema | Número da mensagem no Telegram (vazio enquanto está sendo mandada). |
+| conferencia | text | sim |  | sistema | Resumo SHA-256 dos parâmetros que a mensagem mostrou: aprovar pelo Telegram aprova exatamente isto. |
+| enviada_em | timestamp with time zone | sim | `now()` | sistema | Quando foi mandada. |
+| atualizada_em | timestamp with time zone | não |  | sistema | Quando a mensagem foi editada com a decisão, sem os botões (vazio: o pedido ainda está aberto). |
 
 ### arquivos_do_telegram
 
@@ -1472,6 +1510,22 @@ Isolamento por empresa (Row Level Security): ligado e forçado.
 | consumo_id | uuid | não |  | sistema | O consumo (tokens e custo) do passo de modelo. Aponta para consumo_de_ia.id. |
 | aprovacao_id | uuid | não |  | sistema | O pedido de aprovação que o passo criou. |
 | criado_em | timestamp with time zone | sim | `now()` | sistema | Quando o passo terminou. |
+
+### pedidos_de_codigo_no_telegram
+
+O toque em Aprovar ou Recusar no Telegram (M5-04): por 5 minutos, a próxima mensagem é o código ou o motivo. Um por pessoa.
+
+Isolamento por empresa (Row Level Security): ligado e forçado.
+
+| Coluna | Tipo | Obrigatória | Padrão | Marca | Descrição |
+| --- | --- | --- | --- | --- | --- |
+| empresa_id | uuid | sim |  | sistema | Empresa do pedido de aprovação. Aponta para empresas.id. |
+| pessoa_id | uuid | sim |  | sistema | Quem tocou no botão. Chave primária. |
+| aprovacao_id | uuid | sim |  | sistema | O pedido de aprovação. |
+| acao | text | sim |  | sistema | aprovar (espera o código) ou recusar (o motivo). |
+| conferencia | text | sim |  | sistema | A conferência que a pessoa viu na mensagem do pedido. |
+| aberto_em | timestamp with time zone | sim | `now()` | sistema | Quando tocou no botão. |
+| vale_ate | timestamp with time zone | sim |  | sistema | Até quando espera o código ou o motivo. |
 
 ### pessoas
 

@@ -17,7 +17,7 @@ import {
   SITUACOES_DA_APROVACAO,
   type SituacaoDaAprovacao,
 } from "@mago-os/contratos";
-import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
+import type { FastifyBaseLogger, FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import type pg from "pg";
 import { origemDoPedido } from "../acesso/rotas.ts";
 import type { OpcoesDaChave } from "../agentes/chaves.ts";
@@ -34,7 +34,7 @@ import {
   resumoDaAcao,
 } from "../agentes/regras.ts";
 import { buscarAgente } from "../agentes/servico.ts";
-import { auditar } from "../auditoria/registrar.ts";
+import { auditar, type DadosDoEvento } from "../auditoria/registrar.ts";
 import { criarAviso } from "../avisos/index.ts";
 import { comEmpresa, comPessoa } from "../empresa.ts";
 import { executar, RecusaDaFerramenta } from "../mcp/index.ts";
@@ -56,7 +56,7 @@ const naoEncontrado = (r: FastifyReply, o = "Pedido de aprovação") =>
 
 /** Executa a ação aprovada como o agente. Devolve o resultado, ou lança RecusaDaFerramenta com o motivo. */
 export async function executarAprovado(
-  o: OpcoesDasAprovacoes,
+  o: Omit<OpcoesDasAprovacoes, "verificador">,
   empresaId: string,
   aprovacao: Aprovacao,
   parametros: Record<string, unknown>,
@@ -294,147 +294,221 @@ export function registrarRotasDasAprovacoes(app: FastifyInstance, o: OpcoesDasAp
       const r = conferir(PedidoDeDecisao, pedido.body);
       if (!r.ok) return resposta.code(400).send({ code: "PEDIDO_INVALIDO", problemas: r.problemas });
       const { sessao } = acessoDo(pedido);
-      const administrador = ehAdministrador(pedido);
-      const nomeDe = await naEmpresa(pedido, async (c) => {
-        const p = await c.query<{ nome: string }>("select nome from pessoas where id = $1", [
-          sessao.pessoa.id,
-        ]);
-        return p.rows[0]?.nome ?? "Alguém";
+      const feito = await decidirAprovacao(o, {
+        empresaId: sessao.empresaId,
+        pessoaId: sessao.pessoa.id,
+        administrador: ehAdministrador(pedido),
+        aprovacaoId: id,
+        conferencia: r.valor.conferencia,
+        decisao: r.valor.decisao,
+        motivo: r.valor.decisao === "recusar" ? r.valor.motivo : undefined,
+        parametros: r.valor.decisao === "aprovar" ? r.valor.parametros : undefined,
+        origem: origemDoPedido(pedido),
+        rastreio: pedido.id,
+        log: pedido.log,
       });
-      const jaDecidido = () =>
-        resposta.code(409).send({ code: "PEDIDO_MUDOU", message: "Este pedido já foi decidido ou venceu." });
-
-      // 1. Confere o pedido e, ao aprovar, os parâmetros editados; depois troca "pendente" pela decisão numa
-      // operação só, para dois cliques ao mesmo tempo não fazerem a ação duas vezes.
-      const conferido = await naEmpresa(pedido, async (c) => {
-        const a = await buscarAprovacao(c, id, true);
-        if (!a || !(await podeDecidir(c, a, sessao.pessoa.id, administrador))) return { erro: 404 as const };
-        if (a.situacao !== "pendente" || Date.parse(a.venceEm) <= Date.now()) return { erro: 409 as const };
-        if (r.valor.conferencia !== a.conferencia)
-          return {
-            erro: 409 as const,
-            message: "O pedido mudou desde que você abriu. Abra de novo e confira.",
-          };
-        if (r.valor.decisao === "recusar") {
-          const motivo = r.valor.motivo;
-          const d = await registrarDecisao(c, a, {
-            situacao: "recusada",
-            decididaPor: sessao.pessoa.id,
-            observacao: motivo,
-          });
-          if (!d) return { erro: 409 as const };
-          await avisarNaConversa(c, a, `${nomeDe} recusou: ${a.resumo}. Motivo: ${motivo}`);
-          return { recusada: d };
-        }
-        const agente = await buscarAgente(c, a.agenteId);
-        const editados = r.valor.parametros;
-        let parametros = a.parametros;
-        let editada = false;
-        if (editados) {
-          const formato = entradaDa(a.acao, agente?.tipo ?? "interno");
-          if (!formato || !conferir(formato as never, editados).ok)
-            return { invalido: "Os parâmetros editados estão fora do formato da ação." };
-          // A tarefa não muda ao aprovar: o pedido, o resumo e a regra são daquela tarefa.
-          if (editados.tarefaId !== a.parametros.tarefaId)
-            return { invalido: "Não dá para trocar a tarefa ao aprovar. Recuse e peça de novo." };
-          editada = conferenciaDe(editados) !== a.conferencia;
-          parametros = editados;
-        }
-        const resumo = editada ? await resumoDaAcao(c, a.acao, parametros) : a.resumo;
-        const reservada = await reservarAprovacao(c, a, {
-          decididaPor: sessao.pessoa.id,
-          parametros,
-          editada,
-          resumo,
+      if ("erro" in feito) {
+        if (feito.erro === "nao_encontrado") return naoEncontrado(resposta);
+        if (feito.erro === "invalido")
+          return resposta.code(400).send({ code: "PARAMETROS_INVALIDOS", message: feito.message });
+        return resposta.code(409).send({
+          code: "PEDIDO_MUDOU",
+          message: feito.message ?? "Este pedido já foi decidido ou venceu.",
         });
-        if (!reservada) return { erro: 409 as const };
-        return { aprovacao: reservada, tipo: agente?.tipo ?? "interno" };
-      });
-      if ("erro" in conferido) {
-        if (conferido.erro === 404) return naoEncontrado(resposta);
-        if ("message" in conferido)
-          return resposta.code(409).send({ code: "PEDIDO_MUDOU", message: conferido.message });
-        return jaDecidido();
       }
-      if ("invalido" in conferido)
-        return resposta.code(400).send({ code: "PARAMETROS_INVALIDOS", message: conferido.invalido });
-      if ("recusada" in conferido) {
-        const d = conferido.recusada;
-        await registrar(pedido, "aprovacao.recusou", { tipo: "aprovacao", id }, { acao: d.acao });
-        await avisarDecisao(d, sessao.pessoa.id, `${nomeDe} recusou: ${d.resumo}`);
-        return d;
-      }
-
-      // 2. Executa como o agente (fora da transação do pedido) e registra o resultado.
-      const { aprovacao } = conferido;
-      let resultado: unknown = null;
-      let erro: string | null = null;
-      try {
-        resultado = await executarAprovado(o, sessao.empresaId, aprovacao, aprovacao.parametros, pedido.log);
-      } catch (e) {
-        if (!(e instanceof RecusaDaFerramenta)) {
-          pedido.log.error({ erro: e, aprovacaoId: id }, "Aprovação: a ação falhou");
-          erro = "Não foi possível concluir a ação agora.";
-        } else erro = e.message;
-      }
-      const feita = await naEmpresa(pedido, async (c) => {
-        const d = await concluirAprovacao(c, aprovacao, erro ? { erro } : { resultado });
-        await avisarNaConversa(
-          c,
-          aprovacao,
-          erro
-            ? `${nomeDe} aprovou, mas não deu certo: ${aprovacao.resumo}. ${erro}`
-            : `${nomeDe} aprovou: ${aprovacao.resumo}. Feito.`,
-        );
-        return d;
-      });
-      // A ação aprovada entra no passo a passo da execução que pediu (ou na atividade do externo na tarefa), numa
-      // transação à parte: uma falha aqui não desfaz a conclusão do pedido.
-      await comEmpresa(poolApp, sessao.empresaId, (c) =>
-        registrarPasso(c, {
-          execucaoId: aprovacao.execucaoId,
-          agenteId: aprovacao.agenteId,
-          tarefaId: aprovacao.tarefaId,
-          tipo: "ferramenta",
-          ferramenta: aprovacao.acao,
-          entrada: aprovacao.parametros,
-          resultado: erro ?? resultado,
-          erro: erro !== null,
-          aprovacaoId: aprovacao.id,
-        }),
-      ).catch((e) => pedido.log.error({ erro: e, aprovacaoId: id }, "Aprovação: o passo não foi registrado"));
-      await registrar(
-        pedido,
-        erro ? "aprovacao.falhou" : "aprovacao.aprovou",
-        { tipo: "aprovacao", id },
-        { acao: aprovacao.acao, editada: aprovacao.editada },
-      );
-      await avisarDecisao(
-        aprovacao,
-        sessao.pessoa.id,
-        `${nomeDe} aprovou: ${aprovacao.resumo}${erro ? " (não deu certo)" : ""}`,
-      );
-      return feita;
+      return feito.aprovacao;
     },
   );
+}
 
-  /** Avisa quem pediu e o responsável pelo agente da decisão (menos quem decidiu). */
-  async function avisarDecisao(aprovacao: Aprovacao, quemDecidiu: string, texto: string) {
-    await comEmpresa(poolApp, aprovacao.empresaId, async (c) => {
-      const r = await c.query<{ responsavel_id: string }>(
-        "select responsavel_id from agentes where id = $1 and empresa_id = empresa_ativa()",
-        [aprovacao.agenteId],
-      );
-      for (const pessoaId of new Set([aprovacao.pedidoPor, r.rows[0]?.responsavel_id]))
-        if (pessoaId && pessoaId !== quemDecidiu)
-          await criarAviso(c, {
-            pessoaId,
-            tipo: "aprovacao_decidida",
-            texto,
-            link: `/aprovacoes/${aprovacao.id}`,
-          });
-    }).catch(() => {});
+export type OpcoesDeDecidir = Omit<OpcoesDasAprovacoes, "verificador">;
+
+export interface PedidoDeDecidir {
+  empresaId: string;
+  pessoaId: string;
+  administrador: boolean;
+  aprovacaoId: string;
+  /** A conferência que a pessoa viu (na tela, ou na mensagem do Telegram). */
+  conferencia: string;
+  decisao: "aprovar" | "recusar";
+  motivo?: string | undefined;
+  /** Parâmetros editados antes de aprovar (só no app). */
+  parametros?: Record<string, unknown> | undefined;
+  origem: DadosDoEvento["origem"];
+  rastreio: string | null;
+  log: FastifyBaseLogger;
+}
+
+export type ResultadoDaDecisao =
+  | { aprovacao: Aprovacao }
+  | { erro: "nao_encontrado" }
+  | { erro: "mudou"; message?: string }
+  | { erro: "invalido"; message: string };
+
+/**
+ * Decide um pedido de aprovação, do app ou do Telegram (M5-04, decisão 0035): o mesmo caminho, a mesma auditoria e os
+ * mesmos avisos; muda só a origem. Ao aprovar, a ação roda como o agente, fora da transação do pedido.
+ */
+export async function decidirAprovacao(o: OpcoesDeDecidir, d: PedidoDeDecidir): Promise<ResultadoDaDecisao> {
+  const { poolApp } = o;
+  const naEmpresa = <T>(trabalho: (c: pg.PoolClient) => Promise<T>) =>
+    comPessoa(poolApp, d.pessoaId, d.empresaId, trabalho);
+  const id = d.aprovacaoId;
+  const registrar = (acao: string, detalhes: Record<string, unknown>) =>
+    auditar(
+      poolApp,
+      {
+        empresaId: d.empresaId,
+        ator: { tipo: "pessoa", pessoaId: d.pessoaId },
+        acao,
+        alvo: { tipo: "aprovacao", id },
+        origem: d.origem,
+        rastreio: d.rastreio,
+        detalhes: { ...detalhes, canal: d.origem.canal },
+      },
+      d.log,
+    );
+  const nomeDe = await naEmpresa(async (c) => {
+    const p = await c.query<{ nome: string }>("select nome from pessoas where id = $1", [d.pessoaId]);
+    return p.rows[0]?.nome ?? "Alguém";
+  });
+  const peloTelegram = d.origem.canal === "telegram" ? " pelo Telegram" : "";
+
+  // 1. Confere o pedido e, ao aprovar, os parâmetros editados; depois troca "pendente" pela decisão numa
+  // operação só, para dois cliques ao mesmo tempo não fazerem a ação duas vezes.
+  const conferido = await naEmpresa(async (c) => {
+    const a = await buscarAprovacao(c, id, true);
+    if (!a || !(await podeDecidir(c, a, d.pessoaId, d.administrador)))
+      return { erro: "nao_encontrado" as const };
+    if (a.situacao !== "pendente" || Date.parse(a.venceEm) <= Date.now()) return { erro: "mudou" as const };
+    if (d.conferencia !== a.conferencia)
+      return {
+        erro: "mudou" as const,
+        message: "O pedido mudou desde que você abriu. Abra de novo e confira.",
+      };
+    if (d.decisao === "recusar") {
+      const motivo = d.motivo ?? "Sem motivo.";
+      const r = await registrarDecisao(c, a, {
+        situacao: "recusada",
+        decididaPor: d.pessoaId,
+        observacao: motivo,
+      });
+      if (!r) return { erro: "mudou" as const };
+      await avisarNaConversa(c, a, `${nomeDe} recusou${peloTelegram}: ${a.resumo}. Motivo: ${motivo}`);
+      return { recusada: r };
+    }
+    const agente = await buscarAgente(c, a.agenteId);
+    const editados = d.parametros;
+    let parametros = a.parametros;
+    let editada = false;
+    if (editados) {
+      const formato = entradaDa(a.acao, agente?.tipo ?? "interno");
+      if (!formato || !conferir(formato as never, editados).ok)
+        return {
+          erro: "invalido" as const,
+          message: "Os parâmetros editados estão fora do formato da ação.",
+        };
+      // A tarefa não muda ao aprovar: o pedido, o resumo e a regra são daquela tarefa.
+      if (editados.tarefaId !== a.parametros.tarefaId)
+        return {
+          erro: "invalido" as const,
+          message: "Não dá para trocar a tarefa ao aprovar. Recuse e peça de novo.",
+        };
+      editada = conferenciaDe(editados) !== a.conferencia;
+      parametros = editados;
+    }
+    const resumo = editada ? await resumoDaAcao(c, a.acao, parametros) : a.resumo;
+    const reservada = await reservarAprovacao(c, a, { decididaPor: d.pessoaId, parametros, editada, resumo });
+    if (!reservada) return { erro: "mudou" as const };
+    return { aprovacao: reservada };
+  });
+  if ("erro" in conferido) return conferido as ResultadoDaDecisao;
+  if ("recusada" in conferido) {
+    const r = conferido.recusada;
+    await registrar("aprovacao.recusou", { acao: r.acao });
+    await avisarDecisao(o, r, d, `${nomeDe} recusou${peloTelegram}: ${r.resumo}`);
+    return { aprovacao: r };
   }
+
+  // 2. Executa como o agente (fora da transação do pedido) e registra o resultado.
+  const { aprovacao } = conferido;
+  let resultado: unknown = null;
+  let erro: string | null = null;
+  try {
+    resultado = await executarAprovado(o, d.empresaId, aprovacao, aprovacao.parametros, d.log);
+  } catch (e) {
+    if (!(e instanceof RecusaDaFerramenta)) {
+      d.log.error({ erro: e, aprovacaoId: id }, "Aprovação: a ação falhou");
+      erro = "Não foi possível concluir a ação agora.";
+    } else erro = e.message;
+  }
+  const feita = await naEmpresa(async (c) => {
+    const r = await concluirAprovacao(c, aprovacao, erro ? { erro } : { resultado });
+    await avisarNaConversa(
+      c,
+      aprovacao,
+      erro
+        ? `${nomeDe} aprovou${peloTelegram}, mas não deu certo: ${aprovacao.resumo}. ${erro}`
+        : `${nomeDe} aprovou${peloTelegram}: ${aprovacao.resumo}. Feito.`,
+    );
+    return r;
+  });
+  // A ação aprovada entra no passo a passo da execução que pediu (ou na atividade do externo na tarefa), numa
+  // transação à parte: uma falha aqui não desfaz a conclusão do pedido.
+  await comEmpresa(poolApp, d.empresaId, (c) =>
+    registrarPasso(c, {
+      execucaoId: aprovacao.execucaoId,
+      agenteId: aprovacao.agenteId,
+      tarefaId: aprovacao.tarefaId,
+      tipo: "ferramenta",
+      ferramenta: aprovacao.acao,
+      entrada: aprovacao.parametros,
+      resultado: erro ?? resultado,
+      erro: erro !== null,
+      aprovacaoId: aprovacao.id,
+    }),
+  ).catch((e) => d.log.error({ erro: e, aprovacaoId: id }, "Aprovação: o passo não foi registrado"));
+  await registrar(erro ? "aprovacao.falhou" : "aprovacao.aprovou", {
+    acao: aprovacao.acao,
+    editada: aprovacao.editada,
+  });
+  await avisarDecisao(
+    o,
+    aprovacao,
+    d,
+    `${nomeDe} aprovou${peloTelegram}: ${aprovacao.resumo}${erro ? " (não deu certo)" : ""}`,
+  );
+  return { aprovacao: feita ?? aprovacao };
+}
+
+/**
+ * Avisa quem pediu e o responsável pelo agente da decisão (menos quem decidiu). Pelo Telegram (decisão 0035), avisa
+ * também quem decidiu e os administradores: uma decisão fora do app sempre aparece no app.
+ */
+async function avisarDecisao(o: OpcoesDeDecidir, aprovacao: Aprovacao, d: PedidoDeDecidir, texto: string) {
+  await comEmpresa(o.poolApp, aprovacao.empresaId, async (c) => {
+    const r = await c.query<{ responsavel_id: string }>(
+      "select responsavel_id from agentes where id = $1 and empresa_id = empresa_ativa()",
+      [aprovacao.agenteId],
+    );
+    const pessoas = new Set([aprovacao.pedidoPor, r.rows[0]?.responsavel_id]);
+    pessoas.delete(d.pessoaId);
+    if (d.origem.canal === "telegram") {
+      pessoas.add(d.pessoaId);
+      const adms = await c.query<{ pessoa_id: string }>(
+        "select pessoa_id from vinculos where empresa_id = empresa_ativa() and situacao = 'ativo' and perfil = 'administrador'",
+      );
+      for (const a of adms.rows) pessoas.add(a.pessoa_id);
+    }
+    for (const pessoaId of pessoas)
+      if (pessoaId)
+        await criarAviso(c, {
+          pessoaId,
+          tipo: "aprovacao_decidida",
+          texto,
+          link: `/aprovacoes/${aprovacao.id}`,
+        });
+  }).catch(() => {});
 }
 
 /** Verificação a cada minuto: pedidos de mais de 24 horas vencem (a ação não acontece) e quem pediu é avisado. */
