@@ -108,6 +108,42 @@ export const CATALOGO_DE_ACOES: readonly AcaoDoCatalogo[] = [
     padraoInterno: "executa",
     padraoExterno: null,
   },
+  // Rotinas (M5-05): ler executa; criar e ligar pedem aprovação (a rotina age sozinha depois); parar executa.
+  {
+    acao: "listar_rotinas",
+    nome: "Ver as rotinas",
+    mudaDados: false,
+    padraoInterno: "executa",
+    padraoExterno: null,
+  },
+  {
+    acao: "ver_rotina",
+    nome: "Ver uma rotina",
+    mudaDados: false,
+    padraoInterno: "executa",
+    padraoExterno: null,
+  },
+  {
+    acao: "criar_rotina",
+    nome: "Criar rotina",
+    mudaDados: true,
+    padraoInterno: "pede_aprovacao",
+    padraoExterno: null,
+  },
+  {
+    acao: "ligar_rotina",
+    nome: "Ligar rotina",
+    mudaDados: true,
+    padraoInterno: "pede_aprovacao",
+    padraoExterno: null,
+  },
+  {
+    acao: "parar_rotina",
+    nome: "Desligar rotina",
+    mudaDados: true,
+    padraoInterno: "executa",
+    padraoExterno: null,
+  },
   {
     acao: "ver_custos",
     nome: "Ver os custos",

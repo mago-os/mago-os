@@ -45,3 +45,4 @@ Uma nota curta por decisão importante: o que foi decidido, por quê e o que foi
 | [0036](0036-descricao-do-anexo.md) | Descrição do anexo (quem enviou ou quem edita a tarefa), o canal por onde entrou, e anexos na busca | Aceita |
 | [0037](0037-avisos-e-resumo-pelo-telegram.md) | Avisos pelo Telegram (só o urgente por padrão, com silêncio) e resumo do dia às 8h | Aceita |
 | [0038](0038-main-protegida-pelo-github.md) | Main protegida pelo GitHub: só por PR, verificação verde e em dia com a main, sem apagar nem reescrever; o "ok" do Sandro continua no chat | Aceita |
+| [0039](0039-rotinas-por-horario.md) | Rotinas por horário: as três ações, só o dono faz a rotina agir, limites, falhas sem repetir o que o agente já fez, e ferramentas dos agentes | Proposta |

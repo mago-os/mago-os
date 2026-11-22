@@ -130,6 +130,12 @@ export const TIPOS_DE_AVISO = [
   "telegram_desvinculado",
   // M5-04: três códigos errados travaram as aprovações pelo Telegram por 15 minutos (vai para a própria pessoa).
   "telegram_aprovacoes_travadas",
+  // M5-05: o aviso que uma rotina manda (vai para quem o dono escolheu), a rotina que falhou três vezes (vai para o
+  // dono, na central de prioridades) e as rotinas desligadas porque o dono saiu da empresa (vai para os
+  // administradores).
+  "aviso_de_rotina",
+  "rotina_falhou",
+  "rotina_desligada",
 ] as const;
 export const TipoDeAviso = Type.Enum(TIPOS_DE_AVISO);
 export type TipoDeAviso = Static<typeof TipoDeAviso>;

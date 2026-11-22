@@ -8,6 +8,7 @@
  */
 import { type Static, type TSchema, Type } from "typebox";
 import { conferir, DataHora, Id, OuNulo, type Problema, type Regra, Texto } from "../comum.ts";
+import { PedidoDeRotina } from "../rotinas/rotinas.ts";
 import { PedidoDePrazo, Prioridade } from "../tarefas/prazos.ts";
 import { Responsavel, StatusTarefa } from "../tarefas/tarefa.ts";
 import { ModeloEscolhido } from "./contas-de-ia.ts";
@@ -38,9 +39,11 @@ export const AGENTES_DE_NASCENCA = [
 /**
  * Por onde a pessoa escreve (M5-02, decisão 0033): no app ou pelo Telegram. A conversa é a mesma nos dois; a do
  * Telegram aparece no app com o ícone dele, e a resposta do agente volta pelo canal da última mensagem da pessoa.
+ * rotina (M5-05): a conversa que uma rotina abriu em nome do dono, com o pedido escrito por ele na rotina; a resposta
+ * aparece no app e vai também pelo Telegram, se o dono o tiver vinculado.
  */
-export const CANAIS_DA_CONVERSA = ["app", "telegram"] as const;
-export const CanalDaConversa = Type.Enum(CANAIS_DA_CONVERSA, { description: "app ou telegram." });
+export const CANAIS_DA_CONVERSA = ["app", "telegram", "rotina"] as const;
+export const CanalDaConversa = Type.Enum(CANAIS_DA_CONVERSA, { description: "app, telegram ou rotina." });
 export type CanalDaConversa = Static<typeof CanalDaConversa>;
 
 export const Conversa = Type.Object(
@@ -331,6 +334,41 @@ export const FERRAMENTAS_INTERNAS = [
     descricao:
       "Mostra quanto os agentes internos gastaram com IA no mês e hoje, e o teto de cada um. Se quem pediu não pode ver as contas de IA, mostra só o seu próprio gasto. Use quando perguntarem sobre custo ou teto.",
     entrada: Type.Object({}, { additionalProperties: false }),
+    papeis: ["coordenador", "especialista"],
+  },
+  {
+    nome: "listar_rotinas",
+    descricao:
+      "Lista as rotinas que quem pediu pode ver (as dele e, para administrador ou gestor, as da empresa ou da equipe), com o nome, o que fazem, quando rodam, se estão ligadas e a próxima vez. Use quando perguntarem sobre rotinas ou lembretes automáticos.",
+    entrada: Type.Object({}, { additionalProperties: false }),
+    papeis: ["coordenador", "especialista"],
+  },
+  {
+    nome: "ver_rotina",
+    descricao:
+      "Abre uma rotina que quem pediu pode ver, com o gatilho, a ação e as últimas execuções (quando rodou, o que fez, se falhou e por quê).",
+    entrada: Type.Object({ rotinaId: Id }, { additionalProperties: false }),
+    papeis: ["coordenador", "especialista"],
+  },
+  {
+    nome: "criar_rotina",
+    descricao:
+      "Cria uma rotina em nome de quem pediu: no horário marcado, ela cria uma tarefa, pede algo a um agente interno ou manda um aviso, com a permissão de quem pediu. A rotina nasce desligada; para ligar, use ligar_rotina ou peça à pessoa para ligar em Rotinas. Use só quando a pessoa pedir algo que se repete (exemplo: toda segunda às 8h). Confirme os dias, a hora e o fuso se a pessoa não disse.",
+    entrada: PedidoDeRotina,
+    papeis: ["coordenador", "especialista"],
+  },
+  {
+    nome: "ligar_rotina",
+    descricao:
+      "Liga uma rotina de quem pediu, que passa a rodar sozinha nos horários dela. Só a rotina da própria pessoa; a de outra pessoa só o dono liga.",
+    entrada: Type.Object({ rotinaId: Id }, { additionalProperties: false }),
+    papeis: ["coordenador", "especialista"],
+  },
+  {
+    nome: "parar_rotina",
+    descricao:
+      "Desliga uma rotina que quem pediu pode parar (a dele ou, para o administrador, qualquer uma). Ela para de rodar até alguém ligar de novo.",
+    entrada: Type.Object({ rotinaId: Id }, { additionalProperties: false }),
     papeis: ["coordenador", "especialista"],
   },
   {

@@ -77,6 +77,8 @@ export const AVISOS_URGENTES_NO_TELEGRAM = [
   "precisa_de_ajuda",
   "prazo_vencido",
   "agentes_parados",
+  // M5-05: o aviso de uma rotina é um lembrete que alguém marcou de propósito.
+  "aviso_de_rotina",
 ] as const satisfies readonly TipoDeAviso[];
 
 /**
