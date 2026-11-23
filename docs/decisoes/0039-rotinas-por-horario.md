@@ -1,7 +1,7 @@
 # 0039 Rotinas por horário
 
 - **Data:** 22/11/2026
-- **Situação:** proposta (aguardando o "aprovado" do Sandro)
+- **Situação:** aceita (aprovada pelo Sandro no chat em 23/11/2026)
 - **Tarefa:** M5-05
 
 ## Contexto

@@ -323,6 +323,25 @@ erDiagram
     boolean leu_texto_de_outros
     uuid parada_id
   }
+  execucoes_de_rotina {
+    uuid id PK
+    uuid empresa_id FK
+    uuid rotina_id
+    text origem
+    timestamp_with_time_zone prevista_para
+    text situacao
+    integer tentativa
+    timestamp_with_time_zone proxima_tentativa_em
+    text motivo
+    uuid tarefa_id
+    uuid execucao_de_agente_id
+    uuid conversa_id
+    integer avisados
+    numeric custo
+    timestamp_with_time_zone criada_em
+    timestamp_with_time_zone iniciada_em
+    timestamp_with_time_zone terminada_em
+  }
   itens_de_checklist {
     uuid id PK
     uuid empresa_id FK
@@ -486,6 +505,22 @@ erDiagram
     integer aprovadas_sem_edicao
     uuid mudada_por
     timestamp_with_time_zone mudada_em
+  }
+  rotinas {
+    uuid id PK
+    uuid empresa_id FK
+    uuid dono_pessoa_id
+    uuid criada_por_agente_id
+    text nome
+    jsonb gatilho
+    jsonb acao
+    text situacao
+    text desligada_porque
+    integer teto_mensal
+    timestamp_with_time_zone proxima_em
+    integer vezes
+    timestamp_with_time_zone criada_em
+    timestamp_with_time_zone atualizada_em
   }
   seguidores_de_tarefa {
     uuid empresa_id FK
@@ -784,6 +819,7 @@ erDiagram
   empresas ||--o{ etiquetas : "empresa_id"
   empresas ||--o{ etiquetas_de_tarefa : "empresa_id"
   empresas ||--o{ execucoes_de_agente : "empresa_id"
+  empresas ||--o{ execucoes_de_rotina : "empresa_id"
   empresas ||--o{ itens_de_checklist : "empresa_id"
   empresas ||--o{ layouts_de_tela : "empresa_id"
   empresas ||--o{ listas : "empresa_id"
@@ -800,6 +836,7 @@ erDiagram
   empresas ||--o{ preferencias_de_notificacao : "empresa_id"
   empresas ||--o{ projetos : "empresa_id"
   empresas ||--o{ regras_de_agente : "empresa_id"
+  empresas ||--o{ rotinas : "empresa_id"
   empresas ||--o{ seguidores_de_tarefa : "empresa_id"
   empresas ||--o{ skills : "empresa_id"
   empresas ||--o{ skills_do_agente : "empresa_id"
@@ -1230,7 +1267,7 @@ Isolamento por empresa (Row Level Security): ligado e forçado.
 | titulo | text | sim |  | pessoal | Título (a primeira frase do pedido). |
 | criada_em | timestamp with time zone | sim | `now()` | sistema | Quando a conversa começou. |
 | atualizada_em | timestamp with time zone | sim | `now()` | sistema | Última mensagem. |
-| canal | text | sim | `'app'::text` | sistema | Onde a conversa começou: app ou telegram. |
+| canal | text | sim | `'app'::text` | sistema | Onde a conversa começou: app, telegram ou rotina (aberta por uma rotina em nome do dono). |
 
 ### empresas
 
@@ -1340,6 +1377,32 @@ Isolamento por empresa (Row Level Security): ligado e forçado.
 | leu_texto_de_outros | boolean | sim | `false` | sistema | Leu texto de outra pessoa ou de agente externo: o que muda dados pede aprovação (M4-04). |
 | parada_id | uuid | não |  | sistema | A parada que interrompeu a execução no meio (a tarefa volta à fila ao retomar). |
 
+### execucoes_de_rotina
+
+Cada vez que uma rotina rodou ou tentou (M5-05), com o que fez, o custo e, se falhou ou foi pulada, o motivo.
+
+Isolamento por empresa (Row Level Security): ligado e forçado.
+
+| Coluna | Tipo | Obrigatória | Padrão | Marca | Descrição |
+| --- | --- | --- | --- | --- | --- |
+| id | uuid | sim | `uuidv7()` | sistema | Identificador. Chave primária. |
+| empresa_id | uuid | sim |  | sistema | Empresa da rotina. Aponta para empresas.id. |
+| rotina_id | uuid | sim |  | sistema | A rotina. |
+| origem | text | sim |  | sistema | horario ou rodar_agora. |
+| prevista_para | timestamp with time zone | não |  | sistema | O horário marcado (só pelo horário). |
+| situacao | text | sim | `'na_fila'::text` | sistema | na_fila, rodando, esperando (agentes parados ou nova tentativa), feita, falhou ou pulada. |
+| tentativa | integer | sim | `1` | sistema | 1, 2 ou 3 (as duas novas tentativas). |
+| proxima_tentativa_em | timestamp with time zone | não |  | sistema | Quando tenta de novo. |
+| motivo | text | não |  | sistema | Por que falhou ou foi pulada, em texto curto. |
+| tarefa_id | uuid | não |  | sistema | A tarefa que a execução criou. |
+| execucao_de_agente_id | uuid | não |  | sistema | A execução do agente interno (para o passo a passo). |
+| conversa_id | uuid | não |  | sistema | A conversa que a execução abriu com o agente. |
+| avisados | integer | sim | `0` | sistema | Quantas pessoas receberam o aviso. |
+| custo | numeric(14,4) | sim | `0` | sistema | O custo da IA da execução, em centavos de dólar. |
+| criada_em | timestamp with time zone | sim | `now()` | sistema | Quando entrou na fila. |
+| iniciada_em | timestamp with time zone | não |  | sistema | Quando começou. |
+| terminada_em | timestamp with time zone | não |  | sistema | Quando terminou (feita, falhou ou pulada). |
+
 ### itens_de_checklist
 
 Itens do checklist de cada tarefa, com quem marcou e quando.
@@ -1442,7 +1505,7 @@ Isolamento por empresa (Row Level Security): ligado e forçado.
 | execucao_id | uuid | não |  | sistema | Execução que produziu a resposta do agente. |
 | tarefas | uuid[] | sim | `'{}'::uuid[]` | sistema | Tarefas criadas ou citadas, para a tela mostrar o link. |
 | criada_em | timestamp with time zone | sim | `now()` | sistema | Quando a mensagem foi escrita. |
-| canal | text | sim | `'app'::text` | sistema | Por onde a mensagem passou: app ou telegram (a do agente vai pelo canal da última mensagem da pessoa). |
+| canal | text | sim | `'app'::text` | sistema | Por onde a mensagem passou: app, telegram ou rotina (a do agente vai pelo canal da última mensagem da pessoa; a de rotina vai também ao Telegram). |
 | telegram_pendente | boolean | sim | `false` | sistema | Falta mandar esta mensagem ao Telegram da pessoa. |
 | telegram_enviada_em | timestamp with time zone | não |  | sistema | Quando foi mandada ao Telegram. |
 | telegram_partes_enviadas | integer | sim | `0` | sistema | Partes já mandadas ao Telegram (resposta longa dividida; continua da que faltava). |
@@ -1608,6 +1671,29 @@ Isolamento por empresa (Row Level Security): ligado e forçado.
 | aprovadas_sem_edicao | integer | sim | `0` | sistema | Aprovações seguidas sem edição (aos 20, a tela sugere liberar). |
 | mudada_por | uuid | não |  | sistema | Quem mudou o modo por último. |
 | mudada_em | timestamp with time zone | não |  | sistema | Quando o modo mudou. |
+
+### rotinas
+
+Rotinas (M5-05): no horário, criam uma tarefa, pedem algo a um agente interno ou mandam um aviso, em nome do dono.
+
+Isolamento por empresa (Row Level Security): ligado e forçado.
+
+| Coluna | Tipo | Obrigatória | Padrão | Marca | Descrição |
+| --- | --- | --- | --- | --- | --- |
+| id | uuid | sim | `uuidv7()` | sistema | Identificador. Chave primária. |
+| empresa_id | uuid | sim |  | sistema | Empresa da rotina. Aponta para empresas.id. |
+| dono_pessoa_id | uuid | sim |  | sistema | Quem criou: a rotina age em nome dele, com a permissão dele, e só ele a edita, liga e roda agora. |
+| criada_por_agente_id | uuid | não |  | sistema | O agente interno que criou a rotina pela ferramenta, a pedido do dono e com a aprovação dele. |
+| nome | text | sim |  | empresa | Nome da rotina. |
+| gatilho | jsonb | sim |  | empresa | Quando roda (GatilhoPorHorario do contrato): a regra da recorrência, os horários, o fuso e o início. |
+| acao | jsonb | sim |  | empresa | O que faz (AcaoDaRotina do contrato): criar tarefa, pedir a um agente interno ou mandar aviso, com os textos. |
+| situacao | text | sim | `'desligada'::text` | sistema | ligada ou desligada (nasce desligada). |
+| desligada_porque | text | não | `'pessoa'::text` | sistema | Na desligada: pessoa (desligada na tela ou nasceu assim), terminou, dono_desligado ou agente. |
+| teto_mensal | integer | não |  | empresa | Teto de gasto do mês só desta rotina, em centavos de dólar (nulo: sem teto próprio). |
+| proxima_em | timestamp with time zone | não |  | sistema | A próxima vez que roda (só na ligada). |
+| vezes | integer | sim | `0` | sistema | Quantas vezes já rodou pelo horário (para o fim depois de N vezes). |
+| criada_em | timestamp with time zone | sim | `now()` | sistema | Quando foi criada. |
+| atualizada_em | timestamp with time zone | sim | `now()` | sistema | A última mudança. |
 
 ### seguidores_de_tarefa
 

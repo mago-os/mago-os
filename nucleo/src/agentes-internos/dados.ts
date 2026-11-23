@@ -118,7 +118,8 @@ export async function listarMensagens(
 /**
  * Grava a mensagem. A da pessoa diz por onde chegou (app, padrão, ou telegram); a do agente e a do sistema vão pelo
  * canal da última mensagem da pessoa na conversa (M5-02, decisão 0033), e as do Telegram ficam marcadas para o
- * módulo do Telegram mandar.
+ * módulo do Telegram mandar. Na conversa aberta por uma rotina (M5-05), a resposta também vai pelo Telegram (se o dono
+ * não tiver vinculado, a marca cai na entrega).
  */
 export async function gravarMensagem(
   c: pg.PoolClient,
@@ -135,7 +136,7 @@ export async function gravarMensagem(
              and m.autor_pessoa_id is not null order by m.criada_em desc limit 1), 'app') as c)
      insert into mensagens_de_conversa (empresa_id, conversa_id, pessoa_id, autor_pessoa_id, autor_agente_id, texto,
        execucao_id, tarefas, canal, telegram_pendente)
-     select empresa_ativa(), $1, $2, $3, $4, $5, $6, $7, canal.c, canal.c = 'telegram' and $8 from canal
+     select empresa_ativa(), $1, $2, $3, $4, $5, $6, $7, canal.c, canal.c in ('telegram', 'rotina') and $8 from canal
      returning *`,
     [
       conversa.id,

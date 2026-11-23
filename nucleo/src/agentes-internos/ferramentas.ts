@@ -5,7 +5,9 @@
  * permissões e as ações de alto risco) chega na M4-04; as aprovações, na M4-03.
  */
 import {
+  type AcaoDeRotina,
   conferir,
+  conferirPedidoDeRotina,
   type DeclaracaoDeModulo,
   FERRAMENTAS_DO_MCP_NO_ESPECIALISTA,
   FERRAMENTAS_INTERNAS,
@@ -13,6 +15,7 @@ import {
   type NomeDeFerramentaInterna,
   type PapelDeAgente,
   type Responsavel,
+  type Rotina,
   TAMANHO_MAXIMO_DO_ARQUIVO_DO_TELEGRAM,
   type Tarefa,
 } from "@mago-os/contratos";
@@ -32,6 +35,16 @@ import { type AcaoDeTarefa, executar, RecusaDaFerramenta } from "../mcp/index.ts
 import { filtroDoAlcance } from "../permissoes/calcular.ts";
 import { type PermissoesNaEmpresa, permissoesNaEmpresa } from "../permissoes/verificar.ts";
 import { buscarProjeto, listarProjetos } from "../projetos/servico.ts";
+import {
+  buscarRotina,
+  criarRotina,
+  desligarRotina,
+  ligarRotina,
+  listarExecucoes,
+  listarRotinas,
+  RecusaDaRotina,
+  recusaDaAcao,
+} from "../rotinas/servico.ts";
 import { criarItem, listarChecklist } from "../tarefas/checklist.ts";
 import {
   acontecimentoDaAcao,
@@ -468,6 +481,143 @@ async function executarSemMarca(
             : {}),
         },
       };
+    }
+    // Rotinas (M5-05): com o alcance de quem pediu e o do responsável pelo agente (o menor dos dois).
+    case "listar_rotinas":
+    case "ver_rotina":
+    case "criar_rotina":
+    case "ligar_rotina":
+    case "parar_rotina": {
+      const verDe = (p: PermissoesNaEmpresa, id: string) =>
+        filtroDoAlcance(p.modulos.get("rotinas")?.acoes.ver ?? "nada", id, p.area);
+      const meu = verDe(ctx.permissoes, pessoaId);
+      if (!meu) throw new RecusaDaFerramenta("Quem pediu não pode ver rotinas.");
+      const doResponsavel = responsavel ? verDe(responsavel.permissoes, responsavel.pessoaId) : null;
+      if (responsavel && !doResponsavel)
+        throw new RecusaDaFerramenta("A pessoa responsável por você não vê rotinas, e você também não.");
+      /** A rotina que os dois alcançam. */
+      const rotinaDosDois = async (c: pg.PoolClient, id: string, travar = false) => {
+        const r = await buscarRotina(c, meu, id, travar);
+        if (!r || (doResponsavel && !(await buscarRotina(c, doResponsavel, id))))
+          throw new RecusaDaFerramenta("Rotina não encontrada entre as que quem pediu vê.");
+        return r;
+      };
+      const auditarRotina = (acao: AcaoDeRotina, rotina: Rotina) =>
+        auditar(
+          ctx.poolApp,
+          {
+            empresaId: ctx.empresaId,
+            ator: { tipo: "agente", agenteId: ctx.agente.id },
+            acao,
+            alvo: { tipo: "rotina", id: rotina.id },
+            origem: ctx.opcoesMcp.origem,
+            rastreio: null,
+            detalhes: { acao: rotina.acao.tipo, execucaoId, pedidoPor: pessoaId },
+          },
+          ctx.log,
+        );
+      if (nome === "listar_rotinas") {
+        const r = await naEmpresa(async (c) => {
+          const lista = await listarRotinas(c, meu);
+          if (!doResponsavel) return lista;
+          const deles = new Set((await listarRotinas(c, doResponsavel)).rotinas.map((x) => x.id));
+          return { ...lista, rotinas: lista.rotinas.filter((x) => deles.has(x.id)) };
+        });
+        return {
+          conteudo: {
+            rotinas: r.rotinas.map((x) => ({
+              id: x.id,
+              nome: x.nome,
+              dono: r.nomes[x.donoPessoaId] ?? null,
+              acao: x.acao.tipo,
+              situacao: x.situacao,
+              proximaEm: x.proximaEm,
+            })),
+          },
+        };
+      }
+      if (nome === "ver_rotina") {
+        const r = await naEmpresa(async (c) => {
+          const rotina = await rotinaDosDois(c, entrada.rotinaId as string);
+          return { rotina, execucoes: (await listarExecucoes(c, rotina.id)).slice(0, 10) };
+        });
+        return { conteudo: r };
+      }
+      if (nome === "criar_rotina") {
+        // A rotina é sempre de quem pediu, nasce desligada e fica marcada com o agente.
+        const pode = (p: PermissoesNaEmpresa) => (p.modulos.get("rotinas")?.acoes.criar ?? "nada") !== "nada";
+        if (!pode(ctx.permissoes)) throw new RecusaDaFerramenta("Quem pediu não pode criar rotinas.");
+        if (responsavel && !pode(responsavel.permissoes))
+          throw new RecusaDaFerramenta(
+            "A pessoa responsável por você não pode criar rotinas, e você também não.",
+          );
+        const pedido = conferirPedidoDeRotina(entrada);
+        if (!pedido.ok)
+          throw new RecusaDaFerramenta(`Confira: ${pedido.problemas[0]?.mensagem ?? "os campos"}.`);
+        const rotina = await naEmpresa(async (c) => {
+          if (responsavel) {
+            const recusa = await recusaDaAcao(c, responsavel, pedido.valor.acao);
+            if (recusa)
+              throw new RecusaDaFerramenta(`Fora do alcance da pessoa responsável por você: ${recusa}`);
+          }
+          try {
+            return await criarRotina(
+              c,
+              { pessoaId, permissoes: ctx.permissoes },
+              pedido.valor,
+              ctx.agente.id,
+            );
+          } catch (erro) {
+            if (erro instanceof RecusaDaRotina) throw new RecusaDaFerramenta(erro.message);
+            throw erro;
+          }
+        });
+        await auditarRotina("rotina.criou", rotina);
+        return {
+          conteudo: {
+            rotina,
+            aviso: "A rotina nasceu desligada. Para rodar sozinha, ela precisa ser ligada.",
+          },
+        };
+      }
+      if (nome === "ligar_rotina") {
+        const rotina = await naEmpresa(async (c) => {
+          const r = await rotinaDosDois(c, entrada.rotinaId as string, true);
+          if (r.donoPessoaId !== pessoaId)
+            throw new RecusaDaFerramenta("Só o dono liga a rotina (ela age em nome dele).");
+          if (responsavel) {
+            const recusa = await recusaDaAcao(c, responsavel, r.acao);
+            if (recusa)
+              throw new RecusaDaFerramenta(`Fora do alcance da pessoa responsável por você: ${recusa}`);
+          }
+          try {
+            return {
+              antes: r.situacao,
+              depois: await ligarRotina(c, r, { pessoaId, permissoes: ctx.permissoes }),
+            };
+          } catch (erro) {
+            if (erro instanceof RecusaDaRotina) throw new RecusaDaFerramenta(erro.message);
+            throw erro;
+          }
+        });
+        if (rotina.antes === "desligada") await auditarRotina("rotina.ligou", rotina.depois);
+        return { conteudo: { rotina: rotina.depois } };
+      }
+      // parar_rotina: a do próprio quem pediu ou, para quem edita todas (o administrador), qualquer uma.
+      const podeParar = (p: PermissoesNaEmpresa, id: string, dono: string) => {
+        const editar = p.modulos.get("rotinas")?.acoes.editar ?? "nada";
+        return editar === "tudo" || (editar !== "nada" && dono === id);
+      };
+      const parada = await naEmpresa(async (c) => {
+        const r = await rotinaDosDois(c, entrada.rotinaId as string, true);
+        if (!podeParar(ctx.permissoes, pessoaId, r.donoPessoaId))
+          throw new RecusaDaFerramenta("Quem pediu não pode desligar essa rotina.");
+        if (responsavel && !podeParar(responsavel.permissoes, responsavel.pessoaId, r.donoPessoaId))
+          throw new RecusaDaFerramenta("A pessoa responsável por você não pode desligar essa rotina.");
+        return { antes: r.situacao, depois: await desligarRotina(c, r, "agente") };
+      });
+      if (parada.antes === "ligada") await auditarRotina("rotina.desligou", parada.depois);
+      return { conteudo: { rotina: parada.depois } };
     }
     case "pegar_skill": {
       // Só lê as skills atribuídas ao próprio agente (configuração da empresa, não dado de pessoa): o alcance de quem

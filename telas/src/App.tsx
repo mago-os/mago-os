@@ -1,4 +1,4 @@
-import { Bot, Building2, Landmark, ScrollText, Shield, Users } from "lucide-react";
+import { Bot, Building2, CalendarClock, Landmark, ScrollText, Shield, Users } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import {
   type AvisoDeAcesso,
@@ -43,6 +43,7 @@ import { AvisoDaParada } from "./telas/Parada";
 import { MeuPerfil } from "./telas/Perfil";
 import { CentralDePrioridades, Prioridades } from "./telas/Prioridades";
 import { PaginaDoProjeto, Projetos } from "./telas/Projetos";
+import { ListaDeRotinas, PaginaDaRotina } from "./telas/Rotinas";
 import { Skills } from "./telas/Skills";
 import { PaginaDaTarefa, Tarefas } from "./telas/Tarefas";
 import { aplicarTema, lerTema, type Tema } from "./tema";
@@ -215,6 +216,7 @@ export function App() {
       ? [{ caminho: "/pessoas", nome: "Pessoas", icone: Users }]
       : []),
     ...(pode("agentes", "ver") ? [{ caminho: "/agentes", nome: "Agentes", icone: Bot }] : []),
+    ...(pode("rotinas", "ver") ? [{ caminho: "/rotinas", nome: "Rotinas", icone: CalendarClock }] : []),
     ...(pode("empresa", "ver")
       ? [{ caminho: "/dados-da-empresa", nome: "Dados da empresa", icone: Landmark }]
       : []),
@@ -231,6 +233,7 @@ export function App() {
   const projetoAberto = /^\/projetos\/([0-9a-f-]{36})$/i.exec(caminho)?.[1];
   const aprovacaoAberta = /^\/aprovacoes\/([0-9a-f-]{36})$/i.exec(caminho)?.[1];
   const execucaoAberta = /^\/execucoes\/([0-9a-f-]{36})$/i.exec(caminho)?.[1];
+  const rotinaAberta = /^\/rotinas\/([0-9a-f-]{36})$/i.exec(caminho)?.[1];
   if (caminho === "/perfil") conteudo = <MeuPerfil />;
   else if (caminho === "/conversa" && temEmpresaAtiva) conteudo = <Conversa euId={sessao.pessoa.id} />;
   else if (caminho === "/agentes" && pode("agentes", "ver"))
@@ -264,6 +267,9 @@ export function App() {
         euId={sessao.pessoa.id}
       />
     );
+  else if (caminho === "/rotinas" && temEmpresaAtiva && pode("rotinas", "ver")) conteudo = <ListaDeRotinas />;
+  else if (rotinaAberta && temEmpresaAtiva && pode("rotinas", "ver"))
+    conteudo = <PaginaDaRotina id={rotinaAberta} />;
   else if (caminho === "/aprovacoes" && temEmpresaAtiva) conteudo = <ListaDeAprovacoes />;
   else if (aprovacaoAberta && temEmpresaAtiva) conteudo = <PaginaDaAprovacao id={aprovacaoAberta} />;
   else if (execucaoAberta && temEmpresaAtiva) conteudo = <PaginaDaExecucao id={execucaoAberta} />;

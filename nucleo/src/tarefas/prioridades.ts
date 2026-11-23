@@ -170,10 +170,11 @@ export async function listarPrioridades(
     });
   }
 
-  // Avisos de agentes não lidos.
+  // Avisos de agentes não lidos, e as rotinas da pessoa que falharam (M5-05).
   const avisos = await c.query<{ id: string; texto: string; link: string; criado_em: Date }>(
     `select id, texto, link, criado_em from avisos
-      where empresa_id = empresa_ativa() and pessoa_id = $1 and tipo like 'agente\\_%' and lido_em is null
+      where empresa_id = empresa_ativa() and pessoa_id = $1 and (tipo like 'agente\\_%' or tipo = 'rotina_falhou')
+        and lido_em is null
       order by criado_em limit 100`,
     [eu],
   );
