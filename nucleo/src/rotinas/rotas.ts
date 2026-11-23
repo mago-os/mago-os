@@ -139,15 +139,15 @@ export function registrarRotasDasRotinas(app: FastifyInstance, o: OpcoesDasRotas
     });
   });
 
-  /** Busca a rotina que a pessoa vê, travada, e confere que ela é a dona. */
+  /** Busca a rotina que a pessoa vê (alcance de "ver"), travada, e confere que ela é a dona. */
   const daDona = async (pedido: FastifyRequest, c: pg.PoolClient, id: string) => {
-    const { filtro, sessao } = acessoDo(pedido);
+    const { sessao, permissoes } = acessoDo(pedido);
     const ver = filtroDoAlcance(
-      acessoDo(pedido).permissoes.modulos.get("rotinas")?.acoes.ver ?? "nada",
+      permissoes.modulos.get("rotinas")?.acoes.ver ?? "nada",
       sessao.pessoa.id,
-      acessoDo(pedido).permissoes.area,
+      permissoes.area,
     );
-    const rotina = await buscarRotina(c, ver ?? filtro, id, true);
+    const rotina = ver ? await buscarRotina(c, ver, id, true) : null;
     if (!rotina) return { ok: false as const, erro: "nao" as const };
     if (rotina.donoPessoaId !== sessao.pessoa.id) return { ok: false as const, erro: "dono" as const };
     return { ok: true as const, rotina };

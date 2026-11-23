@@ -539,7 +539,7 @@ async function executarSemMarca(
       if (nome === "ver_rotina") {
         const r = await naEmpresa(async (c) => {
           const rotina = await rotinaDosDois(c, entrada.rotinaId as string);
-          return { rotina, execucoes: (await listarExecucoes(c, rotina.id)).slice(0, 10) };
+          return { rotina, execucoes: await listarExecucoes(c, rotina.id, 10) };
         });
         return { conteudo: r };
       }
@@ -585,6 +585,11 @@ async function executarSemMarca(
           const r = await rotinaDosDois(c, entrada.rotinaId as string, true);
           if (r.donoPessoaId !== pessoaId)
             throw new RecusaDaFerramenta("Só o dono liga a rotina (ela age em nome dele).");
+          const podeEditar = (p: PermissoesNaEmpresa) =>
+            (p.modulos.get("rotinas")?.acoes.editar ?? "nada") !== "nada";
+          if (!podeEditar(ctx.permissoes)) throw new RecusaDaFerramenta("Quem pediu não pode ligar rotinas.");
+          if (responsavel && !podeEditar(responsavel.permissoes))
+            throw new RecusaDaFerramenta("A pessoa responsável por você não pode ligar rotinas.");
           if (responsavel) {
             const recusa = await recusaDaAcao(c, responsavel, r.acao);
             if (recusa)

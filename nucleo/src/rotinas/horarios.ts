@@ -137,9 +137,9 @@ function diaAnterior(dia: string): string {
 }
 
 /**
- * A última vez que já chegou (até "agora", inclusive) a partir de uma vez marcada, e a próxima depois de agora: o
- * servidor que ficou fora do ar roda uma vez só, a última que perdeu, e marca a seguinte. Se a marcada ainda não
- * chegou, devolve nulo na última.
+ * A última vez que já chegou (até "agora", inclusive) a partir de uma vez marcada, e a próxima depois de agora, numa
+ * passada só: o servidor que ficou fora do ar roda uma vez só, a última que perdeu, e marca a seguinte. Se a marcada
+ * ainda não chegou, devolve nulo na última. "vezes" é quantas vezes a rotina já rodou pelo horário.
  */
 export function ultimaEProxima(
   g: GatilhoPorHorario,
@@ -148,11 +148,26 @@ export function ultimaEProxima(
   vezes = 0,
 ): { ultima: Date | null; proxima: Date | null } {
   if (marcada.getTime() > agora.getTime()) return { ultima: null, proxima: marcada };
-  let ultima = marcada;
-  let proxima = proximaVez(g, marcada, vezes + 1);
-  while (proxima && proxima.getTime() <= agora.getTime()) {
-    ultima = proxima;
-    proxima = proximaVez(g, proxima, vezes + 1);
+  const regra = semFim(g.regra);
+  const horas = [...g.horas].sort();
+  const desde = diaAnterior(diaNoFuso(marcada, g.fuso));
+  let ultima: Date | null = null;
+  let dia: string | null = primeiroDia(g);
+  for (let i = 0; dia && i < MAXIMO_DE_DIAS; i++) {
+    if (g.regra.ate != null && dia > g.regra.ate) break;
+    if (dia >= desde) {
+      for (const hora of horas) {
+        const momento = momentoNoFuso(dia, hora, g.fuso);
+        if (momento.getTime() < marcada.getTime()) continue;
+        if (momento.getTime() <= agora.getTime()) ultima = momento;
+        else {
+          // Depois de rodar a última, já foram vezes + 1.
+          const acabou = g.regra.vezes != null && vezes + 1 >= g.regra.vezes;
+          return { ultima, proxima: acabou ? null : momento };
+        }
+      }
+    }
+    dia = proximoDia(regra, dia, 0, g.inicio);
   }
-  return { ultima, proxima };
+  return { ultima, proxima: null };
 }

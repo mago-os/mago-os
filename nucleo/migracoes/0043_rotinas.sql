@@ -159,7 +159,6 @@ CREATE FUNCTION public.empresas_com_rotinas_a_cuidar() RETURNS TABLE (empresa_id
     SELECT r.empresa_id FROM public.rotinas r WHERE r.situacao = 'ligada' AND r.proxima_em <= now()
     UNION
     SELECT e.empresa_id FROM public.execucoes_de_rotina e WHERE e.situacao IN ('na_fila', 'rodando', 'esperando')
-    LIMIT 500
   $$;
 REVOKE EXECUTE ON FUNCTION public.empresas_com_rotinas_a_cuidar() FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.empresas_com_rotinas_a_cuidar() TO mago_app;

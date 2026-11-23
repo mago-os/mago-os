@@ -414,6 +414,26 @@ describe.skipIf(!bancoDisponivel)("rotinas por horário", () => {
     expect(resumo.rows[0]).toEqual({ situacao: "desligada", desligada_porque: "agente" });
   });
 
+  it("a última vez de uma série com fim ainda roda, e aí a rotina se desliga sozinha", async () => {
+    const ana = await como("ana@teste.invalid");
+    const r = await pedir("POST", "/rotinas", ana, {
+      nome: "Uma vez só",
+      gatilho: { ...segundaAs8, regra: { frequencia: "diaria", intervalo: 1, vezes: 1 } },
+      acao: { tipo: "mandar_aviso", para: [ids.ana], texto: "Lembrete único." },
+    });
+    const rotina = r.json() as Rotina;
+    expect((await pedir("POST", `/rotinas/${rotina.id}/ligar`, ana, {})).statusCode).toBe(200);
+    await dono.query("update rotinas set proxima_em = '2030-01-02T11:00:00Z' where id = $1", [rotina.id]);
+    await rodarTudo(new Date("2030-01-02T11:00:30Z"));
+    expect(await execucoes(rotina.id)).toEqual([
+      { situacao: "feita", origem: "horario", motivo: null, tarefa_id: null },
+    ]);
+    const depois = await dono.query("select situacao, desligada_porque, vezes from rotinas where id = $1", [
+      rotina.id,
+    ]);
+    expect(depois.rows[0]).toEqual({ situacao: "desligada", desligada_porque: "terminou", vezes: 1 });
+  });
+
   it("criar tarefa com prazo relativo, como o dono criaria", async () => {
     const flora = await como("flora@teste.invalid");
     const r = await pedir("POST", "/rotinas", flora, {

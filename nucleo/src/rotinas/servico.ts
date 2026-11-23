@@ -176,12 +176,16 @@ export async function buscarRotina(
 }
 
 /** As execuções da rotina nos últimos 90 dias (as mais novas primeiro, até 100). */
-export async function listarExecucoes(c: pg.PoolClient, rotinaId: string): Promise<ExecucaoDeRotina[]> {
+export async function listarExecucoes(
+  c: pg.PoolClient,
+  rotinaId: string,
+  limite = 100,
+): Promise<ExecucaoDeRotina[]> {
   const r = await c.query<LinhaDaExecucao>(
     `select ${COLUNAS_DA_EXECUCAO} from execucoes_de_rotina
       where empresa_id = empresa_ativa() and rotina_id = $1 and criada_em > now() - interval '90 days'
-      order by criada_em desc limit 100`,
-    [rotinaId],
+      order by criada_em desc limit $2`,
+    [rotinaId, limite],
   );
   return r.rows.map(paraExecucao);
 }

@@ -47,6 +47,8 @@ export interface OpcoesDoMotorDasRotinas {
 }
 
 const SISTEMA = { canal: "sistema" as const, ip: null, aparelho: null };
+/** "Rodando" sem agente por mais tempo que isso: a ação não terminou (reinício no meio). */
+const MINUTOS_PARA_DAR_COMO_PRESA = 10;
 const TUDO = { tipo: "tudo" as const };
 
 /** As ferramentas que só leem ou conversam: depois delas, tentar de novo não repete nada. */
@@ -127,9 +129,10 @@ export async function cuidarDaEmpresa(
         where empresa_id = empresa_ativa()
           and (situacao = 'na_fila'
                or (situacao = 'esperando' and (proxima_tentativa_em is null or proxima_tentativa_em <= $1))
-               or (situacao = 'rodando' and execucao_de_agente_id is not null))
+               or (situacao = 'rodando' and execucao_de_agente_id is not null)
+               or (situacao = 'rodando' and iniciada_em < $1::timestamptz - make_interval(mins => $2)))
         order by criada_em limit 50`,
-      [agora],
+      [agora, MINUTOS_PARA_DAR_COMO_PRESA],
     );
     return r.rows.map((x) => x.id);
   });
@@ -256,6 +259,16 @@ export async function cuidarDaExecucao(
   const ctx = await comEmpresa(o.poolApp, empresaId, (c) => carregar(c, execucaoId));
   if (!ctx) return;
   const { execucao, rotina } = ctx;
+  if (execucao.situacao === "rodando" && !execucao.execucaoDeAgenteId) {
+    // Ficou "rodando" sem agente por mais de 10 minutos: a ação não terminou (o servidor reiniciou no meio). Criar
+    // tarefa, avisar e abrir a conversa são tudo ou nada, então tenta de novo; a tarefa do agente já criada, não.
+    const desde = execucao.iniciadaEm ? new Date(execucao.iniciadaEm).getTime() : agora.getTime();
+    if (agora.getTime() - desde < MINUTOS_PARA_DAR_COMO_PRESA * 60_000) return;
+    if (execucao.tarefaId)
+      await falhar(o, empresaId, ctx, "O agente não começou a tarefa criada pela rotina.", false, agora);
+    else await falhar(o, empresaId, ctx, "A execução parou no meio (o servidor reiniciou).", true, agora);
+    return;
+  }
   if (execucao.situacao === "rodando" && execucao.execucaoDeAgenteId) {
     await conferirAgente(o, empresaId, ctx, execucao.execucaoDeAgenteId, agora);
     return;
@@ -281,29 +294,51 @@ async function rodar(
   agora: Date,
 ): Promise<void> {
   const { execucao, rotina } = ctx;
-  // Antes de rodar: a rotina ainda ligada (pelo horário), o limite do dia, a anterior terminada, o dono ativo.
-  const pulo = await comEmpresa(o.poolApp, empresaId, async (c) => {
+  // Antes de rodar, numa transação com a rotina travada: a execução ainda espera (outra cópia não pegou), a rotina
+  // não foi desligada por alguém (a que terminou ainda roda a última vez), o limite do dia, a anterior terminada e o
+  // dono ativo. Passou, a execução fica "rodando" já gravada, e outra cópia não a roda de novo.
+  const seguir = await comEmpresa(o.poolApp, empresaId, async (c) => {
     await c.query("select pg_advisory_xact_lock(hashtextextended('rotina:' || $1, 0))", [rotina.id]);
-    if (execucao.origem === "horario" && rotina.situacao === "desligada" && execucao.tentativa === 1)
-      return "A rotina foi desligada antes de rodar.";
-    const hoje = diaNoFuso(agora, rotina.gatilho.fuso);
-    const n = await c.query<{ n: number; rodando: number }>(
-      `select count(*) filter (where (iniciada_em at time zone $3)::date = $2::date)::int as n,
-              count(*) filter (where situacao = 'rodando')::int as rodando
-         from execucoes_de_rotina
-        where empresa_id = empresa_ativa() and rotina_id = $1 and id <> $4 and iniciada_em is not null`,
-      [rotina.id, hoje, rotina.gatilho.fuso, execucao.id],
+    const atual = await c.query<{ situacao: string; iniciada_em: Date | null }>(
+      "select situacao, iniciada_em from execucoes_de_rotina where id = $1 and empresa_id = empresa_ativa() for update",
+      [execucao.id],
     );
-    if (execucao.iniciadaEm === null && (n.rows[0]?.n ?? 0) >= MAXIMO_DE_EXECUCOES_POR_DIA)
-      return `Passou do limite de ${MAXIMO_DE_EXECUCOES_POR_DIA} vezes por dia.`;
-    if ((n.rows[0]?.rodando ?? 0) > 0) return "A vez anterior ainda estava rodando.";
-    if (!ctx.dono.ativo) return "O dono da rotina não está mais ativo na empresa.";
-    return null;
+    const agoraNaFila = atual.rows[0];
+    if (!agoraNaFila || !["na_fila", "esperando"].includes(agoraNaFila.situacao)) return false;
+    const pulo = await (async () => {
+      if (
+        execucao.origem === "horario" &&
+        rotina.situacao === "desligada" &&
+        rotina.desligadaPorque !== "terminou" &&
+        execucao.tentativa === 1
+      )
+        return "A rotina foi desligada antes de rodar.";
+      const hoje = diaNoFuso(agora, rotina.gatilho.fuso);
+      const n = await c.query<{ n: number; rodando: number }>(
+        `select count(*) filter (where (iniciada_em at time zone $3)::date = $2::date)::int as n,
+                count(*) filter (where situacao = 'rodando')::int as rodando
+           from execucoes_de_rotina
+          where empresa_id = empresa_ativa() and rotina_id = $1 and id <> $4 and iniciada_em is not null`,
+        [rotina.id, hoje, rotina.gatilho.fuso, execucao.id],
+      );
+      if (agoraNaFila.iniciada_em === null && (n.rows[0]?.n ?? 0) >= MAXIMO_DE_EXECUCOES_POR_DIA)
+        return `Passou do limite de ${MAXIMO_DE_EXECUCOES_POR_DIA} vezes por dia.`;
+      if ((n.rows[0]?.rodando ?? 0) > 0) return "A vez anterior ainda estava rodando.";
+      if (!ctx.dono.ativo) return "O dono da rotina não está mais ativo na empresa.";
+      return null;
+    })();
+    if (pulo) {
+      await terminar(c, execucao.id, "pulada", { motivo: pulo });
+      return false;
+    }
+    await c.query(
+      `update execucoes_de_rotina set situacao = 'rodando', iniciada_em = coalesce(iniciada_em, now()),
+              proxima_tentativa_em = null where id = $1 and empresa_id = empresa_ativa()`,
+      [execucao.id],
+    );
+    return true;
   });
-  if (pulo) {
-    await comEmpresa(o.poolApp, empresaId, (c) => terminar(c, execucao.id, "pulada", { motivo: pulo }));
-    return;
-  }
+  if (!seguir) return;
   const permissoes = await permissoesNaEmpresa(o.poolApp, rotina.donoPessoaId, empresaId, o.catalogo);
   if (!permissoes) {
     await falhar(o, empresaId, ctx, "O dono da rotina não está mais ativo na empresa.", false, agora);
@@ -315,12 +350,8 @@ async function rodar(
     depois = await comPessoa(o.poolApp, rotina.donoPessoaId, empresaId, async (c) => {
       const recusa = await recusaDaAcao(c, dono, rotina.acao);
       if (recusa) throw new FalhaSemVolta(recusa);
-      const marcarInicio = () =>
-        c.query(
-          `update execucoes_de_rotina set situacao = 'rodando', iniciada_em = coalesce(iniciada_em, now()),
-                  proxima_tentativa_em = null where id = $1 and empresa_id = empresa_ativa()`,
-          [execucao.id],
-        );
+      // A execução já está "rodando" (gravada antes); as ações marcam o resultado na mesma transação.
+      const marcarInicio = async () => {};
       const acao = rotina.acao;
       switch (acao.tipo) {
         case "criar_tarefa":
@@ -480,8 +511,9 @@ async function pedirAoAgenteDaRotina(
       `select coalesce(sum(custo), 0) as gasto,
               bool_or(situacao = 'pulada' and motivo like 'Chegou no teto%') as avisou
          from execucoes_de_rotina
-        where empresa_id = empresa_ativa() and rotina_id = $1 and criada_em >= date_trunc('month', $2::timestamptz)`,
-      [rotina.id, agora],
+        where empresa_id = empresa_ativa() and rotina_id = $1
+          and criada_em >= date_trunc('month', $2::timestamptz at time zone $3) at time zone $3`,
+      [rotina.id, agora, rotina.gatilho.fuso],
     );
     if (Number(g.rows[0]?.gasto ?? 0) >= rotina.tetoMensal) {
       await terminar(c, execucao.id, "pulada", { motivo: "Chegou no teto de gasto do mês desta rotina." });
