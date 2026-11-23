@@ -181,7 +181,6 @@ export function partesDaConversa(mensagens: { autor: { tipo: string }; texto: st
   return partes;
 }
 
-/** Roda uma execução. Nunca lança: o que der errado vira execução "falhou" (a conversa não fica presa). */
 /** A execução veio de uma rotina: ela, ou a que a delegou, está ligada a uma execução de rotina. */
 async function daRotina(o: OpcoesDoMotor, empresaId: string, execucaoId: string): Promise<boolean> {
   const r = await comEmpresa(o.poolApp, empresaId, (c) =>
@@ -194,14 +193,16 @@ async function daRotina(o: OpcoesDoMotor, empresaId: string, execucaoId: string)
            join cadeia c on x.id = c.execucao_mae_id where x.empresa_id = empresa_ativa() and c.n < 10)
        select 1 from cadeia c where exists (
          select 1 from execucoes_de_rotina r where r.empresa_id = empresa_ativa()
-            and (r.execucao_de_agente_id = c.id or (c.tarefa_id is not null and r.tarefa_id = c.tarefa_id)
-                 or (c.conversa_id is not null and r.conversa_id = c.conversa_id))) limit 1`,
+            and (r.execucao_de_agente_id = c.id
+                 -- A tarefa que a rotina acabou de criar para o agente, enquanto a execução dela ainda roda.
+                 or (r.situacao = 'rodando' and c.tarefa_id is not null and r.tarefa_id = c.tarefa_id))) limit 1`,
       [execucaoId],
     ),
   );
   return (r.rowCount ?? 0) > 0;
 }
 
+/** Roda uma execução. Nunca lança: o que der errado vira execução "falhou" (a conversa não fica presa). */
 export async function rodarExecucao(o: OpcoesDoMotor, empresaId: string, execucaoId: string): Promise<void> {
   try {
     // O agente chamado por uma rotina (ou por quem ela chamou) age como a rotina: o que ele mudar não dispara outra

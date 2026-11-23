@@ -140,7 +140,8 @@ describe("rotinas", () => {
     expect(conferirExecucaoDeRotina({ ...execucao, tentativa: 4 }).ok).toBe(false);
     const porEvento = { ...execucao, origem: "evento", previstaPara: null, evento: "tarefa_concluida" };
     expect(conferirExecucaoDeRotina({ ...porEvento, tarefaDoEventoId: ID }).ok).toBe(true);
-    expect(conferirExecucaoDeRotina(porEvento).ok).toBe(false);
+    expect(conferirExecucaoDeRotina(porEvento).ok).toBe(true);
+    expect(conferirExecucaoDeRotina({ ...porEvento, evento: null }).ok).toBe(false);
   });
 
   it("gatilho por evento, com filtros simples; subtarefa da que disparou só nele", () => {

@@ -137,6 +137,10 @@ export async function cuidarDaEmpresa(
                or (situacao = 'esperando' and (proxima_tentativa_em is null or proxima_tentativa_em <= $1))
                or (situacao = 'rodando' and execucao_de_agente_id is not null)
                or (situacao = 'rodando' and iniciada_em < $1::timestamptz - make_interval(mins => $2)))
+          -- O evento que espera a vez anterior da mesma rotina não ocupa lugar enquanto ela roda.
+          and not (origem = 'evento' and situacao = 'na_fila' and exists (
+                select 1 from execucoes_de_rotina y where y.empresa_id = empresa_ativa()
+                   and y.rotina_id = execucoes_de_rotina.rotina_id and y.situacao = 'rodando'))
         order by criada_em limit 50`,
       [agora, MINUTOS_PARA_DAR_COMO_PRESA],
     );
@@ -163,7 +167,7 @@ async function cuidarDosEventos(o: OpcoesDoMotorDasRotinas, empresaId: string, a
       `insert into eventos_para_rotinas (empresa_id, evento, tarefa_id, prazo_em, criado_em)
        select t.empresa_id, 'tarefa_atrasada', t.id, t.prazo_em, t.prazo_em from tarefas t
         where t.empresa_id = empresa_ativa() and t.status not in ('concluida', 'cancelada')
-          and t.prazo_em <= $1 and t.prazo_em > $1::timestamptz - interval '1 day'
+          and t.prazo_em <= $1 and t.prazo_em > $1::timestamptz - interval '7 days'
           and exists (select 1 from rotinas r where r.empresa_id = t.empresa_id and r.situacao = 'ligada'
                        and r.gatilho ->> 'tipo' = 'evento' and r.gatilho ->> 'evento' = 'tarefa_atrasada'
                        and r.ligada_em <= t.prazo_em)
@@ -198,10 +202,13 @@ async function cuidarDosEventos(o: OpcoesDoMotorDasRotinas, empresaId: string, a
         if (!(await filtrosBatem(c, e.tarefa_id, r.gatilho))) continue;
         if (!(await pessoaVeTarefa(c, r.dono_pessoa_id, e.tarefa_id))) continue;
         // No máximo 3 disparos por minuto por rotina (decisão 13): passou, fica registrada como pulada.
+        // Contado pela hora dos eventos (uma fila atrasada não vira pulo).
         const n = await c.query<{ n: number }>(
-          `select count(*)::int as n from execucoes_de_rotina where empresa_id = empresa_ativa() and rotina_id = $1
-              and origem = 'evento' and situacao <> 'pulada' and criada_em > $2::timestamptz - interval '1 minute'`,
-          [r.id, agora],
+          `select count(*)::int as n from execucoes_de_rotina x
+             join eventos_para_rotinas v on v.id = x.evento_id and v.empresa_id = x.empresa_id
+            where x.empresa_id = empresa_ativa() and x.rotina_id = $1 and x.origem = 'evento' and x.situacao <> 'pulada'
+              and v.criado_em > $2::timestamptz - interval '1 minute' and v.criado_em <= $2`,
+          [r.id, e.criado_em],
         );
         const pulada = (n.rows[0]?.n ?? 0) >= MAXIMO_DE_DISPAROS_POR_MINUTO;
         await c.query(
@@ -457,6 +464,12 @@ async function rodar(
         // Na rotina por evento, cada evento é diferente: espera a anterior na fila (decisão 0040).
         return execucao.origem === "evento" ? "esperar" : "A vez anterior ainda estava rodando.";
       if (!ctx.dono.ativo) return "O dono da rotina não está mais ativo na empresa.";
+      // Rotina por evento: a tarefa que disparou ainda existe e o dono ainda a vê.
+      if (execucao.origem === "evento" || rotina.gatilho.tipo === "evento") {
+        if (!ctx.disparo) return "A tarefa que disparou não existe mais.";
+        if (!(await pessoaVeTarefa(c, rotina.donoPessoaId, ctx.disparo.id)))
+          return "O dono da rotina não vê mais a tarefa que disparou.";
+      }
       return null;
     })();
     if (pulo === "esperar") return false;

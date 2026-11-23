@@ -487,6 +487,9 @@ export function FormularioDaRotina({
             tipo: "evento",
             evento,
             filtros: {
+              // Lista e etiqueta não aparecem no formulário: ficam como estavam (uma rotina criada por um agente pode ter).
+              ...(ge?.filtros.listaId ? { listaId: ge.filtros.listaId } : {}),
+              ...(ge?.filtros.etiquetaId ? { etiquetaId: ge.filtros.etiquetaId } : {}),
               ...(filtroProjeto ? { projetoId: filtroProjeto } : {}),
               ...(filtroPrioridade ? { prioridade: filtroPrioridade as Prioridade } : {}),
               ...(filtroStatus ? { status: filtroStatus as StatusTarefa } : {}),

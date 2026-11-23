@@ -353,7 +353,7 @@ export const ExecucaoDeRotina = Type.Object(
     origem: OrigemDaExecucaoDeRotina,
     /** O horário marcado (no "Rodar agora", nulo). */
     previstaPara: OuNulo(DataHora),
-    /** A tarefa que disparou (rotina por evento, ou a escolhida para o "Rodar agora" dela). */
+    /** A tarefa que disparou (rotina por evento, ou a escolhida para o "Rodar agora" dela); nula se foi apagada. */
     tarefaDoEventoId: OuNulo(Id),
     /** O evento que disparou (só pela origem "evento"). */
     evento: OuNulo(EventoDeRotina),
@@ -386,11 +386,9 @@ export function conferirExecucaoDeRotina(valor: unknown) {
         return [{ caminho: "/terminadaEm", mensagem: "só a execução terminada tem a hora do fim" }];
       if ((e.origem === "horario") !== (e.previstaPara !== null))
         return [{ caminho: "/previstaPara", mensagem: "só a execução pelo horário tem a hora marcada" }];
-      if (
-        (e.origem === "evento") !== (e.evento !== null) ||
-        (e.origem === "evento" && e.tarefaDoEventoId === null)
-      )
-        return [{ caminho: "/evento", mensagem: "a execução por evento diz o evento e a tarefa" }];
+      // A tarefa que disparou pode ter sido apagada depois (fica nula); o evento fica.
+      if ((e.origem === "evento") !== (e.evento !== null))
+        return [{ caminho: "/evento", mensagem: "a execução por evento diz o evento" }];
       return [];
     },
   ]);

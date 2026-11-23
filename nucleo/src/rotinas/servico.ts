@@ -324,20 +324,19 @@ async function conferirGatilho(c: pg.PoolClient, g: GatilhoDaRotina): Promise<vo
     );
 }
 
-/** A tarefa passa nos filtros do gatilho por evento (todos os informados precisam bater). */
-export async function filtrosBatem(c: pg.PoolClient, tarefaId: string, g: GatilhoDaRotina): Promise<boolean> {
-  if (g.tipo !== "evento") return true;
+/** A condição dos filtros do gatilho por evento sobre a tarefa "t" (todos os informados precisam bater). */
+function condicaoDosFiltros(g: GatilhoDaRotina, n: number): { sql: string; params: unknown[] } {
+  if (g.tipo !== "evento") return { sql: "true", params: [] };
   const f = g.filtros;
-  const r = await c.query(
-    `select 1 from tarefas t where t.id = $1 and t.empresa_id = empresa_ativa()
-        and ($2::uuid is null or t.projeto_id = $2) and ($3::uuid is null or t.lista_id = $3)
-        and ($4::uuid is null or exists (select 1 from etiquetas_de_tarefa e
-              where e.empresa_id = t.empresa_id and e.tarefa_id = t.id and e.etiqueta_id = $4))
-        and ($5::text is null or t.prioridade = $5)
-        and ($6::uuid is null or t.responsavel_pessoa_id = $6) and ($7::uuid is null or t.responsavel_agente_id = $7)
-        and ($8::text is null or t.status = $8)`,
-    [
-      tarefaId,
+  return {
+    sql: `($${n}::uuid is null or t.projeto_id = $${n}) and ($${n + 1}::uuid is null or t.lista_id = $${n + 1})
+        and ($${n + 2}::uuid is null or exists (select 1 from etiquetas_de_tarefa e
+              where e.empresa_id = t.empresa_id and e.tarefa_id = t.id and e.etiqueta_id = $${n + 2}))
+        and ($${n + 3}::text is null or t.prioridade = $${n + 3})
+        and ($${n + 4}::uuid is null or t.responsavel_pessoa_id = $${n + 4})
+        and ($${n + 5}::uuid is null or t.responsavel_agente_id = $${n + 5})
+        and ($${n + 6}::text is null or t.status = $${n + 6})`,
+    params: [
       f.projetoId ?? null,
       f.listaId ?? null,
       f.etiquetaId ?? null,
@@ -346,18 +345,28 @@ export async function filtrosBatem(c: pg.PoolClient, tarefaId: string, g: Gatilh
       f.responsavel?.tipo === "agente" ? f.responsavel.agenteId : null,
       f.status ?? null,
     ],
+  };
+}
+
+/** A tarefa passa nos filtros do gatilho por evento. */
+export async function filtrosBatem(c: pg.PoolClient, tarefaId: string, g: GatilhoDaRotina): Promise<boolean> {
+  const w = condicaoDosFiltros(g, 2);
+  const r = await c.query(
+    `select 1 from tarefas t where t.id = $1 and t.empresa_id = empresa_ativa() and ${w.sql}`,
+    [tarefaId, ...w.params],
   );
   return (r.rowCount ?? 0) > 0;
 }
 
-/** Para o "Rodar agora" da rotina por evento: a tarefa mais recente que o dono vê e que passa nos filtros. */
+/** Para o "Rodar agora" da rotina por evento: a tarefa mais recente que passa nos filtros e que o dono vê. */
 export async function tarefaParaTestar(c: pg.PoolClient, rotina: Rotina): Promise<string | null> {
+  const w = condicaoDosFiltros(rotina.gatilho, 1);
   const r = await c.query<{ id: string }>(
-    "select id from tarefas where empresa_id = empresa_ativa() order by atualizada_em desc limit 200",
+    `select t.id from tarefas t where t.empresa_id = empresa_ativa() and ${w.sql}
+      order by t.atualizada_em desc limit 50`,
+    w.params,
   );
-  for (const { id } of r.rows)
-    if ((await filtrosBatem(c, id, rotina.gatilho)) && (await pessoaVeTarefa(c, rotina.donoPessoaId, id)))
-      return id;
+  for (const { id } of r.rows) if (await pessoaVeTarefa(c, rotina.donoPessoaId, id)) return id;
   return null;
 }
 
@@ -404,6 +413,15 @@ export async function editarRotina(
   agora = new Date(),
 ): Promise<Rotina> {
   if (pedido.gatilho) await conferirGatilho(c, pedido.gatilho);
+  const acaoNova = pedido.acao ?? rotina.acao;
+  if (
+    acaoNova.tipo === "criar_tarefa" &&
+    acaoNova.comoSubtarefa &&
+    (pedido.gatilho ?? rotina.gatilho).tipo !== "evento"
+  )
+    throw new RecusaDaRotina(
+      "Subtarefa da tarefa que disparou só na rotina por evento: desmarque essa opção.",
+    );
   if (pedido.acao) {
     const recusa = await recusaDaAcao(c, dono, pedido.acao);
     if (recusa) throw new RecusaDaRotina(recusa);
