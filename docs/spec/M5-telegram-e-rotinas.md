@@ -107,20 +107,20 @@ Pronto quando: uma menção ao Sandro chega no Telegram na hora, e às 8h chega 
 
 Precisa da aprovação do Sandro (contratos novos e o que roda sozinho em nome de alguém).
 
-- [ ] Uma rotina tem nome, gatilho, ação, dono e situação (ligada ou desligada). O dono é quem criou, e a rotina age com a permissão dele, como numa conversa (a menor das duas permissões, M4-04)
-- [ ] Gatilho por horário: as mesmas repetições da recorrência das tarefas (todo dia, a cada N dias, dias da semana escolhidos, todo mês num dia, todo ano), com hora e fuso, e fim numa data ou depois de N vezes (decisão 9)
-- [ ] Ações da Fase 1 (decisão 10): criar uma tarefa (título, descrição, responsável pessoa ou agente, projeto, prioridade e prazo relativo, como "em 2 dias"); pedir a um agente interno (o pedido em texto e uma skill opcional), com o resultado numa tarefa nova ou numa mensagem ao dono (app e Telegram); mandar um aviso a pessoas da empresa que o dono pode ver em Pessoas (o aviso de rotina vai também pelo Telegram por padrão, decisão 0039)
-- [ ] A rotina nasce desligada. O botão "Rodar agora" roda uma vez de verdade e mostra o resultado, para testar antes de ligar
-- [ ] Limites: no máximo 24 execuções por dia por rotina e teto de gasto mensal opcional por rotina, somado aos tetos da M4-06
-- [ ] Cada execução fica registrada (quando, o que fez, o custo, o link do passo a passo do agente). Falha tenta de novo duas vezes (depois de 5 e de 15 minutos) e, se continuar, vai para a central de prioridades do dono
-- [ ] A rotina roda pela fila que já existe (pg-boss), conferida a cada minuto. Se o servidor ficou fora do ar, ao voltar roda uma vez só a última que perdeu, sem acumular
-- [ ] Durante a parada dos agentes, a rotina que chama agente espera; a que só cria tarefa ou avisa continua
-- [ ] Dono desligado: as rotinas dele ficam desligadas e o administrador recebe o aviso
-- [ ] Quem cria (decisão 11, ajustada na decisão 0039): módulo de permissão novo "rotinas". Todos criam as próprias; só o dono edita, liga e usa "Rodar agora" (a rotina age em nome dele); o administrador vê todas, desliga e apaga qualquer uma; o gestor vê as da equipe
-- [ ] Ferramentas dos agentes internos (regra 12): listar e ver rotinas; criar e ligar pedem aprovação por padrão; desligar executa (decisão 0039)
-- [ ] Tabelas `rotinas` e `execucoes_de_rotina` (com `empresa_id`, RLS e marcas). Eventos de auditoria: `rotina.criou`, `rotina.editou`, `rotina.ligou`, `rotina.desligou`, `rotina.apagou`, `rotina.falhou`
-- [ ] Tela em Rotinas (no menu): lista, criar e editar, ligar e desligar, Rodar agora e o histórico de execuções
-- [ ] Testes com o relógio falso e o provedor de IA falso: roda no horário certo no fuso certo (inclusive em mudança de horário de verão de outro país), não roda desligada, não passa do limite por dia, não acumula depois de ficar fora, e não faz o que o dono não poderia fazer
+- [x] Uma rotina tem nome, gatilho, ação, dono e situação (ligada ou desligada). O dono é quem criou, e a rotina age com a permissão dele, como numa conversa (a menor das duas permissões, M4-04)
+- [x] Gatilho por horário: as mesmas repetições da recorrência das tarefas (todo dia, a cada N dias, dias da semana escolhidos, todo mês num dia, todo ano), com hora e fuso, e fim numa data ou depois de N vezes (decisão 9)
+- [x] Ações da Fase 1 (decisão 10): criar uma tarefa (título, descrição, responsável pessoa ou agente, projeto, prioridade e prazo relativo, como "em 2 dias"); pedir a um agente interno (o pedido em texto e uma skill opcional), com o resultado numa tarefa nova ou numa mensagem ao dono (app e Telegram); mandar um aviso a pessoas da empresa que o dono pode ver em Pessoas (o aviso de rotina vai também pelo Telegram por padrão, decisão 0039)
+- [x] A rotina nasce desligada. O botão "Rodar agora" roda uma vez de verdade e mostra o resultado, para testar antes de ligar
+- [x] Limites: no máximo 24 execuções por dia por rotina e teto de gasto mensal opcional por rotina, somado aos tetos da M4-06
+- [x] Cada execução fica registrada (quando, o que fez, o custo, o link do passo a passo do agente). Falha tenta de novo duas vezes (depois de 5 e de 15 minutos) e, se continuar, vai para a central de prioridades do dono
+- [x] A rotina roda pela fila que já existe (pg-boss), conferida a cada minuto. Se o servidor ficou fora do ar, ao voltar roda uma vez só a última que perdeu, sem acumular
+- [x] Durante a parada dos agentes, a rotina que chama agente espera; a que só cria tarefa ou avisa continua
+- [x] Dono desligado: as rotinas dele ficam desligadas e o administrador recebe o aviso
+- [x] Quem cria (decisão 11, ajustada na decisão 0039): módulo de permissão novo "rotinas". Todos criam as próprias; só o dono edita, liga e usa "Rodar agora" (a rotina age em nome dele); o administrador vê todas, desliga e apaga qualquer uma; o gestor vê as da equipe
+- [x] Ferramentas dos agentes internos (regra 12): listar e ver rotinas; criar e ligar pedem aprovação por padrão; desligar executa (decisão 0039)
+- [x] Tabelas `rotinas` e `execucoes_de_rotina` (com `empresa_id`, RLS e marcas). Eventos de auditoria: `rotina.criou`, `rotina.editou`, `rotina.ligou`, `rotina.desligou`, `rotina.apagou`, `rotina.falhou`
+- [x] Tela em Rotinas (no menu): lista, criar e editar, ligar e desligar, Rodar agora e o histórico de execuções
+- [x] Testes com o relógio falso e o provedor de IA falso: roda no horário certo no fuso certo (inclusive em mudança de horário de verão de outro país), não roda desligada, não passa do limite por dia, não acumula depois de ficar fora, e não faz o que o dono não poderia fazer
 
 Pronto quando: o Sandro cria a rotina "toda segunda às 8h, o Gerente de projetos resume as tarefas atrasadas e me manda", aperta Rodar agora, liga, e na segunda às 8h o resumo chega no Telegram.
 
