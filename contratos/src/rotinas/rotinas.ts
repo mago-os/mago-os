@@ -11,13 +11,14 @@
  * 11. Módulo de permissão "rotinas": o administrador vê todas; gestor e funcionário criam as próprias, e o gestor vê
  *    as da equipe.
  *
- * Os gatilhos por eventos do sistema entram na M5-06, como outro tipo de gatilho.
+ * M5-06 (decisão 0040): o gatilho por evento do sistema (tarefa criada, concluída, mudou de status, atrasada, precisa
+ * de ajuda, comentário, aprovação pedida), com filtros simples; a ação recebe a tarefa que disparou.
  */
 import { type Static, Type } from "typebox";
 import { conferir, DataHora, Dia, Id, OuNulo, type Problema, Texto } from "../comum.ts";
 import { FusoHorario } from "../identidade/pessoa.ts";
 import { Hora, Prioridade, RegraDeRecorrencia } from "../tarefas/prazos.ts";
-import { Responsavel } from "../tarefas/tarefa.ts";
+import { Responsavel, StatusTarefa } from "../tarefas/tarefa.ts";
 
 /** No máximo 24 execuções por dia em cada rotina, contando o "Rodar agora" (no fuso da rotina). */
 export const MAXIMO_DE_EXECUCOES_POR_DIA = 24;
@@ -29,6 +30,13 @@ export const MAXIMO_DE_ROTINAS_POR_PESSOA = 50;
 export const MINUTOS_PARA_TENTAR_DE_NOVO = [5, 15] as const;
 /** Quantas pessoas um aviso de rotina alcança. */
 export const MAXIMO_DE_PESSOAS_NO_AVISO = 50;
+/** Uma rotina por evento dispara no máximo 3 vezes por minuto (decisão 13), além das 24 por dia. */
+export const MAXIMO_DE_DISPAROS_POR_MINUTO = 3;
+/**
+ * Nos textos de uma rotina por evento (título e descrição da tarefa, pedido ao agente, aviso), este marcador vira o
+ * título da tarefa que disparou. O pedido ao agente leva também o id dela, para ele abrir.
+ */
+export const MARCADOR_DA_TAREFA = "{tarefa}";
 
 // Gatilho
 
@@ -51,8 +59,58 @@ export const GatilhoPorHorario = Type.Object(
 );
 export type GatilhoPorHorario = Static<typeof GatilhoPorHorario>;
 
-/** Na M5-06 entra o gatilho por evento do sistema. */
-export const GatilhoDaRotina = GatilhoPorHorario;
+/** Os eventos do sistema que disparam rotinas na Fase 1 (decisão 12). */
+export const EVENTOS_DE_ROTINA = [
+  "tarefa_criada",
+  "tarefa_concluida",
+  "tarefa_mudou_status",
+  "tarefa_atrasada",
+  "tarefa_precisa_de_ajuda",
+  "comentario",
+  "aprovacao_pedida",
+] as const;
+export const EventoDeRotina = Type.Enum(EVENTOS_DE_ROTINA);
+export type EventoDeRotina = Static<typeof EventoDeRotina>;
+
+export const NOMES_DOS_EVENTOS: Record<EventoDeRotina, string> = {
+  tarefa_criada: "Tarefa criada",
+  tarefa_concluida: "Tarefa concluída",
+  tarefa_mudou_status: "Tarefa mudou de status",
+  tarefa_atrasada: "Tarefa atrasada (o prazo passou)",
+  tarefa_precisa_de_ajuda: "Tarefa precisa de ajuda",
+  comentario: "Comentário numa tarefa",
+  aprovacao_pedida: "Um agente pediu aprovação",
+};
+
+/**
+ * Filtros simples sobre a tarefa do evento: todos os informados precisam bater (sem condições livres na Fase 1).
+ * "status" é o status da tarefa depois do evento (útil em "mudou de status").
+ */
+export const FiltrosDoEvento = Type.Object(
+  {
+    projetoId: Type.Optional(Id),
+    listaId: Type.Optional(Id),
+    etiquetaId: Type.Optional(Id),
+    prioridade: Type.Optional(Prioridade),
+    responsavel: Type.Optional(Responsavel),
+    status: Type.Optional(StatusTarefa),
+  },
+  { additionalProperties: false },
+);
+export type FiltrosDoEvento = Static<typeof FiltrosDoEvento>;
+
+/** Gatilho por evento do sistema (M5-06): roda quando o evento acontece numa tarefa que o dono vê. */
+export const GatilhoPorEvento = Type.Object(
+  {
+    tipo: Type.Literal("evento"),
+    evento: EventoDeRotina,
+    filtros: FiltrosDoEvento,
+  },
+  { additionalProperties: false, description: "Quando a rotina roda: um evento do sistema, com filtros." },
+);
+export type GatilhoPorEvento = Static<typeof GatilhoPorEvento>;
+
+export const GatilhoDaRotina = Type.Union([GatilhoPorHorario, GatilhoPorEvento]);
 export type GatilhoDaRotina = Static<typeof GatilhoDaRotina>;
 
 // Ações (decisão 10)
@@ -84,6 +142,8 @@ export const AcaoCriarTarefa = Type.Object(
     projetoId: Type.Optional(OuNulo(Id)),
     prioridade: Type.Optional(OuNulo(Prioridade)),
     prazo: Type.Optional(OuNulo(PrazoRelativo)),
+    /** Só na rotina por evento: a tarefa nasce como subtarefa da que disparou (se ela não for subtarefa). */
+    comoSubtarefa: Type.Optional(Type.Boolean()),
   },
   { additionalProperties: false, description: "Cria uma tarefa." },
 );
@@ -193,15 +253,26 @@ export function conferirRotina(valor: unknown) {
       const problemas: Problema[] = [];
       if ((r.situacao === "desligada") !== (r.desligadaPorque !== null))
         problemas.push({ caminho: "/desligadaPorque", mensagem: "só a rotina desligada diz por quê" });
-      if (r.situacao === "desligada" && r.proximaEm !== null)
-        problemas.push({ caminho: "/proximaEm", mensagem: "rotina desligada não tem próxima vez" });
+      if ((r.situacao === "desligada" || r.gatilho.tipo === "evento") && r.proximaEm !== null)
+        problemas.push({ caminho: "/proximaEm", mensagem: "só a rotina por horário ligada tem próxima vez" });
       return problemas;
     },
     (r) => problemasDoGatilho(r.gatilho, "/gatilho"),
+    (r) => problemasDaAcao(r.gatilho, r.acao),
   ]);
 }
 
+/** Subtarefa da que disparou só faz sentido numa rotina por evento. */
+function problemasDaAcao(g: GatilhoDaRotina, a: AcaoDaRotina): Problema[] {
+  if (a.tipo === "criar_tarefa" && a.comoSubtarefa && g.tipo !== "evento")
+    return [
+      { caminho: "/acao/comoSubtarefa", mensagem: "subtarefa da que disparou só na rotina por evento" },
+    ];
+  return [];
+}
+
 function problemasDoGatilho(g: GatilhoDaRotina, caminho: string): Problema[] {
+  if (g.tipo === "evento") return [];
   const problemas: Problema[] = [];
   if (g.regra.diasDaSemana && g.regra.frequencia !== "semanal")
     problemas.push({
@@ -228,7 +299,10 @@ export const PedidoDeRotina = Type.Object(
 export type PedidoDeRotina = Static<typeof PedidoDeRotina>;
 
 export function conferirPedidoDeRotina(valor: unknown) {
-  return conferir(PedidoDeRotina, valor, [(r) => problemasDoGatilho(r.gatilho, "/gatilho")]);
+  return conferir(PedidoDeRotina, valor, [
+    (r) => problemasDoGatilho(r.gatilho, "/gatilho"),
+    (r) => problemasDaAcao(r.gatilho, r.acao),
+  ]);
 }
 
 /** Editar (só o dono). Só o que veio muda; editar não liga nem desliga. */
@@ -251,7 +325,7 @@ export function conferirPedidoDeEdicaoDeRotina(valor: unknown) {
 
 // Execuções
 
-export const ORIGENS_DA_EXECUCAO_DE_ROTINA = ["horario", "rodar_agora"] as const;
+export const ORIGENS_DA_EXECUCAO_DE_ROTINA = ["horario", "evento", "rodar_agora"] as const;
 export const OrigemDaExecucaoDeRotina = Type.Enum(ORIGENS_DA_EXECUCAO_DE_ROTINA);
 export type OrigemDaExecucaoDeRotina = Static<typeof OrigemDaExecucaoDeRotina>;
 
@@ -279,6 +353,10 @@ export const ExecucaoDeRotina = Type.Object(
     origem: OrigemDaExecucaoDeRotina,
     /** O horário marcado (no "Rodar agora", nulo). */
     previstaPara: OuNulo(DataHora),
+    /** A tarefa que disparou (rotina por evento, ou a escolhida para o "Rodar agora" dela). */
+    tarefaDoEventoId: OuNulo(Id),
+    /** O evento que disparou (só pela origem "evento"). */
+    evento: OuNulo(EventoDeRotina),
     situacao: SituacaoDaExecucaoDeRotina,
     /** 1, 2 ou 3 (as duas novas tentativas depois de uma falha). */
     tentativa: Type.Integer({ minimum: 1, maximum: 1 + MINUTOS_PARA_TENTAR_DE_NOVO.length }),
@@ -308,10 +386,25 @@ export function conferirExecucaoDeRotina(valor: unknown) {
         return [{ caminho: "/terminadaEm", mensagem: "só a execução terminada tem a hora do fim" }];
       if ((e.origem === "horario") !== (e.previstaPara !== null))
         return [{ caminho: "/previstaPara", mensagem: "só a execução pelo horário tem a hora marcada" }];
+      if (
+        (e.origem === "evento") !== (e.evento !== null) ||
+        (e.origem === "evento" && e.tarefaDoEventoId === null)
+      )
+        return [{ caminho: "/evento", mensagem: "a execução por evento diz o evento e a tarefa" }];
       return [];
     },
   ]);
 }
+
+/**
+ * "Rodar agora" (só o dono). Na rotina por evento, a tarefa com que testar (uma que o dono vê); sem ela, a mais
+ * recente que ele vê e que passa nos filtros.
+ */
+export const PedidoParaRodarAgora = Type.Object(
+  { tarefaId: Type.Optional(Id) },
+  { additionalProperties: false },
+);
+export type PedidoParaRodarAgora = Static<typeof PedidoParaRodarAgora>;
 
 /** Ações de auditoria das rotinas. Nos detalhes vão ids, o tipo de ação e o motivo fixo, nunca o texto. */
 export const ACOES_ROTINAS = [

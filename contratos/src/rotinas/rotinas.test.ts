@@ -116,6 +116,8 @@ describe("rotinas", () => {
       rotinaId: ID,
       origem: "horario",
       previstaPara: AGORA,
+      tarefaDoEventoId: null,
+      evento: null,
       situacao: "feita",
       tentativa: 1,
       proximaTentativaEm: null,
@@ -136,5 +138,33 @@ describe("rotinas", () => {
       true,
     );
     expect(conferirExecucaoDeRotina({ ...execucao, tentativa: 4 }).ok).toBe(false);
+    const porEvento = { ...execucao, origem: "evento", previstaPara: null, evento: "tarefa_concluida" };
+    expect(conferirExecucaoDeRotina({ ...porEvento, tarefaDoEventoId: ID }).ok).toBe(true);
+    expect(conferirExecucaoDeRotina(porEvento).ok).toBe(false);
+  });
+
+  it("gatilho por evento, com filtros simples; subtarefa da que disparou só nele", () => {
+    const porEvento = {
+      ...pedido,
+      gatilho: { tipo: "evento", evento: "tarefa_concluida", filtros: { projetoId: ID, prioridade: "alta" } },
+      acao: { tipo: "criar_tarefa", titulo: "Revisar: {tarefa}", comoSubtarefa: true },
+    };
+    expect(conferirPedidoDeRotina(porEvento).ok).toBe(true);
+    expect(
+      conferirPedidoDeRotina({ ...porEvento, gatilho: { ...porEvento.gatilho, evento: "tarefa_apagada" } })
+        .ok,
+    ).toBe(false);
+    expect(
+      conferirPedidoDeRotina({ ...porEvento, gatilho: { ...porEvento.gatilho, filtros: { texto: "livre" } } })
+        .ok,
+    ).toBe(false);
+    expect(conferirPedidoDeRotina({ ...pedido, acao: porEvento.acao }).ok).toBe(false);
+    expect(
+      conferirRotina({ ...rotina, ...porEvento, situacao: "ligada", desligadaPorque: null, proximaEm: AGORA })
+        .ok,
+    ).toBe(false);
+    expect(conferirRotina({ ...rotina, ...porEvento, situacao: "ligada", desligadaPorque: null }).ok).toBe(
+      true,
+    );
   });
 });
