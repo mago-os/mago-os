@@ -353,7 +353,7 @@ export const FERRAMENTAS_INTERNAS = [
   {
     nome: "criar_rotina",
     descricao:
-      "Cria uma rotina em nome de quem pediu: no horário marcado, ela cria uma tarefa, pede algo a um agente interno ou manda um aviso, com a permissão de quem pediu. A rotina nasce desligada; para ligar, use ligar_rotina ou peça à pessoa para ligar em Rotinas. Use só quando a pessoa pedir algo que se repete (exemplo: toda segunda às 8h). Confirme os dias, a hora e o fuso se a pessoa não disse.",
+      "Cria uma rotina em nome de quem pediu: no horário marcado (gatilho horario) ou quando um evento acontece numa tarefa (gatilho evento, como tarefa concluída num projeto), ela cria uma tarefa, pede algo a um agente interno ou manda um aviso, com a permissão de quem pediu. Nos textos da rotina por evento, {tarefa} vira o título da tarefa que disparou. A rotina nasce desligada; para ligar, use ligar_rotina ou peça à pessoa para ligar em Rotinas. Use só quando a pessoa pedir algo que se repete (exemplo: toda segunda às 8h, ou sempre que uma tarefa do Blog for concluída). Confirme os dias, a hora e o fuso se a pessoa não disse.",
     entrada: PedidoDeRotina,
     papeis: ["coordenador", "especialista"],
   },

@@ -3,14 +3,21 @@
  * o histórico. A rotina nasce desligada e age em nome de quem criou: só o dono edita, liga e roda; o administrador
  * desliga e apaga qualquer uma.
  */
-import type {
-  AcaoDaRotina,
-  ExecucaoDeRotina,
-  GatilhoPorHorario,
-  PedidoDeRotina,
-  Prioridade,
-  Rotina,
-  SituacaoDaExecucaoDeRotina,
+import {
+  type AcaoDaRotina,
+  EVENTOS_DE_ROTINA,
+  type EventoDeRotina,
+  type ExecucaoDeRotina,
+  type GatilhoDaRotina,
+  type GatilhoPorHorario,
+  NOMES_DOS_EVENTOS,
+  NOMES_STATUS_TAREFA,
+  type PedidoDeRotina,
+  type Prioridade,
+  type Rotina,
+  type SituacaoDaExecucaoDeRotina,
+  STATUS_TAREFA,
+  type StatusTarefa,
 } from "@mago-os/contratos";
 import { ArrowLeft, Play, Plus } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
@@ -72,7 +79,18 @@ const quando = (iso: string | null) =>
     : "";
 
 /** "Toda segunda às 08:00", "A cada 2 dias às 09:00 e 18:00"... */
-export function textoDoQuando(g: GatilhoPorHorario): string {
+export function textoDoQuando(gatilho: GatilhoDaRotina): string {
+  if (gatilho.tipo === "evento") {
+    const f = gatilho.filtros;
+    const filtros = [
+      f.projetoId ? "de um projeto" : "",
+      f.prioridade ? `com prioridade ${f.prioridade}` : "",
+      f.status ? `com status ${NOMES_STATUS_TAREFA[f.status].toLowerCase()}` : "",
+      f.responsavel ? "de um responsável" : "",
+    ].filter(Boolean);
+    return `Quando: ${NOMES_DOS_EVENTOS[gatilho.evento].toLowerCase()}${filtros.length ? ` (${filtros.join(", ")})` : ""}`;
+  }
+  const g: GatilhoPorHorario = gatilho;
   const r = g.regra;
   const horas = [...g.horas].sort();
   const as = `às ${horas.length > 1 ? `${horas.slice(0, -1).join(", ")} e ${horas.at(-1)}` : horas[0]}`;
@@ -350,16 +368,25 @@ export function PaginaDaRotina({ id }: { id: string }) {
                 </span>
                 <span className="text-texto-2">
                   {quando(e.iniciadaEm ?? e.previstaPara ?? e.criadaEm)}
-                  {e.origem === "rodar_agora" ? ", pelo Rodar agora" : ""}
+                  {e.origem === "rodar_agora"
+                    ? ", pelo Rodar agora"
+                    : e.origem === "evento"
+                      ? ", por evento"
+                      : ""}
                   {e.tentativa > 1 ? `, tentativa ${e.tentativa}` : ""}
                 </span>
                 {e.custo > 0 && <span className="text-texto-2">US$ {(e.custo / 100).toFixed(4)}</span>}
               </span>
               {e.motivo && <span className="text-texto-2">{e.motivo}</span>}
               <span className="flex flex-wrap gap-3">
+                {e.tarefaDoEventoId && (
+                  <a className="text-tinta underline" href={`/tarefas/${e.tarefaDoEventoId}`}>
+                    Tarefa que disparou
+                  </a>
+                )}
                 {e.tarefaId && (
                   <a className="text-tinta underline" href={`/tarefas/${e.tarefaId}`}>
-                    Ver a tarefa
+                    Ver a tarefa criada
                   </a>
                 )}
                 {e.conversaId && (
@@ -400,8 +427,20 @@ export function FormularioDaRotina({
   const agentes = useAgentesAtivos();
   const projetos = useProjetosAtivos();
   const internos = agentes.filter((x) => x.tipo === "interno");
-  const g = inicial?.gatilho;
+  const g = inicial?.gatilho.tipo === "horario" ? inicial.gatilho : undefined;
+  const ge = inicial?.gatilho.tipo === "evento" ? inicial.gatilho : undefined;
   const a = inicial?.acao;
+  const [quando, setQuando] = useState<"horario" | "evento">(ge ? "evento" : "horario");
+  const [evento, setEvento] = useState<EventoDeRotina>(ge?.evento ?? "tarefa_concluida");
+  const [filtroProjeto, setFiltroProjeto] = useState(ge?.filtros.projetoId ?? "");
+  const [filtroPrioridade, setFiltroPrioridade] = useState(ge?.filtros.prioridade ?? "");
+  const [filtroStatus, setFiltroStatus] = useState(ge?.filtros.status ?? "");
+  const [filtroResponsavel, setFiltroResponsavel] = useState(
+    valorDoResponsavel(ge?.filtros.responsavel ?? null),
+  );
+  const [comoSubtarefa, setComoSubtarefa] = useState(
+    a?.tipo === "criar_tarefa" ? (a.comoSubtarefa ?? false) : false,
+  );
   const [nome, setNome] = useState(inicial?.nome ?? "");
   const [frequencia, setFrequencia] = useState(g?.regra.frequencia ?? "semanal");
   const [intervalo, setIntervalo] = useState(String(g?.regra.intervalo ?? 1));
@@ -436,22 +475,43 @@ export function FormularioDaRotina({
 
   function montar(): PedidoDeRotina | string {
     const listaDeHoras = [...new Set(horas.split(/[,\s]+/).filter(Boolean))];
-    if (listaDeHoras.length === 0 || listaDeHoras.some((h) => !/^([01]\d|2[0-3]):[0-5]\d$/.test(h)))
+    if (
+      quando === "horario" &&
+      (listaDeHoras.length === 0 || listaDeHoras.some((h) => !/^([01]\d|2[0-3]):[0-5]\d$/.test(h)))
+    )
       return "Escreva os horários no formato 08:00, separados por vírgula.";
-    const gatilho: GatilhoPorHorario = {
-      tipo: "horario",
-      regra: {
-        frequencia,
-        intervalo: Math.max(1, Number(intervalo) || 1),
-        ...(frequencia === "semanal" && dias.length > 0 ? { diasDaSemana: [...dias].sort() } : {}),
-        ...(frequencia === "mensal" ? { diaDoMes: Math.min(31, Math.max(1, Number(diaDoMes) || 1)) } : {}),
-        ate: ate || null,
-        vezes: vezes ? Number(vezes) : null,
-      },
-      horas: listaDeHoras.sort(),
-      fuso,
-      inicio,
-    };
+    const responsavelDoFiltro = responsavelDoValor(filtroResponsavel);
+    const gatilho: GatilhoDaRotina =
+      quando === "evento"
+        ? {
+            tipo: "evento",
+            evento,
+            filtros: {
+              // Lista e etiqueta não aparecem no formulário: ficam como estavam (uma rotina criada por um agente pode ter).
+              ...(ge?.filtros.listaId ? { listaId: ge.filtros.listaId } : {}),
+              ...(ge?.filtros.etiquetaId ? { etiquetaId: ge.filtros.etiquetaId } : {}),
+              ...(filtroProjeto ? { projetoId: filtroProjeto } : {}),
+              ...(filtroPrioridade ? { prioridade: filtroPrioridade as Prioridade } : {}),
+              ...(filtroStatus ? { status: filtroStatus as StatusTarefa } : {}),
+              ...(responsavelDoFiltro ? { responsavel: responsavelDoFiltro } : {}),
+            },
+          }
+        : {
+            tipo: "horario",
+            regra: {
+              frequencia,
+              intervalo: Math.max(1, Number(intervalo) || 1),
+              ...(frequencia === "semanal" && dias.length > 0 ? { diasDaSemana: [...dias].sort() } : {}),
+              ...(frequencia === "mensal"
+                ? { diaDoMes: Math.min(31, Math.max(1, Number(diaDoMes) || 1)) }
+                : {}),
+              ate: ate || null,
+              vezes: vezes ? Number(vezes) : null,
+            },
+            horas: listaDeHoras.sort(),
+            fuso,
+            inicio,
+          };
     let acao: AcaoDaRotina;
     if (tipo === "criar_tarefa") {
       if (!titulo.trim()) return "Escreva o título da tarefa.";
@@ -463,6 +523,7 @@ export function FormularioDaRotina({
         projetoId: projetoId || null,
         prioridade: (prioridade || null) as Prioridade | null,
         prazo: emDias ? { emDias: Number(emDias), hora: null } : null,
+        ...(quando === "evento" && comoSubtarefa ? { comoSubtarefa: true } : {}),
       };
     } else if (tipo === "pedir_ao_agente") {
       if (!agenteId) return "Escolha o agente.";
@@ -511,91 +572,188 @@ export function FormularioDaRotina({
         />
         <fieldset className="grid gap-3 rounded-md border border-linha p-3">
           <legend className="px-1 text-sm font-medium">Quando</legend>
-          <div className="grid gap-3 sm:grid-cols-2">
-            <label className="grid gap-1.5 text-sm font-medium">
-              Repetir
-              <select
-                className={caixa}
-                value={frequencia}
-                onChange={(e) => setFrequencia(e.target.value as typeof frequencia)}
-              >
-                <option value="diaria">Todo dia (ou a cada N dias)</option>
-                <option value="semanal">Dias da semana</option>
-                <option value="mensal">Todo mês</option>
-                <option value="anual">Todo ano</option>
-              </select>
-            </label>
-            <Campo
-              id="rotina-intervalo"
-              rotulo="A cada (1 = sempre)"
-              type="number"
-              min={1}
-              max={365}
-              value={intervalo}
-              onChange={(e) => setIntervalo(e.target.value)}
-            />
-          </div>
-          {frequencia === "semanal" && (
-            <fieldset className="flex flex-wrap gap-2" aria-label="Dias da semana">
-              {DIAS.map((nomeDoDia, i) => (
-                <label key={nomeDoDia} className="flex items-center gap-1 text-sm">
-                  <input
-                    type="checkbox"
-                    checked={dias.includes(i)}
-                    onChange={(e) => setDias(e.target.checked ? [...dias, i] : dias.filter((x) => x !== i))}
-                  />
-                  {nomeDoDia}
+          <label className="grid gap-1.5 text-sm font-medium">
+            Rodar
+            <select
+              className={caixa}
+              value={quando}
+              onChange={(e) => setQuando(e.target.value as "horario" | "evento")}
+            >
+              <option value="horario">No horário</option>
+              <option value="evento">Quando acontecer algo numa tarefa</option>
+            </select>
+          </label>
+          {quando === "evento" ? (
+            <>
+              <label className="grid gap-1.5 text-sm font-medium">
+                Evento
+                <select
+                  className={caixa}
+                  value={evento}
+                  onChange={(e) => setEvento(e.target.value as EventoDeRotina)}
+                >
+                  {EVENTOS_DE_ROTINA.map((x) => (
+                    <option key={x} value={x}>
+                      {NOMES_DOS_EVENTOS[x]}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <p className="text-sm text-texto-2">
+                Só para as tarefas que você vê. Filtros (opcionais): todos os escolhidos precisam bater.
+              </p>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <label className="grid gap-1.5 text-sm font-medium">
+                  Projeto
+                  <select
+                    className={caixa}
+                    value={filtroProjeto}
+                    onChange={(e) => setFiltroProjeto(e.target.value)}
+                  >
+                    <option value="">Qualquer</option>
+                    {projetos.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.nome}
+                      </option>
+                    ))}
+                  </select>
                 </label>
-              ))}
-            </fieldset>
+                <label className="grid gap-1.5 text-sm font-medium">
+                  Prioridade
+                  <select
+                    className={caixa}
+                    value={filtroPrioridade}
+                    onChange={(e) => setFiltroPrioridade(e.target.value)}
+                  >
+                    <option value="">Qualquer</option>
+                    <option value="urgente">Urgente</option>
+                    <option value="alta">Alta</option>
+                    <option value="normal">Normal</option>
+                    <option value="baixa">Baixa</option>
+                  </select>
+                </label>
+                <label className="grid gap-1.5 text-sm font-medium">
+                  Status (depois do evento)
+                  <select
+                    className={caixa}
+                    value={filtroStatus}
+                    onChange={(e) => setFiltroStatus(e.target.value)}
+                  >
+                    <option value="">Qualquer</option>
+                    {STATUS_TAREFA.map((x) => (
+                      <option key={x} value={x}>
+                        {NOMES_STATUS_TAREFA[x]}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <div className="grid gap-1.5 text-sm font-medium">
+                  <label htmlFor="rotina-filtro-responsavel">Responsável</label>
+                  <SeletorDeResponsavel
+                    id="rotina-filtro-responsavel"
+                    valor={filtroResponsavel}
+                    aoMudar={setFiltroResponsavel}
+                    pessoas={pessoas}
+                    agentes={agentes}
+                    extras={[{ valor: "", nome: "Qualquer" }]}
+                  />
+                </div>
+              </div>
+              <p className="text-sm text-texto-2">
+                Nos textos abaixo, escreva {"{tarefa}"} para pôr o título da tarefa que disparou.
+              </p>
+            </>
+          ) : (
+            <>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <label className="grid gap-1.5 text-sm font-medium">
+                  Repetir
+                  <select
+                    className={caixa}
+                    value={frequencia}
+                    onChange={(e) => setFrequencia(e.target.value as typeof frequencia)}
+                  >
+                    <option value="diaria">Todo dia (ou a cada N dias)</option>
+                    <option value="semanal">Dias da semana</option>
+                    <option value="mensal">Todo mês</option>
+                    <option value="anual">Todo ano</option>
+                  </select>
+                </label>
+                <Campo
+                  id="rotina-intervalo"
+                  rotulo="A cada (1 = sempre)"
+                  type="number"
+                  min={1}
+                  max={365}
+                  value={intervalo}
+                  onChange={(e) => setIntervalo(e.target.value)}
+                />
+              </div>
+              {frequencia === "semanal" && (
+                <fieldset className="flex flex-wrap gap-2" aria-label="Dias da semana">
+                  {DIAS.map((nomeDoDia, i) => (
+                    <label key={nomeDoDia} className="flex items-center gap-1 text-sm">
+                      <input
+                        type="checkbox"
+                        checked={dias.includes(i)}
+                        onChange={(e) =>
+                          setDias(e.target.checked ? [...dias, i] : dias.filter((x) => x !== i))
+                        }
+                      />
+                      {nomeDoDia}
+                    </label>
+                  ))}
+                </fieldset>
+              )}
+              {frequencia === "mensal" && (
+                <Campo
+                  id="rotina-dia-do-mes"
+                  rotulo="Dia do mês (31 vira o último dia dos meses curtos)"
+                  type="number"
+                  min={1}
+                  max={31}
+                  value={diaDoMes}
+                  onChange={(e) => setDiaDoMes(e.target.value)}
+                />
+              )}
+              <div className="grid gap-3 sm:grid-cols-2">
+                <Campo
+                  id="rotina-horas"
+                  rotulo="Horários (até 24, ex.: 08:00, 18:00)"
+                  value={horas}
+                  onChange={(e) => setHoras(e.target.value)}
+                />
+                <Campo
+                  id="rotina-fuso"
+                  rotulo="Fuso horário"
+                  value={fuso}
+                  onChange={(e) => setFuso(e.target.value)}
+                />
+                <Campo
+                  id="rotina-inicio"
+                  rotulo="Começa em"
+                  type="date"
+                  value={inicio}
+                  onChange={(e) => setInicio(e.target.value)}
+                />
+                <Campo
+                  id="rotina-ate"
+                  rotulo="Termina em (opcional)"
+                  type="date"
+                  value={ate}
+                  onChange={(e) => setAte(e.target.value)}
+                />
+                <Campo
+                  id="rotina-vezes"
+                  rotulo="Ou depois de quantas vezes (opcional)"
+                  type="number"
+                  min={1}
+                  value={vezes}
+                  onChange={(e) => setVezes(e.target.value)}
+                />
+              </div>
+            </>
           )}
-          {frequencia === "mensal" && (
-            <Campo
-              id="rotina-dia-do-mes"
-              rotulo="Dia do mês (31 vira o último dia dos meses curtos)"
-              type="number"
-              min={1}
-              max={31}
-              value={diaDoMes}
-              onChange={(e) => setDiaDoMes(e.target.value)}
-            />
-          )}
-          <div className="grid gap-3 sm:grid-cols-2">
-            <Campo
-              id="rotina-horas"
-              rotulo="Horários (até 24, ex.: 08:00, 18:00)"
-              value={horas}
-              onChange={(e) => setHoras(e.target.value)}
-            />
-            <Campo
-              id="rotina-fuso"
-              rotulo="Fuso horário"
-              value={fuso}
-              onChange={(e) => setFuso(e.target.value)}
-            />
-            <Campo
-              id="rotina-inicio"
-              rotulo="Começa em"
-              type="date"
-              value={inicio}
-              onChange={(e) => setInicio(e.target.value)}
-            />
-            <Campo
-              id="rotina-ate"
-              rotulo="Termina em (opcional)"
-              type="date"
-              value={ate}
-              onChange={(e) => setAte(e.target.value)}
-            />
-            <Campo
-              id="rotina-vezes"
-              rotulo="Ou depois de quantas vezes (opcional)"
-              type="number"
-              min={1}
-              value={vezes}
-              onChange={(e) => setVezes(e.target.value)}
-            />
-          </div>
         </fieldset>
         <fieldset className="grid gap-3 rounded-md border border-linha p-3">
           <legend className="px-1 text-sm font-medium">O que fazer</legend>
@@ -660,6 +818,16 @@ export function FormularioDaRotina({
                 value={titulo}
                 onChange={(e) => setTitulo(e.target.value)}
               />
+              {quando === "evento" && (
+                <label className="flex items-center gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={comoSubtarefa}
+                    onChange={(e) => setComoSubtarefa(e.target.checked)}
+                  />
+                  Criar como subtarefa da tarefa que disparou
+                </label>
+              )}
               <label className="grid gap-1.5 text-sm font-medium">
                 Descrição (opcional)
                 <textarea

@@ -5,8 +5,10 @@
  */
 import {
   type AcaoDeRotina,
+  conferir,
   conferirPedidoDeEdicaoDeRotina,
   conferirPedidoDeRotina,
+  PedidoParaRodarAgora,
   type Problema,
   type Rotina,
 } from "@mago-os/contratos";
@@ -14,6 +16,7 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import type pg from "pg";
 import { origemDoPedido } from "../acesso/rotas.ts";
 import { auditar } from "../auditoria/registrar.ts";
+import { pessoaVeTarefa } from "../avisos/notificacoes.ts";
 import { comPessoa } from "../empresa.ts";
 import { filtroDoAlcance } from "../permissoes/calcular.ts";
 import { acessoDo, type Verificador } from "../permissoes/verificar.ts";
@@ -29,6 +32,7 @@ import {
   nomesDasRotinas,
   pedirParaRodarAgora,
   RecusaDaRotina,
+  tarefaParaTestar,
 } from "./servico.ts";
 
 export interface OpcoesDasRotasDasRotinas {
@@ -249,11 +253,30 @@ export function registrarRotasDasRotinas(app: FastifyInstance, o: OpcoesDasRotas
     async (pedido, resposta) => {
       const { id } = pedido.params as { id: string };
       const { sessao } = acessoDo(pedido);
+      const corpo = conferir(PedidoParaRodarAgora, pedido.body ?? {});
+      if (!corpo.ok) return invalido(resposta, corpo.problemas);
       const feito = await naEmpresa(pedido, async (c) => {
         const d = await daDona(pedido, c, id);
         if (!d.ok) return d;
-        return { ok: true as const, rotina: d.rotina, execucao: await pedirParaRodarAgora(c, d.rotina.id) };
+        // Rotina por evento: testa com a tarefa escolhida (que o dono vê) ou com a mais recente que passa nos filtros.
+        let tarefa: string | null = null;
+        if (d.rotina.gatilho.tipo === "evento") {
+          tarefa = corpo.valor.tarefaId ?? (await tarefaParaTestar(c, d.rotina));
+          if (!tarefa || !(await pessoaVeTarefa(c, sessao.pessoa.id, tarefa)))
+            return { ok: false as const, erro: "tarefa" as const };
+        }
+        return {
+          ok: true as const,
+          rotina: d.rotina,
+          execucao: await pedirParaRodarAgora(c, d.rotina.id, tarefa),
+        };
       });
+      if (!feito.ok && feito.erro === "tarefa")
+        return resposta.code(400).send({
+          code: "SEM_TAREFA_PARA_TESTAR",
+          message:
+            "Nenhuma tarefa sua passa nos filtros dessa rotina para testar. Crie uma ou mude os filtros.",
+        });
       if (!feito.ok) return feito.erro === "nao" ? naoEncontrada(resposta) : soODono(resposta);
       await registrar(pedido, "rotina.rodou_agora", feito.rotina, { execucaoId: feito.execucao.id });
       o.rodarAgora(sessao.empresaId, feito.execucao.id);

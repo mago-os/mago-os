@@ -23,6 +23,7 @@ import {
 } from "@mago-os/nucleo/contas-de-ia";
 import { comPessoa } from "@mago-os/nucleo/empresa";
 import { catalogoDeModulos, criarVerificador } from "@mago-os/nucleo/permissoes";
+import { registrarRotasDosProjetos } from "@mago-os/nucleo/projetos";
 import {
   cuidarDaEmpresa,
   cuidarDaExecucao,
@@ -220,6 +221,7 @@ describe.skipIf(!bancoDisponivel)("rotinas por horário", () => {
       acordar,
     };
     registrarRotasDaConversa(app, { verificador, poolApp, acordar });
+    registrarRotasDosProjetos(app, verificador, poolApp);
     registrarRotasDasRotinas(app, { verificador, poolApp, rodarAgora: (_e, id) => rodarAgora.push(id) });
     motor = {
       poolApp,
@@ -539,6 +541,150 @@ describe.skipIf(!bancoDisponivel)("rotinas por horário", () => {
     await rodarTudo();
     const ultima = (await execucoes(ids.lembrete)).at(-1);
     expect(ultima).toMatchObject({ situacao: "pulada", motivo: "Passou do limite de 24 vezes por dia." });
+  });
+
+  it("por evento: concluir uma tarefa do Blog cria a revisão para a Rita, e o que a rotina fez não dispara outra", async () => {
+    const ana = await como("ana@teste.invalid");
+    ids.rita = await criarPessoa("Rita Revisora", "rita@teste.invalid", "funcionario");
+    const espaco = await pedir("POST", "/espacos", ana, { nome: "Marketing" });
+    const blog = await pedir("POST", "/projetos", ana, { espacoId: espaco.json().id, nome: "Blog" });
+    expect(blog.statusCode).toBe(201);
+    ids.blog = blog.json().id as string;
+    const revisao = await pedir("POST", "/rotinas", ana, {
+      nome: "Revisão do Blog",
+      gatilho: { tipo: "evento", evento: "tarefa_concluida", filtros: { projetoId: ids.blog } },
+      acao: {
+        tipo: "criar_tarefa",
+        titulo: "Revisar: {tarefa}",
+        responsavel: { tipo: "pessoa", pessoaId: ids.rita },
+        comoSubtarefa: true,
+      },
+    });
+    expect(revisao.statusCode).toBe(201);
+    ids.revisao = (revisao.json() as Rotina).id;
+    const qualquer = await pedir("POST", "/rotinas", ana, {
+      nome: "Toda tarefa nova",
+      gatilho: { tipo: "evento", evento: "tarefa_criada", filtros: {} },
+      acao: { tipo: "mandar_aviso", para: [ids.ana], texto: "Nova tarefa: {tarefa}" },
+    });
+    ids.qualquer = (qualquer.json() as Rotina).id;
+    for (const id of [ids.revisao, ids.qualquer]) {
+      const r = await pedir("POST", `/rotinas/${id}/ligar`, ana, {});
+      expect(r.json()).toMatchObject({ situacao: "ligada", proximaEm: null });
+    }
+    // Duas tarefas da Ana: uma do Blog, outra fora dele. As duas são concluídas.
+    const criar = async (titulo: string, projeto: string | null) =>
+      (
+        await dono.query<{ id: string }>(
+          `insert into tarefas (empresa_id, titulo, responsavel_pessoa_id, criada_por_pessoa_id, projeto_id)
+           values ($1, $2, $3, $3, $4) returning id`,
+          [empresaId, titulo, ids.ana, projeto],
+        )
+      ).rows[0]?.id as string;
+    ids.post = await criar("Post de lançamento", ids.blog);
+    ids.fora = await criar("Pagar a gráfica", null);
+    await dono.query(
+      "update tarefas set status = 'concluida', encerrada_em = now() where id = any($1::uuid[])",
+      [[ids.post, ids.fora]],
+    );
+    await rodarTudo();
+    const daRevisao = await dono.query<{
+      situacao: string;
+      evento: string;
+      tarefa_do_evento_id: string;
+      tarefa_id: string;
+    }>(
+      "select situacao, evento, tarefa_do_evento_id, tarefa_id from execucoes_de_rotina where rotina_id = $1",
+      [ids.revisao],
+    );
+    expect(daRevisao.rows).toHaveLength(1);
+    expect(daRevisao.rows[0]).toMatchObject({
+      situacao: "feita",
+      evento: "tarefa_concluida",
+      tarefa_do_evento_id: ids.post,
+    });
+    const nova = await dono.query(
+      "select titulo, responsavel_pessoa_id, tarefa_mae_id, projeto_id from tarefas where id = $1",
+      [daRevisao.rows[0]?.tarefa_id],
+    );
+    expect(nova.rows[0]).toEqual({
+      titulo: "Revisar: Post de lançamento",
+      responsavel_pessoa_id: ids.rita,
+      tarefa_mae_id: ids.post,
+      projeto_id: ids.blog,
+    });
+    // "Toda tarefa nova" rodou para as duas tarefas da Ana, mas não para a revisão, que a rotina criou.
+    const daQualquer = await dono.query<{ tarefa_do_evento_id: string }>(
+      "select tarefa_do_evento_id from execucoes_de_rotina where rotina_id = $1 and situacao = 'feita'",
+      [ids.qualquer],
+    );
+    expect(daQualquer.rows.map((x) => x.tarefa_do_evento_id).sort()).toEqual([ids.post, ids.fora].sort());
+    const aviso = await dono.query(
+      "select texto, link from avisos where tipo = 'aviso_de_rotina' and link = $1",
+      [`/tarefas/${ids.post}`],
+    );
+    expect(aviso.rows[0]?.texto).toBe(
+      'Nova tarefa: Post de lançamento (rotina "Toda tarefa nova", de Ana Admin)',
+    );
+  });
+
+  it("por evento: só o que o dono vê; Rodar agora testa com a tarefa mais recente que passa nos filtros", async () => {
+    const rita = await como("rita@teste.invalid");
+    const r = await pedir("POST", "/rotinas", rita, {
+      nome: "Minhas tarefas novas",
+      gatilho: { tipo: "evento", evento: "tarefa_criada", filtros: {} },
+      acao: { tipo: "mandar_aviso", para: [ids.rita], texto: "Chegou: {tarefa}" },
+    });
+    const rotina = r.json() as Rotina;
+    expect((await pedir("POST", `/rotinas/${rotina.id}/ligar`, rita, {})).statusCode).toBe(200);
+    // Uma tarefa da Ana que a Rita não vê não dispara nada; uma passada para a Rita dispara.
+    await dono.query(
+      "insert into tarefas (empresa_id, titulo, responsavel_pessoa_id, criada_por_pessoa_id) values ($1, 'Só da Ana', $2, $2)",
+      [empresaId, ids.ana],
+    );
+    await dono.query(
+      "insert into tarefas (empresa_id, titulo, responsavel_pessoa_id, criada_por_pessoa_id) values ($1, 'Para a Rita', $2, $3)",
+      [empresaId, ids.rita, ids.ana],
+    );
+    await rodarTudo();
+    const titulos = await dono.query<{ titulo: string }>(
+      `select t.titulo from execucoes_de_rotina e join tarefas t on t.id = e.tarefa_do_evento_id where e.rotina_id = $1`,
+      [rotina.id],
+    );
+    expect(titulos.rows.map((x) => x.titulo)).toEqual(["Para a Rita"]);
+    // Rodar agora: a mais recente que a Rita vê e que passa nos filtros.
+    expect((await pedir("POST", `/rotinas/${rotina.id}/rodar`, rita, {})).statusCode).toBe(202);
+    await rodarTudo();
+    const ultima = await dono.query<{ origem: string; situacao: string; titulo: string }>(
+      `select e.origem, e.situacao, t.titulo from execucoes_de_rotina e join tarefas t on t.id = e.tarefa_do_evento_id
+        where e.rotina_id = $1 order by e.criada_em desc limit 1`,
+      [rotina.id],
+    );
+    expect(ultima.rows[0]).toEqual({ origem: "rodar_agora", situacao: "feita", titulo: "Para a Rita" });
+  });
+
+  it("por evento: a tarefa atrasada dispara uma vez por prazo", async () => {
+    const ana = await como("ana@teste.invalid");
+    const r = await pedir("POST", "/rotinas", ana, {
+      nome: "Atrasou",
+      gatilho: { tipo: "evento", evento: "tarefa_atrasada", filtros: {} },
+      acao: { tipo: "mandar_aviso", para: [ids.ana], texto: "Atrasou: {tarefa}" },
+    });
+    const rotina = r.json() as Rotina;
+    await pedir("POST", `/rotinas/${rotina.id}/ligar`, ana, {});
+    await dono.query(
+      `insert into tarefas (empresa_id, titulo, responsavel_pessoa_id, criada_por_pessoa_id, prazo_dia, prazo_hora, prazo_fuso)
+       values ($1, 'Entregar o balanço', $2, $2, '2031-03-10', '09:00', 'UTC')`,
+      [empresaId, ids.ana],
+    );
+    await rodarTudo(new Date("2031-03-10T08:59:00Z"));
+    expect(await execucoes(rotina.id)).toEqual([]);
+    await rodarTudo(new Date("2031-03-10T09:01:00Z"));
+    await rodarTudo(new Date("2031-03-10T09:05:00Z"));
+    expect(await execucoes(rotina.id)).toEqual([
+      { situacao: "feita", origem: "evento", motivo: null, tarefa_id: null },
+    ]);
+    await pedir("POST", `/rotinas/${rotina.id}/desligar`, ana, {});
   });
 
   it("falha sem volta: vai direto para a central do dono e para a auditoria", async () => {

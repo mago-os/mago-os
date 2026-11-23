@@ -13,6 +13,8 @@ import {
   CATALOGO_DE_ACOES,
   canaisDoTipo,
   type DeclaracaoDeModulo,
+  MARCADOR_DA_TAREFA,
+  MAXIMO_DE_DISPAROS_POR_MINUTO,
   MAXIMO_DE_EXECUCOES_POR_DIA,
   MINUTOS_PARA_TENTAR_DE_NOVO,
   type Perfil,
@@ -26,13 +28,13 @@ import { entregarAoAgenteInterno } from "../agentes-internos/tarefa-atribuida.ts
 import { auditar } from "../auditoria/registrar.ts";
 import { avisarDepois } from "../avisos/eventos.ts";
 import { criarAviso } from "../avisos/index.ts";
-import { preferenciasDe } from "../avisos/notificacoes.ts";
-import { comEmpresa, comPessoa } from "../empresa.ts";
+import { pessoaVeTarefa, preferenciasDe } from "../avisos/notificacoes.ts";
+import { comEmpresa, comoRotina, comPessoa } from "../empresa.ts";
 import { permissoesNaEmpresa } from "../permissoes/verificar.ts";
 import { planejar, recusaDoPlanejamento } from "../tarefas/planejamento.ts";
 import { buscarTarefa, criarTarefa } from "../tarefas/servico.ts";
 import { diaNoFuso, ultimaEProxima } from "./horarios.ts";
-import { buscarRotina, COLUNAS_DA_EXECUCAO, paraExecucao, recusaDaAcao } from "./servico.ts";
+import { buscarRotina, COLUNAS_DA_EXECUCAO, filtrosBatem, paraExecucao, recusaDaAcao } from "./servico.ts";
 
 export interface OpcoesDoMotorDasRotinas {
   poolApp: pg.Pool;
@@ -88,7 +90,7 @@ export async function cuidarDaEmpresa(
   empresaId: string,
   agora = new Date(),
 ): Promise<number> {
-  // 1. As que chegaram na hora viram execução (uma verificação por vez por empresa).
+  // 1. As rotinas por horário que chegaram na hora viram execução (uma verificação por vez por empresa).
   await comEmpresa(o.poolApp, empresaId, async (c) => {
     const livre = await c.query<{ ok: boolean }>(
       "select pg_try_advisory_xact_lock(hashtextextended('rotinas:' || empresa_ativa()::text, 0)) as ok",
@@ -101,11 +103,13 @@ export async function cuidarDaEmpresa(
       vezes: number;
     }>(
       `select id, gatilho, proxima_em, vezes from rotinas
-        where empresa_id = empresa_ativa() and situacao = 'ligada' and proxima_em <= $1
+        where empresa_id = empresa_ativa() and situacao = 'ligada' and gatilho ->> 'tipo' = 'horario'
+          and proxima_em <= $1
         order by proxima_em limit 100 for update skip locked`,
       [agora],
     );
     for (const v of vencidas.rows) {
+      if (v.gatilho.tipo !== "horario") continue;
       const { ultima, proxima } = ultimaEProxima(v.gatilho, v.proxima_em, agora, v.vezes);
       if (ultima)
         await c.query(
@@ -122,7 +126,9 @@ export async function cuidarDaEmpresa(
       );
     }
   });
-  // 2. As execuções a cuidar.
+  // 2. Os eventos do sistema viram execução das rotinas por evento que batem.
+  await cuidarDosEventos(o, empresaId, agora);
+  // 3. As execuções a cuidar.
   const ids = await comEmpresa(o.poolApp, empresaId, async (c) => {
     const r = await c.query<{ id: string }>(
       `select id from execucoes_de_rotina
@@ -131,6 +137,10 @@ export async function cuidarDaEmpresa(
                or (situacao = 'esperando' and (proxima_tentativa_em is null or proxima_tentativa_em <= $1))
                or (situacao = 'rodando' and execucao_de_agente_id is not null)
                or (situacao = 'rodando' and iniciada_em < $1::timestamptz - make_interval(mins => $2)))
+          -- O evento que espera a vez anterior da mesma rotina não ocupa lugar enquanto ela roda.
+          and not (origem = 'evento' and situacao = 'na_fila' and exists (
+                select 1 from execucoes_de_rotina y where y.empresa_id = empresa_ativa()
+                   and y.rotina_id = execucoes_de_rotina.rotina_id and y.situacao = 'rodando'))
         order by criada_em limit 50`,
       [agora, MINUTOS_PARA_DAR_COMO_PRESA],
     );
@@ -146,10 +156,92 @@ export async function cuidarDaEmpresa(
   return ids.length;
 }
 
+/**
+ * Os eventos esperando viram execução das rotinas por evento que batem (decisão 0040): ligada antes do evento, os
+ * filtros batem, o dono está ativo e vê a tarefa. O evento causado por rotina só sai da fila. Antes, a tarefa
+ * atrasada entra na fila uma vez por prazo; os eventos olhados há mais de 7 dias são apagados.
+ */
+async function cuidarDosEventos(o: OpcoesDoMotorDasRotinas, empresaId: string, agora: Date): Promise<void> {
+  await comEmpresa(o.poolApp, empresaId, async (c) => {
+    await c.query(
+      `insert into eventos_para_rotinas (empresa_id, evento, tarefa_id, prazo_em, criado_em)
+       select t.empresa_id, 'tarefa_atrasada', t.id, t.prazo_em, t.prazo_em from tarefas t
+        where t.empresa_id = empresa_ativa() and t.status not in ('concluida', 'cancelada')
+          and t.prazo_em <= $1 and t.prazo_em > $1::timestamptz - interval '7 days'
+          and exists (select 1 from rotinas r where r.empresa_id = t.empresa_id and r.situacao = 'ligada'
+                       and r.gatilho ->> 'tipo' = 'evento' and r.gatilho ->> 'evento' = 'tarefa_atrasada'
+                       and r.ligada_em <= t.prazo_em)
+       on conflict do nothing`,
+      [agora],
+    );
+    await c.query(
+      "delete from eventos_para_rotinas where empresa_id = empresa_ativa() and cuidado_em < now() - interval '7 days'",
+    );
+    const eventos = await c.query<{
+      id: string;
+      evento: string;
+      tarefa_id: string;
+      da_rotina: boolean;
+      criado_em: Date;
+    }>(
+      `update eventos_para_rotinas set cuidado_em = now()
+        where id in (select id from eventos_para_rotinas where empresa_id = empresa_ativa() and cuidado_em is null
+                      order by criado_em limit 200 for update skip locked)
+        returning id, evento, tarefa_id, da_rotina, criado_em`,
+    );
+    for (const e of eventos.rows.sort((a, b) => a.criado_em.getTime() - b.criado_em.getTime())) {
+      if (e.da_rotina) continue;
+      const rotinas = await c.query<{ id: string; dono_pessoa_id: string; gatilho: Rotina["gatilho"] }>(
+        `select r.id, r.dono_pessoa_id, r.gatilho from rotinas r
+           join vinculos v on v.empresa_id = r.empresa_id and v.pessoa_id = r.dono_pessoa_id and v.situacao = 'ativo'
+          where r.empresa_id = empresa_ativa() and r.situacao = 'ligada' and r.gatilho ->> 'tipo' = 'evento'
+            and r.gatilho ->> 'evento' = $1 and r.ligada_em <= $2`,
+        [e.evento, e.criado_em],
+      );
+      for (const r of rotinas.rows) {
+        if (!(await filtrosBatem(c, e.tarefa_id, r.gatilho))) continue;
+        if (!(await pessoaVeTarefa(c, r.dono_pessoa_id, e.tarefa_id))) continue;
+        // No máximo 3 disparos por minuto por rotina (decisão 13): passou, fica registrada como pulada.
+        // Contado pela hora dos eventos (uma fila atrasada não vira pulo).
+        const n = await c.query<{ n: number }>(
+          `select count(*)::int as n from execucoes_de_rotina x
+             join eventos_para_rotinas v on v.id = x.evento_id and v.empresa_id = x.empresa_id
+            where x.empresa_id = empresa_ativa() and x.rotina_id = $1 and x.origem = 'evento' and x.situacao <> 'pulada'
+              and v.criado_em > $2::timestamptz - interval '1 minute' and v.criado_em <= $2`,
+          [r.id, e.criado_em],
+        );
+        const pulada = (n.rows[0]?.n ?? 0) >= MAXIMO_DE_DISPAROS_POR_MINUTO;
+        await c.query(
+          `insert into execucoes_de_rotina (empresa_id, rotina_id, origem, evento, tarefa_do_evento_id, evento_id,
+                                            situacao, motivo, terminada_em)
+           values (empresa_ativa(), $1, 'evento', $2, $3, $4, $5, $6, case when $7 then now() end)
+           on conflict do nothing`,
+          [
+            r.id,
+            e.evento,
+            e.tarefa_id,
+            e.id,
+            pulada ? "pulada" : "na_fila",
+            pulada ? `Passou do limite de ${MAXIMO_DE_DISPAROS_POR_MINUTO} disparos por minuto.` : null,
+            pulada,
+          ],
+        );
+      }
+    }
+  });
+}
+
 interface Contexto {
   execucao: ReturnType<typeof paraExecucao>;
   rotina: Rotina;
   dono: { nome: string; perfil: Perfil; ativo: boolean };
+  /** O fuso da rotina: o do gatilho por horário; na rotina por evento, o do dono (ou o da empresa). */
+  fuso: string;
+  /**
+   * A tarefa que disparou (rotina por evento): o título, a tarefa-mãe e se o título ou o comentário do evento são de
+   * outra pessoa (texto de outros para o agente, M4-04).
+   */
+  disparo: { id: string; titulo: string; maeId: string | null; deOutros: boolean } | null;
 }
 
 async function carregar(c: pg.PoolClient, execucaoId: string): Promise<Contexto | null> {
@@ -162,8 +254,10 @@ async function carregar(c: pg.PoolClient, execucaoId: string): Promise<Contexto 
   const execucao = paraExecucao(e.rows[0]);
   const rotina = await buscarRotina(c, TUDO, execucao.rotinaId);
   if (!rotina) return null;
-  const d = await c.query<{ nome: string; perfil: Perfil; situacao: string }>(
-    `select p.nome, v.perfil, v.situacao from vinculos v join pessoas p on p.id = v.pessoa_id
+  const d = await c.query<{ nome: string; perfil: Perfil; situacao: string; fuso: string }>(
+    `select p.nome, v.perfil, v.situacao,
+            coalesce(p.fuso_horario, (select e.fuso_horario from empresas e where e.id = empresa_ativa()), 'UTC') as fuso
+       from vinculos v join pessoas p on p.id = v.pessoa_id
       where v.empresa_id = empresa_ativa() and v.pessoa_id = $1`,
     [rotina.donoPessoaId],
   );
@@ -176,7 +270,40 @@ async function carregar(c: pg.PoolClient, execucaoId: string): Promise<Contexto 
       perfil: dono?.perfil ?? "funcionario",
       ativo: dono?.situacao === "ativo",
     },
+    fuso: rotina.gatilho.tipo === "horario" ? rotina.gatilho.fuso : (dono?.fuso ?? "UTC"),
+    disparo: execucao.tarefaDoEventoId
+      ? await disparoDe(c, execucao.id, execucao.tarefaDoEventoId, rotina.donoPessoaId)
+      : null,
   };
+}
+
+async function disparoDe(
+  c: pg.PoolClient,
+  execucaoId: string,
+  tarefaId: string,
+  donoId: string,
+): Promise<Contexto["disparo"]> {
+  // De outra pessoa: escrito por quem não é o dono e não por um agente interno (o sistema conta, como na M4-04).
+  const r = await c.query<{ titulo: string; mae: string | null; de_outros: boolean }>(
+    `select t.titulo, t.tarefa_mae_id as mae,
+            ((t.criada_por_pessoa_id is distinct from $2
+              and not exists (select 1 from agentes a where a.id = t.criada_por_agente_id and a.tipo = 'interno'))
+             or exists (select 1 from execucoes_de_rotina x
+                          join eventos_para_rotinas v on v.id = x.evento_id and v.empresa_id = x.empresa_id
+                          join comentarios_de_tarefa m on m.id = v.comentario_id and m.empresa_id = v.empresa_id
+                         where x.id = $3 and m.autor_pessoa_id is distinct from $2
+                           and not exists (select 1 from agentes a where a.id = m.autor_agente_id and a.tipo = 'interno')))
+              as de_outros
+       from tarefas t where t.id = $1 and t.empresa_id = empresa_ativa()`,
+    [tarefaId, donoId, execucaoId],
+  );
+  const t = r.rows[0];
+  return t ? { id: tarefaId, titulo: t.titulo, maeId: t.mae, deOutros: t.de_outros } : null;
+}
+
+/** Os textos da rotina por evento: {tarefa} vira o título da tarefa que disparou. */
+function preencher(ctx: Contexto, texto: string): string {
+  return ctx.disparo ? texto.replaceAll(MARCADOR_DA_TAREFA, ctx.disparo.titulo) : texto;
 }
 
 async function terminar(
@@ -250,11 +377,21 @@ async function falhar(
 }
 
 /** Cuida de uma execução: roda a que está na fila ou chegou a hora, e confere a que espera o agente. */
-export async function cuidarDaExecucao(
+export function cuidarDaExecucao(
   o: OpcoesDoMotorDasRotinas,
   empresaId: string,
   execucaoId: string,
   agora = new Date(),
+): Promise<void> {
+  // O que a rotina faz (e o agente que ela chama) fica marcado como da rotina: não dispara outra (decisão 0040).
+  return comoRotina(() => cuidarDaExecucaoDaRotina(o, empresaId, execucaoId, agora));
+}
+
+async function cuidarDaExecucaoDaRotina(
+  o: OpcoesDoMotorDasRotinas,
+  empresaId: string,
+  execucaoId: string,
+  agora: Date,
 ): Promise<void> {
   const ctx = await comEmpresa(o.poolApp, empresaId, (c) => carregar(c, execucaoId));
   if (!ctx) return;
@@ -313,20 +450,29 @@ async function rodar(
         execucao.tentativa === 1
       )
         return "A rotina foi desligada antes de rodar.";
-      const hoje = diaNoFuso(agora, rotina.gatilho.fuso);
+      const hoje = diaNoFuso(agora, ctx.fuso);
       const n = await c.query<{ n: number; rodando: number }>(
         `select count(*) filter (where (iniciada_em at time zone $3)::date = $2::date)::int as n,
                 count(*) filter (where situacao = 'rodando')::int as rodando
            from execucoes_de_rotina
           where empresa_id = empresa_ativa() and rotina_id = $1 and id <> $4 and iniciada_em is not null`,
-        [rotina.id, hoje, rotina.gatilho.fuso, execucao.id],
+        [rotina.id, hoje, ctx.fuso, execucao.id],
       );
       if (agoraNaFila.iniciada_em === null && (n.rows[0]?.n ?? 0) >= MAXIMO_DE_EXECUCOES_POR_DIA)
         return `Passou do limite de ${MAXIMO_DE_EXECUCOES_POR_DIA} vezes por dia.`;
-      if ((n.rows[0]?.rodando ?? 0) > 0) return "A vez anterior ainda estava rodando.";
+      if ((n.rows[0]?.rodando ?? 0) > 0)
+        // Na rotina por evento, cada evento é diferente: espera a anterior na fila (decisão 0040).
+        return execucao.origem === "evento" ? "esperar" : "A vez anterior ainda estava rodando.";
       if (!ctx.dono.ativo) return "O dono da rotina não está mais ativo na empresa.";
+      // Rotina por evento: a tarefa que disparou ainda existe e o dono ainda a vê.
+      if (execucao.origem === "evento" || rotina.gatilho.tipo === "evento") {
+        if (!ctx.disparo) return "A tarefa que disparou não existe mais.";
+        if (!(await pessoaVeTarefa(c, rotina.donoPessoaId, ctx.disparo.id)))
+          return "O dono da rotina não vê mais a tarefa que disparou.";
+      }
       return null;
     })();
+    if (pulo === "esperar") return false;
     if (pulo) {
       await terminar(c, execucao.id, "pulada", { motivo: pulo });
       return false;
@@ -378,8 +524,7 @@ async function rodar(
 type Dono = { pessoaId: string; permissoes: NonNullable<Awaited<ReturnType<typeof permissoesNaEmpresa>>> };
 
 /** O prazo relativo ("em 2 dias") a partir do dia de hoje no fuso da rotina. */
-function prazoDaRotina(rotina: Rotina, emDias: number, hora: string | null | undefined, agora: Date) {
-  const fuso = rotina.gatilho.fuso;
+function prazoDaRotina(fuso: string, emDias: number, hora: string | null | undefined, agora: Date) {
   return { dia: somarDias(diaNoFuso(agora, fuso), emDias), hora: hora ?? null, fuso };
 }
 
@@ -397,19 +542,21 @@ async function criarTarefaDaRotina(
   if (!quem) throw new FalhaSemVolta("O dono da rotina não pode criar tarefas.");
   await marcarInicio();
   const plano = {
-    ...(acao.prazo ? { prazo: prazoDaRotina(ctx.rotina, acao.prazo.emDias, acao.prazo.hora, agora) } : {}),
+    ...(acao.prazo ? { prazo: prazoDaRotina(ctx.fuso, acao.prazo.emDias, acao.prazo.hora, agora) } : {}),
     ...(acao.prioridade ? { prioridade: acao.prioridade } : {}),
   };
   const recusa = await recusaDoPlanejamento(c, null, plano);
   if (recusa) throw new FalhaSemVolta(recusa);
+  // Como subtarefa da que disparou (ou ao lado dela, se ela já for subtarefa): fica no projeto e na lista da mãe.
+  const mae = acao.comoSubtarefa && ctx.disparo ? (ctx.disparo.maeId ?? ctx.disparo.id) : null;
   let tarefa = await criarTarefa(c, quem, {
-    titulo: acao.titulo,
-    descricao: acao.descricao ?? null,
+    titulo: preencher(ctx, acao.titulo).slice(0, 200),
+    descricao: acao.descricao ? preencher(ctx, acao.descricao) : null,
     responsavel: acao.responsavel ?? { tipo: "pessoa", pessoaId: dono.pessoaId },
-    projetoId: acao.projetoId ?? null,
+    ...(mae ? { tarefaMaeId: mae } : { projetoId: acao.projetoId ?? null }),
   });
   if (Object.keys(plano).length > 0) {
-    await planejar(c, tarefa, plano, ctx.rotina.gatilho.fuso);
+    await planejar(c, tarefa, plano, ctx.fuso);
     tarefa =
       (await buscarTarefa(c, { tipo: "pessoa", pessoaId: dono.pessoaId, filtro: TUDO }, tarefa.id)) ?? tarefa;
   }
@@ -456,7 +603,11 @@ async function mandarAvisoDaRotina(
   marcarInicio: () => Promise<unknown>,
 ): Promise<null> {
   await marcarInicio();
-  const texto = `${acao.texto} (rotina "${ctx.rotina.nome}", de ${ctx.dono.nome})`.slice(0, 500);
+  const texto = `${preencher(ctx, acao.texto)} (rotina "${ctx.rotina.nome}", de ${ctx.dono.nome})`.slice(
+    0,
+    500,
+  );
+  const link = acao.link ?? (ctx.disparo ? `/tarefas/${ctx.disparo.id}` : "/");
   let avisados = 0;
   for (const pessoaId of acao.para) {
     const canais = canaisDoTipo(await preferenciasDe(c, pessoaId), "aviso_de_rotina");
@@ -465,7 +616,7 @@ async function mandarAvisoDaRotina(
       `insert into avisos (empresa_id, pessoa_id, tipo, texto, link, push_pendente, lido_em, telegram_pendente)
        select empresa_ativa(), $1, 'aviso_de_rotina', $2, $3, $4, case when $5 then null else now() end, $6
         where exists (select 1 from vinculos where empresa_id = empresa_ativa() and pessoa_id = $1 and situacao = 'ativo')`,
-      [pessoaId, texto, acao.link ?? "/", canais.push, canais.tela, canais.telegram],
+      [pessoaId, texto, link, canais.push, canais.tela, canais.telegram],
     );
     avisados += r.rowCount ?? 0;
   }
@@ -513,7 +664,7 @@ async function pedirAoAgenteDaRotina(
          from execucoes_de_rotina
         where empresa_id = empresa_ativa() and rotina_id = $1
           and criada_em >= date_trunc('month', $2::timestamptz at time zone $3) at time zone $3`,
-      [rotina.id, agora, rotina.gatilho.fuso],
+      [rotina.id, agora, ctx.fuso],
     );
     if (Number(g.rows[0]?.gasto ?? 0) >= rotina.tetoMensal) {
       await terminar(c, execucao.id, "pulada", { motivo: "Chegou no teto de gasto do mês desta rotina." });
@@ -527,7 +678,13 @@ async function pedirAoAgenteDaRotina(
       return null;
     }
   }
-  const texto = acao.skill ? `${acao.pedido}\n\nUse a skill ${acao.skill}.` : acao.pedido;
+  const comSkill = acao.skill
+    ? `${preencher(ctx, acao.pedido)}\n\nUse a skill ${acao.skill}.`
+    : preencher(ctx, acao.pedido);
+  const texto = ctx.disparo
+    ? `${comSkill}\n\nTarefa que disparou a rotina: “${ctx.disparo.titulo}” (id ${ctx.disparo.id}).`
+    : comSkill;
+  const deOutros = ctx.disparo?.deOutros ?? false;
   if (acao.resultado === "mensagem") {
     const r = await receberMensagemDaPessoa(c, {
       pessoaId: dono.pessoaId,
@@ -562,6 +719,12 @@ async function pedirAoAgenteDaRotina(
       `update execucoes_de_rotina set execucao_de_agente_id = $2, conversa_id = $3 where id = $1 and empresa_id = empresa_ativa()`,
       [execucao.id, r.execucaoId, r.conversa.id],
     );
+    // O título ou o comentário da tarefa que disparou é de outra pessoa: o que mudar dados pede aprovação (M4-04).
+    if (deOutros)
+      await c.query(
+        "update execucoes_de_agente set leu_texto_de_outros = true where id = $1 and empresa_id = empresa_ativa()",
+        [r.execucaoId],
+      );
     return async () => o.acordar(empresaId, r.execucaoId);
   }
   // Resultado numa tarefa: uma tarefa nova com o agente como responsável, que trabalha nela em nome do dono.
@@ -574,7 +737,7 @@ async function pedirAoAgenteDaRotina(
   if (a.rows[0]?.situacao !== "ativo")
     throw new FalhaSemVolta(`O agente ${a.rows[0]?.nome ?? ""} não está ativo.`);
   await marcarInicio();
-  const [ano, mes, dia] = diaNoFuso(agora, rotina.gatilho.fuso).split("-");
+  const [ano, mes, dia] = diaNoFuso(agora, ctx.fuso).split("-");
   const tarefa = await criarTarefa(c, quem, {
     titulo: `${rotina.nome} (${dia}/${mes}/${ano})`.slice(0, 200),
     descricao: texto,
@@ -603,6 +766,7 @@ async function pedirAoAgenteDaRotina(
       { tipo: "pessoa", pessoaId: dono.pessoaId },
       tarefa.id,
       o.acordar,
+      { leuTextoDeOutros: deOutros },
     );
     const comecou = await comEmpresa(o.poolApp, empresaId, async (c2) => {
       const exec =

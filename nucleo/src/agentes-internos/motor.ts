@@ -38,7 +38,7 @@ import {
   modelosDoAgente,
 } from "../contas-de-ia/servico.ts";
 import { conferirTetos, registrarConsumo } from "../custos/servico.ts";
-import { comEmpresa } from "../empresa.ts";
+import { comEmpresa, comoRotina } from "../empresa.ts";
 import { montarInstrucoes, skillsDoAgente } from "../instrucoes/servico.ts";
 import { RecusaDaFerramenta } from "../mcp/index.ts";
 import { permissoesNaEmpresa } from "../permissoes/verificar.ts";
@@ -181,10 +181,34 @@ export function partesDaConversa(mensagens: { autor: { tipo: string }; texto: st
   return partes;
 }
 
+/** A execução veio de uma rotina: ela, ou a que a delegou, está ligada a uma execução de rotina. */
+async function daRotina(o: OpcoesDoMotor, empresaId: string, execucaoId: string): Promise<boolean> {
+  const r = await comEmpresa(o.poolApp, empresaId, (c) =>
+    c.query(
+      `with recursive cadeia as (
+         select id, execucao_mae_id, tarefa_id, conversa_id, 0 as n from execucoes_de_agente
+          where id = $1 and empresa_id = empresa_ativa()
+         union all
+         select x.id, x.execucao_mae_id, x.tarefa_id, x.conversa_id, c.n + 1 from execucoes_de_agente x
+           join cadeia c on x.id = c.execucao_mae_id where x.empresa_id = empresa_ativa() and c.n < 10)
+       select 1 from cadeia c where exists (
+         select 1 from execucoes_de_rotina r where r.empresa_id = empresa_ativa()
+            and (r.execucao_de_agente_id = c.id
+                 -- A tarefa que a rotina acabou de criar para o agente, enquanto a execução dela ainda roda.
+                 or (r.situacao = 'rodando' and c.tarefa_id is not null and r.tarefa_id = c.tarefa_id))) limit 1`,
+      [execucaoId],
+    ),
+  );
+  return (r.rowCount ?? 0) > 0;
+}
+
 /** Roda uma execução. Nunca lança: o que der errado vira execução "falhou" (a conversa não fica presa). */
 export async function rodarExecucao(o: OpcoesDoMotor, empresaId: string, execucaoId: string): Promise<void> {
   try {
-    await rodar(o, empresaId, execucaoId);
+    // O agente chamado por uma rotina (ou por quem ela chamou) age como a rotina: o que ele mudar não dispara outra
+    // rotina (M5-06, decisão 0040).
+    if (await daRotina(o, empresaId, execucaoId)) await comoRotina(() => rodar(o, empresaId, execucaoId));
+    else await rodar(o, empresaId, execucaoId);
   } catch (erro) {
     o.log.error({ erro, execucaoId }, "Agente interno: erro fora da execução");
     await comEmpresa(o.poolApp, empresaId, (c) =>

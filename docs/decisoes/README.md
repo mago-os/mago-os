@@ -46,3 +46,4 @@ Uma nota curta por decisão importante: o que foi decidido, por quê e o que foi
 | [0037](0037-avisos-e-resumo-pelo-telegram.md) | Avisos pelo Telegram (só o urgente por padrão, com silêncio) e resumo do dia às 8h | Aceita |
 | [0038](0038-main-protegida-pelo-github.md) | Main protegida pelo GitHub: só por PR, verificação verde e em dia com a main, sem apagar nem reescrever; o "ok" do Sandro continua no chat | Aceita |
 | [0039](0039-rotinas-por-horario.md) | Rotinas por horário: as três ações, só o dono faz a rotina agir, limites, falhas sem repetir o que o agente já fez, e ferramentas dos agentes | Aceita |
+| [0040](0040-rotinas-por-eventos.md) | Rotinas por eventos: os sete eventos e os filtros, só o que o dono vê, a tarefa que disparou na ação, sem rotina em círculo e eventos gravados na mesma transação | Aceita |

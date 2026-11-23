@@ -302,6 +302,18 @@ erDiagram
     uuid tarefa_id PK
     uuid etiqueta_id PK
   }
+  eventos_para_rotinas {
+    uuid id PK
+    uuid empresa_id FK
+    text evento
+    uuid tarefa_id
+    uuid comentario_id
+    uuid aprovacao_id
+    timestamp_with_time_zone prazo_em
+    boolean da_rotina
+    timestamp_with_time_zone criado_em
+    timestamp_with_time_zone cuidado_em
+  }
   execucoes_de_agente {
     uuid id PK
     uuid empresa_id FK
@@ -341,6 +353,9 @@ erDiagram
     timestamp_with_time_zone criada_em
     timestamp_with_time_zone iniciada_em
     timestamp_with_time_zone terminada_em
+    text evento
+    uuid tarefa_do_evento_id
+    uuid evento_id
   }
   itens_de_checklist {
     uuid id PK
@@ -521,6 +536,7 @@ erDiagram
     integer vezes
     timestamp_with_time_zone criada_em
     timestamp_with_time_zone atualizada_em
+    timestamp_with_time_zone ligada_em
   }
   seguidores_de_tarefa {
     uuid empresa_id FK
@@ -818,6 +834,7 @@ erDiagram
   empresas ||--o{ estados_de_prioridade : "empresa_id"
   empresas ||--o{ etiquetas : "empresa_id"
   empresas ||--o{ etiquetas_de_tarefa : "empresa_id"
+  empresas ||--o{ eventos_para_rotinas : "empresa_id"
   empresas ||--o{ execucoes_de_agente : "empresa_id"
   empresas ||--o{ execucoes_de_rotina : "empresa_id"
   empresas ||--o{ itens_de_checklist : "empresa_id"
@@ -1349,6 +1366,25 @@ Isolamento por empresa (Row Level Security): ligado e forçado.
 | tarefa_id | uuid | sim |  | sistema | Tarefa. Chave primária. |
 | etiqueta_id | uuid | sim |  | sistema | Etiqueta. Chave primária. |
 
+### eventos_para_rotinas
+
+Fila dos eventos do sistema para as rotinas por evento (M5-06), gravada na mesma transação da mudança. 7 dias.
+
+Isolamento por empresa (Row Level Security): ligado e forçado.
+
+| Coluna | Tipo | Obrigatória | Padrão | Marca | Descrição |
+| --- | --- | --- | --- | --- | --- |
+| id | uuid | sim | `uuidv7()` | sistema | Identificador. Chave primária. |
+| empresa_id | uuid | sim |  | sistema | Empresa. Aponta para empresas.id. |
+| evento | text | sim |  | sistema | O evento (EVENTOS_DE_ROTINA do contrato). |
+| tarefa_id | uuid | sim |  | sistema | A tarefa do evento. |
+| comentario_id | uuid | não |  | sistema | O comentário (no evento de comentário). |
+| aprovacao_id | uuid | não |  | sistema | O pedido de aprovação (no evento de aprovação pedida). |
+| prazo_em | timestamp with time zone | não |  | sistema | O prazo que passou (na tarefa atrasada). |
+| da_rotina | boolean | sim | `false` | sistema | Causado por uma rotina ou pelo agente que ela chamou: não dispara nenhuma rotina. |
+| criado_em | timestamp with time zone | sim | `now()` | sistema | Quando aconteceu. |
+| cuidado_em | timestamp with time zone | não |  | sistema | Quando a verificação das rotinas olhou o evento. |
+
 ### execucoes_de_agente
 
 Cada vez que um agente interno trabalha (M4-02). Custo na M4-06; passo a passo na M4-07.
@@ -1388,7 +1424,7 @@ Isolamento por empresa (Row Level Security): ligado e forçado.
 | id | uuid | sim | `uuidv7()` | sistema | Identificador. Chave primária. |
 | empresa_id | uuid | sim |  | sistema | Empresa da rotina. Aponta para empresas.id. |
 | rotina_id | uuid | sim |  | sistema | A rotina. |
-| origem | text | sim |  | sistema | horario ou rodar_agora. |
+| origem | text | sim |  | sistema | horario, evento ou rodar_agora. |
 | prevista_para | timestamp with time zone | não |  | sistema | O horário marcado (só pelo horário). |
 | situacao | text | sim | `'na_fila'::text` | sistema | na_fila, rodando, esperando (agentes parados ou nova tentativa), feita, falhou ou pulada. |
 | tentativa | integer | sim | `1` | sistema | 1, 2 ou 3 (as duas novas tentativas). |
@@ -1402,6 +1438,9 @@ Isolamento por empresa (Row Level Security): ligado e forçado.
 | criada_em | timestamp with time zone | sim | `now()` | sistema | Quando entrou na fila. |
 | iniciada_em | timestamp with time zone | não |  | sistema | Quando começou. |
 | terminada_em | timestamp with time zone | não |  | sistema | Quando terminou (feita, falhou ou pulada). |
+| evento | text | não |  | sistema | O evento que disparou (só pela origem evento). |
+| tarefa_do_evento_id | uuid | não |  | sistema | A tarefa que disparou (ou a escolhida para o Rodar agora de uma rotina por evento). |
+| evento_id | uuid | não |  | sistema | O evento da fila (para não rodar duas vezes). |
 
 ### itens_de_checklist
 
@@ -1694,6 +1733,7 @@ Isolamento por empresa (Row Level Security): ligado e forçado.
 | vezes | integer | sim | `0` | sistema | Quantas vezes já rodou pelo horário (para o fim depois de N vezes). |
 | criada_em | timestamp with time zone | sim | `now()` | sistema | Quando foi criada. |
 | atualizada_em | timestamp with time zone | sim | `now()` | sistema | A última mudança. |
+| ligada_em | timestamp with time zone | não |  | sistema | Quando foi ligada pela última vez (eventos de antes não a disparam). |
 
 ### seguidores_de_tarefa
 

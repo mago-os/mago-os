@@ -6,7 +6,19 @@
  * Com uma pessoa informada, o banco ainda confere se ela tem vínculo ativo na empresa (migração 0002):
  * sem vínculo, nenhum dado da empresa aparece.
  */
+import { AsyncLocalStorage } from "node:async_hooks";
 import type pg from "pg";
+
+/**
+ * Trabalho feito por uma rotina (M5-06, decisão 0040): a rotina rodando e o agente que ela chamou. Dentro dele, toda
+ * transação avisa o banco (mago.da_rotina), e os eventos que ela causar não disparam outra rotina.
+ */
+export const trabalhoDeRotina = new AsyncLocalStorage<true>();
+
+/** Roda o trabalho como da rotina. */
+export function comoRotina<T>(trabalho: () => Promise<T>): Promise<T> {
+  return trabalhoDeRotina.run(true, trabalho);
+}
 
 const FORMATO_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -31,6 +43,7 @@ async function comContexto<T>(
       "select set_config('mago.empresa_id', $1, true), set_config('mago.pessoa_id', $2, true)",
       [contexto.empresaId ?? "", contexto.pessoaId ?? ""],
     );
+    if (trabalhoDeRotina.getStore()) await conexao.query("select set_config('mago.da_rotina', '1', true)");
     const resultado = await trabalho(conexao);
     await conexao.query("commit");
     return resultado;
