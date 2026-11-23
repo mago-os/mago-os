@@ -1,7 +1,7 @@
 # 0040 Rotinas por eventos do sistema
 
 - **Data:** 23/11/2026
-- **Situação:** proposta (aguardando o "aprovado" do Sandro)
+- **Situação:** aceita (aprovada pelo Sandro no chat em 23/11/2026)
 - **Tarefa:** M5-06
 
 ## Contexto

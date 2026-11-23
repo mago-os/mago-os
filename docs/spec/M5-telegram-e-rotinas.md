@@ -128,13 +128,13 @@ Pronto quando: o Sandro cria a rotina "toda segunda às 8h, o Gerente de projeto
 
 Precisa da aprovação do Sandro (o que roda sozinho em nome de alguém).
 
-- [ ] Gatilhos de eventos do sistema (decisão 12): tarefa criada, tarefa concluída, tarefa mudou de status, tarefa atrasada (o prazo passou), tarefa precisa de ajuda, comentário numa tarefa e aprovação pedida
-- [ ] Filtros opcionais em cada gatilho: projeto, lista, etiqueta, prioridade, responsável e status. Sem condições livres na Fase 1
-- [ ] As mesmas ações e os mesmos limites da M5-05. A ação recebe a tarefa que disparou (exemplo: "criar uma tarefa de revisão ligada à tarefa concluída" ou "pedir ao Gerente de projetos que replaneje a tarefa atrasada")
-- [ ] A rotina só vê o evento de uma tarefa que o dono dela pode ver. Comentário de outra pessoa que chega a um agente pela rotina conta como "texto de outros" (M4-04)
-- [ ] Sem rotina em círculo (decisão 13): um evento causado por uma rotina não dispara outra rotina. Além disso valem o limite de 24 execuções por dia e um limite de 3 disparos por minuto por rotina
-- [ ] Os eventos entram pela mesma fila, gravados na mesma transação da mudança, para nenhum se perder nem rodar duas vezes
-- [ ] Testes: o evento de uma empresa não dispara rotina da outra, o filtro de projeto funciona, uma rotina que cria tarefa não dispara a rotina de "tarefa criada", e o evento de tarefa que o dono não vê não dispara nada
+- [x] Gatilhos de eventos do sistema (decisão 12): tarefa criada, tarefa concluída, tarefa mudou de status, tarefa atrasada (o prazo passou), tarefa precisa de ajuda, comentário numa tarefa e aprovação pedida
+- [x] Filtros opcionais em cada gatilho: projeto, lista, etiqueta, prioridade, responsável e status. Sem condições livres na Fase 1
+- [x] As mesmas ações e os mesmos limites da M5-05. A ação recebe a tarefa que disparou (exemplo: "criar uma tarefa de revisão ligada à tarefa concluída" ou "pedir ao Gerente de projetos que replaneje a tarefa atrasada")
+- [x] A rotina só vê o evento de uma tarefa que o dono dela pode ver. Comentário de outra pessoa que chega a um agente pela rotina conta como "texto de outros" (M4-04)
+- [x] Sem rotina em círculo (decisão 13): um evento causado por uma rotina não dispara outra rotina. Além disso valem o limite de 24 execuções por dia e um limite de 3 disparos por minuto por rotina
+- [x] Os eventos entram pela mesma fila, gravados na mesma transação da mudança, para nenhum se perder nem rodar duas vezes
+- [x] Testes: o evento de uma empresa não dispara rotina da outra, o filtro de projeto funciona, uma rotina que cria tarefa não dispara a rotina de "tarefa criada", e o evento de tarefa que o dono não vê não dispara nada
 
 Pronto quando: a rotina "quando uma tarefa do projeto Blog for concluída, criar a tarefa de revisão para a Ana" dispara sozinha quando o Sandro conclui uma tarefa do Blog.
 

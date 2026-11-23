@@ -351,3 +351,10 @@ O login (`mago_acesso`) não lê papéis nem as regras da plataforma direto. As 
 - `execucoes_de_rotina` guarda cada vez que a rotina rodou ou tentou, com a origem (horário ou "Rodar agora"), a tentativa (até 3), o motivo da falha ou do pulo, a tarefa, a conversa e a execução do agente (que ficam nulas se forem apagadas) e o custo em centavos de dólar. Apagar a rotina apaga o histórico.
 - `empresas_com_rotinas_a_cuidar()` dá à verificação do sistema só os ids das empresas com rotina na hora ou execução aberta, sem abrir os dados.
 - A conversa aberta por uma rotina tem o canal `rotina`; a resposta do agente nela fica marcada para o Telegram, como as do canal `telegram`. Avisos novos `aviso_de_rotina` e `rotina_falhou`.
+
+## 49. Rotinas por eventos (23/11/2026, M5-06)
+
+- `eventos_para_rotinas` é a fila dos eventos ([decisão 0040](../decisoes/0040-rotinas-por-eventos.md)): gatilhos em `tarefas` (criada, mudou de status, concluída, precisa de ajuda), em `comentarios_de_tarefa` (só comentário, não nota interna) e em `aprovacoes` (com tarefa) gravam o evento na mesma transação da mudança, e só quando a empresa tem uma rotina ligada para ele. A tarefa atrasada entra pela verificação a cada minuto, uma vez por prazo (índice único). Os eventos olhados há mais de 7 dias são apagados.
+- `da_rotina` marca o evento causado por uma rotina ou pelo agente que ela chamou: o núcleo informa `mago.da_rotina` na transação (pelo `comoRotina`), e o evento só sai da fila, sem disparar rotina.
+- `rotinas.ligada_em` separa os eventos de antes (não contam). A próxima vez (`proxima_em`) é só da rotina por horário.
+- `execucoes_de_rotina` ganhou a origem `evento`, o evento, a tarefa que disparou e o evento da fila (índice único por rotina e evento: nada roda duas vezes).

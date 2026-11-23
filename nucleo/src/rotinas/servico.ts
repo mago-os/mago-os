@@ -19,6 +19,7 @@ import {
 } from "@mago-os/contratos";
 import type pg from "pg";
 import { podeFalarComEspecialista } from "../agentes-internos/mensagem-da-pessoa.ts";
+import { pessoaVeTarefa } from "../avisos/notificacoes.ts";
 import { skillsDoAgente } from "../instrucoes/servico.ts";
 import type { Filtro } from "../permissoes/calcular.ts";
 import type { PermissoesNaEmpresa } from "../permissoes/verificar.ts";
@@ -67,8 +68,10 @@ interface LinhaDaExecucao {
   id: string;
   empresa_id: string;
   rotina_id: string;
-  origem: "horario" | "rodar_agora";
+  origem: "horario" | "evento" | "rodar_agora";
   prevista_para: Date | null;
+  tarefa_do_evento_id: string | null;
+  evento: ExecucaoDeRotina["evento"];
   situacao: SituacaoDaExecucaoDeRotina;
   tentativa: number;
   proxima_tentativa_em: Date | null;
@@ -84,7 +87,7 @@ interface LinhaDaExecucao {
 }
 
 export const COLUNAS_DA_EXECUCAO =
-  "id, empresa_id, rotina_id, origem, prevista_para, situacao, tentativa, proxima_tentativa_em, motivo, tarefa_id, execucao_de_agente_id, conversa_id, avisados, custo, criada_em, iniciada_em, terminada_em";
+  "id, empresa_id, rotina_id, origem, prevista_para, tarefa_do_evento_id, evento, situacao, tentativa, proxima_tentativa_em, motivo, tarefa_id, execucao_de_agente_id, conversa_id, avisados, custo, criada_em, iniciada_em, terminada_em";
 
 const iso = (d: Date | null) => (d ? d.toISOString() : null);
 
@@ -94,6 +97,8 @@ export const paraExecucao = (l: LinhaDaExecucao): ExecucaoDeRotina => ({
   rotinaId: l.rotina_id,
   origem: l.origem,
   previstaPara: iso(l.prevista_para),
+  tarefaDoEventoId: l.tarefa_do_evento_id,
+  evento: l.evento,
   situacao: l.situacao,
   tentativa: l.tentativa,
   proximaTentativaEm: iso(l.proxima_tentativa_em),
@@ -281,8 +286,79 @@ export async function recusaDaAcao(
   }
 }
 
-function conferirGatilho(g: GatilhoDaRotina): void {
-  if (!fusoValido(g.fuso)) throw new RecusaDaRotina("Fuso horário desconhecido.");
+/** O gatilho: o fuso existe (horário); os filtros apontam para o que existe na empresa (evento). */
+async function conferirGatilho(c: pg.PoolClient, g: GatilhoDaRotina): Promise<void> {
+  if (g.tipo === "horario") {
+    if (!fusoValido(g.fuso)) throw new RecusaDaRotina("Fuso horário desconhecido.");
+    return;
+  }
+  const f = g.filtros;
+  const existe = async (sql: string, id: string | undefined, oQue: string) => {
+    if (!id) return;
+    const r = await c.query(sql, [id]);
+    if (!r.rowCount)
+      throw new RecusaDaRotina(`O filtro de ${oQue} aponta para algo que não existe nesta empresa.`);
+  };
+  await existe(
+    "select 1 from projetos where id = $1 and empresa_id = empresa_ativa()",
+    f.projetoId,
+    "projeto",
+  );
+  await existe("select 1 from listas where id = $1 and empresa_id = empresa_ativa()", f.listaId, "lista");
+  await existe(
+    "select 1 from etiquetas where id = $1 and empresa_id = empresa_ativa()",
+    f.etiquetaId,
+    "etiqueta",
+  );
+  if (f.responsavel?.tipo === "pessoa")
+    await existe(
+      "select 1 from vinculos where pessoa_id = $1 and empresa_id = empresa_ativa()",
+      f.responsavel.pessoaId,
+      "responsável",
+    );
+  if (f.responsavel?.tipo === "agente")
+    await existe(
+      "select 1 from agentes where id = $1 and empresa_id = empresa_ativa()",
+      f.responsavel.agenteId,
+      "responsável",
+    );
+}
+
+/** A tarefa passa nos filtros do gatilho por evento (todos os informados precisam bater). */
+export async function filtrosBatem(c: pg.PoolClient, tarefaId: string, g: GatilhoDaRotina): Promise<boolean> {
+  if (g.tipo !== "evento") return true;
+  const f = g.filtros;
+  const r = await c.query(
+    `select 1 from tarefas t where t.id = $1 and t.empresa_id = empresa_ativa()
+        and ($2::uuid is null or t.projeto_id = $2) and ($3::uuid is null or t.lista_id = $3)
+        and ($4::uuid is null or exists (select 1 from etiquetas_de_tarefa e
+              where e.empresa_id = t.empresa_id and e.tarefa_id = t.id and e.etiqueta_id = $4))
+        and ($5::text is null or t.prioridade = $5)
+        and ($6::uuid is null or t.responsavel_pessoa_id = $6) and ($7::uuid is null or t.responsavel_agente_id = $7)
+        and ($8::text is null or t.status = $8)`,
+    [
+      tarefaId,
+      f.projetoId ?? null,
+      f.listaId ?? null,
+      f.etiquetaId ?? null,
+      f.prioridade ?? null,
+      f.responsavel?.tipo === "pessoa" ? f.responsavel.pessoaId : null,
+      f.responsavel?.tipo === "agente" ? f.responsavel.agenteId : null,
+      f.status ?? null,
+    ],
+  );
+  return (r.rowCount ?? 0) > 0;
+}
+
+/** Para o "Rodar agora" da rotina por evento: a tarefa mais recente que o dono vê e que passa nos filtros. */
+export async function tarefaParaTestar(c: pg.PoolClient, rotina: Rotina): Promise<string | null> {
+  const r = await c.query<{ id: string }>(
+    "select id from tarefas where empresa_id = empresa_ativa() order by atualizada_em desc limit 200",
+  );
+  for (const { id } of r.rows)
+    if ((await filtrosBatem(c, id, rotina.gatilho)) && (await pessoaVeTarefa(c, rotina.donoPessoaId, id)))
+      return id;
+  return null;
 }
 
 /** Cria a rotina, desligada (decisão 10), em nome do dono. */
@@ -292,7 +368,7 @@ export async function criarRotina(
   pedido: PedidoDeRotina,
   criadaPorAgenteId: string | null = null,
 ): Promise<Rotina> {
-  conferirGatilho(pedido.gatilho);
+  await conferirGatilho(c, pedido.gatilho);
   await c.query("select pg_advisory_xact_lock(hashtextextended('rotinas-de:' || $1, 0))", [dono.pessoaId]);
   const n = await c.query<{ n: number }>(
     "select count(*)::int as n from rotinas where empresa_id = empresa_ativa() and dono_pessoa_id = $1",
@@ -327,7 +403,7 @@ export async function editarRotina(
   pedido: PedidoDeEdicaoDeRotina,
   agora = new Date(),
 ): Promise<Rotina> {
-  if (pedido.gatilho) conferirGatilho(pedido.gatilho);
+  if (pedido.gatilho) await conferirGatilho(c, pedido.gatilho);
   if (pedido.acao) {
     const recusa = await recusaDaAcao(c, dono, pedido.acao);
     if (recusa) throw new RecusaDaRotina(recusa);
@@ -336,7 +412,8 @@ export async function editarRotina(
   let proxima = rotina.proximaEm;
   let situacao = rotina.situacao;
   let porque = rotina.desligadaPorque;
-  if (pedido.gatilho && rotina.situacao === "ligada") {
+  if (gatilho.tipo === "evento") proxima = null;
+  else if (pedido.gatilho && rotina.situacao === "ligada") {
     const p = proximaVez(gatilho, agora, rotina.vezes);
     proxima = p ? p.toISOString() : null;
     if (!p) {
@@ -372,13 +449,14 @@ export async function ligarRotina(
   if (rotina.situacao === "ligada") return rotina;
   const recusa = await recusaDaAcao(c, dono, rotina.acao);
   if (recusa) throw new RecusaDaRotina(recusa);
-  const proxima = proximaVez(rotina.gatilho, agora, rotina.vezes);
-  if (!proxima)
+  const proxima = rotina.gatilho.tipo === "horario" ? proximaVez(rotina.gatilho, agora, rotina.vezes) : null;
+  if (rotina.gatilho.tipo === "horario" && !proxima)
     throw new RecusaDaRotina(
       "Os horários dessa rotina já acabaram (data final ou número de vezes). Mude o quando.",
     );
   const r = await c.query<LinhaDaRotina>(
-    `update rotinas r set situacao = 'ligada', desligada_porque = null, proxima_em = $2, atualizada_em = now()
+    `update rotinas r set situacao = 'ligada', desligada_porque = null, proxima_em = $2, ligada_em = now(),
+            atualizada_em = now()
       where r.id = $1 and r.empresa_id = empresa_ativa() returning ${COLUNAS}`,
     [rotina.id, proxima],
   );
@@ -404,11 +482,15 @@ export async function apagarRotina(c: pg.PoolClient, rotinaId: string): Promise<
 }
 
 /** Põe na fila uma execução do "Rodar agora" (o limite do dia é conferido ao rodar). */
-export async function pedirParaRodarAgora(c: pg.PoolClient, rotinaId: string): Promise<ExecucaoDeRotina> {
+export async function pedirParaRodarAgora(
+  c: pg.PoolClient,
+  rotinaId: string,
+  tarefaDoEventoId: string | null = null,
+): Promise<ExecucaoDeRotina> {
   const r = await c.query<LinhaDaExecucao>(
-    `insert into execucoes_de_rotina (empresa_id, rotina_id, origem) values (empresa_ativa(), $1, 'rodar_agora')
-     returning ${COLUNAS_DA_EXECUCAO}`,
-    [rotinaId],
+    `insert into execucoes_de_rotina (empresa_id, rotina_id, origem, tarefa_do_evento_id)
+     values (empresa_ativa(), $1, 'rodar_agora', $2) returning ${COLUNAS_DA_EXECUCAO}`,
+    [rotinaId, tarefaDoEventoId],
   );
   return paraExecucao(r.rows[0] as LinhaDaExecucao);
 }
