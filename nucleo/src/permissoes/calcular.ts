@@ -37,6 +37,7 @@ const PADRAO_DO_NUCLEO: Record<
     instrucoes: { ver: "tudo" },
     espacos: { ver: "tudo" },
     projetos: { ver: "tudo", criar: "tudo", editar: "tudo" },
+    rotinas: { ver: "equipe", criar: "meus", editar: "meus", excluir: "meus" },
   },
   funcionario: {
     empresa: { ver: "tudo" },
@@ -46,6 +47,7 @@ const PADRAO_DO_NUCLEO: Record<
     instrucoes: { ver: "tudo" },
     espacos: { ver: "tudo" },
     projetos: { ver: "meus", editar: "meus" },
+    rotinas: { ver: "meus", criar: "meus", editar: "meus", excluir: "meus" },
   },
 };
 

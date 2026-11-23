@@ -211,6 +211,19 @@ export async function resumoDaAcao(
         )
       : null;
     frase = `Anexar “${(a?.rows[0]?.nome ?? "um arquivo").slice(0, 100)}”, mandado pelo Telegram, em${naTarefa || " uma tarefa"}`;
+  } else if (acao === "criar_rotina") {
+    const gatilho = p.gatilho as { horas?: string[] } | undefined;
+    const horas = gatilho?.horas?.slice(0, 3).join(", ");
+    frase = `Criar a rotina “${String(p.nome).slice(0, 100)}”${horas ? ` (às ${horas})` : ""}, que nasce desligada`;
+  } else if (acao === "ligar_rotina" || acao === "parar_rotina") {
+    const id = typeof p.rotinaId === "string" && FORMATO_UUID.test(p.rotinaId) ? p.rotinaId : null;
+    const r = id
+      ? await c.query<{ nome: string }>(
+          "select nome from rotinas where id = $1 and empresa_id = empresa_ativa()",
+          [id],
+        )
+      : null;
+    frase = `${acao === "ligar_rotina" ? "Ligar" : "Desligar"} a rotina “${(r?.rows[0]?.nome ?? "?").slice(0, 120)}”`;
   } else if (acao === "criar_tarefa" || acao === "criar_subtarefa")
     frase = `${nomeDaAcao}: “${String(p.titulo).slice(0, 120)}”`;
   else frase = `${nomeDaAcao}${naTarefa}`;

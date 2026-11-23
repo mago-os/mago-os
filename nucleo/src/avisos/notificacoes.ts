@@ -37,6 +37,9 @@ export const TEXTO_DO_PUSH: Record<TipoDeAviso, string> = {
   agentes_retomados: "Os agentes voltaram ao trabalho",
   telegram_desvinculado: "O seu Telegram foi desvinculado",
   telegram_aprovacoes_travadas: "As aprovações pelo Telegram foram travadas",
+  aviso_de_rotina: "Novo aviso de uma rotina",
+  rotina_falhou: "Uma rotina sua não conseguiu rodar",
+  rotina_desligada: "Rotinas foram desligadas",
 };
 
 /**

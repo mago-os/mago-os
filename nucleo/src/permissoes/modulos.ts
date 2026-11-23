@@ -66,6 +66,15 @@ export const MODULOS_DO_NUCLEO: readonly DeclaracaoDeModulo[] = [
     temDadosSensiveis: false,
     area: null,
   },
+  // Rotinas (M5-05, decisão 0039): todos criam as próprias; o administrador vê, desliga e apaga todas; o gestor vê as
+  // da equipe. Só o dono edita, liga e roda (conferido nas rotas).
+  {
+    id: "rotinas",
+    nome: "Rotinas",
+    acoes: ["ver", "criar", "editar", "excluir"],
+    temDadosSensiveis: false,
+    area: null,
+  },
   // Projetos (M3-01): o administrador e o gestor veem todos; o funcionário, os que é membro. Criar e editar (e
   // arquivar) são do administrador e do gestor, e o diretor edita o próprio projeto; excluir, só o administrador.
   // "Meus" nos projetos: ver = sou membro; editar = sou o diretor.

@@ -56,6 +56,12 @@ import {
 } from "./permissoes/rotas.ts";
 import { criarVerificador } from "./permissoes/verificar.ts";
 import { registrarRotasDosProjetos } from "./projetos/rotas.ts";
+import {
+  cuidarDaExecucao,
+  cuidarDasRotinas,
+  type OpcoesDoMotorDasRotinas,
+  registrarRotasDasRotinas,
+} from "./rotinas/index.ts";
 import { criarServidor } from "./servidor.ts";
 import { registrarRotasDasTarefas } from "./tarefas/rotas.ts";
 import { cuidarDasAprovacoesNoTelegram } from "./telegram/aprovacoes.ts";
@@ -78,6 +84,8 @@ const FILA_NOTIFICACOES = "notificacoes";
 const FILA_AGENTES_INTERNOS = "agentes-internos";
 const FILA_EXECUCOES_ESQUECIDAS = "agentes-internos-esquecidas";
 const FILA_APROVACOES_VENCIDAS = "aprovacoes-vencidas";
+/** Rotinas (M5-05): a cada minuto, as que chegaram na hora e as execuções a acompanhar. */
+const FILA_ROTINAS = "rotinas";
 const FILA_PASSOS_ANTIGOS = "passos-antigos";
 /** Fila dos anexos (M3-08): antivírus, envios parados e arquivos para apagar. A cada minuto, e na hora do envio. */
 const FILA_ANEXOS = "anexos";
@@ -306,6 +314,33 @@ async function iniciar(): Promise<void> {
     });
     if (depositoLocal) await registrarDepositoLocal(app, depositoLocal);
     registrarRotasDosAvisos(app, verificador, banco.pool, config.acesso.vapid?.publica ?? null);
+    // Rotinas (M5-05): a verificação a cada minuto roda as que chegaram na hora; o "Rodar agora" roda na hora.
+    const opcoesDasRotinas: OpcoesDoMotorDasRotinas = {
+      poolApp: banco.pool,
+      catalogo: verificador.catalogo,
+      log: app.log,
+      acordar: acordarAgente,
+    };
+    registrarRotasDasRotinas(app, {
+      verificador,
+      poolApp: banco.pool,
+      rodarAgora: (empresaId, execucaoId) => {
+        void cuidarDaExecucao(opcoesDasRotinas, empresaId, execucaoId).catch((erro) =>
+          app.log.error(
+            { erro, execucaoId },
+            "Rotinas: o Rodar agora falhou (a verificação do minuto tenta)",
+          ),
+        );
+      },
+    });
+    trabalhos.push(async () => {
+      await fila.createQueue(FILA_ROTINAS);
+      await fila.schedule(FILA_ROTINAS, "* * * * *");
+      await fila.work(FILA_ROTINAS, async () => {
+        const n = await cuidarDasRotinas(opcoesDasRotinas);
+        if (n > 0) app.log.info({ evento: "rotinas.cuidadas", n }, "Rotinas cuidadas");
+      });
+    });
     // Verificação a cada minuto (M2-04): tarefas de agentes sem sinal voltam para A fazer. O pg-boss garante que só
     // uma cópia da API roda cada vez.
     trabalhos.push(async () => {

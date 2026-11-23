@@ -239,10 +239,13 @@ export async function entregarNoTelegram(
       partes_enviadas: number;
       chat_id: string | null;
       velha: boolean;
+      rotina: string | null;
     }>(
       `select m.id, m.texto, m.tarefas, m.telegram_partes_enviadas as partes_enviadas, t.chat_id,
-              m.criada_em < now() - make_interval(mins => $1) as velha
+              m.criada_em < now() - make_interval(mins => $1) as velha,
+              case when m.canal = 'rotina' then c.titulo end as rotina
          from mensagens_de_conversa m
+         join conversas c on c.id = m.conversa_id and c.empresa_id = m.empresa_id
          left join vinculos_do_telegram t on t.pessoa_id = m.pessoa_id and t.empresa_id = m.empresa_id
         where m.empresa_id = empresa_ativa() and m.telegram_pendente
         order by m.criada_em limit 50`,
@@ -260,7 +263,9 @@ export async function entregarNoTelegram(
       const links = o.conversa
         ? m.tarefas.map((id) => `${o.conversa?.urlPublica}/tarefas/${id}`).join("\n")
         : "";
-      const partes = partesDoTexto(links ? `${m.texto}\n\n${links}` : m.texto);
+      // A resposta de uma conversa aberta por rotina (M5-05) leva o nome dela na frente.
+      const texto = m.rotina ? `${m.rotina}\n\n${m.texto}` : m.texto;
+      const partes = partesDoTexto(links ? `${texto}\n\n${links}` : texto);
       try {
         // Uma resposta longa que parou no meio continua da parte que faltava.
         for (let i = m.partes_enviadas; i < partes.length; i++) {
