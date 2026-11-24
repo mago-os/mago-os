@@ -2,6 +2,7 @@
  * Visões salvas (M3-04): pessoais. O próprio banco só mostra a cada pessoa as visões dela (política com
  * pessoa_ativa()), então aqui não há filtro de dona além do que o banco já faz.
  */
+
 import type {
   Agrupamento,
   FiltroDeTarefas,
@@ -11,6 +12,7 @@ import type {
 } from "@mago-os/contratos";
 import type pg from "pg";
 import { FORMATO_UUID } from "../comum.ts";
+import { idsForaDaEmpresa, uuidsDe } from "../ids-da-empresa.ts";
 
 interface LinhaDaVisao {
   id: string;
@@ -43,7 +45,17 @@ export async function listarVisoes(c: pg.PoolClient): Promise<VisaoSalva[]> {
   return r.rows.map(paraVisao);
 }
 
+/** O filtro cita algo que não existe na empresa (M6-01). */
+export class FiltroDeOutraEmpresa extends Error {
+  override name = "FiltroDeOutraEmpresa";
+}
+
 export async function salvarVisao(c: pg.PoolClient, pedido: PedidoDeVisaoSalva): Promise<VisaoSalva> {
+  // A visão só guarda o que existe na empresa: nunca uma linha que aponta para outra empresa.
+  if ((await idsForaDaEmpresa(c, uuidsDe(pedido.filtro))).length > 0)
+    throw new FiltroDeOutraEmpresa(
+      "O filtro cita um projeto, espaço, etiqueta ou responsável que não existe aqui.",
+    );
   const r = await c.query<LinhaDaVisao>(
     `insert into visoes_salvas (empresa_id, pessoa_id, nome, tipo, filtro, agrupar_por)
      values (empresa_ativa(), pessoa_ativa(), $1, $2, $3::jsonb, $4) returning ${COLUNAS}`,

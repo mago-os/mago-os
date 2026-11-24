@@ -22,12 +22,14 @@ A ordem da tabela é a ordem de construção. A M6-04 vem antes da produção pa
 
 Precisa da aprovação do Sandro só se aparecer mudança no isolamento do banco.
 
-- [ ] Um teste que percorre **todas as rotas da API** registradas no Fastify, com duas empresas e os mesmos perfis nas duas, e confere que nenhuma resposta traz um id, um nome ou um texto da outra empresa (decisão 1). Rota nova que não estiver no teste faz a verificação falhar, para nada novo escapar
-- [ ] O mesmo para **todas as ferramentas dos agentes** (internas e do MCP) e para os canais: Telegram (vínculo, conversa, arquivos, botões), tempo real (o que chega pelo canal de eventos), push, e-mail de aviso, resumo do dia, busca Ctrl+K, anexos (link de envio e de baixar) e rotinas
-- [ ] Ids da outra empresa colocados à mão nos pedidos (na rota, no corpo e nos filtros) são recusados como "não encontrado", sem dizer que o item existe
-- [ ] O teste de banco que já existe (toda tabela com `empresa_id`, RLS ligado e forçado e política com `empresa_ativa()`) passa a conferir também as funções do banco que rodam como dono (`security definer`), uma por uma, contra uma lista aprovada
-- [ ] Os trabalhos do sistema (fila, alertas, rotinas, resumo do dia, auditoria) rodam com duas empresas cheias e conferem que cada um só toca a sua
-- [ ] O que o teste encontrar é corrigido no mesmo PR, ou vira cartão próprio se for grande, e entra na revisão da M6-04
+- [x] Um teste que percorre **todas as rotas da API** registradas no Fastify, com duas empresas e os mesmos perfis nas duas, e confere que nenhuma resposta traz um id, um nome ou um texto da outra empresa (decisão 1). Rota nova que não estiver no teste faz a verificação falhar, para nada novo escapar
+- [x] O mesmo para **todas as ferramentas dos agentes** (internas e do MCP) e para os canais: Telegram (vínculo, conversa, arquivos, botões), tempo real (o que chega pelo canal de eventos), push, e-mail de aviso, resumo do dia, busca Ctrl+K, anexos (link de envio e de baixar) e rotinas
+- [x] Ids da outra empresa colocados à mão nos pedidos (na rota, no corpo e nos filtros) são recusados como "não encontrado", sem dizer que o item existe
+- [x] O teste de banco que já existe (toda tabela com `empresa_id`, RLS ligado e forçado e política com `empresa_ativa()`) passa a conferir também as funções do banco que rodam como dono (`security definer`), uma por uma, contra uma lista aprovada
+- [x] Os trabalhos do sistema (fila, alertas, rotinas, resumo do dia, auditoria) rodam com duas empresas cheias e conferem que cada um só toca a sua
+- [x] O que o teste encontrar é corrigido no mesmo PR, ou vira cartão próprio se for grande, e entra na revisão da M6-04
+
+Feito em 24/11/2026 (decisão 0042). O teste achou e corrigiu dois pontos: a visão salva e o pedido de aprovação de agente guardavam ids de outra empresa (sem mostrar nada dela).
 
 Pronto quando: a verificação roda o teste de vazamento em cada PR, cobrindo 100% das rotas e ferramentas, e uma rota nova sem cobertura faz a verificação ficar vermelha.
 
