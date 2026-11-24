@@ -39,6 +39,8 @@ describe("avisos pelo Telegram (M5-08)", () => {
     expect(canaisDoTipo(sem, "mencao")).toEqual({ tela: true, push: true, telegram: true });
     expect(canaisDoTipo(sem, "comentario")).toEqual({ tela: true, push: true, telegram: false });
     expect(canaisDoTipo(sem, "aprovacao_pedida").telegram).toBe(false);
+    expect(canaisDoTipo(sem, "rotina_rodou").telegram).toBe(true);
+    expect(canaisDoTipo(sem, "tarefa_atribuida").telegram).toBe(false);
     expect(
       canaisDoTipo(
         { porTipo: { aprovacao_pedida: { tela: true, push: true, telegram: true } }, silencio: null },

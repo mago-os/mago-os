@@ -39,7 +39,7 @@ O plano pede rotinas: "quando chegar a hora, faça isto em meu nome", como o res
 
 ## Ajustes depois do teste do Sandro (24/11/2026)
 
-- **Aviso:** a tarefa criada pela rotina avisa o responsável mesmo quando ele é o dono ("A rotina ... criou a tarefa ... para você"). E a rotina ganhou a caixa "Me avisar cada vez que rodar", desligada por padrão, com o aviso `rotina_rodou` (a falha avisa sempre).
+- **Aviso:** a tarefa criada pela rotina avisa o responsável mesmo quando ele é o dono ("A rotina ... criou a tarefa ... para você"). E a rotina ganhou a caixa "Me avisar cada vez que rodar", desligada por padrão, com o aviso `rotina_rodou` (a falha avisa sempre), que vai também pelo Telegram por padrão, porque só existe quando o dono pediu.
 - **Subtarefa de mãe fechada (rotina por evento):** a rotina não cria subtarefa numa tarefa já concluída ou cancelada (a tela também não deixa); a tarefa nasce solta, no mesmo projeto, com o link da que disparou na descrição. A mãe não é reaberta (decisão do Sandro). No Kanban, a subtarefa aberta cuja mãe fechou aparece sozinha.
 
 ## O que foi descartado
