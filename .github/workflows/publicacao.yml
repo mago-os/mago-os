@@ -53,6 +53,13 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
+      # M6-04: a imagem com falha crítica conhecida (e com correção disponível) não vai para o teste.
+      - name: Conferir a imagem (Trivy, críticas)
+        run: >-
+          docker run --rm -v "$HOME/.docker:/root/.docker:ro"
+          aquasec/trivy:0.76.2 image --quiet --severity CRITICAL --ignore-unfixed --exit-code 1
+          "$IMAGEM:$VERSAO"
+
       - name: Tocar a campainha da VPS02
         env:
           SEGREDO: ${{ secrets.MAGO_CAMPAINHA_SEGREDO }}

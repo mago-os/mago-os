@@ -381,4 +381,24 @@ describe.skipIf(!bancoDisponivel)("convites e desligamento", () => {
     });
     expect(r.statusCode).toBe(429);
   });
+
+  it("as rotas públicas do convite têm limite de pedidos por endereço (M6-04)", async () => {
+    const tentar = () =>
+      app.inject({
+        method: "GET",
+        url: `/acesso/convite/${"0".repeat(43)}`,
+        headers: { origin: SITE, "x-forwarded-for": "198.18.250.7" },
+      });
+    for (let i = 0; i < 20; i++) expect((await tentar()).statusCode).toBe(404);
+    const recusado = await tentar();
+    expect(recusado.statusCode).toBe(429);
+    expect(recusado.headers["retry-after"]).toBe("60");
+    // Outro endereço continua normal.
+    const outro = await app.inject({
+      method: "GET",
+      url: `/acesso/convite/${"0".repeat(43)}`,
+      headers: { origin: SITE, "x-forwarded-for": "198.18.250.8" },
+    });
+    expect(outro.statusCode).toBe(404);
+  });
 });

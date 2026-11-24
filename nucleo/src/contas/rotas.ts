@@ -7,6 +7,7 @@
  *   CNPJ ou pessoa física com CPF) e vira o administrador dela.
  * Ver docs/decisoes/0016-convite-para-criar-empresa.md.
  */
+
 import { createHash, randomBytes } from "node:crypto";
 import {
   conferirPedidoDeConviteDeEmpresa,
@@ -17,6 +18,7 @@ import {
 import { isPasswordCompromised } from "better-auth/plugins/haveibeenpwned";
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import type pg from "pg";
+import { LIMITE_DOS_CONVITES, limitarPedidos } from "../acesso/limite-de-pedidos.ts";
 import type { Carteiro, Login } from "../acesso/login.ts";
 import { SENHA_MAXIMA, SENHA_MINIMA } from "../acesso/login.ts";
 import { origemDoPedido, type SessaoDoPedido, sessaoDoPedido } from "../acesso/rotas.ts";
@@ -191,156 +193,171 @@ export function registrarRotasDasContas(app: FastifyInstance, o: OpcoesDasContas
 
   // Antes de entrar com o Google pelo link: a pessoa do convite passa a existir, com o e-mail confirmado, para o
   // Google ligar a conta dele a ela (sem cadastro aberto: só o e-mail convidado entra).
-  app.post("/acesso/convite-de-empresa/preparar-google", async (pedido, resposta) => {
-    const codigo = (pedido.body as { codigo?: unknown } | undefined)?.codigo;
-    if (typeof codigo !== "string") return resposta.code(400).send({ code: "PEDIDO_INVALIDO" });
-    const p = await poolAcesso.query<{ id: string | null }>(
-      "select acesso.pessoa_do_convite_de_empresa($1) as id",
-      [impressao(codigo)],
-    );
-    if (!p.rows[0]?.id) return resposta.code(404).send(INVALIDO);
-    return { ok: true };
-  });
+  app.post(
+    "/acesso/convite-de-empresa/preparar-google",
+    { preHandler: limitarPedidos(poolAcesso, LIMITE_DOS_CONVITES) },
+    async (pedido, resposta) => {
+      const codigo = (pedido.body as { codigo?: unknown } | undefined)?.codigo;
+      if (typeof codigo !== "string") return resposta.code(400).send({ code: "PEDIDO_INVALIDO" });
+      const p = await poolAcesso.query<{ id: string | null }>(
+        "select acesso.pessoa_do_convite_de_empresa($1) as id",
+        [impressao(codigo)],
+      );
+      if (!p.rows[0]?.id) return resposta.code(404).send(INVALIDO);
+      return { ok: true };
+    },
+  );
 
   // Abrir o link (sem login): para a tela mostrar o caminho certo.
-  app.get("/acesso/convite-de-empresa/:codigo", async (pedido, resposta) => {
-    const { codigo } = pedido.params as { codigo: string };
-    const r = await poolAcesso.query<{
-      nome: string;
-      email: string;
-      quem_convidou: string;
-      tem_conta: boolean;
-      valido: boolean;
-    }>("select * from acesso.abrir_convite_de_empresa($1)", [impressao(codigo)]);
-    const c = r.rows[0];
-    if (!c?.valido) return resposta.code(404).send(INVALIDO);
-    return { nome: c.nome, email: c.email, quemConvidou: c.quem_convidou, temConta: c.tem_conta };
-  });
+  app.get(
+    "/acesso/convite-de-empresa/:codigo",
+    { preHandler: limitarPedidos(poolAcesso, LIMITE_DOS_CONVITES) },
+    async (pedido, resposta) => {
+      const { codigo } = pedido.params as { codigo: string };
+      const r = await poolAcesso.query<{
+        nome: string;
+        email: string;
+        quem_convidou: string;
+        tem_conta: boolean;
+        valido: boolean;
+      }>("select * from acesso.abrir_convite_de_empresa($1)", [impressao(codigo)]);
+      const c = r.rows[0];
+      if (!c?.valido) return resposta.code(404).send(INVALIDO);
+      return { nome: c.nome, email: c.email, quemConvidou: c.quem_convidou, temConta: c.tem_conta };
+    },
+  );
 
   // Criar a conta pelo link. Sem conta: define a senha aqui. Com conta: precisa entrar antes, com o e-mail do convite.
-  app.post("/acesso/convite-de-empresa/criar", async (pedido, resposta) => {
-    const corpo = (pedido.body ?? {}) as {
-      codigo?: unknown;
-      senha?: unknown;
-      conta?: Record<string, unknown>;
-    };
-    if (typeof corpo.codigo !== "string" || typeof corpo.conta !== "object" || corpo.conta === null) {
-      return resposta.code(400).send({ code: "PEDIDO_INVALIDO" });
-    }
-    const conta = corpo.conta;
-    const limpo = (v: unknown) => (typeof v === "string" ? v.trim() || null : (v ?? null));
-    const documento =
-      typeof conta.documento === "string"
-        ? normalizarDocumento(conta.documento) || null
-        : (conta.documento ?? null);
-    const dados = conferirPedidoDeNovaEmpresa({
-      ...conta,
-      // Sem documento, o tipo não vale nada: fica vazio também (tipo e documento andam juntos).
-      tipo: documento === null ? null : (conta.tipo ?? null),
-      documento,
-      nome: limpo(conta.nome),
-      nomeLegal: limpo(conta.nomeLegal),
-      telefone: limpo(conta.telefone),
-    });
-    if (!dados.ok) {
-      const doc = dados.problemas.find((p) => p.caminho === "/documento");
-      return resposta.code(400).send({
-        code: "PEDIDO_INVALIDO",
-        message: doc ? `Confira o documento: ${doc.mensagem}.` : "Confira os dados da conta.",
-        problemas: dados.problemas,
-      });
-    }
-    const hash = impressao(corpo.codigo);
-    const sessao = await sessaoDoPedido(o.login, poolAcesso, pedido);
-    const senha = typeof corpo.senha === "string" ? corpo.senha : "";
-    if (!sessao) {
-      if (senha.length < SENHA_MINIMA || senha.length > SENHA_MAXIMA) {
-        return resposta
-          .code(400)
-          .send({ code: "PASSWORD_TOO_SHORT", message: "A senha precisa ter pelo menos 10 caracteres." });
+  app.post(
+    "/acesso/convite-de-empresa/criar",
+    { preHandler: limitarPedidos(poolAcesso, LIMITE_DOS_CONVITES) },
+    async (pedido, resposta) => {
+      const corpo = (pedido.body ?? {}) as {
+        codigo?: unknown;
+        senha?: unknown;
+        conta?: Record<string, unknown>;
+      };
+      if (typeof corpo.codigo !== "string" || typeof corpo.conta !== "object" || corpo.conta === null) {
+        return resposta.code(400).send({ code: "PEDIDO_INVALIDO" });
       }
-      if (o.conferirSenhasVazadas && (await isPasswordCompromised(senha).catch(() => false))) {
+      const conta = corpo.conta;
+      const limpo = (v: unknown) => (typeof v === "string" ? v.trim() || null : (v ?? null));
+      const documento =
+        typeof conta.documento === "string"
+          ? normalizarDocumento(conta.documento) || null
+          : (conta.documento ?? null);
+      const dados = conferirPedidoDeNovaEmpresa({
+        ...conta,
+        // Sem documento, o tipo não vale nada: fica vazio também (tipo e documento andam juntos).
+        tipo: documento === null ? null : (conta.tipo ?? null),
+        documento,
+        nome: limpo(conta.nome),
+        nomeLegal: limpo(conta.nomeLegal),
+        telefone: limpo(conta.telefone),
+      });
+      if (!dados.ok) {
+        const doc = dados.problemas.find((p) => p.caminho === "/documento");
         return resposta.code(400).send({
-          code: "PASSWORD_COMPROMISED",
-          message:
-            "Essa senha já apareceu em vazamentos na internet. Escolha outra, de preferência uma frase longa.",
+          code: "PEDIDO_INVALIDO",
+          message: doc ? `Confira o documento: ${doc.mensagem}.` : "Confira os dados da conta.",
+          problemas: dados.problemas,
         });
       }
-    }
-    const embaralhada = sessao ? null : await (await o.login.$context).password.hash(senha);
-
-    // Tudo numa transação: se algo falhar, nada fica pela metade (nem a senha).
-    const c = await poolAcesso.connect();
-    let empresaId: string;
-    let pessoaId: string;
-    try {
-      await c.query("begin");
-      const p = await c.query<{ id: string | null }>("select acesso.pessoa_do_convite_de_empresa($1) as id", [
-        hash,
-      ]);
-      const doConvite = p.rows[0]?.id ?? null;
-      if (!doConvite) {
-        await c.query("rollback");
-        return resposta.code(404).send(INVALIDO);
-      }
-      if (sessao) {
-        pessoaId = sessao.pessoa.id;
-      } else {
-        const temConta = await c.query("select 1 from acesso.credenciais where pessoa_id = $1", [doConvite]);
-        if (temConta.rowCount) {
-          await c.query("rollback");
-          return resposta.code(401).send({
-            code: "ENTRE_ANTES",
-            message: "Você já tem conta no Mago OS. Entre para criar a conta nova.",
+      const hash = impressao(corpo.codigo);
+      const sessao = await sessaoDoPedido(o.login, poolAcesso, pedido);
+      const senha = typeof corpo.senha === "string" ? corpo.senha : "";
+      if (!sessao) {
+        if (senha.length < SENHA_MINIMA || senha.length > SENHA_MAXIMA) {
+          return resposta
+            .code(400)
+            .send({ code: "PASSWORD_TOO_SHORT", message: "A senha precisa ter pelo menos 10 caracteres." });
+        }
+        if (o.conferirSenhasVazadas && (await isPasswordCompromised(senha).catch(() => false))) {
+          return resposta.code(400).send({
+            code: "PASSWORD_COMPROMISED",
+            message:
+              "Essa senha já apareceu em vazamentos na internet. Escolha outra, de preferência uma frase longa.",
           });
         }
-        await c.query(
-          "insert into acesso.credenciais (pessoa_id, provedor, conta_no_provedor, senha) values ($1, 'credential', $2, $3)",
-          [doConvite, doConvite, embaralhada],
-        );
-        pessoaId = doConvite;
       }
-      const v = dados.valor;
-      const e = await c.query<{ id: string }>(
-        "select acesso.criar_empresa_pelo_convite($1, $2, $3, $4, $5, $6, $7, $8, $9) as id",
-        [hash, pessoaId, v.tipo, v.documento, v.nomeLegal, v.nome, v.fusoHorario, v.idioma, v.telefone],
-      );
-      empresaId = e.rows[0]?.id as string;
-      await c.query("commit");
-    } catch (erro) {
-      await c.query("rollback").catch(() => {});
-      const texto = String(erro);
-      if (/outra pessoa/.test(texto)) {
-        return resposta.code(403).send({
-          code: "CONVITE_DE_OUTRA_PESSOA",
-          message: "Este convite é de outro e-mail. Saia e entre com a conta do e-mail convidado.",
-        });
-      }
-      if (/expirou/.test(texto)) return resposta.code(404).send(INVALIDO);
-      throw erro;
-    } finally {
-      c.release();
-    }
+      const embaralhada = sessao ? null : await (await o.login.$context).password.hash(senha);
 
-    // Quem criou com a sessão aberta já entra trabalhando na conta nova.
-    if (sessao)
-      await poolAcesso.query("update acesso.sessoes set empresa_id = $2 where id = $1", [
-        sessao.sessaoId,
-        empresaId,
-      ]);
-    await auditar(
-      poolAcesso,
-      {
-        empresaId,
-        ator: { tipo: "pessoa", pessoaId },
-        acao: "empresa.criou",
-        alvo: { tipo: "empresa", id: empresaId },
-        origem: origemDoPedido(pedido),
-        rastreio: pedido.id,
-        detalhes: { tipo: dados.valor.tipo },
-      },
-      pedido.log,
-    );
-    return { ok: true, empresaId, precisaEntrar: !sessao };
-  });
+      // Tudo numa transação: se algo falhar, nada fica pela metade (nem a senha).
+      const c = await poolAcesso.connect();
+      let empresaId: string;
+      let pessoaId: string;
+      try {
+        await c.query("begin");
+        const p = await c.query<{ id: string | null }>(
+          "select acesso.pessoa_do_convite_de_empresa($1) as id",
+          [hash],
+        );
+        const doConvite = p.rows[0]?.id ?? null;
+        if (!doConvite) {
+          await c.query("rollback");
+          return resposta.code(404).send(INVALIDO);
+        }
+        if (sessao) {
+          pessoaId = sessao.pessoa.id;
+        } else {
+          const temConta = await c.query("select 1 from acesso.credenciais where pessoa_id = $1", [
+            doConvite,
+          ]);
+          if (temConta.rowCount) {
+            await c.query("rollback");
+            return resposta.code(401).send({
+              code: "ENTRE_ANTES",
+              message: "Você já tem conta no Mago OS. Entre para criar a conta nova.",
+            });
+          }
+          await c.query(
+            "insert into acesso.credenciais (pessoa_id, provedor, conta_no_provedor, senha) values ($1, 'credential', $2, $3)",
+            [doConvite, doConvite, embaralhada],
+          );
+          pessoaId = doConvite;
+        }
+        const v = dados.valor;
+        const e = await c.query<{ id: string }>(
+          "select acesso.criar_empresa_pelo_convite($1, $2, $3, $4, $5, $6, $7, $8, $9) as id",
+          [hash, pessoaId, v.tipo, v.documento, v.nomeLegal, v.nome, v.fusoHorario, v.idioma, v.telefone],
+        );
+        empresaId = e.rows[0]?.id as string;
+        await c.query("commit");
+      } catch (erro) {
+        await c.query("rollback").catch(() => {});
+        const texto = String(erro);
+        if (/outra pessoa/.test(texto)) {
+          return resposta.code(403).send({
+            code: "CONVITE_DE_OUTRA_PESSOA",
+            message: "Este convite é de outro e-mail. Saia e entre com a conta do e-mail convidado.",
+          });
+        }
+        if (/expirou/.test(texto)) return resposta.code(404).send(INVALIDO);
+        throw erro;
+      } finally {
+        c.release();
+      }
+
+      // Quem criou com a sessão aberta já entra trabalhando na conta nova.
+      if (sessao)
+        await poolAcesso.query("update acesso.sessoes set empresa_id = $2 where id = $1", [
+          sessao.sessaoId,
+          empresaId,
+        ]);
+      await auditar(
+        poolAcesso,
+        {
+          empresaId,
+          ator: { tipo: "pessoa", pessoaId },
+          acao: "empresa.criou",
+          alvo: { tipo: "empresa", id: empresaId },
+          origem: origemDoPedido(pedido),
+          rastreio: pedido.id,
+          detalhes: { tipo: dados.valor.tipo },
+        },
+        pedido.log,
+      );
+      return { ok: true, empresaId, precisaEntrar: !sessao };
+    },
+  );
 }

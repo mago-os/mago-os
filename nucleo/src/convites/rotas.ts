@@ -8,11 +8,13 @@
  *   encerradas, se a pessoa não tem outra empresa).
  * Ver docs/decisoes/0015-convites.md.
  */
+
 import { createHash, randomBytes } from "node:crypto";
 import { conferirPedidoDeConvite, normalizarEmail } from "@mago-os/contratos";
 import { isPasswordCompromised } from "better-auth/plugins/haveibeenpwned";
 import type { FastifyInstance, FastifyRequest } from "fastify";
 import type pg from "pg";
+import { LIMITE_DOS_CONVITES, limitarPedidos } from "../acesso/limite-de-pedidos.ts";
 import type { Carteiro, Login } from "../acesso/login.ts";
 import { SENHA_MAXIMA, SENHA_MINIMA } from "../acesso/login.ts";
 import { origemDoPedido, sessaoDoPedido } from "../acesso/rotas.ts";
@@ -247,110 +249,118 @@ export function registrarRotasDosConvites(app: FastifyInstance, o: OpcoesDosConv
   );
 
   // Abrir o convite (sem login): para a tela mostrar a empresa e o caminho certo.
-  app.get("/acesso/convite/:codigo", async (pedido, resposta) => {
-    const { codigo } = pedido.params as { codigo: string };
-    const r = await poolAcesso.query<{
-      empresa: string;
-      email: string;
-      nome: string;
-      quem_convidou: string;
-      tem_conta: boolean;
-      valido: boolean;
-    }>("select * from acesso.abrir_convite($1)", [impressao(codigo)]);
-    const c = r.rows[0];
-    if (!c?.valido)
-      return resposta
-        .code(404)
-        .send({ code: "CONVITE_INVALIDO", message: "Este convite expirou ou já foi usado." });
-    return {
-      empresa: c.empresa,
-      email: c.email,
-      nome: c.nome,
-      quemConvidou: c.quem_convidou,
-      temConta: c.tem_conta,
-    };
-  });
-
-  // Aceitar. Com sessão: a pessoa da sessão precisa ser a do convite. Sem conta: define a senha e aceita.
-  app.post("/acesso/convite/aceitar", async (pedido, resposta) => {
-    const corpo = (pedido.body ?? {}) as { codigo?: unknown; senha?: unknown };
-    if (typeof corpo.codigo !== "string") return resposta.code(400).send({ code: "PEDIDO_INVALIDO" });
-    const hash = impressao(corpo.codigo);
-    const sessao = await sessaoDoPedido(o.login, poolAcesso, pedido);
-    let pessoaId: string | null = sessao?.pessoa.id ?? null;
-
-    if (!pessoaId) {
-      // Sem login: só para quem ainda não tem conta, definindo a senha agora.
-      const p = await poolAcesso.query<{ id: string | null }>("select acesso.pessoa_do_convite($1) as id", [
-        hash,
-      ]);
-      pessoaId = p.rows[0]?.id ?? null;
-      if (!pessoaId)
+  app.get(
+    "/acesso/convite/:codigo",
+    { preHandler: limitarPedidos(poolAcesso, LIMITE_DOS_CONVITES) },
+    async (pedido, resposta) => {
+      const { codigo } = pedido.params as { codigo: string };
+      const r = await poolAcesso.query<{
+        empresa: string;
+        email: string;
+        nome: string;
+        quem_convidou: string;
+        tem_conta: boolean;
+        valido: boolean;
+      }>("select * from acesso.abrir_convite($1)", [impressao(codigo)]);
+      const c = r.rows[0];
+      if (!c?.valido)
         return resposta
           .code(404)
           .send({ code: "CONVITE_INVALIDO", message: "Este convite expirou ou já foi usado." });
-      const conta = await poolAcesso.query("select 1 from acesso.credenciais where pessoa_id = $1", [
-        pessoaId,
-      ]);
-      if ((conta.rowCount ?? 0) > 0) {
-        return resposta.code(401).send({
-          code: "ENTRE_ANTES",
-          message: "Você já tem conta no Mago OS. Entre para aceitar o convite.",
-        });
-      }
-      const senha = typeof corpo.senha === "string" ? corpo.senha : "";
-      if (senha.length < SENHA_MINIMA || senha.length > SENHA_MAXIMA) {
-        return resposta
-          .code(400)
-          .send({ code: "PASSWORD_TOO_SHORT", message: "A senha precisa ter pelo menos 10 caracteres." });
-      }
-      if (o.conferirSenhasVazadas && (await isPasswordCompromised(senha).catch(() => false))) {
-        return resposta.code(400).send({
-          code: "PASSWORD_COMPROMISED",
-          message:
-            "Essa senha já apareceu em vazamentos na internet. Escolha outra, de preferência uma frase longa.",
-        });
-      }
-      const contexto = await o.login.$context;
-      await poolAcesso.query(
-        "insert into acesso.credenciais (pessoa_id, provedor, conta_no_provedor, senha) values ($1, 'credential', $2, $3)",
-        [pessoaId, pessoaId, await contexto.password.hash(senha)],
-      );
-    }
+      return {
+        empresa: c.empresa,
+        email: c.email,
+        nome: c.nome,
+        quemConvidou: c.quem_convidou,
+        temConta: c.tem_conta,
+      };
+    },
+  );
 
-    let empresaId: string;
-    try {
-      const a = await poolAcesso.query<{ empresa: string }>(
-        "select acesso.aceitar_convite($1, $2) as empresa",
-        [hash, pessoaId],
+  // Aceitar. Com sessão: a pessoa da sessão precisa ser a do convite. Sem conta: define a senha e aceita.
+  app.post(
+    "/acesso/convite/aceitar",
+    { preHandler: limitarPedidos(poolAcesso, LIMITE_DOS_CONVITES) },
+    async (pedido, resposta) => {
+      const corpo = (pedido.body ?? {}) as { codigo?: unknown; senha?: unknown };
+      if (typeof corpo.codigo !== "string") return resposta.code(400).send({ code: "PEDIDO_INVALIDO" });
+      const hash = impressao(corpo.codigo);
+      const sessao = await sessaoDoPedido(o.login, poolAcesso, pedido);
+      let pessoaId: string | null = sessao?.pessoa.id ?? null;
+
+      if (!pessoaId) {
+        // Sem login: só para quem ainda não tem conta, definindo a senha agora.
+        const p = await poolAcesso.query<{ id: string | null }>("select acesso.pessoa_do_convite($1) as id", [
+          hash,
+        ]);
+        pessoaId = p.rows[0]?.id ?? null;
+        if (!pessoaId)
+          return resposta
+            .code(404)
+            .send({ code: "CONVITE_INVALIDO", message: "Este convite expirou ou já foi usado." });
+        const conta = await poolAcesso.query("select 1 from acesso.credenciais where pessoa_id = $1", [
+          pessoaId,
+        ]);
+        if ((conta.rowCount ?? 0) > 0) {
+          return resposta.code(401).send({
+            code: "ENTRE_ANTES",
+            message: "Você já tem conta no Mago OS. Entre para aceitar o convite.",
+          });
+        }
+        const senha = typeof corpo.senha === "string" ? corpo.senha : "";
+        if (senha.length < SENHA_MINIMA || senha.length > SENHA_MAXIMA) {
+          return resposta
+            .code(400)
+            .send({ code: "PASSWORD_TOO_SHORT", message: "A senha precisa ter pelo menos 10 caracteres." });
+        }
+        if (o.conferirSenhasVazadas && (await isPasswordCompromised(senha).catch(() => false))) {
+          return resposta.code(400).send({
+            code: "PASSWORD_COMPROMISED",
+            message:
+              "Essa senha já apareceu em vazamentos na internet. Escolha outra, de preferência uma frase longa.",
+          });
+        }
+        const contexto = await o.login.$context;
+        await poolAcesso.query(
+          "insert into acesso.credenciais (pessoa_id, provedor, conta_no_provedor, senha) values ($1, 'credential', $2, $3)",
+          [pessoaId, pessoaId, await contexto.password.hash(senha)],
+        );
+      }
+
+      let empresaId: string;
+      try {
+        const a = await poolAcesso.query<{ empresa: string }>(
+          "select acesso.aceitar_convite($1, $2) as empresa",
+          [hash, pessoaId],
+        );
+        empresaId = a.rows[0]?.empresa as string;
+      } catch (erro) {
+        const outra = /outra pessoa/.test(String(erro));
+        return resposta.code(outra ? 403 : 404).send({
+          code: outra ? "CONVITE_DE_OUTRA_PESSOA" : "CONVITE_INVALIDO",
+          message: outra
+            ? "Este convite é de outro e-mail. Saia e entre com a conta do e-mail convidado."
+            : "Este convite expirou ou já foi usado.",
+        });
+      }
+      // Quem aceitou com a sessão aberta já entra trabalhando na empresa nova.
+      if (sessao)
+        await poolAcesso.query("update acesso.sessoes set empresa_id = $2 where id = $1", [
+          sessao.sessaoId,
+          empresaId,
+        ]);
+      await auditar(
+        poolAcesso,
+        {
+          empresaId,
+          ator: { tipo: "pessoa", pessoaId },
+          acao: "vinculo.aceitou",
+          origem: origemDoPedido(pedido),
+          rastreio: pedido.id,
+        },
+        pedido.log,
       );
-      empresaId = a.rows[0]?.empresa as string;
-    } catch (erro) {
-      const outra = /outra pessoa/.test(String(erro));
-      return resposta.code(outra ? 403 : 404).send({
-        code: outra ? "CONVITE_DE_OUTRA_PESSOA" : "CONVITE_INVALIDO",
-        message: outra
-          ? "Este convite é de outro e-mail. Saia e entre com a conta do e-mail convidado."
-          : "Este convite expirou ou já foi usado.",
-      });
-    }
-    // Quem aceitou com a sessão aberta já entra trabalhando na empresa nova.
-    if (sessao)
-      await poolAcesso.query("update acesso.sessoes set empresa_id = $2 where id = $1", [
-        sessao.sessaoId,
-        empresaId,
-      ]);
-    await auditar(
-      poolAcesso,
-      {
-        empresaId,
-        ator: { tipo: "pessoa", pessoaId },
-        acao: "vinculo.aceitou",
-        origem: origemDoPedido(pedido),
-        rastreio: pedido.id,
-      },
-      pedido.log,
-    );
-    return { ok: true, precisaEntrar: !sessao };
-  });
+      return { ok: true, precisaEntrar: !sessao };
+    },
+  );
 }

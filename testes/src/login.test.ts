@@ -247,3 +247,73 @@ describe.skipIf(!bancoDisponivel)("login por e-mail e senha", () => {
     await expect(gerarLinkDeSenha(login, links, "ninguem@teste.invalid")).rejects.toThrow(/Não há pessoa/);
   });
 });
+
+/** Os cookies no teste e na produção (M6-04): só por HTTPS, fora do alcance do JavaScript e sem ir para outro site. */
+describe.skipIf(!bancoDisponivel)("cookies do login fora do Mac", () => {
+  let banco: BancoTemporario;
+  let dono: pg.Client;
+  let pool: pg.Pool;
+  let app: FastifyInstance;
+  const links: string[] = [];
+
+  beforeAll(async () => {
+    banco = await criarBancoTemporario();
+    dono = new pg.Client({ connectionString: banco.urlDono });
+    await dono.connect();
+    await iniciarPlataforma(dono, {
+      nome: "Pessoa Dona",
+      email: "dona@teste.invalid",
+      empresa: "Empresa Um",
+    });
+    pool = criarPoolDoLogin(banco.urlAcesso);
+    const login = criarLogin(
+      {
+        bancoUrl: banco.urlAcesso,
+        segredo: "segredo-de-teste-com-mais-de-32-caracteres",
+        urlPublica: SITE,
+        ambiente: "teste",
+        conferirSenhasVazadas: false,
+        carteiro: {
+          async enviarLinkDeSenha({ link }) {
+            links.push(link);
+          },
+        },
+      },
+      pool,
+    );
+    app = Fastify();
+    registrarRotasDoLogin(app, login, pool);
+    await app.ready();
+  });
+
+  afterAll(async () => {
+    await app?.close();
+    await pool?.end();
+    await dono?.end();
+    await banco?.apagar();
+  });
+
+  it("todo cookie que o login manda é Secure, HttpOnly e SameSite", async () => {
+    const pedir = (caminho: string, corpo: unknown) =>
+      app.inject({
+        method: "POST",
+        url: `/acesso${caminho}`,
+        headers: { origin: SITE, "x-forwarded-for": "203.0.113.200", "content-type": "application/json" },
+        payload: JSON.stringify(corpo),
+      });
+    await pedir("/request-password-reset", { email: "dona@teste.invalid" });
+    const token = new URL(links[0] ?? "").searchParams.get("token");
+    expect((await pedir("/reset-password", { newPassword: SENHA, token })).statusCode).toBe(200);
+    const entrada = await pedir("/sign-in/email", { email: "dona@teste.invalid", password: SENHA });
+    expect(entrada.statusCode).toBe(200);
+    const cookies = ([] as string[]).concat(
+      (entrada.headers["set-cookie"] as string[] | string | undefined) ?? [],
+    );
+    expect(cookies.length).toBeGreaterThan(0);
+    for (const c of cookies) {
+      expect(c, c.split("=")[0]).toMatch(/;\s*Secure/i);
+      expect(c, c.split("=")[0]).toMatch(/;\s*HttpOnly/i);
+      expect(c, c.split("=")[0]).toMatch(/;\s*SameSite=(Lax|Strict)/i);
+    }
+  });
+});
