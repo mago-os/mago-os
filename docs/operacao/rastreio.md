@@ -36,12 +36,12 @@ que fazer com cada alerta.
 
 ## Achar um pedido pelo número
 
-1. Entrar no Grafana Cloud (conta do Mago OS) e abrir **Explore**.
+1. Entrar no Grafana Cloud (https://happyivy2139.grafana.net, conta do Sandro) e abrir **Explore**.
 2. **O caminho do pedido:** escolher a fonte de rastreio (Tempo), colar o número no campo de busca por trace id e
    abrir. Aparece o pedido, as consultas ao banco e os trabalhos que ele criou (agente, Telegram), com o tempo de
    cada um.
 3. **Os registros do pedido:** escolher a fonte de registros (Loki) e buscar
-   `{service_name="mago-os-nucleo"} |= "<número>"`.
+   `{service_name="mago-os-nucleo"} | rastreio="<número>"` (o número vai como campo do registro, não no texto).
 4. Sem o Grafana (ou para os últimos minutos), no servidor:
 
    ```bash
@@ -51,15 +51,19 @@ que fazer com cada alerta.
 
 ## Painel e alertas
 
-**Pendente:** depende da conta do Grafana Cloud, que o Sandro está criando (M6-02). Quando existir, o painel "Mago OS" no Grafana Cloud mostra os erros por hora, os pedidos mais lentos, a fila parada e os agentes com
-erro. O alerta de erros avisa no Telegram do Sandro quando os erros (nível `error` nos registros) passam do limite
-em 10 minutos.
+O painel **Mago OS** (https://happyivy2139.grafana.net/d/mago-os/mago-os, pasta "Mago OS") mostra os erros por hora,
+os pedidos por hora e por resposta, os pedidos mais lentos (acima de 1 segundo, com o número de rastreio), a fila
+parada, os agentes com erro e os últimos erros. Em cima, a escolha do ambiente (teste ou produção).
+
+Os alertas rodam a cada minuto e avisam no Telegram do Sandro pelo bot de teste (@OsMagoTesteBot), com a mensagem
+"Mago OS (teste): ..." e outra quando resolver. Tudo isso é montado pelo `infra/grafana/montar.py`, que pode rodar
+de novo para refazer (por exemplo, numa conta nova ou para a produção).
 
 | Alerta | O que fazer |
 | --- | --- |
-| Erros acima do limite | Abrir o painel, ver qual rota ou trabalho falha, pegar um número de rastreio e seguir o caminho dele |
-| Fila parada (trabalhos dos agentes esperando há mais de 10 minutos) | Conferir se a API está no ar (`/api/saude`) e os registros da fila; reiniciar a API pela publicação (`publicar.sh forcar`) se ela travou |
-| Agentes com erro | Abrir a execução pelo número (tela do agente › execuções) e ver o passo que falhou; conta de IA sem crédito ou chave trocada é o mais comum |
+| Erros acima do limite (mais de 10 em 10 minutos) | Abrir o painel, ver qual rota ou trabalho falha, pegar um número de rastreio e seguir o caminho dele |
+| Fila parada (uma execução de agente ficou esquecida na fila nos últimos 10 minutos) | Conferir se a API está no ar (`/api/saude`) e os registros da fila; reiniciar a API pela publicação (`publicar.sh forcar`) se ela travou |
+| Agentes com erro (mais de 3 em 10 minutos) | Abrir a execução pelo número (tela do agente › execuções) e ver o passo que falhou; conta de IA sem crédito ou chave trocada é o mais comum |
 
 ## Trocar o destino ou desligar
 
