@@ -114,6 +114,8 @@ export function App() {
   const caminho = window.location.pathname;
   const [sessao, setSessao] = useState<Sessao | null | undefined>(undefined);
   const [empresas, setEmpresas] = useState<EmpresaMinha[]>([]);
+  /** As empresas já chegaram da API (antes disso, não dá para saber o que a pessoa pode ver). */
+  const [empresasProntas, setEmpresasProntas] = useState(false);
   const [avisos, setAvisos] = useState<AvisoDeAcesso[]>([]);
   const [permissoes, setPermissoes] = useState<MinhasPermissoes | null>(null);
   const [dono, setDono] = useState(false);
@@ -127,7 +129,10 @@ export function App() {
   }, [conferirSessao]);
 
   const completa = sessao?.falta === "nada";
-  const carregarEmpresas = useCallback(async () => setEmpresas((await listarEmpresas()) ?? []), []);
+  const carregarEmpresas = useCallback(async () => {
+    setEmpresas((await listarEmpresas()) ?? []);
+    setEmpresasProntas(true);
+  }, []);
   const carregarAvisos = useCallback(async () => setAvisos((await listarAvisos()) ?? []), []);
   useEffect(() => {
     if (!completa) return;
@@ -343,6 +348,8 @@ export function App() {
         podeExcluirProjetos={pode("projetos", "excluir")}
       />
     );
+  // Enquanto as empresas e as permissões chegam, outra tela não mostra o Início no lugar dela (piscava a cada clique).
+  else if (caminho !== "/" && (!empresasProntas || (temEmpresaAtiva && permissoes === null))) conteudo = null;
   else
     conteudo = (
       <Inicio
