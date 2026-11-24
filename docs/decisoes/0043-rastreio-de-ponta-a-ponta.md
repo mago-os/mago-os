@@ -23,11 +23,15 @@ decisão 2 da spec do M6 escolheu o Grafana Cloud no plano grátis, recebendo s�
 3. **Filtro dos registros.** Antes de qualquer registro sair, campos de texto livre e segredos são trocados por
    `[retirado]` pelo nome, e e-mails, chaves e tokens dentro de qualquer texto são apagados. O endereço vai sem os
    valores da consulta e sem o IP. O filtro roda no próprio pino, então vale para o Docker e para o destino central.
-4. **Destino.** O OpenTelemetry manda o rastreio e os registros (pela ponte do pino) para o Grafana Cloud por OTLP,
+4. **Filtro do rastreio.** Os spans do HTTP, do Fastify e do fetch gravam o endereço inteiro, o IP e o navegador.
+   Um processador próprio roda antes do envio (`limpar-spans.ts`): os endereços vão sem os valores da consulta e
+   sem o token do bot do Telegram (que vai no caminho das chamadas), e o IP e o navegador não saem.
+5. **Destino.** O OpenTelemetry manda o rastreio e os registros (pela ponte do pino) para o Grafana Cloud por OTLP,
    só quando `OTEL_EXPORTER_OTLP_ENDPOINT` existe. Entraram as instrumentações do fetch (chamadas aos provedores de
-   IA, ao Telegram e ao Backblaze) e do pino. A conta, o token só de escrita (no Infisical), o painel e o alerta no
+   IA, ao Telegram e ao Backblaze) e do pino, e o envio do rastreio passou a ser montado no código (com o filtro
+   antes), com o exportador OTLP em protobuf. A conta, o token só de escrita (no Infisical), o painel e o alerta no
    Telegram do Sandro ficam na conta do Grafana Cloud.
-5. **Erro na tela.** Quando a API falha do lado dela (5xx), a tela mostra um aviso com o número de rastreio e o
+6. **Erro na tela.** Quando a API falha do lado dela (5xx), a tela mostra um aviso com o número de rastreio e o
    botão Copiar. **Correção pequena na spec:** o aviso aparece só nos erros do sistema. Nos erros do pedido (senha
    errada, campo faltando), a pessoa já tem a mensagem da tela, e o número não ajuda.
 

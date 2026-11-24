@@ -27,6 +27,8 @@ catalog:
   "@opentelemetry/instrumentation-pg": 0.78.0
   "@opentelemetry/instrumentation-pino": 0.71.0
   "@opentelemetry/instrumentation-undici": 0.35.1
+  "@opentelemetry/sdk-trace": 3.1.1
+  "@opentelemetry/exporter-trace-otlp-proto": 0.301.2
   "@fastify/otel": 1.0.1
   "@vitejs/plugin-react": 6.3.0
   tailwindcss: 4.3.5

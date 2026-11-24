@@ -39,6 +39,25 @@ describe("filtro dos registros (M6-02)", () => {
     expect(limpo.erro.pilha).not.toContain("bia@teste.com");
   });
 
+  it("URL, Map, data e objetos fundos também passam pelo filtro", () => {
+    const fundo: Record<string, unknown> = {};
+    let atual = fundo;
+    for (let i = 0; i < 12; i++) {
+      atual.mais = { email: "x@y.com" };
+      atual = atual.mais as Record<string, unknown>;
+    }
+    const limpo = limparRegistro({
+      endereco: new URL("https://h/?email=ana@x.com"),
+      mapa: new Map([["texto", "segredo"]]),
+      quando: new Date("2026-11-24T10:00:00Z"),
+      fundo,
+    }) as Record<string, unknown>;
+    expect(limpo.endereco).toBe("https://h/?email=[e-mail]");
+    expect(limpo.mapa).toEqual({ texto: "[retirado]" });
+    expect(limpo.quando).toBe("2026-11-24T10:00:00.000Z");
+    expect(JSON.stringify(limpo.fundo)).not.toContain("x@y.com");
+  });
+
   it("o endereço vai sem os valores da consulta (a busca pode ter texto de tarefa)", () => {
     expect(enderecoSemValores("/busca?texto=contrato%20secreto&tipo=tarefas")).toBe("/busca?texto=…&tipo=…");
     expect(enderecoSemValores("/tarefas/01a2")).toBe("/tarefas/01a2");

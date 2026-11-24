@@ -6,7 +6,7 @@ import { ouvirErrosDoSistema } from "@/erros";
 /** O aviso do erro do sistema, com o número de rastreio e o botão de copiar (M6-02). Fica no canto da tela. */
 export function AvisoDeErroDoSistema() {
   const [erro, setErro] = useState<{ rastreio: string | null; vez: number } | null>(null);
-  const [copiado, setCopiado] = useState(false);
+  const [copiado, setCopiado] = useState<boolean | "erro">(false);
 
   useEffect(
     () =>
@@ -46,20 +46,27 @@ export function AvisoDeErroDoSistema() {
         <>
           <p className="text-texto-2">Se continuar, mande este número de rastreio ao suporte:</p>
           <div className="flex items-center gap-2">
-            <code className="min-w-0 flex-1 truncate rounded bg-suave px-2 py-1 font-mono text-xs">
+            <code className="min-w-0 flex-1 truncate rounded bg-suave px-2 py-1 font-mono text-xs select-all">
               {erro.rastreio}
             </code>
             <Button
               variant="contorno"
               size="pequeno"
               onClick={() => {
-                void navigator.clipboard?.writeText(erro.rastreio ?? "").then(() => setCopiado(true));
+                const copiar = navigator.clipboard?.writeText(erro.rastreio ?? "");
+                if (!copiar) setCopiado("erro");
+                else void copiar.then(() => setCopiado(true)).catch(() => setCopiado("erro"));
               }}
             >
-              {copiado ? <Check /> : <Copy />}
-              {copiado ? "Copiado" : "Copiar"}
+              {copiado === true ? <Check /> : <Copy />}
+              {copiado === true ? "Copiado" : "Copiar"}
             </Button>
           </div>
+          {copiado === "erro" && (
+            <p className="text-texto-2 text-xs">
+              Não deu para copiar aqui. Selecione o número e copie à mão.
+            </p>
+          )}
         </>
       ) : (
         <p className="text-texto-2">Tente de novo em instantes.</p>

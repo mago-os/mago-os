@@ -37,6 +37,8 @@ const CAMPOS_RETIRADOS = new Set([
 /** Padrões apagados dentro de qualquer texto. */
 const PADROES: [RegExp, string][] = [
   [/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g, "[e-mail]"],
+  // O token do bot do Telegram vai no caminho das chamadas (api.telegram.org/bot<token>/...).
+  [/\/bot\d+:[A-Za-z0-9_-]+/g, "/bot[token]"],
   [/\bmago_ag_[0-9a-z]{10}_[A-Za-z0-9_-]+/g, "[chave]"],
   [/\bsk-[A-Za-z0-9_-]{16,}/g, "[chave]"],
   [/\b(?:Bearer|Basic)\s+[A-Za-z0-9._~+/=-]{8,}/gi, "[credencial]"],
@@ -67,7 +69,8 @@ export function enderecoSemValores(url: string | undefined): string {
 /** Limpa um objeto de registro, em qualquer nível (sem mudar o original). */
 export function limparRegistro(valor: unknown, profundidade = 0): unknown {
   if (typeof valor === "string") return limparTexto(valor);
-  if (valor === null || typeof valor !== "object" || profundidade > 8) return valor;
+  if (valor === null || typeof valor !== "object") return valor;
+  if (profundidade > 8) return RETIRADO;
   if (valor instanceof Error) {
     return {
       tipo: valor.name,
@@ -77,9 +80,19 @@ export function limparRegistro(valor: unknown, profundidade = 0): unknown {
     };
   }
   if (Array.isArray(valor)) return valor.map((x) => limparRegistro(x, profundidade + 1));
-  // Objetos de classe (o pedido e a resposta do Fastify) passam como estão: os serializadores cuidam deles.
   const prototipo = Object.getPrototypeOf(valor);
-  if (prototipo !== Object.prototype && prototipo !== null) return valor;
+  if (prototipo !== Object.prototype && prototipo !== null) {
+    // O pedido e a resposta do Fastify passam como estão: os serializadores do servidor cuidam deles.
+    if ("raw" in valor) return valor;
+    if (valor instanceof Date) return valor.toISOString();
+    if (Buffer.isBuffer(valor) || ArrayBuffer.isView(valor)) return "[dados]";
+    if (valor instanceof Map) return limparRegistro(Object.fromEntries(valor), profundidade + 1);
+    if (valor instanceof Set) return limparRegistro([...valor], profundidade + 1);
+    // URL e outros objetos com toJSON viram o que mostrariam; os demais, só os próprios campos.
+    const comoJson = valor as { toJSON?: () => unknown };
+    if (typeof comoJson.toJSON === "function") return limparRegistro(comoJson.toJSON(), profundidade + 1);
+    return limparRegistro({ ...valor }, profundidade + 1);
+  }
   const limpo: Record<string, unknown> = {};
   for (const [campo, x] of Object.entries(valor)) {
     limpo[campo] = CAMPOS_RETIRADOS.has(campo.toLowerCase()) ? RETIRADO : limparRegistro(x, profundidade + 1);

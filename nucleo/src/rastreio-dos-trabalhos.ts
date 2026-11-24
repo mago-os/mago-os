@@ -60,6 +60,8 @@ export async function continuarRastreio<T>(
   fazer: (rastreio: string) => Promise<T>,
 ): Promise<T> {
   const pai = PAI.exec(levado?.traceparent ?? "");
+  // Sem o contexto do OpenTelemetry, mas com o número, o trabalho continua o mesmo número no rastreio.
+  const soONumero = !pai && levado?.rastreio && FORMATO.test(levado.rastreio) ? levado.rastreio : null;
   const contextoDoPai = pai
     ? trace.setSpanContext(ROOT_CONTEXT, {
         traceId: pai[1] as string,
@@ -67,7 +69,14 @@ export async function continuarRastreio<T>(
         traceFlags: Number.parseInt(pai[3] as string, 16),
         isRemote: true,
       })
-    : ROOT_CONTEXT;
+    : soONumero
+      ? trace.setSpanContext(ROOT_CONTEXT, {
+          traceId: soONumero,
+          spanId: randomBytes(8).toString("hex"),
+          traceFlags: TraceFlags.SAMPLED,
+          isRemote: true,
+        })
+      : ROOT_CONTEXT;
   return trace
     .getTracer("mago-os-nucleo")
     .startActiveSpan(nome, { kind: SpanKind.CONSUMER }, contextoDoPai, async (span) => {

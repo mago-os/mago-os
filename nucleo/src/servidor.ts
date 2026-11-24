@@ -1,6 +1,7 @@
 /**
  * Servidor HTTP do núcleo (Fastify). Não guarda estado: pode ser reiniciado ou duplicado a qualquer hora.
  */
+import { AsyncResource } from "node:async_hooks";
 import { randomBytes } from "node:crypto";
 import { trace } from "@opentelemetry/api";
 import Fastify, { type FastifyInstance, LogController, type RouteOptions } from "fastify";
@@ -33,6 +34,20 @@ export interface OpcoesDoServidor {
   aoRegistrarRota?: (rota: RouteOptions) => void;
 }
 
+/** O texto fixo de um registro filho do pino (as "chindings"), sem depender do pacote do pino. */
+function textoFixoDoRegistro(registro: object): unknown {
+  let alvo: object | null = registro;
+  while (alvo) {
+    const simbolo = Object.getOwnPropertySymbols(alvo).find((x) => x.description === "pino.chindings");
+    if (simbolo) return (alvo as Record<symbol, unknown>)[simbolo];
+    alvo = Object.getPrototypeOf(alvo);
+  }
+  return undefined;
+}
+
+/** O contexto assíncrono de cada pedido (com o número de rastreio), retomado depois da leitura do corpo. */
+const contextoDoPedido = new WeakMap<object, AsyncResource>();
+
 export function criarServidor(
   config: Pick<Config, "nivelRegistro" | "ambiente"> & Partial<Pick<Config, "versao">>,
   banco: Banco,
@@ -52,7 +67,9 @@ export function criarServidor(
       // Fora de um pedido (a fila, as rotinas, o Telegram), o número do trabalho entra em cada registro; num pedido,
       // ele já vem do próprio pedido.
       mixin: (_objeto, _nivel, registro) => {
-        if ((registro.bindings() as { rastreio?: string }).rastreio) return {};
+        // O registro do pedido já leva o número (nas "chindings", o texto fixo do registro filho).
+        const fixo = textoFixoDoRegistro(registro);
+        if (typeof fixo === "string" && fixo.includes('"rastreio":')) return {};
         const rastreio = rastreioAtual();
         return rastreio ? { rastreio } : {};
       },
@@ -77,10 +94,20 @@ export function criarServidor(
   });
 
   if (opcoes.aoRegistrarRota) app.addHook("onRoute", opcoes.aoRegistrarRota);
-  // O número do pedido segue para a fila, os agentes, o Telegram e as rotinas (M6-02).
+  // O número do pedido segue para a fila, os agentes, o Telegram e as rotinas (M6-02). O Fastify lê o corpo do pedido
+  // num evento do Node, fora do contexto do onRequest; por isso o contexto é guardado e retomado no preValidation
+  // (como faz o @fastify/request-context).
   app.addHook("onRequest", (pedido, resposta, pronto) => {
     resposta.header("x-rastreio", pedido.id);
-    comNumeroDeRastreio(pedido.id, pronto);
+    comNumeroDeRastreio(pedido.id, () => {
+      contextoDoPedido.set(pedido, new AsyncResource("mago-os-pedido"));
+      pronto();
+    });
+  });
+  app.addHook("preValidation", (pedido, _resposta, pronto) => {
+    const contexto = contextoDoPedido.get(pedido);
+    if (contexto) contexto.runInAsyncScope(pronto, pedido.raw);
+    else pronto();
   });
 
   app.get("/saude", async (_pedido, resposta): Promise<RespostaSaude> => {

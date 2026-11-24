@@ -9,19 +9,25 @@
  * chamadas para fora) e os registros, já sem dado pessoal (o filtro do servidor.ts roda antes).
  */
 import { FastifyOtelInstrumentation } from "@fastify/otel";
+import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-proto";
 import { HttpInstrumentation } from "@opentelemetry/instrumentation-http";
 import { PgInstrumentation } from "@opentelemetry/instrumentation-pg";
 import { PinoInstrumentation } from "@opentelemetry/instrumentation-pino";
 import { UndiciInstrumentation } from "@opentelemetry/instrumentation-undici";
 import { NodeSDK } from "@opentelemetry/sdk-node";
+import { BatchSpanProcessor } from "@opentelemetry/sdk-trace";
+import { LimpezaDosSpans } from "./limpar-spans.ts";
 
 const comDestino = Boolean(process.env.OTEL_EXPORTER_OTLP_ENDPOINT);
-process.env.OTEL_TRACES_EXPORTER ??= comDestino ? "otlp" : "none";
 process.env.OTEL_METRICS_EXPORTER ??= "none";
 process.env.OTEL_LOGS_EXPORTER ??= comDestino ? "otlp" : "none";
 process.env.OTEL_SERVICE_NAME ??= "mago-os-nucleo";
 
 const sdk = new NodeSDK({
+  // O filtro do rastreio roda antes do envio (sem os valores da consulta, o token do bot, o IP e o navegador).
+  spanProcessors: comDestino
+    ? [new LimpezaDosSpans(), new BatchSpanProcessor({ exporter: new OTLPTraceExporter() })]
+    : [],
   instrumentations: [
     new HttpInstrumentation(),
     new PgInstrumentation(),

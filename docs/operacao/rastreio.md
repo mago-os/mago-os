@@ -19,7 +19,7 @@ que fazer com cada alerta.
 - Só sai alguma coisa quando `OTEL_EXPORTER_OTLP_ENDPOINT` está no `api.env` (vem do Infisical pelo `segredos.sh`,
   com `GRAFANA_OTLP_*`, ver [segredos.md](segredos.md)). Sem isso, o número existe e os registros ficam só no
   Docker do servidor.
-- Vão para o Grafana Cloud (plano grátis, guarda 14 dias):
+- Vão para o Grafana Cloud (plano grátis, guarda 14 dias), depois que a conta existir:
   - **Rastreio:** cada pedido e cada trabalho da fila, com as consultas ao banco e as chamadas para fora (provedores
     de IA, Telegram, Backblaze).
   - **Registros:** as mesmas linhas JSON do Docker, já filtradas.
@@ -28,7 +28,9 @@ que fazer com cada alerta.
     senha, token, chave e parecidos);
   - e-mails, chaves de agente e de IA, credenciais e tokens dentro de qualquer texto viram `[e-mail]`, `[chave]` ou
     `[token]`;
-  - o endereço do pedido vai sem os valores da consulta (a busca pode ter texto de tarefa) e sem o IP de quem pediu.
+  - o endereço do pedido vai sem os valores da consulta (a busca pode ter texto de tarefa) e sem o IP de quem pediu;
+  - no rastreio, o mesmo: os endereços vão sem os valores da consulta e sem o token do bot do Telegram, e o IP e o
+    navegador de quem pediu não saem (`nucleo/src/limpar-spans.ts`, com teste).
   - O código não registra textos; o filtro é a segunda barreira. Achou um dado pessoal num registro? É defeito:
     corrigir o código e acrescentar o caso ao teste do filtro.
 
@@ -49,7 +51,7 @@ que fazer com cada alerta.
 
 ## Painel e alertas
 
-O painel "Mago OS" no Grafana Cloud mostra os erros por hora, os pedidos mais lentos, a fila parada e os agentes com
+**Pendente:** depende da conta do Grafana Cloud, que o Sandro está criando (M6-02). Quando existir, o painel "Mago OS" no Grafana Cloud mostra os erros por hora, os pedidos mais lentos, a fila parada e os agentes com
 erro. O alerta de erros avisa no Telegram do Sandro quando os erros (nível `error` nos registros) passam do limite
 em 10 minutos.
 

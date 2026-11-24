@@ -18,8 +18,16 @@ describe("número de rastreio de ponta a ponta (M6-02)", () => {
       levado = levarRastreio();
       return { ok: true };
     });
-    const r = await app.inject({ method: "POST", url: "/mensagem" });
-    const numero = r.headers["x-rastreio"];
+    // Pela rede de verdade e com corpo JSON: o Fastify lê o corpo num evento do Node, fora do contexto do
+    // onRequest, e o número não pode se perder.
+    const endereco = await app.listen({ port: 0, host: "127.0.0.1" });
+    const r = await fetch(`${endereco}/mensagem`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ texto: "marca uma reunião ".repeat(2000) }),
+    });
+    const numero = r.headers.get("x-rastreio");
+    await app.close();
     expect(levado.rastreio).toBe(numero);
     // A fila roda o trabalho depois, fora do pedido.
     expect(rastreioAtual()).toBeNull();
