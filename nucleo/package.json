@@ -39,7 +39,9 @@
     "./anexos/deposito": "./src/anexos/deposito.ts",
     "./anexos/antivirus": "./src/anexos/antivirus.ts",
     "./mcp": "./src/mcp/index.ts",
-    "./documentar-api": "./src/documentar-api.ts"
+    "./documentar-api": "./src/documentar-api.ts",
+    "./montar": "./src/montar.ts",
+    "./config": "./src/config.ts"
   },
   "scripts": {
     "tipos": "tsc -p tsconfig.json",

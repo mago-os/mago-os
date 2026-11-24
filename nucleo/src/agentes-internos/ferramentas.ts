@@ -4,6 +4,7 @@
  * pessoa, e o que o agente cria, comenta ou muda fica marcado como do agente. A regra completa (a menor das duas
  * permissões e as ações de alto risco) chega na M4-04; as aprovações, na M4-03.
  */
+
 import {
   type AcaoDeRotina,
   conferir,
@@ -33,6 +34,7 @@ import { buscar as buscarNoMago } from "../busca/index.ts";
 import type { FerramentaParaModelo } from "../contas-de-ia/conversa.ts";
 import { resumoDeCustos } from "../custos/servico.ts";
 import { comEmpresa } from "../empresa.ts";
+import { idsForaDaEmpresa, NAO_ENCONTRADO_NA_EMPRESA, uuidsDe } from "../ids-da-empresa.ts";
 import { skillsDoAgente } from "../instrucoes/servico.ts";
 import { type AcaoDeTarefa, executar, RecusaDaFerramenta } from "../mcp/index.ts";
 import { filtroDoAlcance } from "../permissoes/calcular.ts";
@@ -391,6 +393,9 @@ async function executarSemMarca(
             entrada.tarefaId,
             nome === "comentar" || nome === "ver_tarefa" ? "ver" : "editar",
           );
+        // O pedido só cita o que existe na empresa (M6-01): nunca uma linha que aponta para outra empresa.
+        if ((await idsForaDaEmpresa(c, uuidsDe(entrada))).length > 0)
+          throw new RecusaDaFerramenta(NAO_ENCONTRADO_NA_EMPRESA);
         return criarAprovacao(c, {
           agenteId: ctx.agente.id,
           execucaoId,

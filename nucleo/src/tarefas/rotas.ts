@@ -93,7 +93,7 @@ import {
   travadaPorQuem,
   trocarResponsavel,
 } from "./servico.ts";
-import { excluirVisao, listarVisoes, salvarVisao } from "./visoes.ts";
+import { excluirVisao, FiltroDeOutraEmpresa, listarVisoes, salvarVisao } from "./visoes.ts";
 
 type AcaoDeTarefa =
   | (typeof ACOES_TAREFAS)[number]
@@ -746,8 +746,14 @@ export function registrarRotasDasTarefas(
   app.post("/visoes", { preHandler: verificador.exigir("tarefas", "ver") }, async (pedido, resposta) => {
     const r = conferir(PedidoDeVisaoSalva, pedido.body);
     if (!r.ok) return invalido(resposta, r.problemas);
-    const visao = await naEmpresa(pedido, (c) => salvarVisao(c, r.valor));
-    return resposta.code(201).send(visao);
+    try {
+      const visao = await naEmpresa(pedido, (c) => salvarVisao(c, r.valor));
+      return resposta.code(201).send(visao);
+    } catch (erro) {
+      if (erro instanceof FiltroDeOutraEmpresa)
+        return resposta.code(404).send({ code: "NAO_ENCONTRADO", message: erro.message });
+      throw erro;
+    }
   });
 
   app.delete(

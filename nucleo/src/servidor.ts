@@ -3,7 +3,7 @@
  */
 import { randomBytes } from "node:crypto";
 import { trace } from "@opentelemetry/api";
-import Fastify, { type FastifyInstance, LogController } from "fastify";
+import Fastify, { type FastifyInstance, LogController, type RouteOptions } from "fastify";
 import type { Banco } from "./banco.ts";
 import type { Config } from "./config.ts";
 import { sobreOSistema } from "./index.ts";
@@ -27,6 +27,8 @@ export interface RespostaSaude {
 export interface OpcoesDoServidor {
   /** Para onde vão os registros. Padrão: a saída do terminal (stdout), uma linha JSON por registro. */
   destinoDosRegistros?: { write(linha: string): void };
+  /** Nos testes: cada rota registrada, desde a primeira (o teste de vazamento confere que cobre todas). */
+  aoRegistrarRota?: (rota: RouteOptions) => void;
 }
 
 export function criarServidor(
@@ -47,6 +49,7 @@ export function criarServidor(
     genReqId: () => numeroDeRastreio(),
   });
 
+  if (opcoes.aoRegistrarRota) app.addHook("onRoute", opcoes.aoRegistrarRota);
   app.addHook("onRequest", async (pedido, resposta) => {
     resposta.header("x-rastreio", pedido.id);
   });
