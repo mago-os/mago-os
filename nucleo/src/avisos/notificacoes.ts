@@ -40,6 +40,7 @@ export const TEXTO_DO_PUSH: Record<TipoDeAviso, string> = {
   aviso_de_rotina: "Novo aviso de uma rotina",
   rotina_falhou: "Uma rotina sua não conseguiu rodar",
   rotina_desligada: "Rotinas foram desligadas",
+  rotina_rodou: "Uma rotina sua rodou",
 };
 
 /**

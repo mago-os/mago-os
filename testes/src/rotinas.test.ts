@@ -466,6 +466,14 @@ describe.skipIf(!bancoDisponivel)("rotinas por horário", () => {
       prazo_dia: "2030-01-06",
       prazo_hora: "18:00:00",
     });
+    // A tarefa é para a própria dona: quem fez foi a rotina, então ela é avisada.
+    const aviso = await dono.query(
+      "select texto from avisos where pessoa_id = $1 and tipo = 'tarefa_atribuida'",
+      [ids.flora],
+    );
+    expect(aviso.rows.map((x) => x.texto)).toContain(
+      'A rotina "Relatório da sexta" criou a tarefa "Enviar o relatório" para você.',
+    );
   });
 
   it("quem pode o quê: só o dono faz agir; o administrador vê, desliga e apaga; o aviso só para quem o dono vê", async () => {
@@ -559,6 +567,7 @@ describe.skipIf(!bancoDisponivel)("rotinas por horário", () => {
         responsavel: { tipo: "pessoa", pessoaId: ids.rita },
         comoSubtarefa: true,
       },
+      avisarAoRodar: true,
     });
     expect(revisao.statusCode).toBe(201);
     ids.revisao = (revisao.json() as Rotina).id;
@@ -615,6 +624,14 @@ describe.skipIf(!bancoDisponivel)("rotinas por horário", () => {
       projeto_id: ids.blog,
       descricao: `Tarefa que disparou a rotina: /tarefas/${ids.post}`,
     });
+    // A Ana pediu "me avisar cada vez que rodar".
+    const rodou = await dono.query(
+      "select texto from avisos where pessoa_id = $1 and tipo = 'rotina_rodou'",
+      [ids.ana],
+    );
+    expect(rodou.rows.map((x) => x.texto)).toEqual([
+      'A rotina "Revisão do Blog" rodou: criou a tarefa "Revisar: Post de lançamento".',
+    ]);
     // "Toda tarefa nova" rodou para as duas tarefas da Ana, mas não para a revisão, que a rotina criou.
     const daQualquer = await dono.query<{ tarefa_do_evento_id: string }>(
       "select tarefa_do_evento_id from execucoes_de_rotina where rotina_id = $1 and situacao = 'feita'",

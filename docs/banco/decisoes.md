@@ -358,3 +358,8 @@ O login (`mago_acesso`) não lê papéis nem as regras da plataforma direto. As 
 - `da_rotina` marca o evento causado por uma rotina ou pelo agente que ela chamou: o núcleo informa `mago.da_rotina` na transação (pelo `comoRotina`), e o evento só sai da fila, sem disparar rotina.
 - `rotinas.ligada_em` separa os eventos de antes (não contam). A próxima vez (`proxima_em`) é só da rotina por horário.
 - `execucoes_de_rotina` ganhou a origem `evento`, o evento, a tarefa que disparou e o evento da fila (índice único por rotina e evento: nada roda duas vezes).
+
+## 50. Aviso da rotina (24/11/2026, pedido do Sandro)
+
+- `rotinas.avisar_ao_rodar` (desligado por padrão): o dono recebe o aviso `rotina_rodou` cada vez que a rotina roda e termina bem. A falha avisa sempre (`rotina_falhou`).
+- A tarefa que a rotina cria para o próprio dono passa a avisar o dono (`tarefa_atribuida`, com o nome da rotina): quem fez foi a rotina, não ele na tela.

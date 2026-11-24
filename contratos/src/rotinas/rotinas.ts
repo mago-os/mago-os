@@ -236,6 +236,8 @@ export const Rotina = Type.Object(
     desligadaPorque: OuNulo(MotivoDeDesligar),
     /** Teto de gasto do mês só desta rotina, em centavos de dólar (como os tetos da M4-06). Nulo: sem teto próprio. */
     tetoMensal: OuNulo(Type.Integer({ minimum: 1, maximum: 10_000_000 })),
+    /** O dono recebe um aviso cada vez que a rotina roda e termina bem (desligado por padrão; falha sempre avisa). */
+    avisarAoRodar: Type.Boolean(),
     /** A próxima vez que roda (só na ligada). */
     proximaEm: OuNulo(DataHora),
     /** Quantas vezes já rodou pelo horário (para regra.vezes). */
@@ -293,6 +295,7 @@ export const PedidoDeRotina = Type.Object(
     gatilho: GatilhoDaRotina,
     acao: AcaoDaRotina,
     tetoMensal: Type.Optional(OuNulo(Type.Integer({ minimum: 1, maximum: 10_000_000 }))),
+    avisarAoRodar: Type.Optional(Type.Boolean()),
   },
   { additionalProperties: false },
 );
@@ -312,6 +315,7 @@ export const PedidoDeEdicaoDeRotina = Type.Object(
     gatilho: Type.Optional(GatilhoDaRotina),
     acao: Type.Optional(AcaoDaRotina),
     tetoMensal: Type.Optional(OuNulo(Type.Integer({ minimum: 1, maximum: 10_000_000 }))),
+    avisarAoRodar: Type.Optional(Type.Boolean()),
   },
   { additionalProperties: false, minProperties: 1 },
 );

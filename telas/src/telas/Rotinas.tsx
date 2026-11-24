@@ -468,6 +468,7 @@ export function FormularioDaRotina({
   const [texto, setTexto] = useState(a?.tipo === "mandar_aviso" ? a.texto : "");
   const [mensagem, setMensagem] = useState<Mensagem>(null);
   const [ocupado, setOcupado] = useState(false);
+  const [avisarAoRodar, setAvisarAoRodar] = useState(inicial?.avisarAoRodar ?? false);
 
   useEffect(() => {
     if (!agenteId && internos[0]) setAgenteId(internos[0].id);
@@ -541,7 +542,7 @@ export function FormularioDaRotina({
       acao = { tipo, para, texto: texto.trim(), link: null };
     }
     if (!nome.trim()) return "Dê um nome à rotina.";
-    return { nome: nome.trim(), gatilho, acao };
+    return { nome: nome.trim(), gatilho, acao, avisarAoRodar };
   }
 
   async function salvar() {
@@ -916,6 +917,14 @@ export function FormularioDaRotina({
             </>
           )}
         </fieldset>
+        <label className="flex items-center gap-2 text-sm">
+          <input
+            type="checkbox"
+            checked={avisarAoRodar}
+            onChange={(e) => setAvisarAoRodar(e.target.checked)}
+          />
+          Me avisar cada vez que rodar (se falhar, o aviso vem sempre)
+        </label>
         {mensagem && <Aviso tipo={mensagem.tipo} texto={mensagem.texto} />}
         <div className="flex flex-wrap gap-2">
           <Button disabled={ocupado} onClick={() => void salvar()}>

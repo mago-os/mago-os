@@ -36,7 +36,7 @@ const ASSINATURAS: Record<string, string> = {
   ver_custos: "ad0af9c1bceefbcb",
   listar_rotinas: "9cf3cc76dd223a54",
   ver_rotina: "c1abcf3d68ed102a",
-  criar_rotina: "f1355f28abdc926a",
+  criar_rotina: "06fa52f6ef87e141",
   ligar_rotina: "4287c6f255c5a688",
   parar_rotina: "b7398516ad425e3b",
   criar_tarefa: "4e1e0e8b51056cfd",

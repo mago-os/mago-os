@@ -37,6 +37,11 @@ O plano pede rotinas: "quando chegar a hora, faça isto em meu nome", como o res
 15. **Auditoria.** `rotina.criou`, `rotina.editou`, `rotina.ligou`, `rotina.desligou`, `rotina.apagou`, `rotina.falhou` e, além da spec, `rotina.rodou_agora`. Nos detalhes vão ids, o tipo de ação e o motivo fixo, nunca o texto.
 16. **Tela Rotinas, no menu.** A lista mostra o nome, o que a rotina faz, quando roda, a próxima vez e um botão de ligar e desligar. O formulário pergunta "quando" e "o que fazer". A página da rotina tem "Rodar agora" e o histórico. No celular, a tela fica no menu, não na barra de baixo.
 
+## Ajustes depois do teste do Sandro (24/11/2026)
+
+- **Aviso:** a tarefa criada pela rotina avisa o responsável mesmo quando ele é o dono ("A rotina ... criou a tarefa ... para você"). E a rotina ganhou a caixa "Me avisar cada vez que rodar", desligada por padrão, com o aviso `rotina_rodou` (a falha avisa sempre).
+- **Subtarefa de mãe fechada (rotina por evento):** a rotina não cria subtarefa numa tarefa já concluída ou cancelada (a tela também não deixa); a tarefa nasce solta, no mesmo projeto, com o link da que disparou na descrição. A mãe não é reaberta (decisão do Sandro). No Kanban, a subtarefa aberta cuja mãe fechou aparece sozinha.
+
 ## O que foi descartado
 
 - **Modo de simulação completo:** o agente teria que fingir cada ferramenta (decisão 10 da spec). "Rodar agora" com a rotina desligada cumpre o papel.

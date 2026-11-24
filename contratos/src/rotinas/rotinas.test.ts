@@ -36,6 +36,7 @@ const rotina = {
   situacao: "desligada",
   desligadaPorque: "pessoa",
   tetoMensal: null,
+  avisarAoRodar: false,
   proximaEm: null,
   vezes: 0,
   criadaEm: AGORA,

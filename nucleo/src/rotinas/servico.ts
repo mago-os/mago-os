@@ -38,6 +38,7 @@ interface LinhaDaRotina {
   situacao: "ligada" | "desligada";
   desligada_porque: MotivoDeDesligar | null;
   teto_mensal: number | null;
+  avisar_ao_rodar: boolean;
   proxima_em: Date | null;
   vezes: number;
   criada_em: Date;
@@ -45,7 +46,7 @@ interface LinhaDaRotina {
 }
 
 const COLUNAS =
-  "r.id, r.empresa_id, r.dono_pessoa_id, r.criada_por_agente_id, r.nome, r.gatilho, r.acao, r.situacao, r.desligada_porque, r.teto_mensal, r.proxima_em, r.vezes, r.criada_em, r.atualizada_em";
+  "r.id, r.empresa_id, r.dono_pessoa_id, r.criada_por_agente_id, r.nome, r.gatilho, r.acao, r.situacao, r.desligada_porque, r.teto_mensal, r.avisar_ao_rodar, r.proxima_em, r.vezes, r.criada_em, r.atualizada_em";
 
 export const paraRotina = (l: LinhaDaRotina): Rotina => ({
   id: l.id,
@@ -58,6 +59,7 @@ export const paraRotina = (l: LinhaDaRotina): Rotina => ({
   situacao: l.situacao,
   desligadaPorque: l.desligada_porque,
   tetoMensal: l.teto_mensal,
+  avisarAoRodar: l.avisar_ao_rodar,
   proximaEm: l.proxima_em ? l.proxima_em.toISOString() : null,
   vezes: l.vezes,
   criadaEm: l.criada_em.toISOString(),
@@ -390,8 +392,9 @@ export async function criarRotina(
   const recusa = await recusaDaAcao(c, dono, pedido.acao);
   if (recusa) throw new RecusaDaRotina(recusa);
   const r = await c.query<LinhaDaRotina>(
-    `insert into rotinas as r (empresa_id, dono_pessoa_id, criada_por_agente_id, nome, gatilho, acao, teto_mensal)
-     values (empresa_ativa(), $1, $2, $3, $4, $5, $6) returning ${COLUNAS}`,
+    `insert into rotinas as r (empresa_id, dono_pessoa_id, criada_por_agente_id, nome, gatilho, acao, teto_mensal,
+                               avisar_ao_rodar)
+     values (empresa_ativa(), $1, $2, $3, $4, $5, $6, $7) returning ${COLUNAS}`,
     [
       dono.pessoaId,
       criadaPorAgenteId,
@@ -399,6 +402,7 @@ export async function criarRotina(
       JSON.stringify(pedido.gatilho),
       JSON.stringify(pedido.acao),
       pedido.tetoMensal ?? null,
+      pedido.avisarAoRodar ?? false,
     ],
   );
   return paraRotina(r.rows[0] as LinhaDaRotina);
@@ -441,7 +445,7 @@ export async function editarRotina(
   }
   const r = await c.query<LinhaDaRotina>(
     `update rotinas r set nome = $2, gatilho = $3, acao = $4, teto_mensal = $5, proxima_em = $6, situacao = $7,
-            desligada_porque = $8, atualizada_em = now()
+            desligada_porque = $8, avisar_ao_rodar = $9, atualizada_em = now()
       where r.id = $1 and r.empresa_id = empresa_ativa() returning ${COLUNAS}`,
     [
       rotina.id,
@@ -452,6 +456,7 @@ export async function editarRotina(
       proxima,
       situacao,
       porque,
+      pedido.avisarAoRodar ?? rotina.avisarAoRodar,
     ],
   );
   return paraRotina(r.rows[0] as LinhaDaRotina);

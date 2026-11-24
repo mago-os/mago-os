@@ -28,7 +28,7 @@ import { entregarAoAgenteInterno } from "../agentes-internos/tarefa-atribuida.ts
 import { auditar } from "../auditoria/registrar.ts";
 import { avisarDepois } from "../avisos/eventos.ts";
 import { criarAviso } from "../avisos/index.ts";
-import { pessoaVeTarefa, preferenciasDe } from "../avisos/notificacoes.ts";
+import { notificarTarefa, pessoaVeTarefa, preferenciasDe } from "../avisos/notificacoes.ts";
 import { comEmpresa, comoRotina, comPessoa } from "../empresa.ts";
 import { permissoesNaEmpresa } from "../permissoes/verificar.ts";
 import { planejar, recusaDoPlanejamento } from "../tarefas/planejamento.ts";
@@ -306,6 +306,17 @@ function preencher(ctx: Contexto, texto: string): string {
   return ctx.disparo ? texto.replaceAll(MARCADOR_DA_TAREFA, ctx.disparo.titulo) : texto;
 }
 
+/** O dono pediu "me avisar cada vez que rodar": o aviso de que rodou e terminou bem. */
+async function avisarQueRodou(c: pg.PoolClient, ctx: Contexto, oQueFez: string): Promise<void> {
+  if (!ctx.rotina.avisarAoRodar) return;
+  await criarAviso(c, {
+    pessoaId: ctx.rotina.donoPessoaId,
+    tipo: "rotina_rodou",
+    texto: `A rotina "${ctx.rotina.nome}" rodou: ${oQueFez}`,
+    link: `/rotinas/${ctx.rotina.id}`,
+  });
+}
+
 async function terminar(
   c: pg.PoolClient,
   id: string,
@@ -581,6 +592,16 @@ async function criarTarefaDaRotina(
       where id = $1 and empresa_id = empresa_ativa()`,
     [ctx.execucao.id, tarefa.id],
   );
+  // Quem fez foi a rotina, não o dono na tela: a tarefa para o próprio dono também avisa (os outros recebem o aviso
+  // de sempre, mais abaixo).
+  if (tarefa.responsavel?.tipo === "pessoa" && tarefa.responsavel.pessoaId === dono.pessoaId)
+    await notificarTarefa(c, {
+      tipo: "tarefa_atribuida",
+      tarefaId: tarefa.id,
+      texto: `A rotina "${ctx.rotina.nome}" criou a tarefa "${tarefa.titulo}" para você.`,
+      para: [dono.pessoaId],
+    });
+  else await avisarQueRodou(c, ctx, `criou a tarefa "${tarefa.titulo}".`);
   return async () => {
     await auditar(
       o.poolApp,
@@ -641,6 +662,8 @@ async function mandarAvisoDaRotina(
       where id = $1 and empresa_id = empresa_ativa()`,
     [ctx.execucao.id, avisados],
   );
+  if (!acao.para.includes(ctx.rotina.donoPessoaId))
+    await avisarQueRodou(c, ctx, avisados === 1 ? "avisou 1 pessoa." : `avisou ${avisados} pessoas.`);
   return null;
 }
 
@@ -844,7 +867,12 @@ async function conferirAgente(
   });
   if (r.situacao === "na_fila" || r.situacao === "rodando") return;
   if (r.situacao === "concluida") {
-    await comEmpresa(o.poolApp, empresaId, (c) => terminar(c, ctx.execucao.id, "feita", { custo: r.custo }));
+    await comEmpresa(o.poolApp, empresaId, async (c) => {
+      await terminar(c, ctx.execucao.id, "feita", { custo: r.custo });
+      // Com a resposta numa conversa, ela já chega ao dono; com uma tarefa, o aviso diz que terminou.
+      if (ctx.rotina.acao.tipo === "pedir_ao_agente" && ctx.rotina.acao.resultado === "tarefa")
+        await avisarQueRodou(c, ctx, "o agente terminou o trabalho na tarefa.");
+    });
     return;
   }
   const motivo = `O agente não terminou${r.resumo ? `: ${r.resumo}` : "."}`;

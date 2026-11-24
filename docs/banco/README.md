@@ -537,6 +537,7 @@ erDiagram
     timestamp_with_time_zone criada_em
     timestamp_with_time_zone atualizada_em
     timestamp_with_time_zone ligada_em
+    boolean avisar_ao_rodar
   }
   seguidores_de_tarefa {
     uuid empresa_id FK
@@ -1734,6 +1735,7 @@ Isolamento por empresa (Row Level Security): ligado e forçado.
 | criada_em | timestamp with time zone | sim | `now()` | sistema | Quando foi criada. |
 | atualizada_em | timestamp with time zone | sim | `now()` | sistema | A última mudança. |
 | ligada_em | timestamp with time zone | não |  | sistema | Quando foi ligada pela última vez (eventos de antes não a disparam). |
+| avisar_ao_rodar | boolean | sim | `false` | empresa | O dono recebe um aviso cada vez que a rotina roda e termina bem (a falha avisa sempre). |
 
 ### seguidores_de_tarefa
 

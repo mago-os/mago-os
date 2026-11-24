@@ -136,6 +136,8 @@ export const TIPOS_DE_AVISO = [
   "aviso_de_rotina",
   "rotina_falhou",
   "rotina_desligada",
+  // A rotina rodou e terminou bem (só para o dono que pediu "me avisar cada vez que rodar").
+  "rotina_rodou",
 ] as const;
 export const TipoDeAviso = Type.Enum(TIPOS_DE_AVISO);
 export type TipoDeAviso = Static<typeof TipoDeAviso>;
