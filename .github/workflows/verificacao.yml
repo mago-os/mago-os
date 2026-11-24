@@ -106,3 +106,8 @@ jobs:
         run: pnpm audit --audit-level high
       - name: Senhas e chaves esquecidas no código (gitleaks, todo o histórico)
         run: docker run --rm -v "$PWD:/repo" ghcr.io/gitleaks/gitleaks:v8.30.1 git /repo --no-banner --redact -v
+      - name: Falhas nas bibliotecas e na configuração dos containers (Trivy, graves ou críticas)
+        run: >-
+          docker run --rm -v "$PWD:/src:ro" aquasec/trivy:0.76.2 fs --quiet --scanners vuln,misconfig
+          --severity HIGH,CRITICAL --ignore-unfixed --ignorefile /src/.trivyignore.yaml --skip-dirs /src/node_modules
+          --exit-code 1 /src

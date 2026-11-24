@@ -36,7 +36,9 @@ export function NovaConta() {
   const busca = new URLSearchParams(window.location.search);
   const codigo = busca.get("codigo") ?? "";
   const erroDoGoogle = busca.get("error");
-  const [convite, setConvite] = useState<ConviteDeContaAberto | null | undefined>(undefined);
+  const [convite, setConvite] = useState<ConviteDeContaAberto | null | "muitas_tentativas" | undefined>(
+    undefined,
+  );
   const [sessao, setSessao] = useState<Sessao | null>(null);
   const [tipo, setTipo] = useState<"pj" | "pf">("pj");
   const [nomeLegal, setNomeLegal] = useState("");
@@ -57,6 +59,12 @@ export function NovaConta() {
   const volta = `/entrar?volta=${encodeURIComponent(`/nova-conta?codigo=${codigo}`)}`;
 
   if (convite === undefined) return <div className="min-h-dvh" aria-busy="true" />;
+  if (convite === "muitas_tentativas")
+    return (
+      <Moldura titulo="Muitas tentativas" descricao="Espere um minuto e abra o link do convite de novo.">
+        <Button onClick={() => window.location.reload()}>Abrir de novo</Button>
+      </Moldura>
+    );
   if (pronto)
     return (
       <Moldura

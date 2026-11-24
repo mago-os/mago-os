@@ -9,14 +9,7 @@
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <title>Mago OS</title>
-    <script>
-      // Aplica o tema escolhido antes de desenhar a página, para não piscar.
-      try {
-        const tema = localStorage.getItem("mago.tema");
-        if (tema === "claro") document.documentElement.dataset.theme = "light";
-        if (tema === "escuro") document.documentElement.dataset.theme = "dark";
-      } catch {}
-    </script>
+    <script src="/tema.js"></script>
   </head>
   <body>
     <div id="raiz"></div>

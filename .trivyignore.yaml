@@ -1,0 +1,8 @@
+# Achados do Trivy conferidos e aceitos (M6-04). Cada um com o motivo.
+misconfigurations:
+  - id: DS-0002
+    paths:
+      - "infra/vps02/db-image/Dockerfile"
+    statement: >-
+      A imagem do banco herda o entrypoint oficial do PostgreSQL, que troca para o usuário postgres antes de subir o
+      banco. O root só existe durante a montagem da imagem.

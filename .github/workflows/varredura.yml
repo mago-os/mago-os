@@ -1,0 +1,35 @@
+# Varredura do teste pelo OWASP ZAP no modo básico (M6-04, decisão 9 da spec do M6). Roda depois de cada publicação
+# no teste, toda segunda e quando alguém pedir. Só olha (não ataca): cabeçalhos de segurança, cookies e o que o site
+# mostra. As regras de .zap/regras.tsv dizem o que falha a varredura e o que foi conferido e aceito.
+name: Varredura do teste
+
+on:
+  workflow_run:
+    workflows: ["Publicação no teste"]
+    types: [completed]
+  schedule:
+    - cron: "30 9 * * 1" # segunda, 06:30 em Brasília
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  zap:
+    name: OWASP ZAP no teste
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - name: Varredura básica de teste.osmago.com
+        run: |
+          mkdir -p zap && chmod 777 zap && cp .zap/regras.tsv zap/
+          docker run --rm -v "$PWD/zap:/zap/wrk:rw" ghcr.io/zaproxy/zaproxy:2.17.0 \
+            zap-baseline.py -t https://teste.osmago.com -m 2 -c regras.tsv -r relatorio.html -I
+      - name: Guardar o relatório
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: relatorio-zap
+          path: zap/relatorio.html

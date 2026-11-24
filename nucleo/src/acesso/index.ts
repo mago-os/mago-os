@@ -2,6 +2,7 @@ export * from "./aparelhos.ts";
 export * from "./carteiro.ts";
 export * from "./desligar-dois-fatores.ts";
 export * from "./dois-fatores.ts";
+export * from "./limite-de-pedidos.ts";
 export * from "./link-de-senha.ts";
 export * from "./login.ts";
 export * from "./rotas.ts";

@@ -18,6 +18,8 @@ Como publicar, voltar uma versão, restaurar o backup, trocar chaves e o que faz
 | Anexos: depósito, antivírus, CORS, espaço e o que fazer se falhar | [anexos.md](anexos.md) | Já existe |
 | Cofre das contas de IA: a chave mestra, como ligar e como trocar | [cofre.md](cofre.md) | Já existe |
 | Rastreio e registros: achar um pedido pelo número, o que sai do servidor, painel e alertas | [rastreio.md](rastreio.md) | Já existe |
+| Plano de incidente: vazamento, invasão, chave vazada, conta tomada e a troca de cada chave | [incidente.md](incidente.md) | Já existe |
+| Revisão de segurança da Fase 1: a situação de cada item e os achados | [revisao-de-seguranca-fase-1.md](revisao-de-seguranca-fase-1.md) | Já existe |
 
 ## Regras que valem sempre
 

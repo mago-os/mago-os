@@ -110,6 +110,17 @@ export function criarServidor(
     else pronto();
   });
 
+  // Erro do sistema (M6-04): a pessoa recebe uma mensagem genérica com o número de rastreio (no cabeçalho), e o
+  // detalhe (uma mensagem do banco, por exemplo) fica só no registro. Os erros do pedido (4xx) seguem como estão.
+  app.setErrorHandler((erro: { statusCode?: number; code?: string; message?: string }, pedido, resposta) => {
+    const status = typeof erro.statusCode === "number" && erro.statusCode >= 400 ? erro.statusCode : 500;
+    if (status < 500) return resposta.code(status).send(erro);
+    pedido.log.error({ erro }, "Erro do sistema no pedido");
+    return resposta
+      .code(status)
+      .send({ code: "ERRO_INTERNO", message: "Algo deu errado do nosso lado. Tente de novo em instantes." });
+  });
+
   app.get("/saude", async (_pedido, resposta): Promise<RespostaSaude> => {
     const bancoOk = await banco.estaSaudavel();
     resposta.code(bancoOk ? 200 : 503);

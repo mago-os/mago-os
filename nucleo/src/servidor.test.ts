@@ -59,3 +59,33 @@ describe("número de rastreio", () => {
     }
   });
 });
+
+describe("erro do sistema (M6-04)", () => {
+  it("não mostra o detalhe do erro (ele fica no registro) e mantém o número de rastreio", async () => {
+    const linhas: string[] = [];
+    const app = criarServidor({ nivelRegistro: "error", ambiente: "local" }, bancoFalso(true), {
+      destinoDosRegistros: { write: (l) => linhas.push(l) },
+    });
+    app.get("/quebra", async () => {
+      throw new Error('duplicate key value violates unique constraint "pessoas_email_key"');
+    });
+    app.post("/eco", async (pedido) => pedido.body);
+    const r = await app.inject({ method: "GET", url: "/quebra" });
+    expect(r.statusCode).toBe(500);
+    expect(r.json()).toEqual({
+      code: "ERRO_INTERNO",
+      message: "Algo deu errado do nosso lado. Tente de novo em instantes.",
+    });
+    expect(r.body).not.toContain("pessoas_email_key");
+    expect(r.headers["x-rastreio"]).toMatch(/^[0-9a-f]{32}$/);
+    expect(linhas.join("")).toContain("pessoas_email_key");
+    // O erro do pedido (JSON quebrado) continua dizendo o que houve.
+    const quebrado = await app.inject({
+      method: "POST",
+      url: "/eco",
+      headers: { "content-type": "application/json" },
+      payload: "{",
+    });
+    expect(quebrado.statusCode).toBe(400);
+  });
+});

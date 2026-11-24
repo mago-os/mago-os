@@ -2,6 +2,7 @@ import tailwindcss from "@tailwindcss/vite";
 import react from "@vitejs/plugin-react";
 import { defineConfig } from "vite";
 import { VitePWA } from "vite-plugin-pwa";
+import { CABECALHOS_DE_SEGURANCA } from "./cabecalhos-de-seguranca";
 
 // A tela chama a API sempre em /api. No Mac, o Vite repassa para o núcleo (porta 3000);
 // em teste e produção, o Caddy faz o mesmo (M0-10).
@@ -44,5 +45,6 @@ export default defineConfig({
   ],
   server: { host: "127.0.0.1", port: 5173, proxy: { "/api": proxyDaApi } },
   // A prévia da versão construída (usada nos testes de tela) repassa /api do mesmo jeito.
-  preview: { host: "127.0.0.1", port: 4173, proxy: { "/api": proxyDaApi } },
+  // Com os mesmos cabeçalhos de segurança do Caddy (M6-04), para os testes de tela rodarem com eles.
+  preview: { host: "127.0.0.1", port: 4173, proxy: { "/api": proxyDaApi }, headers: CABECALHOS_DE_SEGURANCA },
 });

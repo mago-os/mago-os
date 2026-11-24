@@ -2,7 +2,13 @@
  * Convites e desligamento (M1-07), de ponta a ponta: o administrador convida, o convidado abre o link e aceita,
  * e o desligamento corta o acesso na hora. O carteiro é falso: guarda os e-mails para o teste ler o link.
  */
-import { criarLogin, criarPoolDoLogin, embaralharSenha, registrarRotasDoLogin } from "@mago-os/nucleo/acesso";
+import {
+  apagarLimitesAntigos,
+  criarLogin,
+  criarPoolDoLogin,
+  embaralharSenha,
+  registrarRotasDoLogin,
+} from "@mago-os/nucleo/acesso";
 import { type BancoTemporario, criarBancoTemporario } from "@mago-os/nucleo/banco-temporario";
 import { registrarRotasDaConta } from "@mago-os/nucleo/conta";
 import { CONVITES_POR_HORA, registrarRotasDosConvites } from "@mago-os/nucleo/convites";
@@ -380,5 +386,36 @@ describe.skipIf(!bancoDisponivel)("convites e desligamento", () => {
       perfil: "funcionario",
     });
     expect(r.statusCode).toBe(429);
+  });
+
+  it("as rotas públicas do convite têm limite de pedidos por endereço (M6-04)", async () => {
+    const tentar = () =>
+      app.inject({
+        method: "GET",
+        url: `/acesso/convite/${"0".repeat(43)}`,
+        headers: { origin: SITE, "x-forwarded-for": "198.18.250.7" },
+      });
+    for (let i = 0; i < 20; i++) expect((await tentar()).statusCode).toBe(404);
+    const recusado = await tentar();
+    expect(recusado.statusCode).toBe(429);
+    expect(Number(recusado.headers["retry-after"])).toBeGreaterThan(0);
+    expect(Number(recusado.headers["retry-after"])).toBeLessThanOrEqual(60);
+    // Outro endereço continua normal.
+    const outro = await app.inject({
+      method: "GET",
+      url: `/acesso/convite/${"0".repeat(43)}`,
+      headers: { origin: SITE, "x-forwarded-for": "198.18.250.8" },
+    });
+    expect(outro.statusCode).toBe(404);
+    // Insistir durante a recusa não estica a espera (a janela é fixa), e a contagem velha é apagada no dia seguinte.
+    const depois = await poolAcesso.query<{ ultimo_pedido: string }>(
+      "select ultimo_pedido from acesso.limites where chave = 'mago:convite:198.18.250.7'",
+    );
+    for (let i = 0; i < 3; i++) await tentar();
+    const mesmo = await poolAcesso.query<{ ultimo_pedido: string }>(
+      "select ultimo_pedido from acesso.limites where chave = 'mago:convite:198.18.250.7'",
+    );
+    expect(mesmo.rows[0]?.ultimo_pedido).toBe(depois.rows[0]?.ultimo_pedido);
+    expect(await apagarLimitesAntigos(poolAcesso, Date.now() + 2 * 86_400_000)).toBeGreaterThan(0);
   });
 });

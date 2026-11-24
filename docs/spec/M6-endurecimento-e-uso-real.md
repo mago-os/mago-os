@@ -50,13 +50,15 @@ Pronto quando: o Sandro copia o número de rastreio de um erro na tela, cola no 
 
 Precisa da aprovação do Sandro (segurança).
 
-- [ ] Revisão de cada item da "Revisão de segurança" do plano (aprovada em 10/11/2026) e das 41 decisões técnicas, com a situação de cada um: feito, falta ou fica para a Fase 2 com motivo. O resultado vira `docs/operacao/revisao-de-seguranca-fase-1.md`
-- [ ] Varredura automática na verificação (decisão 9): OWASP ZAP no modo básico contra o teste, segredos esquecidos no histórico do Git (gitleaks), dependências (`pnpm audit`, que já roda) e a imagem do container (Trivy)
-- [ ] Cabeçalhos de segurança conferidos e com teste: CSP sem `unsafe-inline` nos scripts, HSTS, sem o site dentro de outro (frame), cookies `Secure`, `HttpOnly` e `SameSite`
-- [ ] Limites de pedidos conferidos em todas as rotas que aceitam senha, código, convite, webhook e campainha
-- [ ] O que for grave ou alto é corrigido antes da M6-05; médio e baixo viram cartões com prazo
-- [ ] **Plano de incidente** (`docs/operacao/incidente.md`, decisão 8): o que fazer em vazamento de dados, invasão do servidor, chave vazada e conta do Sandro tomada. Inclui quem avisar, a comunicação à ANPD e aos titulares em até 3 dias úteis, o "Parar todos os agentes", a troca de todas as chaves de uma vez (com o roteiro testado) e onde fica cada coisa
-- [ ] Ensaio do plano no teste: troca de todas as chaves do teste com o roteiro, sem o sistema cair mais de 5 minutos
+- [x] Revisão de cada item da "Revisão de segurança" do plano (aprovada em 10/11/2026) e das 41 decisões técnicas, com a situação de cada um: feito, falta ou fica para a Fase 2 com motivo. O resultado vira `docs/operacao/revisao-de-seguranca-fase-1.md`
+- [x] Varredura automática na verificação (decisão 9): OWASP ZAP no modo básico contra o teste, segredos esquecidos no histórico do Git (gitleaks), dependências (`pnpm audit`, que já roda) e a imagem do container (Trivy)
+- [x] Cabeçalhos de segurança conferidos e com teste: CSP sem `unsafe-inline` nos scripts, HSTS, sem o site dentro de outro (frame), cookies `Secure`, `HttpOnly` e `SameSite`
+- [x] Limites de pedidos conferidos em todas as rotas que aceitam senha, código, convite, webhook e campainha
+- [x] O que for grave ou alto é corrigido antes da M6-05; médio e baixo viram cartões com prazo
+- [x] **Plano de incidente** (`docs/operacao/incidente.md`, decisão 8): o que fazer em vazamento de dados, invasão do servidor, chave vazada e conta do Sandro tomada. Inclui quem avisar, a comunicação à ANPD e aos titulares em até 3 dias úteis, o "Parar todos os agentes", a troca de todas as chaves de uma vez (com o roteiro testado) e onde fica cada coisa
+- [x] Ensaio do plano no teste: troca de todas as chaves do teste com o roteiro, sem o sistema cair mais de 5 minutos
+
+Feito em 24/11/2026: revisão em `docs/operacao/revisao-de-seguranca-fase-1.md` (nada grave ou alto aberto; dois altos achados e corrigidos), plano em `docs/operacao/incidente.md` e ensaio da troca de chaves no teste sem queda. A varredura do ZAP roda depois de cada publicação no teste e toda segunda (não em cada PR, porque o PR ainda não está no ar); o Trivy roda em cada PR e antes de cada publicação. A troca das chaves que dependem do Sandro (bot, Google, Resend, Backblaze) ficou escrita, sem ensaio.
 
 Pronto quando: a revisão está escrita, nada grave ou alto está aberto, a varredura roda em cada PR e o ensaio de troca de chaves no teste deu certo.
 

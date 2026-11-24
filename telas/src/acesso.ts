@@ -432,8 +432,20 @@ export interface ConviteAberto {
   temConta: boolean;
 }
 
+/** Abre um convite: nulo quando não vale; "muitas_tentativas" quando o endereço passou do limite (M6-04). */
+async function lerConvite<T>(caminho: string): Promise<T | null | "muitas_tentativas"> {
+  try {
+    const r = await fetch(`/api${caminho}`, { credentials: "same-origin" });
+    conferirErroDoSistema(r);
+    if (r.status === 429) return "muitas_tentativas";
+    return r.ok ? ((await r.json()) as T) : null;
+  } catch {
+    return null;
+  }
+}
+
 export const abrirConvite = (codigo: string) =>
-  lerConta<ConviteAberto>(`/acesso/convite/${encodeURIComponent(codigo)}`);
+  lerConvite<ConviteAberto>(`/acesso/convite/${encodeURIComponent(codigo)}`);
 export const aceitarConvite = (codigo: string, senha?: string) =>
   enviarConta("POST", "/acesso/convite/aceitar", senha ? { codigo, senha } : { codigo });
 
@@ -484,7 +496,7 @@ export interface DadosDaNovaConta {
 }
 
 export const abrirConviteDeConta = (codigo: string) =>
-  lerConta<ConviteDeContaAberto>(`/acesso/convite-de-empresa/${encodeURIComponent(codigo)}`);
+  lerConvite<ConviteDeContaAberto>(`/acesso/convite-de-empresa/${encodeURIComponent(codigo)}`);
 export const criarContaPeloConvite = (codigo: string, conta: DadosDaNovaConta, senha?: string) =>
   enviarConta(
     "POST",

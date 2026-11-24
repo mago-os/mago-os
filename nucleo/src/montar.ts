@@ -8,6 +8,7 @@ import { symmetricDecrypt } from "better-auth/crypto";
 import type { FastifyInstance, RouteOptions } from "fastify";
 import type { PgBoss } from "pg-boss";
 import { carteiroDoLog, carteiroResend } from "./acesso/carteiro.ts";
+import { apagarLimitesAntigos } from "./acesso/limite-de-pedidos.ts";
 import { criarLogin, type criarPoolDoLogin } from "./acesso/login.ts";
 import { registrarRotasDoLogin } from "./acesso/rotas.ts";
 import { cuidarDosAlertasDaAgenda, registrarRotasDaAgenda } from "./agenda/index.ts";
@@ -94,6 +95,7 @@ const FILA_ROTINAS = "rotinas";
 /** Agenda (M5-07): a cada minuto, os alertas dos eventos. */
 const FILA_AGENDA = "agenda";
 const FILA_PASSOS_ANTIGOS = "passos-antigos";
+const FILA_LIMITES_ANTIGOS = "limites-antigos";
 /** Fila dos anexos (M3-08): antivírus, envios parados e arquivos para apagar. A cada minuto, e na hora do envio. */
 const FILA_ANEXOS = "anexos";
 /** Aviso de espaço dos anexos (conta gratuita do Backblaze): uma vez por dia. */
@@ -333,6 +335,15 @@ export async function montarApi(config: Config, deps: DependenciasDaApi): Promis
         },
       );
       // Todo dia, às 4h (UTC): os passos com mais de 90 dias são apagados (M4-07).
+      // Todo dia, às 4h10 (UTC): as contagens de pedidos com mais de um dia são apagadas (M6-04; a chave tem o IP).
+      await fila.createQueue(FILA_LIMITES_ANTIGOS);
+      await fila.schedule(FILA_LIMITES_ANTIGOS, "10 4 * * *");
+      await fila.work(FILA_LIMITES_ANTIGOS, () =>
+        continuarRastreio(null, FILA_LIMITES_ANTIGOS, async () => {
+          const n = await apagarLimitesAntigos(poolDoLogin);
+          if (n > 0) app.log.info({ evento: "limites.apagados", n }, "Contagens de pedidos antigas apagadas");
+        }),
+      );
       await fila.createQueue(FILA_PASSOS_ANTIGOS);
       await fila.schedule(FILA_PASSOS_ANTIGOS, "0 4 * * *");
       await fila.work(FILA_PASSOS_ANTIGOS, () =>
