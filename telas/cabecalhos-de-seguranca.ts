@@ -7,6 +7,7 @@
  * - Estilo inline permitido (os componentes usam o atributo style); nada de folha de estilo de fora.
  * - Imagens do site, de data:/blob: e de https (a foto do Google e a prévia dos anexos).
  * - Conexões com a própria API (inclusive o WebSocket) e com o Backblaze (o envio dos anexos vai direto para lá).
+ *   Trocar o depósito dos anexos (MAGO_ANEXOS_ENDPOINT) para outro serviço exige pôr o endereço dele aqui também.
  * - O site não abre dentro de outro (contra clique enganado) e não usa câmera, microfone nem localização.
  */
 export const POLITICA_DE_CONTEUDO = [

@@ -47,9 +47,8 @@ jobs:
           context: .
           push: true
           build-args: MAGO_VERSAO=${{ env.VERSAO }}
-          tags: |
-            ${{ env.IMAGEM }}:${{ env.VERSAO }}
-            ${{ env.IMAGEM }}:teste
+          # Só a tag da versão: a VPS baixa a ":teste", que só passa a apontar para esta imagem depois da conferência.
+          tags: ${{ env.IMAGEM }}:${{ env.VERSAO }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
@@ -59,6 +58,9 @@ jobs:
           docker run --rm -v "$HOME/.docker:/root/.docker:ro"
           aquasec/trivy:0.76.2 image --quiet --severity CRITICAL --ignore-unfixed --exit-code 1
           "$IMAGEM:$VERSAO"
+
+      - name: Marcar a imagem conferida como a do teste
+        run: docker buildx imagetools create --tag "$IMAGEM:teste" "$IMAGEM:$VERSAO"
 
       - name: Tocar a campainha da VPS02
         env:

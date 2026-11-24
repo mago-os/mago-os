@@ -23,7 +23,7 @@ export function AceitarConvite() {
   const busca = new URLSearchParams(window.location.search);
   const codigo = busca.get("codigo") ?? "";
   const erroDoGoogle = busca.get("error");
-  const [convite, setConvite] = useState<ConviteAberto | null | undefined>(undefined);
+  const [convite, setConvite] = useState<ConviteAberto | null | "muitas_tentativas" | undefined>(undefined);
   const [sessao, setSessao] = useState<Sessao | null>(null);
   const [aviso, setAviso] = useState<{ texto: string; tipo: "erro" | "ok" } | null>(
     erroDoGoogle ? { tipo: "erro", texto: mensagemDoErro(erroDoGoogle) } : null,
@@ -41,6 +41,12 @@ export function AceitarConvite() {
   const volta = `/entrar?volta=${encodeURIComponent(`/convite?codigo=${codigo}`)}`;
 
   if (convite === undefined) return <div className="min-h-dvh" aria-busy="true" />;
+  if (convite === "muitas_tentativas")
+    return (
+      <Moldura titulo="Muitas tentativas" descricao="Espere um minuto e abra o link do convite de novo.">
+        <Button onClick={() => window.location.reload()}>Abrir de novo</Button>
+      </Moldura>
+    );
   if (convite === null && !pronto)
     return (
       <Moldura

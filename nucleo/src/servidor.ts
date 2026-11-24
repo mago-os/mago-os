@@ -114,11 +114,7 @@ export function criarServidor(
   // detalhe (uma mensagem do banco, por exemplo) fica só no registro. Os erros do pedido (4xx) seguem como estão.
   app.setErrorHandler((erro: { statusCode?: number; code?: string; message?: string }, pedido, resposta) => {
     const status = typeof erro.statusCode === "number" && erro.statusCode >= 400 ? erro.statusCode : 500;
-    if (status < 500) {
-      return resposta
-        .code(status)
-        .send({ code: erro.code ?? "PEDIDO_INVALIDO", message: erro.message ?? "" });
-    }
+    if (status < 500) return resposta.code(status).send(erro);
     pedido.log.error({ erro }, "Erro do sistema no pedido");
     return resposta
       .code(status)
