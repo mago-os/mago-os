@@ -52,7 +52,7 @@ Pronto quando: o Sandro cria uma tarefa e aprova um pedido pelo Telegram, e uma 
 
 Detalhado em [M6-endurecimento-e-uso-real.md](M6-endurecimento-e-uso-real.md) (proposta de 24/11/2026), com uma tarefa a mais: M6-05b (DNS, bot, login com Google, avisos e a primeira empresa).
 
-Pronto quando: a Nolask usa o Mago OS no dia a dia em app.osmago.com.
+Pronto quando: a 4xpert usa o Mago OS no dia a dia em app.osmago.com.
 
 | Número | Tarefa |
 | --- | --- |
@@ -61,4 +61,4 @@ Pronto quando: a Nolask usa o Mago OS no dia a dia em app.osmago.com.
 | M6-03 | Teste de restauração do backup |
 | M6-04 | Revisão de segurança da Fase 1 e plano de incidente |
 | M6-05 | Ambiente de produção em app.osmago.com (DNS só com aprovação escrita do Sandro) |
-| M6-06 | Início do uso pela Nolask e ajustes |
+| M6-06 | Início do uso pela 4xpert e ajustes |

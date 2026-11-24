@@ -2,7 +2,7 @@
 
 Parte da [spec da Fase 1](README.md). Estado em 24/11/2026: **proposta**, aguardando a aprovação do Sandro. Ajustada em 24/11/2026 com a escolha dele: a produção roda na própria VPS02, ao lado do teste e da Ratoeira, e o backup fica na conta grátis do Backblaze, sem contratar nada novo.
 
-**Pronto quando:** a Nolask usa o Mago OS no dia a dia em app.osmago.com. O Sandro entra em app.osmago.com com senha e 2FA, convida a equipe, cria os projetos e as tarefas da semana, fala com o coordenador pelo bot do Telegram de produção e liga o Hermes pelo MCP de produção. Por baixo, os testes provam que nenhuma rota, ferramenta de agente, busca, anexo, aviso ou canal deixa uma empresa ver a outra; o número de rastreio de um erro leva ao caminho inteiro do pedido; a produção é remontada do zero a partir do backup, num lugar separado dela, com o tempo medido; a revisão de segurança não tem nada grave aberto; e o plano de incidente está escrito e ensaiado. Nenhuma publicação em produção acontece sem o clique do Sandro.
+**Pronto quando:** a 4xpert usa o Mago OS no dia a dia em app.osmago.com. O Sandro entra em app.osmago.com com senha e 2FA, convida a equipe, cria os projetos e as tarefas da semana, fala com o coordenador pelo bot do Telegram de produção e liga o Hermes pelo MCP de produção. Por baixo, os testes provam que nenhuma rota, ferramenta de agente, busca, anexo, aviso ou canal deixa uma empresa ver a outra; o número de rastreio de um erro leva ao caminho inteiro do pedido; a produção é remontada do zero a partir do backup, num lugar separado dela, com o tempo medido; a revisão de segurança não tem nada grave aberto; e o plano de incidente está escrito e ensaiado. Nenhuma publicação em produção acontece sem o clique do Sandro.
 
 | Número | Tarefa | Depende de | Tamanho |
 | --- | --- | --- | --- |
@@ -12,7 +12,7 @@ Parte da [spec da Fase 1](README.md). Estado em 24/11/2026: **proposta**, aguard
 | M6-05 | Ambiente de produção: servidor, contas separadas e publicação com aprovação | M6-04 | M |
 | M6-05b | app.osmago.com no ar: DNS, bot, login com Google, avisos e a primeira empresa (proposta nova, decisão 5) | M6-05 | P |
 | M6-03 | Restauração do backup e remontagem da produção do zero | M6-05 | M |
-| M6-06 | Início do uso pela Nolask e ajustes | M6-05b | M |
+| M6-06 | Início do uso pela 4xpert e ajustes | M6-05b | M |
 
 A ordem da tabela é a ordem de construção. A M6-04 vem antes da produção para que os problemas encontrados sejam corrigidos antes de existir dado real. A M6-03 vem depois da M6-05 porque o ensaio que importa é o da produção. A M6-05b é proposta nova: a M6-05 original juntava o servidor, a publicação, as contas de fora e o DNS, e ficou grande demais (decisão 5).
 
@@ -79,7 +79,7 @@ Precisa da aprovação escrita do Sandro (DNS).
 - [ ] Cliente OAuth "Mago OS" do Google para app.osmago.com, com o app publicado (só nome, e-mail e foto, que não pedem verificação do Google)
 - [ ] Remetente de e-mail de produção no Resend (o mesmo domínio, chave própria do ambiente `prod`)
 - [ ] Vigias da produção no Uptime Kuma da VPS01 (API, tela, backup, restauração, auditoria), avisando no Telegram do Sandro
-- [ ] Primeira empresa da produção: Nolask (decisão 7), com o Sandro como Dono da plataforma e administrador, 2FA obrigatório para administradores desde o primeiro acesso
+- [ ] Primeira empresa da produção: 4xpert (decisão 7), com o Sandro como Dono da plataforma e administrador, 2FA obrigatório para administradores desde o primeiro acesso
 - [ ] O MCP de produção em app.osmago.com/mcp, e o guia dos agentes externos atualizado (cada agente ganha chave nova; as do teste não valem na produção)
 
 Pronto quando: o Sandro entra em app.osmago.com, com senha ou Google e o 2FA, vincula o Telegram ao bot de produção e conversa com o coordenador.
@@ -96,15 +96,15 @@ O teste de restauração do banco já roda toda segunda no teste (M0-11). Esta t
 
 Pronto quando: a produção foi remontada do zero a partir do backup, com o tempo medido e anotado no manual, e os containers do ensaio foram apagados.
 
-### M6-06 Início do uso pela Nolask e ajustes
+### M6-06 Início do uso pela 4xpert e ajustes
 
-- [ ] Começo com a empresa vazia (decisão 11): o Sandro convida a equipe da Nolask, cria os espaços e os projetos, e as tarefas abertas entram à mão ou pelo coordenador
-- [ ] Agentes da Nolask na produção: coordenador e especialistas com as contas de IA da Nolask no cofre, os tetos de gasto definidos pelo Sandro, e o Hermes ligado pelo MCP de produção
+- [ ] Começo com a empresa vazia (decisão 11): o Sandro convida a equipe da 4xpert, cria os espaços e os projetos, e as tarefas abertas entram à mão ou pelo coordenador
+- [ ] Agentes da 4xpert na produção: coordenador e especialistas com as contas de IA da 4xpert no cofre, os tetos de gasto definidos pelo Sandro, e o Hermes ligado pelo MCP de produção
 - [ ] Duas semanas de uso de verdade, com uma lista de ajustes no quadro (cartões "M6-06: ..."). Ajuste pequeno entra direto, com PR e o "ok" do Sandro; mudança de escopo vai para a Fase 2 com a aprovação dele
 - [ ] O teste.osmago.com continua só com dados falsos, como lugar de conferir cada mudança antes da produção
 - [ ] Ao fim das duas semanas, um resumo para o Sandro: o que foi usado, o que deu problema, o custo do mês (servidor, IA e contas), o uso de memória da VPS02 e do espaço do Backblaze, e o que propor para a Fase 2 (inclusive se já é hora de uma VPS própria)
 
-Pronto quando: a equipe da Nolask usa o Mago OS em app.osmago.com por duas semanas, e o Sandro dá a Fase 1 por concluída.
+Pronto quando: a equipe da 4xpert usa o Mago OS em app.osmago.com por duas semanas, e o Sandro dá a Fase 1 por concluída.
 
 ## Decisões para o Sandro
 
@@ -114,9 +114,9 @@ Pronto quando: a equipe da Nolask usa o Mago OS em app.osmago.com por duas seman
 4. **Contas separadas.** Recomendado: produção com tudo próprio (Infisical `prod`, buckets de backup e de anexos, chave do cofre, chaves de push, bot do Telegram e cliente do Google). **Decidido pelo Sandro em 24/11/2026:** o Backblaze continua na conta grátis (hoje usamos cerca de 1,4 GB de 10), e o Google Drive pago dele entra depois como cópia extra do backup (cartão #176).
 5. **A M6-05 vira duas.** Recomendado: M6-05 (servidor, contas e publicação) e M6-05b (DNS, bot, Google, avisos e a primeira empresa), porque a segunda depende do seu "ok" escrito para o DNS e de contas que você cria. Alternativa: manter uma tarefa só, maior.
 6. **Como se publica em produção.** Recomendado: o teste continua automático; a produção recebe só uma versão que já passou pelo teste, e só quando você aprova no GitHub (um botão "Approve and deploy" que chega por e-mail e no app do GitHub), com backup antes e volta sozinha se a saúde falhar. Eu nunca publico em produção sem esse clique. Alternativa: você escreve "publica em produção" no chat e eu disparo (mais simples, mas sem a trava do próprio GitHub).
-7. **Primeira empresa da produção.** Recomendado: a Nolask, como estava na spec do M1 (no teste a primeira foi a 4xpert). As suas outras empresas entram depois, pelo comando de início ou pelo convite. Alternativa: já criar todas as suas empresas no primeiro dia.
+7. **Primeira empresa da produção. Decidido pelo Sandro em 24/11/2026:** a 4xpert, a primeira a usar de verdade como cliente (a mesma que abriu o teste). As outras empresas dele entram depois, pelo comando de início ou pelo convite.
 8. **Plano de incidente.** Recomendado: um passo a passo curto para os quatro casos (vazamento, invasão, chave vazada e conta tomada), com o aviso à ANPD e às pessoas afetadas em até 3 dias úteis, como manda a regra da ANPD, e o roteiro de troca de todas as chaves ensaiado no teste.
-9. **Teste de invasão.** Recomendado: na Fase 1, a revisão completa mais as varreduras automáticas (ZAP, gitleaks, Trivy e as dependências), sem contratar empresa de fora. O teste de invasão pago fica para antes de vender para o primeiro cliente de fora. Alternativa: contratar agora (mais seguro, mas custa e atrasa o uso pela Nolask).
+9. **Teste de invasão.** Recomendado: na Fase 1, a revisão completa mais as varreduras automáticas (ZAP, gitleaks, Trivy e as dependências), sem contratar empresa de fora. O teste de invasão pago fica para antes de vender para o primeiro cliente de fora. Alternativa: contratar agora (mais seguro, mas custa e atrasa o uso pela 4xpert).
 10. **Apagar uma empresa e exportar os dados.** Recomendado: na Fase 1, só um procedimento escrito para o Dono, rodado por comando, que exporta tudo e apaga a empresa (com a chave de dados do cofre junto). A tela fica para a Fase 2, com a LGPD completa. Alternativa: fazer a tela já no M6.
-11. **Dados da Nolask no começo.** Recomendado: começar com a empresa vazia e trazer as tarefas abertas à mão ou pelo coordenador, sem importar de outra ferramenta (a importação está no plano da Fase 2). Se a Nolask hoje usa uma ferramenta com muitas tarefas abertas, me diga qual, e eu vejo se vale uma importação simples só dela.
+11. **Dados da 4xpert no começo.** Recomendado: começar com a empresa vazia e trazer as tarefas abertas à mão ou pelo coordenador, sem importar de outra ferramenta (a importação está no plano da Fase 2). Se a 4xpert hoje usa uma ferramenta com muitas tarefas abertas, me diga qual, e eu vejo se vale uma importação simples só dela.
 12. **Ensaio de desastre e anexos.** Recomendado (sem contratar nada, como o Sandro pediu): remontar a produção do zero em containers à parte na própria VPS02, de madrugada, com a meta de 4 horas e no máximo 5 minutos de dados perdidos, e o bucket de anexos guardando por 30 dias o que for apagado, para um anexo apagado por engano voltar. O ensaio num servidor novo e vazio fica para quando houver uma VPS própria.
