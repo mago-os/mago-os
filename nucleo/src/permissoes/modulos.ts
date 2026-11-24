@@ -66,6 +66,15 @@ export const MODULOS_DO_NUCLEO: readonly DeclaracaoDeModulo[] = [
     temDadosSensiveis: false,
     area: null,
   },
+  // Agenda (M5-07, decisão 0041): todos criam; o alcance de "ver" diz quem vê o evento inteiro (o administrador todos,
+  // o gestor os da equipe, os outros os em que estão); editar e cancelar os dos outros, só o administrador.
+  {
+    id: "agenda",
+    nome: "Agenda",
+    acoes: ["ver", "criar", "editar"],
+    temDadosSensiveis: false,
+    area: null,
+  },
   // Rotinas (M5-05, decisão 0039): todos criam as próprias; o administrador vê, desliga e apaga todas; o gestor vê as
   // da equipe. Só o dono edita, liga e roda (conferido nas rotas).
   {

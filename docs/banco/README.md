@@ -58,6 +58,14 @@ erDiagram
     uuid feito_por FK
     timestamp_with_time_zone feito_em
   }
+  alertas_de_evento {
+    uuid empresa_id FK
+    uuid evento_id PK
+    uuid pessoa_id PK
+    timestamp_with_time_zone inicio_da_ocorrencia PK
+    integer minutos PK
+    timestamp_with_time_zone enviado_em
+  }
   anexos {
     uuid id PK
     uuid empresa_id FK
@@ -302,6 +310,33 @@ erDiagram
     uuid tarefa_id PK
     uuid etiqueta_id PK
   }
+  eventos {
+    uuid id PK
+    uuid empresa_id FK
+    text titulo
+    text descricao
+    date inicio_dia
+    time_without_time_zone inicio_hora
+    date fim_dia
+    time_without_time_zone fim_hora
+    boolean dia_inteiro
+    text fuso
+    timestamp_with_time_zone inicio_em
+    timestamp_with_time_zone fim_em
+    text local
+    text link
+    uuid criado_por
+    uuid criado_por_agente_id
+    uuid tarefa_id
+    uuid projeto_id
+    jsonb regra
+    uuid serie_id
+    date ocorrencia_original
+    text situacao
+    integer[] alertas
+    timestamp_with_time_zone criado_em
+    timestamp_with_time_zone atualizado_em
+  }
   eventos_para_rotinas {
     uuid id PK
     uuid empresa_id FK
@@ -447,6 +482,13 @@ erDiagram
     boolean da_plataforma
     timestamp_with_time_zone parada_em
     timestamp_with_time_zone retomada_em
+  }
+  participantes_de_evento {
+    uuid empresa_id FK
+    uuid evento_id PK
+    uuid pessoa_id PK
+    text resposta
+    timestamp_with_time_zone respondeu_em
   }
   passos_de_execucao {
     uuid id PK
@@ -813,6 +855,7 @@ erDiagram
   empresas ||--o{ ajustes_de_permissao : "empresa_id"
   vinculos ||--o{ ajustes_de_permissao : "vinculo_id"
   pessoas ||--o{ ajustes_de_permissao : "feito_por"
+  empresas ||--o{ alertas_de_evento : "empresa_id"
   empresas ||--o{ anexos : "empresa_id"
   empresas ||--o{ aprovacoes : "empresa_id"
   empresas ||--o{ aprovacoes_no_telegram : "empresa_id"
@@ -835,6 +878,7 @@ erDiagram
   empresas ||--o{ estados_de_prioridade : "empresa_id"
   empresas ||--o{ etiquetas : "empresa_id"
   empresas ||--o{ etiquetas_de_tarefa : "empresa_id"
+  empresas ||--o{ eventos : "empresa_id"
   empresas ||--o{ eventos_para_rotinas : "empresa_id"
   empresas ||--o{ execucoes_de_agente : "empresa_id"
   empresas ||--o{ execucoes_de_rotina : "empresa_id"
@@ -848,6 +892,7 @@ erDiagram
   empresas ||--o{ modelos_de_conta_de_ia : "empresa_id"
   pessoas ||--o{ papeis_plataforma : "pessoa_id"
   empresas ||--o{ paradas_de_agentes : "empresa_id"
+  empresas ||--o{ participantes_de_evento : "empresa_id"
   empresas ||--o{ passos_de_execucao : "empresa_id"
   consumo_de_ia ||--o{ passos_de_execucao : "consumo_id"
   empresas ||--o{ pedidos_de_codigo_no_telegram : "empresa_id"
@@ -975,6 +1020,21 @@ Isolamento por empresa (Row Level Security): ligado e forçado.
 | alcance | text | sim |  | empresa | Alcance dado: nada, meus (itens), equipe ou tudo. |
 | feito_por | uuid | sim |  | sistema | Pessoa que fez o ajuste. Aponta para pessoas.id. |
 | feito_em | timestamp with time zone | sim | `now()` | sistema | Quando o ajuste foi feito. |
+
+### alertas_de_evento
+
+Os alertas de evento já mandados (M5-07): cada um vai uma vez só por começo de ocorrência, pessoa e minutos. 30 dias.
+
+Isolamento por empresa (Row Level Security): ligado e forçado.
+
+| Coluna | Tipo | Obrigatória | Padrão | Marca | Descrição |
+| --- | --- | --- | --- | --- | --- |
+| empresa_id | uuid | sim |  | sistema | Empresa do evento. Aponta para empresas.id. |
+| evento_id | uuid | sim |  | sistema | O evento (ou a série). Chave primária. |
+| pessoa_id | uuid | sim |  | sistema | Quem recebeu. Chave primária. |
+| inicio_da_ocorrencia | timestamp with time zone | sim |  | sistema | O começo da ocorrência alertada (se o horário mudar, o alerta novo vale para o começo novo). Chave primária. |
+| minutos | integer | sim |  | sistema | Quantos minutos antes. Chave primária. |
+| enviado_em | timestamp with time zone | sim | `now()` | sistema | Quando foi mandado. |
 
 ### anexos
 
@@ -1367,6 +1427,40 @@ Isolamento por empresa (Row Level Security): ligado e forçado.
 | tarefa_id | uuid | sim |  | sistema | Tarefa. Chave primária. |
 | etiqueta_id | uuid | sim |  | sistema | Etiqueta. Chave primária. |
 
+### eventos
+
+Eventos da agenda simples (M5-07): o evento, a série (com regra) e a ocorrência mudada ou cancelada de uma série.
+
+Isolamento por empresa (Row Level Security): ligado e forçado.
+
+| Coluna | Tipo | Obrigatória | Padrão | Marca | Descrição |
+| --- | --- | --- | --- | --- | --- |
+| id | uuid | sim | `uuidv7()` | sistema | Identificador. Chave primária. |
+| empresa_id | uuid | sim |  | sistema | Empresa do evento. Aponta para empresas.id. |
+| titulo | text | sim |  | empresa | O que é o evento. |
+| descricao | text | não |  | empresa | Detalhes. |
+| inicio_dia | date | sim |  | empresa | Dia do começo, no fuso do evento. |
+| inicio_hora | time without time zone | não |  | empresa | Hora do começo (nula no dia inteiro). |
+| fim_dia | date | sim |  | empresa | Dia do fim, no fuso do evento. |
+| fim_hora | time without time zone | não |  | empresa | Hora do fim (nula no dia inteiro). |
+| dia_inteiro | boolean | sim | `false` | empresa | O evento ocupa os dias inteiros. |
+| fuso | text | sim |  | empresa | Fuso em que o começo e o fim foram marcados (IANA). |
+| inicio_em | timestamp with time zone | sim |  | sistema | Momento do começo, calculado pelo banco no fuso. |
+| fim_em | timestamp with time zone | sim |  | sistema | Momento do fim (dia inteiro: o começo do dia seguinte ao último). |
+| local | text | não |  | empresa | Onde (endereço ou sala). |
+| link | text | não |  | empresa | Link da reunião (https). |
+| criado_por | uuid | sim |  | sistema | Quem criou (edita e cancela, com o administrador). |
+| criado_por_agente_id | uuid | não |  | sistema | O agente que marcou o evento pela ferramenta, a pedido de quem criou e com a aprovação dele. |
+| tarefa_id | uuid | não |  | sistema | Tarefa ligada ao evento. |
+| projeto_id | uuid | não |  | sistema | Projeto ligado ao evento. |
+| regra | jsonb | não |  | empresa | Recorrência (RegraDeRecorrencia do contrato), contada a partir do dia do começo. Nula: evento único. |
+| serie_id | uuid | não |  | sistema | A série da qual esta ocorrência mudada ou cancelada faz parte. |
+| ocorrencia_original | date | não |  | sistema | O dia da ocorrência da série que este evento substitui. |
+| situacao | text | sim | `'marcado'::text` | sistema | marcado ou cancelado. |
+| alertas | integer[] | não |  | empresa | Minutos antes do começo para os alertas, valendo para todos. Nulo: cada participante usa o padrão dele. |
+| criado_em | timestamp with time zone | sim | `now()` | sistema | Quando foi criado. |
+| atualizado_em | timestamp with time zone | sim | `now()` | sistema | A última mudança. |
+
 ### eventos_para_rotinas
 
 Fila dos eventos do sistema para as rotinas por evento (M5-06), gravada na mesma transação da mudança. 7 dias.
@@ -1596,6 +1690,20 @@ Isolamento por empresa (Row Level Security): ligado e forçado.
 | da_plataforma | boolean | sim | `false` | sistema | Parada pelo Dono da plataforma: só ele retoma. |
 | parada_em | timestamp with time zone | sim | `now()` | sistema | Quando parou. |
 | retomada_em | timestamp with time zone | não |  | sistema | Quando o último agente da parada voltou (vazio: a parada continua). |
+
+### participantes_de_evento
+
+Quem foi convidado para cada evento (M5-07) e a resposta.
+
+Isolamento por empresa (Row Level Security): ligado e forçado.
+
+| Coluna | Tipo | Obrigatória | Padrão | Marca | Descrição |
+| --- | --- | --- | --- | --- | --- |
+| empresa_id | uuid | sim |  | sistema | Empresa do evento. Aponta para empresas.id. |
+| evento_id | uuid | sim |  | sistema | O evento (ou a série). Chave primária. |
+| pessoa_id | uuid | sim |  | sistema | A pessoa convidada. Chave primária. |
+| resposta | text | sim | `'pendente'::text` | pessoal | pendente, vou, nao_vou ou talvez. |
+| respondeu_em | timestamp with time zone | não |  | sistema | Quando respondeu. |
 
 ### passos_de_execucao
 

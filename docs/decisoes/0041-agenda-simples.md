@@ -1,7 +1,7 @@
 # 0041 Agenda simples
 
 - **Data:** 24/11/2026
-- **Situação:** proposta (aguardando o "aprovado" do Sandro)
+- **Situação:** aceita (aprovada pelo Sandro no chat em 24/11/2026)
 - **Tarefa:** M5-07
 
 ## Contexto

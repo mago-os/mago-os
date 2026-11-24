@@ -363,3 +363,10 @@ O login (`mago_acesso`) não lê papéis nem as regras da plataforma direto. As 
 
 - `rotinas.avisar_ao_rodar` (desligado por padrão): o dono recebe o aviso `rotina_rodou` cada vez que a rotina roda e termina bem. A falha avisa sempre (`rotina_falhou`).
 - A tarefa que a rotina cria para o próprio dono passa a avisar o dono (`tarefa_atribuida`, com o nome da rotina): quem fez foi a rotina, não ele na tela.
+
+## 51. Agenda simples (24/11/2026, M5-07)
+
+- `eventos` guarda o evento ou a série (com `regra`), com o começo e o fim como dia e hora no fuso do evento; `calcular_momentos_do_evento()` calcula `inicio_em` e `fim_em` (dia inteiro: do começo do primeiro dia ao começo do dia seguinte ao último), como o prazo das tarefas ([decisão 0041](../decisoes/0041-agenda-simples.md)). A vez mudada ou cancelada de uma série é um evento próprio, ligado a ela (`serie_id`) e à vez que substitui (`ocorrencia_original`), uma por vez; apagar a série apaga as vezes mudadas.
+- `participantes_de_evento` guarda quem foi convidado e a resposta (pendente, vou, nao_vou, talvez), da pessoa (marca `[pessoal]`).
+- `alertas_de_evento` guarda cada alerta mandado por começo de vez, pessoa e minutos: nada vai duas vezes, e um horário novo vale como começo novo. Fica 30 dias.
+- Quem vê o evento inteiro é decidido no núcleo, pelo alcance de "agenda.ver" (tudo, equipe ou só os em que a pessoa está); o banco isola as empresas. `empresas_com_agenda()` dá à verificação dos alertas só os ids das empresas com evento a alertar.

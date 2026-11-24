@@ -142,15 +142,15 @@ Pronto quando: a rotina "quando uma tarefa do projeto Blog for concluída, criar
 
 Precisa da aprovação do Sandro (contratos novos).
 
-- [ ] Eventos com título, descrição, início e fim (ou dia inteiro), fuso, local ou link, participantes da empresa (pessoas) e, se quiser, uma tarefa ou projeto ligado
-- [ ] Recorrência com as mesmas regras das tarefas, e editar ou cancelar "só este", "este e os seguintes" ou "todos", com o evento alterado ligado à série (decisão 14)
-- [ ] Convite aos participantes: aparece no sino, e cada um responde Vou, Não vou ou Talvez, no app ou pelos botões do Telegram
-- [ ] Alertas: vários por evento (padrão: 10 minutos antes), por tela, push e Telegram, com padrão por pessoa e ajuste no evento. Respeita o horário de silêncio e não avisa evento cancelado ou mudado
-- [ ] O calendário da M3-04 passa a mostrar os eventos ao lado dos prazos das tarefas, com dia, semana e mês, e as agendas da equipe lado a lado (quem pode ver)
-- [ ] Quem vê: o evento é visível para quem criou, os participantes e os administradores; o funcionário vê só "ocupado" na agenda de um colega, sem o título (decisão 15)
-- [ ] Ferramentas novas dos agentes internos: `ver_agenda` (executa) e `criar_evento` (pede aprovação por padrão). O coordenador marca "reunião com a Ana quinta às 15h" pelo app ou pelo Telegram
-- [ ] Tabelas `eventos`, `participantes_de_evento` e `alertas_de_evento` (com `empresa_id`, RLS e marcas). Eventos de auditoria: `evento.criou`, `evento.editou`, `evento.cancelou`
-- [ ] Testes: o alerta chega no horário no fuso certo, não chega para evento cancelado, o funcionário não vê o título de evento alheio, e uma empresa não vê os eventos da outra
+- [x] Eventos com título, descrição, início e fim (ou dia inteiro), fuso, local ou link, participantes da empresa (pessoas) e, se quiser, uma tarefa ou projeto ligado
+- [x] Recorrência com as mesmas regras das tarefas, e editar ou cancelar "só este", "este e os seguintes" ou "todos", com o evento alterado ligado à série (decisão 14)
+- [x] Convite aos participantes: aparece no sino, e cada um responde Vou, Não vou ou Talvez, no app ou pelos botões do Telegram
+- [x] Alertas: vários por evento (padrão: 10 minutos antes), por tela, push e Telegram, com padrão por pessoa e ajuste no evento. Respeita o horário de silêncio e não avisa evento cancelado ou mudado
+- [x] O calendário da M3-04 passa a mostrar os eventos ao lado dos prazos das tarefas, com dia, semana e mês, e as agendas da equipe lado a lado (quem pode ver)
+- [x] Quem vê: o evento é visível para quem criou, os participantes e os administradores; o funcionário vê só "ocupado" na agenda de um colega, sem o título (decisão 15)
+- [x] Ferramentas novas dos agentes internos: `ver_agenda` (executa) e `criar_evento` (pede aprovação por padrão). O coordenador marca "reunião com a Ana quinta às 15h" pelo app ou pelo Telegram
+- [x] Tabelas `eventos`, `participantes_de_evento` e `alertas_de_evento` (com `empresa_id`, RLS e marcas). Eventos de auditoria: `evento.criou`, `evento.editou`, `evento.cancelou`
+- [x] Testes: o alerta chega no horário no fuso certo, não chega para evento cancelado, o funcionário não vê o título de evento alheio, e uma empresa não vê os eventos da outra
 
 Pronto quando: o Sandro pede ao coordenador pelo Telegram "marca uma reunião com a Ana quinta às 15h", aprova, o evento aparece no calendário dos dois, e o alerta chega 10 minutos antes no app e no Telegram.
 

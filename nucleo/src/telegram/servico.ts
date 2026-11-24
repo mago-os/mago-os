@@ -24,6 +24,7 @@ import {
   textoDoArquivoParaOAgente,
 } from "@mago-os/contratos";
 import type pg from "pg";
+import { eventoPorId, responderConvite } from "../agenda/servico.ts";
 import { auditar, type DadosDoEvento } from "../auditoria/registrar.ts";
 import { criarAviso } from "../avisos/index.ts";
 import { comEmpresa, comPessoa } from "../empresa.ts";
@@ -298,6 +299,33 @@ async function tocarBotao(o: OpcoesDoTelegram, b: BotaoTocadoNoTelegram): Promis
     return trocarEmpresa(o, pessoa, pessoa.chatId, empresa[1] as string);
   }
   if (await tocarBotaoDeAprovacao(o, pessoa, b)) return;
+  const convite = DADOS_DOS_BOTOES.convite.exec(b.data ?? "");
+  if (convite) {
+    const resposta = convite[1] === "vou" ? "vou" : convite[1] === "nao" ? "nao_vou" : "talvez";
+    const ok = await comPessoa(o.poolApp, pessoa.pessoaId, pessoa.empresaId, async (c) => {
+      const e = await eventoPorId(c, convite[2] as string);
+      if (!e || e.situacao === "cancelado") return false;
+      return responderConvite(c, e, pessoa.pessoaId, resposta);
+    }).catch(() => false);
+    if (ok)
+      await auditar(o.poolApp, {
+        empresaId: pessoa.empresaId,
+        ator: { tipo: "pessoa", pessoaId: pessoa.pessoaId },
+        acao: "evento.respondeu",
+        alvo: { tipo: "evento", id: convite[2] as string },
+        origem: { canal: "telegram", ip: null, aparelho: null },
+        detalhes: { resposta },
+      });
+    await o.carteiro
+      .responderBotao(
+        b.id,
+        ok
+          ? `Resposta registrada: ${resposta === "vou" ? "Vou" : resposta === "nao_vou" ? "Não vou" : "Talvez"}.`
+          : "Esse convite não está mais valendo (o evento mudou ou foi cancelado).",
+      )
+      .catch(() => {});
+    return;
+  }
   await o.carteiro.responderBotao(b.id).catch(() => {});
 }
 

@@ -1,4 +1,13 @@
-import { Bot, Building2, CalendarClock, Landmark, ScrollText, Shield, Users } from "lucide-react";
+import {
+  Bot,
+  Building2,
+  CalendarClock,
+  CalendarDays,
+  Landmark,
+  ScrollText,
+  Shield,
+  Users,
+} from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import {
   type AvisoDeAcesso,
@@ -24,6 +33,7 @@ import { Button } from "./componentes/ui/button";
 import { Card } from "./componentes/ui/card";
 import { Entrar, RecuperarSenha, RedefinirSenha } from "./telas/Acesso";
 import { Auditoria, Pessoas, Seguranca } from "./telas/Administrador";
+import { Agenda, PaginaDoEvento } from "./telas/Agenda";
 import { Agentes, PaginaDoAgente } from "./telas/Agentes";
 import { AvisosDeAcesso, MeusAparelhos } from "./telas/Aparelhos";
 import { ListaDeAprovacoes, PaginaDaAprovacao } from "./telas/Aprovacoes";
@@ -221,6 +231,7 @@ export function App() {
       ? [{ caminho: "/pessoas", nome: "Pessoas", icone: Users }]
       : []),
     ...(pode("agentes", "ver") ? [{ caminho: "/agentes", nome: "Agentes", icone: Bot }] : []),
+    ...(pode("agenda", "ver") ? [{ caminho: "/agenda", nome: "Agenda", icone: CalendarDays }] : []),
     ...(pode("rotinas", "ver") ? [{ caminho: "/rotinas", nome: "Rotinas", icone: CalendarClock }] : []),
     ...(pode("empresa", "ver")
       ? [{ caminho: "/dados-da-empresa", nome: "Dados da empresa", icone: Landmark }]
@@ -239,6 +250,7 @@ export function App() {
   const aprovacaoAberta = /^\/aprovacoes\/([0-9a-f-]{36})$/i.exec(caminho)?.[1];
   const execucaoAberta = /^\/execucoes\/([0-9a-f-]{36})$/i.exec(caminho)?.[1];
   const rotinaAberta = /^\/rotinas\/([0-9a-f-]{36})$/i.exec(caminho)?.[1];
+  const eventoAberto = /^\/agenda\/([0-9a-f-]{36})$/i.exec(caminho)?.[1];
   if (caminho === "/perfil") conteudo = <MeuPerfil />;
   else if (caminho === "/conversa" && temEmpresaAtiva) conteudo = <Conversa euId={sessao.pessoa.id} />;
   else if (caminho === "/agentes" && pode("agentes", "ver"))
@@ -272,6 +284,10 @@ export function App() {
         euId={sessao.pessoa.id}
       />
     );
+  else if (caminho === "/agenda" && temEmpresaAtiva && pode("agenda", "ver"))
+    conteudo = <Agenda euId={sessao.pessoa.id} />;
+  else if (eventoAberto && temEmpresaAtiva && pode("agenda", "ver"))
+    conteudo = <PaginaDoEvento id={eventoAberto} euId={sessao.pessoa.id} />;
   else if (caminho === "/rotinas" && temEmpresaAtiva && pode("rotinas", "ver")) conteudo = <ListaDeRotinas />;
   else if (rotinaAberta && temEmpresaAtiva && pode("rotinas", "ver"))
     conteudo = <PaginaDaRotina id={rotinaAberta} />;

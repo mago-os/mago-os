@@ -8,6 +8,7 @@ import {
   type FiltroDeTarefas,
   NOMES_PRIORIDADE,
   NOMES_STATUS_TAREFA,
+  type OcorrenciaNaAgenda,
   PRIORIDADES,
   type Prioridade,
   type Responsavel,
@@ -29,6 +30,7 @@ import {
   type ListaDeTarefas,
   listarVisoes,
   mudarStatus,
+  pedir,
   planejarTarefa,
   salvarVisao,
   trocarResponsavel,
@@ -871,6 +873,21 @@ function VisaoCalendario({
 }) {
   const [sobre, setSobre] = useState<string | null>(null);
   const todas = [...tarefas, ...semPrazo];
+  // Os eventos da agenda (M5-07) aparecem ao lado dos prazos, em cada dia que eles ocupam.
+  const [eventos, setEventos] = useState<OcorrenciaNaAgenda[]>([]);
+  const primeiro = dias[0] as string;
+  const ultimo = dias.at(-1) as string;
+  useEffect(() => {
+    void pedir<{ ocorrencias: OcorrenciaNaAgenda[] }>("GET", `/agenda?de=${primeiro}&ate=${ultimo}`).then(
+      (r) => setEventos(r.ok && r.dados ? r.dados.ocorrencias : []),
+    );
+  }, [primeiro, ultimo]);
+  const eventosDoDia = (dia: string) =>
+    eventos.filter((o) => {
+      const de = partesNoFuso(new Date(o.inicioEm), fuso).dia;
+      const ate = partesNoFuso(new Date(new Date(o.fimEm).getTime() - 60_000), fuso).dia;
+      return de <= dia && dia <= ate;
+    });
   const doDia = (dia: string) => tarefas.filter((t) => diaNoCalendario(t, fuso) === dia);
   const mesDaReferencia = referencia.getMonth() + 1;
 
@@ -967,6 +984,17 @@ function VisaoCalendario({
                 <span className={cn("text-right", dia === hojeLocal() && "font-bold text-tinta")}>
                   {Number(dia.slice(8, 10))}
                 </span>
+                {eventosDoDia(dia).map((o) => (
+                  <a
+                    key={`${o.eventoId}:${o.ocorrencia}`}
+                    href={o.ocupado ? undefined : `/agenda/${o.eventoId}?dia=${o.ocorrencia}`}
+                    className="block truncate rounded bg-alerta/15 px-1.5 py-0.5 text-xs"
+                    title={o.titulo ?? "Ocupado"}
+                  >
+                    {o.diaInteiro ? "" : `${partesNoFuso(new Date(o.inicioEm), fuso).hora} `}
+                    {o.titulo ?? "Ocupado"}
+                  </a>
+                ))}
                 {doDia(dia).map((t) => (
                   <Cartao key={t.id} t={t} />
                 ))}
