@@ -50,7 +50,7 @@ Pronto quando: o Sandro cria uma tarefa e aprova um pedido pelo Telegram, e uma 
 
 ## M6 Endurecimento e uso real
 
-Detalhado em [M6-endurecimento-e-uso-real.md](M6-endurecimento-e-uso-real.md) (proposta de 24/11/2026), com uma tarefa a mais: M6-05b (DNS, bot, login com Google, avisos e a primeira empresa).
+Detalhado em [M6-endurecimento-e-uso-real.md](M6-endurecimento-e-uso-real.md) (aprovado em 24/11/2026), com uma tarefa a mais: M6-05b (DNS, bot, login com Google, avisos e a primeira empresa).
 
 Pronto quando: a 4xpert usa o Mago OS no dia a dia em app.osmago.com.
 

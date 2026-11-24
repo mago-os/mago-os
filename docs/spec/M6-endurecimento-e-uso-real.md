@@ -1,6 +1,6 @@
 # Spec da Fase 1: M6 Endurecimento e uso real
 
-Parte da [spec da Fase 1](README.md). Estado em 24/11/2026: **proposta**, aguardando a aprovação do Sandro. Ajustada em 24/11/2026 com a escolha dele: a produção roda na própria VPS02, ao lado do teste e da Ratoeira, e o backup fica na conta grátis do Backblaze, sem contratar nada novo.
+Parte da [spec da Fase 1](README.md). Estado em 24/11/2026: **aprovado** pelo Sandro, com as recomendações e as escolhas dele: a produção roda na própria VPS02, ao lado do teste e da Ratoeira, e o backup fica na conta grátis do Backblaze, sem contratar nada novo.
 
 **Pronto quando:** a 4xpert usa o Mago OS no dia a dia em app.osmago.com. O Sandro entra em app.osmago.com com senha e 2FA, convida a equipe, cria os projetos e as tarefas da semana, fala com o coordenador pelo bot do Telegram de produção e liga o Hermes pelo MCP de produção. Por baixo, os testes provam que nenhuma rota, ferramenta de agente, busca, anexo, aviso ou canal deixa uma empresa ver a outra; o número de rastreio de um erro leva ao caminho inteiro do pedido; a produção é remontada do zero a partir do backup, num lugar separado dela, com o tempo medido; a revisão de segurança não tem nada grave aberto; e o plano de incidente está escrito e ensaiado. Nenhuma publicação em produção acontece sem o clique do Sandro.
 
