@@ -108,6 +108,21 @@ export const CATALOGO_DE_ACOES: readonly AcaoDoCatalogo[] = [
     padraoInterno: "executa",
     padraoExterno: null,
   },
+  // Agenda (M5-07): ver executa; marcar um evento pede aprovação (manda convite a outras pessoas).
+  {
+    acao: "ver_agenda",
+    nome: "Ver a agenda",
+    mudaDados: false,
+    padraoInterno: "executa",
+    padraoExterno: null,
+  },
+  {
+    acao: "criar_evento",
+    nome: "Marcar evento na agenda",
+    mudaDados: true,
+    padraoInterno: "pede_aprovacao",
+    padraoExterno: null,
+  },
   // Rotinas (M5-05): ler executa; criar e ligar pedem aprovação (a rotina age sozinha depois); parar executa.
   {
     acao: "listar_rotinas",

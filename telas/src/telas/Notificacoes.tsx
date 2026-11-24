@@ -40,6 +40,9 @@ const NOMES: Record<TipoDeAviso, string> = {
   rotina_falhou: "Rotina minha que falhou",
   rotina_desligada: "Rotinas desligadas porque o dono saiu",
   rotina_rodou: "Rotina minha que rodou (quando peço o aviso)",
+  convite_de_evento: "Convite para um evento",
+  evento_mudou: "Evento mudou ou foi cancelado",
+  alerta_de_evento: "Alerta antes de um evento",
 };
 
 type Mensagem = { texto: string; tipo: "erro" | "ok" } | null;

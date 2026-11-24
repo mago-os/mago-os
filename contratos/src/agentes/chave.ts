@@ -138,6 +138,11 @@ export const TIPOS_DE_AVISO = [
   "rotina_desligada",
   // A rotina rodou e terminou bem (só para o dono que pediu "me avisar cada vez que rodar").
   "rotina_rodou",
+  // M5-07: o convite para um evento (vai para os participantes, com os botões Vou, Não vou e Talvez no Telegram), a
+  // mudança ou o cancelamento de um evento (para os participantes) e o alerta antes do começo.
+  "convite_de_evento",
+  "evento_mudou",
+  "alerta_de_evento",
 ] as const;
 export const TipoDeAviso = Type.Enum(TIPOS_DE_AVISO);
 export type TipoDeAviso = Static<typeof TipoDeAviso>;

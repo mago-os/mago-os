@@ -64,6 +64,13 @@ export const PreferenciasDeNotificacao = Type.Object(
      * desligado.
      */
     resumoDoDia: Type.Optional(OuNulo(Type.Object({ hora: Hora }, { additionalProperties: false }))),
+    /**
+     * Os alertas padrão da agenda (M5-07), em minutos antes do começo, para os eventos que não escolhem os próprios.
+     * Sem o campo, 10 minutos antes; lista vazia, sem alerta.
+     */
+    alertasDaAgenda: Type.Optional(
+      Type.Array(Type.Integer({ minimum: 0, maximum: 10080 }), { maxItems: 5, uniqueItems: true }),
+    ),
   },
   { additionalProperties: false, description: "O que chega por onde, e o horário de silêncio." },
 );
@@ -81,6 +88,10 @@ export const AVISOS_URGENTES_NO_TELEGRAM = [
   "aviso_de_rotina",
   // O aviso de que a rotina rodou só existe quando o dono pediu ("Me avisar cada vez que rodar"): já é um pedido dele.
   "rotina_rodou",
+  // M5-07: o convite (com os botões de resposta), a mudança ou o cancelamento de um evento e o alerta antes dele.
+  "convite_de_evento",
+  "evento_mudou",
+  "alerta_de_evento",
 ] as const satisfies readonly TipoDeAviso[];
 
 /**

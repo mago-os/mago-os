@@ -7,7 +7,8 @@
  * congeladas por teste, como as do MCP (o texto muda o que o agente faz).
  */
 import { type Static, type TSchema, Type } from "typebox";
-import { conferir, DataHora, Id, OuNulo, type Problema, type Regra, Texto } from "../comum.ts";
+import { PedidoDeEvento } from "../agenda/eventos.ts";
+import { conferir, DataHora, Dia, Id, OuNulo, type Problema, type Regra, Texto } from "../comum.ts";
 import { PedidoDeRotina } from "../rotinas/rotinas.ts";
 import { PedidoDePrazo, Prioridade } from "../tarefas/prazos.ts";
 import { Responsavel, StatusTarefa } from "../tarefas/tarefa.ts";
@@ -348,6 +349,27 @@ export const FERRAMENTAS_INTERNAS = [
     descricao:
       "Abre uma rotina que quem pediu pode ver, com o gatilho, a ação e as últimas execuções (quando rodou, o que fez, se falhou e por quê).",
     entrada: Type.Object({ rotinaId: Id }, { additionalProperties: false }),
+    papeis: ["coordenador", "especialista"],
+  },
+  {
+    nome: "ver_agenda",
+    descricao:
+      "Mostra a agenda de quem pediu entre dois dias (até 62 dias), com os eventos dele e os prazos das tarefas. Da agenda de outra pessoa, mostra o que quem pediu pode ver (para o funcionário, só os horários ocupados). Use antes de marcar um evento, para achar um horário livre.",
+    entrada: Type.Object(
+      {
+        de: Dia,
+        ate: Dia,
+        pessoas: Type.Optional(Type.Array(Id, { maxItems: 10, uniqueItems: true })),
+      },
+      { additionalProperties: false },
+    ),
+    papeis: ["coordenador", "especialista"],
+  },
+  {
+    nome: "criar_evento",
+    descricao:
+      "Marca um evento na agenda em nome de quem pediu (ex.: reunião com a Ana quinta às 15h), com os participantes da empresa, que recebem o convite e respondem Vou, Não vou ou Talvez. Sem fuso, vale o de quem pediu. Confirme o dia, a hora e quem participa se a pessoa não disse; use procurar_pessoa para achar os participantes.",
+    entrada: PedidoDeEvento,
     papeis: ["coordenador", "especialista"],
   },
   {
