@@ -38,9 +38,11 @@ Pronto quando: a verificação roda o teste de vazamento em cada PR, cobrindo 10
 - [x] O número de rastreio (o trace id do OpenTelemetry, decisão 0003) passa a seguir o trabalho inteiro: do pedido da tela para a fila, da fila para o motor dos agentes, para a chamada ao provedor de IA, para o Telegram e para as rotinas. Um trabalho que nasce de outro guarda o número de quem o criou
 - [x] Os registros e o rastreio saem do servidor para um destino central (decisão 2), sem dado pessoal nem sensível: nada de texto de tarefa, mensagem, e-mail ou token nos registros (um filtro apaga o que escapar, com teste)
 - [x] Toda mensagem de erro do sistema (5xx) que o usuário vê traz o número de rastreio com um botão de copiar, para ele mandar ao suporte (correção pequena: nos erros do pedido, como a senha errada, o número não ajuda; decisão 0043)
-- [ ] Painel simples do rastreio no destino central: erros por hora, os pedidos mais lentos, a fila parada e os agentes com erro, com um alerta no Telegram do Sandro quando os erros passam de um limite
+- [x] Painel simples do rastreio no destino central: erros por hora, os pedidos mais lentos, a fila parada e os agentes com erro, com um alerta no Telegram do Sandro quando os erros passam de um limite
 - [x] Manual de operação novo, `docs/operacao/rastreio.md`: como achar um pedido pelo número, o que cada painel mostra e o que fazer com cada alerta
 - [x] Testes: o número que volta no cabeçalho `x-rastreio` é o mesmo dos registros da fila e do motor do agente; o filtro apaga e-mail, token e texto de mensagem dos registros
+
+Feito em 24/11/2026 (decisão 0043): o teste manda o rastreio e os registros, filtrados, ao Grafana Cloud; painel "Mago OS" e três alertas no Telegram do Sandro, montados pelo `infra/grafana/montar.py`.
 
 Pronto quando: o Sandro copia o número de rastreio de um erro na tela, cola no painel e vê o caminho inteiro do pedido, da tela até o agente.
 

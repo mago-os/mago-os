@@ -41,3 +41,5 @@ Explicação completa: Wiki do cliente MagoOS, páginas `infraestrutura.md` e `b
 Ao mudar algo no servidor, atualizar a cópia aqui no mesmo dia.
 
 Acesso de administração (usuário `mago-admin`, SSH só com chave, Tailscale e firewall): `docs/operacao/acesso-vps.md`.
+
+Rastreio e registros (M6-02): o `segredos.sh` liga o envio ao Grafana Cloud quando os três `GRAFANA_OTLP_*` existem no Infisical. O painel e os alertas ficam na conta do Grafana e são montados do Mac por `infra/grafana/montar.py` (ver `docs/operacao/rastreio.md`).
