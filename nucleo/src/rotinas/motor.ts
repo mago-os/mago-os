@@ -28,7 +28,7 @@ import { entregarAoAgenteInterno } from "../agentes-internos/tarefa-atribuida.ts
 import { auditar } from "../auditoria/registrar.ts";
 import { avisarDepois } from "../avisos/eventos.ts";
 import { criarAviso } from "../avisos/index.ts";
-import { pessoaVeTarefa, preferenciasDe } from "../avisos/notificacoes.ts";
+import { notificarTarefa, pessoaVeTarefa, preferenciasDe } from "../avisos/notificacoes.ts";
 import { comEmpresa, comoRotina, comPessoa } from "../empresa.ts";
 import { permissoesNaEmpresa } from "../permissoes/verificar.ts";
 import { planejar, recusaDoPlanejamento } from "../tarefas/planejamento.ts";
@@ -306,6 +306,17 @@ function preencher(ctx: Contexto, texto: string): string {
   return ctx.disparo ? texto.replaceAll(MARCADOR_DA_TAREFA, ctx.disparo.titulo) : texto;
 }
 
+/** O dono pediu "me avisar cada vez que rodar": o aviso de que rodou e terminou bem. */
+async function avisarQueRodou(c: pg.PoolClient, ctx: Contexto, oQueFez: string): Promise<void> {
+  if (!ctx.rotina.avisarAoRodar) return;
+  await criarAviso(c, {
+    pessoaId: ctx.rotina.donoPessoaId,
+    tipo: "rotina_rodou",
+    texto: `A rotina "${ctx.rotina.nome}" rodou: ${oQueFez}`,
+    link: `/rotinas/${ctx.rotina.id}`,
+  });
+}
+
 async function terminar(
   c: pg.PoolClient,
   id: string,
@@ -548,12 +559,28 @@ async function criarTarefaDaRotina(
   const recusa = await recusaDoPlanejamento(c, null, plano);
   if (recusa) throw new FalhaSemVolta(recusa);
   // Como subtarefa da que disparou (ou ao lado dela, se ela já for subtarefa): fica no projeto e na lista da mãe.
-  const mae = acao.comoSubtarefa && ctx.disparo ? (ctx.disparo.maeId ?? ctx.disparo.id) : null;
+  // Subtarefa só de uma mãe aberta (como na tela: mãe fechada não ganha subtarefa). Com a mãe já fechada, a tarefa
+  // nasce solta, no projeto dela.
+  const candidata = acao.comoSubtarefa && ctx.disparo ? (ctx.disparo.maeId ?? ctx.disparo.id) : null;
+  const daMae = candidata
+    ? (
+        await c.query<{ aberta: boolean; projeto_id: string | null }>(
+          `select status not in ('concluida', 'cancelada') as aberta, projeto_id from tarefas
+            where id = $1 and empresa_id = empresa_ativa()`,
+          [candidata],
+        )
+      ).rows[0]
+    : undefined;
+  const mae = daMae?.aberta ? candidata : null;
+  // Na rotina por evento, a tarefa nova leva o caminho para a que disparou (a tela mostra o endereço como link).
+  const descricao = acao.descricao ? preencher(ctx, acao.descricao) : "";
+  const origem = ctx.disparo && !mae ? `Tarefa que disparou a rotina: /tarefas/${ctx.disparo.id}` : "";
+  const descricaoComOrigem = [descricao, origem].filter(Boolean).join("\n\n").slice(0, 20000) || null;
   let tarefa = await criarTarefa(c, quem, {
     titulo: preencher(ctx, acao.titulo).slice(0, 200),
-    descricao: acao.descricao ? preencher(ctx, acao.descricao) : null,
+    descricao: descricaoComOrigem,
     responsavel: acao.responsavel ?? { tipo: "pessoa", pessoaId: dono.pessoaId },
-    ...(mae ? { tarefaMaeId: mae } : { projetoId: acao.projetoId ?? null }),
+    ...(mae ? { tarefaMaeId: mae } : { projetoId: acao.projetoId ?? daMae?.projeto_id ?? null }),
   });
   if (Object.keys(plano).length > 0) {
     await planejar(c, tarefa, plano, ctx.fuso);
@@ -565,6 +592,16 @@ async function criarTarefaDaRotina(
       where id = $1 and empresa_id = empresa_ativa()`,
     [ctx.execucao.id, tarefa.id],
   );
+  // Quem fez foi a rotina, não o dono na tela: a tarefa para o próprio dono também avisa (os outros recebem o aviso
+  // de sempre, mais abaixo).
+  if (tarefa.responsavel?.tipo === "pessoa" && tarefa.responsavel.pessoaId === dono.pessoaId)
+    await notificarTarefa(c, {
+      tipo: "tarefa_atribuida",
+      tarefaId: tarefa.id,
+      texto: `A rotina "${ctx.rotina.nome}" criou a tarefa "${tarefa.titulo}" para você.`,
+      para: [dono.pessoaId],
+    });
+  else await avisarQueRodou(c, ctx, `criou a tarefa "${tarefa.titulo}".`);
   return async () => {
     await auditar(
       o.poolApp,
@@ -625,6 +662,8 @@ async function mandarAvisoDaRotina(
       where id = $1 and empresa_id = empresa_ativa()`,
     [ctx.execucao.id, avisados],
   );
+  if (!acao.para.includes(ctx.rotina.donoPessoaId))
+    await avisarQueRodou(c, ctx, avisados === 1 ? "avisou 1 pessoa." : `avisou ${avisados} pessoas.`);
   return null;
 }
 
@@ -828,7 +867,12 @@ async function conferirAgente(
   });
   if (r.situacao === "na_fila" || r.situacao === "rodando") return;
   if (r.situacao === "concluida") {
-    await comEmpresa(o.poolApp, empresaId, (c) => terminar(c, ctx.execucao.id, "feita", { custo: r.custo }));
+    await comEmpresa(o.poolApp, empresaId, async (c) => {
+      await terminar(c, ctx.execucao.id, "feita", { custo: r.custo });
+      // Com a resposta numa conversa, ela já chega ao dono; com uma tarefa, o aviso diz que terminou.
+      if (ctx.rotina.acao.tipo === "pedir_ao_agente" && ctx.rotina.acao.resultado === "tarefa")
+        await avisarQueRodou(c, ctx, "o agente terminou o trabalho na tarefa.");
+    });
     return;
   }
   const motivo = `O agente não terminou${r.resumo ? `: ${r.resumo}` : "."}`;

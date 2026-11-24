@@ -210,6 +210,24 @@ export function useProjetosAtivos() {
 }
 
 /** No seletor, agente vale "agente:<id>" e pessoa vale o id dela. */
+/** O texto como texto, com os endereços de tarefas do Mago OS (/tarefas/<id>) como link. */
+export function TextoComLinksDeTarefas({ texto }: { texto: string }) {
+  const partes = texto.split(/(\/tarefas\/[0-9a-f-]{36})/gi);
+  return (
+    <>
+      {partes.map((p, i) =>
+        /^\/tarefas\/[0-9a-f-]{36}$/i.test(p) ? (
+          <a key={i} href={p} className="text-tinta underline">
+            abrir a tarefa
+          </a>
+        ) : (
+          p
+        ),
+      )}
+    </>
+  );
+}
+
 export function valorDoResponsavel(r: Responsavel | null): string {
   if (r?.tipo === "agente") return `agente:${r.agenteId}`;
   return r?.tipo === "pessoa" ? r.pessoaId : "";
@@ -574,7 +592,11 @@ export function PaginaDaTarefa({
           </p>
         )}
       </div>
-      {tarefa.descricao && <p className="whitespace-pre-wrap text-pretty">{tarefa.descricao}</p>}
+      {tarefa.descricao && (
+        <p className="whitespace-pre-wrap text-pretty">
+          <TextoComLinksDeTarefas texto={tarefa.descricao} />
+        </p>
+      )}
       {mensagem && <Aviso {...mensagem} />}
 
       <Card className="gap-3">
