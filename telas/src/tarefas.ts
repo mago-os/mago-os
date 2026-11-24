@@ -19,6 +19,7 @@ import type {
   Tarefa,
   VisaoSalva,
 } from "@mago-os/contratos";
+import { conferirErroDoSistema } from "./erros";
 
 export interface Resposta<T> {
   ok: boolean;
@@ -44,6 +45,7 @@ export async function pedir<T>(
         ? {}
         : { headers: { "content-type": "application/json" }, body: JSON.stringify(corpo) }),
     });
+    conferirErroDoSistema(r);
     const dados = (await r.json().catch(() => null)) as (T & { message?: string; code?: string }) | null;
     if (r.ok) return { ok: true, dados: dados as T };
     const codigo = typeof dados?.code === "string" ? { codigo: dados.code } : {};

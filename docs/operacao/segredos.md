@@ -29,6 +29,9 @@ Todos os segredos do Mago OS ficam no Infisical Cloud (região EUA, https://app.
 | `MAGO_RESEND_CHAVE` | Chave do Resend só de envio (domínio `osmago.com`), começa com `re_`. Opcional fora da produção: sem ela, os links de senha e de convite vão para o log | API, e-mails de convite e de senha (M1-07) |
 | `MAGO_TELEGRAM_TOKEN` | Token do bot de teste do Telegram, criado pelo Sandro no @BotFather e colado por ele na web do Infisical. Opcional: sem ele, o Telegram fica desligado. Trocar: /revoke no BotFather e gravar o novo | API, bot do Telegram (M5-01) |
 | `MAGO_TELEGRAM_SEGREDO` | Segredo que o Telegram manda em cada chamada do webhook (48 caracteres, gerado com `openssl rand -hex 24`). Trocar: gravar o novo e reiniciar a API, que registra o webhook de novo | API, webhook do Telegram (M5-01) |
+| `GRAFANA_OTLP_ENDPOINT` | Endereço OTLP do Grafana Cloud (Grafana Cloud › a stack › OpenTelemetry › Configure), colado pelo Sandro na web do Infisical. Opcional: sem os três do Grafana, nada sai do servidor | API, rastreio e registros (M6-02) |
+| `GRAFANA_OTLP_INSTANCIA` | Número da instância (Instance ID) da mesma tela | API, rastreio e registros (M6-02) |
+| `GRAFANA_OTLP_TOKEN` | Token do Grafana Cloud só de escrita (Access Policy com `traces:write`, `logs:write` e `metrics:write`). Trocar: criar outro token, gravar, rodar o `segredos.sh` e `publicar.sh forcar`, e só então apagar o antigo | API, rastreio e registros (M6-02) |
 | `B2_KEY_ID`, `B2_APPLICATION_KEY`, `B2_ENDPOINT`, `B2_REGION`, `B2_BUCKET` | Acesso ao bucket de backup no Backblaze B2 | pgBackRest |
 | `PGBACKREST_CIPHER_PASS` | Senha de criptografia dos backups. Sem ela, nenhum backup pode ser restaurado | pgBackRest |
 | `MAGO_CAMPAINHA_SEGREDO` | Assinatura da campainha de publicação (também em GitHub › Settings › Secrets) | Campainha na VPS e fluxo de publicação |
