@@ -604,7 +604,7 @@ describe.skipIf(!bancoDisponivel)("rotinas por horário", () => {
       tarefa_do_evento_id: ids.post,
     });
     const nova = await dono.query(
-      "select titulo, responsavel_pessoa_id, tarefa_mae_id, projeto_id from tarefas where id = $1",
+      "select titulo, responsavel_pessoa_id, tarefa_mae_id, projeto_id, descricao from tarefas where id = $1",
       [daRevisao.rows[0]?.tarefa_id],
     );
     expect(nova.rows[0]).toEqual({
@@ -613,6 +613,7 @@ describe.skipIf(!bancoDisponivel)("rotinas por horário", () => {
       // A mãe já estava concluída: a tarefa nasce solta, no projeto dela (mãe fechada não ganha subtarefa).
       tarefa_mae_id: null,
       projeto_id: ids.blog,
+      descricao: `Tarefa que disparou a rotina: /tarefas/${ids.post}`,
     });
     // "Toda tarefa nova" rodou para as duas tarefas da Ana, mas não para a revisão, que a rotina criou.
     const daQualquer = await dono.query<{ tarefa_do_evento_id: string }>(

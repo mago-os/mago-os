@@ -561,9 +561,13 @@ async function criarTarefaDaRotina(
       ).rows[0]
     : undefined;
   const mae = daMae?.aberta ? candidata : null;
+  // Na rotina por evento, a tarefa nova leva o caminho para a que disparou (a tela mostra o endereço como link).
+  const descricao = acao.descricao ? preencher(ctx, acao.descricao) : "";
+  const origem = ctx.disparo && !mae ? `Tarefa que disparou a rotina: /tarefas/${ctx.disparo.id}` : "";
+  const descricaoComOrigem = [descricao, origem].filter(Boolean).join("\n\n").slice(0, 20000) || null;
   let tarefa = await criarTarefa(c, quem, {
     titulo: preencher(ctx, acao.titulo).slice(0, 200),
-    descricao: acao.descricao ? preencher(ctx, acao.descricao) : null,
+    descricao: descricaoComOrigem,
     responsavel: acao.responsavel ?? { tipo: "pessoa", pessoaId: dono.pessoaId },
     ...(mae ? { tarefaMaeId: mae } : { projetoId: acao.projetoId ?? daMae?.projeto_id ?? null }),
   });
