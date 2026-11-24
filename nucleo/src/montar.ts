@@ -137,8 +137,11 @@ export interface ApiMontada {
 
 export async function montarApi(config: Config, deps: DependenciasDaApi): Promise<ApiMontada> {
   const { banco, fila, poolDoLogin } = deps;
-  const app = criarServidor(config, banco);
-  if (deps.aoRegistrarRota) app.addHook("onRoute", deps.aoRegistrarRota);
+  const app = criarServidor(
+    config,
+    banco,
+    deps.aoRegistrarRota ? { aoRegistrarRota: deps.aoRegistrarRota } : {},
+  );
   /** Trabalhos da fila, ligados depois que ela começa. */
   const trabalhos: (() => Promise<void>)[] = [];
   // Anexos (M3-08): bucket e ClamAV em teste e produção; pasta do computador e conferente de teste no Mac.

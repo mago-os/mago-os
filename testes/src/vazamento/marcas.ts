@@ -7,17 +7,20 @@ import type pg from "pg";
 
 export const UUID = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi;
 
-/** Tabelas com empresa_id (esquema public) e as colunas uuid e jsonb de cada uma. */
+/**
+ * Tabelas com empresa_id (esquemas public e auditoria) e as colunas uuid e jsonb de cada uma. O esquema acesso fica de
+ * fora: são as sessões e os convites da pessoa, que mudam a cada login e não guardam dado da empresa.
+ */
 export async function tabelasDasEmpresas(
   dono: pg.Client,
 ): Promise<{ tabela: string; uuids: string[]; jsons: string[]; temId: boolean }[]> {
   const r = await dono.query<{ tabela: string; coluna: string; tipo: string }>(
-    `select c.table_name as tabela, c.column_name as coluna, c.data_type as tipo
+    `select c.table_schema || '.' || c.table_name as tabela, c.column_name as coluna, c.data_type as tipo
        from information_schema.columns c
        join information_schema.tables t on t.table_schema = c.table_schema and t.table_name = c.table_name
-      where c.table_schema = 'public' and t.table_type = 'BASE TABLE'
-        and c.table_name in (select table_name from information_schema.columns
-                              where table_schema = 'public' and column_name = 'empresa_id')
+      where c.table_schema in ('public', 'auditoria') and t.table_type = 'BASE TABLE'
+        and (c.table_schema, c.table_name) in (select table_schema, table_name from information_schema.columns
+                              where column_name = 'empresa_id')
       order by 1, 2`,
   );
   const mapa = new Map<string, { tabela: string; uuids: string[]; jsons: string[]; temId: boolean }>();
@@ -38,7 +41,7 @@ export async function idsDasEmpresas(dono: pg.Client): Promise<Map<string, strin
   for (const t of tabelas) {
     if (!t.temId) continue;
     const r = await dono.query<{ id: string; empresa_id: string }>(
-      `select id::text, empresa_id::text from public.${t.tabela}`,
+      `select id::text, empresa_id::text from ${t.tabela}`,
     );
     for (const l of r.rows) donoDoId.set(l.id, l.empresa_id);
   }
@@ -59,7 +62,7 @@ export async function retratoDaEmpresa(dono: pg.Client, empresaId: string): Prom
   for (const t of await tabelasDasEmpresas(dono)) {
     const r = await dono.query<{ h: string | null; n: string }>(
       `select md5(coalesce(string_agg(x::text, '|' order by x::text), '')) as h, count(*)::text as n
-         from public.${t.tabela} x where empresa_id = $1`,
+         from ${t.tabela} x where empresa_id = $1`,
       [empresaId],
     );
     retrato[t.tabela] = `${r.rows[0]?.n}:${r.rows[0]?.h}`;
@@ -81,7 +84,7 @@ export async function retratoDaEmpresa(dono: pg.Client, empresaId: string): Prom
  * Colunas que guardam o que foi pedido, como veio (não é uma referência que o sistema segue): a entrada que o modelo
  * escreveu em cada passo do agente fica registrada mesmo quando a ferramenta recusa um id de outra empresa.
  */
-const REGISTROS_DO_QUE_FOI_PEDIDO = new Set(["passos_de_execucao.entrada"]);
+const REGISTROS_DO_QUE_FOI_PEDIDO = new Set(["public.passos_de_execucao.entrada"]);
 
 export async function referenciasCruzadas(dono: pg.Client): Promise<string[]> {
   const donoDoId = await idsDasEmpresas(dono);
@@ -93,7 +96,7 @@ export async function referenciasCruzadas(dono: pg.Client): Promise<string[]> {
     if (colunas.length === 0) continue;
     const r = await dono.query<Record<string, string | null>>(
       `select empresa_id::text as empresa_id, ${colunas.map((c) => `${c}::text as "${c}"`).join(", ")}
-         from public.${t.tabela}`,
+         from ${t.tabela}`,
     );
     for (const l of r.rows) {
       for (const c of colunas) {

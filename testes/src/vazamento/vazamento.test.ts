@@ -46,6 +46,7 @@ const TELEGRAM_DO_FUNCIONARIO: Record<Sigla, number> = { A: 7201, B: 7202 };
  * Rotas fora do roteiro, com o motivo. Cada uma é coberta de outro jeito (nesta mesma suíte ou num teste próprio).
  */
 const FORA: Record<string, string> = {
+  "GET /saude": "pública, sem dado de empresa (a saúde da API e do banco)",
   "GET /acesso/estado": "da pessoa, não da empresa (esquema acesso); testada no login",
   "GET /acesso/aparelhos": "aparelhos da própria pessoa (esquema acesso); testada em aparelhos.test",
   "POST /acesso/aparelhos/desconectar": "aparelhos da própria pessoa; testada em aparelhos.test",

@@ -41,7 +41,7 @@ import { buscarAnexo, listarAnexos, type ServicosDosAnexos, semCaminho } from ".
 import { auditar } from "../auditoria/registrar.ts";
 import { avisarDepois } from "../avisos/eventos.ts";
 import { comEmpresa } from "../empresa.ts";
-import { idsForaDaEmpresa, uuidsDe } from "../ids-da-empresa.ts";
+import { idsForaDaEmpresa, NAO_ENCONTRADO_NA_EMPRESA, uuidsDe } from "../ids-da-empresa.ts";
 import { montarInstrucoes, skillsDoAgente } from "../instrucoes/servico.ts";
 import { buscarItem, editarItem, listarChecklist } from "../tarefas/checklist.ts";
 import {
@@ -229,9 +229,7 @@ function criarServidor(agente: AgenteDoPedido, o: OpcoesDaChave, pedido: Fastify
           throw new RecusaDaFerramenta("Tarefa não encontrada entre as suas.");
         // O pedido só cita o que existe na empresa (M6-01).
         if ((await idsForaDaEmpresa(c, uuidsDe(params))).length > 0)
-          throw new RecusaDaFerramenta(
-            "Algum item citado não existe nesta empresa. Confira e tente de novo.",
-          );
+          throw new RecusaDaFerramenta(NAO_ENCONTRADO_NA_EMPRESA);
         const r = await c.query<{ responsavel_id: string }>(
           "select responsavel_id from agentes where id = $1 and empresa_id = empresa_ativa()",
           [agente.agenteId],

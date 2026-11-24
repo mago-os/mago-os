@@ -39,6 +39,12 @@ export async function montarApiDeTeste(
   const poolApp = new pg.Pool({ connectionString: banco.urlApp });
   const poolAcesso = criarPoolDoLogin(banco.urlAcesso);
   const carteiro = carteiroFalsoDoTelegram();
+  // O bot liga num trabalho que não espera (como no servidor): o teste espera o fim dele (o menu de comandos).
+  let botLigou: () => void = () => {};
+  const ligado = new Promise<void>((r) => {
+    botLigou = r;
+  });
+  carteiro.definirComandos = async () => botLigou();
   const enviados: { fila: string; dados: unknown }[] = [];
   const rotas: { metodo: string; url: string }[] = [];
   const emails: { tipo: string; argumentos: unknown[] }[] = [];
@@ -111,7 +117,7 @@ export async function montarApiDeTeste(
   await app.ready();
   // Os trabalhos se registram na fila falsa (que não roda nada); o do Telegram também liga o bot no carteiro falso.
   for (const ligar of trabalhos) await ligar();
-  await new Promise((r) => setTimeout(r, 50));
+  await ligado;
   if (!interno) throw new Error("A API de teste precisa do login ligado");
   return {
     app,

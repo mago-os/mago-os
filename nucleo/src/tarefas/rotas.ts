@@ -751,7 +751,7 @@ export function registrarRotasDasTarefas(
       return resposta.code(201).send(visao);
     } catch (erro) {
       if (erro instanceof FiltroDeOutraEmpresa)
-        return resposta.code(400).send({ code: "PEDIDO_INVALIDO", message: erro.message });
+        return resposta.code(404).send({ code: "NAO_ENCONTRADO", message: erro.message });
       throw erro;
     }
   });
