@@ -41,6 +41,9 @@ export const TEXTO_DO_PUSH: Record<TipoDeAviso, string> = {
   rotina_falhou: "Uma rotina sua não conseguiu rodar",
   rotina_desligada: "Rotinas foram desligadas",
   rotina_rodou: "Uma rotina sua rodou",
+  convite_de_evento: "Você foi convidado para um evento",
+  evento_mudou: "Um evento da sua agenda mudou",
+  alerta_de_evento: "Um evento da sua agenda vai começar",
 };
 
 /**

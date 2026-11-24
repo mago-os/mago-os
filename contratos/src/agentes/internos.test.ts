@@ -34,6 +34,8 @@ const ASSINATURAS: Record<string, string> = {
   anexar_arquivo: "232554c1a0389e4d",
   pegar_skill: "dfed5bf9f13544f2",
   ver_custos: "ad0af9c1bceefbcb",
+  ver_agenda: "5c90bfd6bfc76376",
+  criar_evento: "09b2ac27944fe017",
   listar_rotinas: "9cf3cc76dd223a54",
   ver_rotina: "c1abcf3d68ed102a",
   criar_rotina: "06fa52f6ef87e141",

@@ -561,6 +561,7 @@ Recebe:
 - `porTipo` (objeto, obrigatório)
 - `silencio` (objeto ou null, obrigatório)
 - `resumoDoDia` (objeto ou null)
+- `alertasDaAgenda` (lista de integer)
 
 ### POST `/visoes`
 

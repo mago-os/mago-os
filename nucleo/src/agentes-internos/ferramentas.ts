@@ -7,8 +7,10 @@
 import {
   type AcaoDeRotina,
   conferir,
+  conferirPedidoDeEvento,
   conferirPedidoDeRotina,
   type DeclaracaoDeModulo,
+  DIAS_MAXIMOS_DA_LISTAGEM,
   FERRAMENTAS_DO_MCP_NO_ESPECIALISTA,
   FERRAMENTAS_INTERNAS,
   FERRAMENTAS_MCP,
@@ -20,6 +22,7 @@ import {
   type Tarefa,
 } from "@mago-os/contratos";
 import type pg from "pg";
+import { criarEvento, fusoDaPessoa, listarAgenda, quemVeDe, RecusaDaAgenda } from "../agenda/servico.ts";
 import type { OpcoesDaChave } from "../agentes/chaves.ts";
 import { avaliarAcao, criarAprovacao } from "../agentes/regras.ts";
 import { agenteRecebeTarefas } from "../agentes/servico.ts";
@@ -481,6 +484,80 @@ async function executarSemMarca(
             : {}),
         },
       };
+    }
+    // Agenda (M5-07): com o alcance de quem pediu e o do responsável pelo agente (o menor dos dois).
+    case "ver_agenda": {
+      const olham = [
+        quemVeDe(ctx.permissoes, pessoaId),
+        ...(responsavel ? [quemVeDe(responsavel.permissoes, responsavel.pessoaId)] : []),
+      ];
+      if (olham.some((q) => q.alcance === "nada"))
+        throw new RecusaDaFerramenta("Quem pediu não pode ver a agenda.");
+      const de = entrada.de as string;
+      const ate = entrada.ate as string;
+      if (ate < de || (Date.parse(ate) - Date.parse(de)) / 86_400_000 > DIAS_MAXIMOS_DA_LISTAGEM)
+        throw new RecusaDaFerramenta(
+          `Escolha um intervalo de até ${DIAS_MAXIMOS_DA_LISTAGEM} dias, com o fim depois do começo.`,
+        );
+      const pessoas = (entrada.pessoas as string[] | undefined) ?? [pessoaId];
+      const r = await naEmpresa(async (c) => {
+        const fuso = await fusoDaPessoa(c, pessoaId);
+        const ocorrencias = await listarAgenda(c, olham, { de, ate, pessoas, fuso });
+        const quem = quemPediu(ctx.permissoes, pessoaId, "ver");
+        const doResponsavel = responsavel
+          ? quemPediu(responsavel.permissoes, responsavel.pessoaId, "ver")
+          : null;
+        const prazos =
+          quem && (!responsavel || doResponsavel)
+            ? (
+                await soAsDoResponsavel(
+                  c,
+                  await listarTarefas(c, quem, { minhas: true, de, ate }),
+                  (t) => t.id,
+                )
+              ).map((t) => ({
+                tarefaId: t.id,
+                titulo: t.titulo,
+                prazo: t.prazo?.em ?? null,
+              }))
+            : [];
+        return { fuso, ocorrencias, prazosDasMinhasTarefas: prazos };
+      });
+      return { conteudo: r };
+    }
+    case "criar_evento": {
+      const podeCriar = (p: PermissoesNaEmpresa) =>
+        (p.modulos.get("agenda")?.acoes.criar ?? "nada") !== "nada";
+      if (!podeCriar(ctx.permissoes)) throw new RecusaDaFerramenta("Quem pediu não pode marcar eventos.");
+      if (responsavel && !podeCriar(responsavel.permissoes))
+        throw new RecusaDaFerramenta(
+          "A pessoa responsável por você não pode marcar eventos, e você também não.",
+        );
+      const pedido = conferirPedidoDeEvento(entrada);
+      if (!pedido.ok)
+        throw new RecusaDaFerramenta(`Confira: ${pedido.problemas[0]?.mensagem ?? "os campos"}.`);
+      const evento = await naEmpresa(async (c) => {
+        try {
+          return await criarEvento(c, { pessoaId }, pedido.valor, ctx.agente.id);
+        } catch (erro) {
+          if (erro instanceof RecusaDaAgenda) throw new RecusaDaFerramenta(erro.message);
+          throw erro;
+        }
+      });
+      await auditar(
+        ctx.poolApp,
+        {
+          empresaId: ctx.empresaId,
+          ator: { tipo: "agente", agenteId: ctx.agente.id },
+          acao: "evento.criou",
+          alvo: { tipo: "evento", id: evento.id },
+          origem: ctx.opcoesMcp.origem,
+          rastreio: null,
+          detalhes: { execucaoId, pedidoPor: pessoaId, participantes: evento.participantes.length },
+        },
+        ctx.log,
+      );
+      return { conteudo: { evento } };
     }
     // Rotinas (M5-05): com o alcance de quem pediu e o do responsável pelo agente (o menor dos dois).
     case "listar_rotinas":

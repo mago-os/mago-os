@@ -6,6 +6,7 @@ import { symmetricDecrypt } from "better-auth/crypto";
 import { carteiroDoLog, carteiroResend } from "./acesso/carteiro.ts";
 import { criarLogin, criarPoolDoLogin } from "./acesso/login.ts";
 import { registrarRotasDoLogin } from "./acesso/rotas.ts";
+import { cuidarDosAlertasDaAgenda, registrarRotasDaAgenda } from "./agenda/index.ts";
 import { verificarAgentesVivos } from "./agentes/chaves.ts";
 import { registrarRotasDoAgente, registrarRotasDosAgentes } from "./agentes/rotas.ts";
 import { registrarRotasDaParada, registrarRotasDaParadaDaPlataforma } from "./agentes/rotas-da-parada.ts";
@@ -86,6 +87,8 @@ const FILA_EXECUCOES_ESQUECIDAS = "agentes-internos-esquecidas";
 const FILA_APROVACOES_VENCIDAS = "aprovacoes-vencidas";
 /** Rotinas (M5-05): a cada minuto, as que chegaram na hora e as execuções a acompanhar. */
 const FILA_ROTINAS = "rotinas";
+/** Agenda (M5-07): a cada minuto, os alertas dos eventos. */
+const FILA_AGENDA = "agenda";
 const FILA_PASSOS_ANTIGOS = "passos-antigos";
 /** Fila dos anexos (M3-08): antivírus, envios parados e arquivos para apagar. A cada minuto, e na hora do envio. */
 const FILA_ANEXOS = "anexos";
@@ -314,6 +317,16 @@ async function iniciar(): Promise<void> {
     });
     if (depositoLocal) await registrarDepositoLocal(app, depositoLocal);
     registrarRotasDosAvisos(app, verificador, banco.pool, config.acesso.vapid?.publica ?? null);
+    // Agenda (M5-07): as rotas e os alertas, na verificação a cada minuto.
+    registrarRotasDaAgenda(app, verificador, banco.pool);
+    trabalhos.push(async () => {
+      await fila.createQueue(FILA_AGENDA);
+      await fila.schedule(FILA_AGENDA, "* * * * *");
+      await fila.work(FILA_AGENDA, async () => {
+        const n = await cuidarDosAlertasDaAgenda(banco.pool, app.log);
+        if (n > 0) app.log.info({ evento: "agenda.alertas", n }, "Alertas da agenda");
+      });
+    });
     // Rotinas (M5-05): a verificação a cada minuto roda as que chegaram na hora; o "Rodar agora" roda na hora.
     const opcoesDasRotinas: OpcoesDoMotorDasRotinas = {
       poolApp: banco.pool,

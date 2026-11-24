@@ -211,6 +211,10 @@ export async function resumoDaAcao(
         )
       : null;
     frase = `Anexar “${(a?.rows[0]?.nome ?? "um arquivo").slice(0, 100)}”, mandado pelo Telegram, em${naTarefa || " uma tarefa"}`;
+  } else if (acao === "criar_evento") {
+    const inicio = p.inicio as { dia?: string; hora?: string | null } | undefined;
+    const n = Array.isArray(p.participantes) ? p.participantes.length : 0;
+    frase = `Marcar “${String(p.titulo).slice(0, 100)}” em ${inicio?.dia ?? "?"}${inicio?.hora ? ` às ${inicio.hora}` : ""}${n > 0 ? `, com ${n} convidado(s)` : ""}`;
   } else if (acao === "criar_rotina") {
     const gatilho = p.gatilho as { horas?: string[] } | undefined;
     const horas = gatilho?.horas?.slice(0, 3).join(", ");

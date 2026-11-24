@@ -38,6 +38,7 @@ const PADRAO_DO_NUCLEO: Record<
     espacos: { ver: "tudo" },
     projetos: { ver: "tudo", criar: "tudo", editar: "tudo" },
     rotinas: { ver: "equipe", criar: "meus", editar: "meus", excluir: "meus" },
+    agenda: { ver: "equipe", criar: "meus", editar: "meus" },
   },
   funcionario: {
     empresa: { ver: "tudo" },
@@ -48,6 +49,7 @@ const PADRAO_DO_NUCLEO: Record<
     espacos: { ver: "tudo" },
     projetos: { ver: "meus", editar: "meus" },
     rotinas: { ver: "meus", criar: "meus", editar: "meus", excluir: "meus" },
+    agenda: { ver: "meus", criar: "meus", editar: "meus" },
   },
 };
 

@@ -40,6 +40,9 @@ const NOMES: Record<TipoDeAviso, string> = {
   rotina_falhou: "Rotina minha que falhou",
   rotina_desligada: "Rotinas desligadas porque o dono saiu",
   rotina_rodou: "Rotina minha que rodou (quando peço o aviso)",
+  convite_de_evento: "Convite para um evento",
+  evento_mudou: "Evento mudou ou foi cancelado",
+  alerta_de_evento: "Alerta antes de um evento",
 };
 
 type Mensagem = { texto: string; tipo: "erro" | "ok" } | null;
@@ -280,6 +283,30 @@ export function Notificacoes() {
           </>
         )}
       </fieldset>
+      <label className="flex flex-wrap items-center gap-2 text-sm">
+        Alertas da agenda, em minutos antes do evento
+        <input
+          aria-label="Alertas da agenda em minutos"
+          className="h-9 w-40 rounded-md border border-linha bg-cartao px-2"
+          defaultValue={(prefs.alertasDaAgenda ?? [10]).join(", ")}
+          key={(prefs.alertasDaAgenda ?? [10]).join(",")}
+          onBlur={(e) => {
+            const lista = [
+              ...new Set(
+                e.target.value
+                  .split(/[,\s]+/)
+                  .filter(Boolean)
+                  .map(Number)
+                  .filter((n) => Number.isInteger(n) && n >= 0 && n <= 10080),
+              ),
+            ].slice(0, 5);
+            void salvar({ ...prefs, alertasDaAgenda: lista });
+          }}
+        />
+        <span className="text-xs text-texto-2">
+          (vale para os eventos sem alertas próprios; vazio: sem alerta)
+        </span>
+      </label>
       <p className="text-xs text-texto-2">
         O Telegram vale quando ele está vinculado nesta empresa (cartão Telegram, acima). O pedido de
         aprovação já chega lá com os botões.

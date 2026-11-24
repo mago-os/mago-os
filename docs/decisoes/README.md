@@ -47,3 +47,4 @@ Uma nota curta por decisão importante: o que foi decidido, por quê e o que foi
 | [0038](0038-main-protegida-pelo-github.md) | Main protegida pelo GitHub: só por PR, verificação verde e em dia com a main, sem apagar nem reescrever; o "ok" do Sandro continua no chat | Aceita |
 | [0039](0039-rotinas-por-horario.md) | Rotinas por horário: as três ações, só o dono faz a rotina agir, limites, falhas sem repetir o que o agente já fez, e ferramentas dos agentes | Aceita |
 | [0040](0040-rotinas-por-eventos.md) | Rotinas por eventos: os sete eventos e os filtros, só o que o dono vê, a tarefa que disparou na ação, sem rotina em círculo e eventos gravados na mesma transação | Aceita |
+| [0041](0041-agenda-simples.md) | Agenda simples: eventos com participantes, recorrência (só este, este e os seguintes, todos), convite com resposta, alertas por tela, push e Telegram, e "ocupado" para o funcionário | Aceita |

@@ -20,6 +20,7 @@ import { agoraNoFuso, emSilencio, preferenciasDe } from "../avisos/notificacoes.
 import { comEmpresa, comPessoa } from "../empresa.ts";
 import { permissoesNaEmpresa } from "../permissoes/verificar.ts";
 import { listarPrioridades } from "../tarefas/prioridades.ts";
+import type { BotaoDoTelegram } from "./carteiro.ts";
 import { partesDoTexto, textoDasPrioridades } from "./conversa.ts";
 import type { OpcoesDoTelegram } from "./servico.ts";
 
@@ -48,7 +49,7 @@ export async function avisarNoTelegram(o: Opcoes, empresaId: string, agora = new
          join pessoas p on p.id = a.pessoa_id
         where a.empresa_id = empresa_ativa() and a.telegram_pendente`,
     );
-    const saida: { chatId: number; texto: string }[] = [];
+    const saida: { chatId: number; texto: string; botoes?: BotaoDoTelegram[][] }[] = [];
     for (const pessoa of pessoas.rows) {
       const prefs = await preferenciasDe(c, pessoa.pessoa_id);
       // No silêncio, espera (o push faz o mesmo).
@@ -61,18 +62,33 @@ export async function avisarNoTelegram(o: Opcoes, empresaId: string, agora = new
         [pessoa.pessoa_id],
       );
       for (const a of avisos.rows)
-        if (canaisDoTipo(prefs, a.tipo).telegram)
+        if (canaisDoTipo(prefs, a.tipo).telegram) {
+          // O convite para um evento (M5-07) leva os botões Vou, Não vou e Talvez.
+          const evento =
+            a.tipo === "convite_de_evento" ? /^\/agenda\/([0-9a-f-]{36})$/.exec(a.link)?.[1] : undefined;
           saida.push({
             chatId: Number(pessoa.chat_id),
             texto: textoDoAvisoNoTelegram(a.texto, `${urlPublica}${a.link}`),
+            ...(evento
+              ? {
+                  botoes: [
+                    [
+                      { texto: "Vou", dados: `ev:vou:${evento}` },
+                      { texto: "Não vou", dados: `ev:nao:${evento}` },
+                      { texto: "Talvez", dados: `ev:talvez:${evento}` },
+                    ],
+                  ],
+                }
+              : {}),
           });
+        }
     }
     return saida;
   });
   let enviados = 0;
   for (const e of envios)
     await o.carteiro
-      .enviar(e.chatId, e.texto)
+      .enviar(e.chatId, e.texto, e.botoes ? { botoes: e.botoes } : undefined)
       .then(() => {
         enviados++;
       })
