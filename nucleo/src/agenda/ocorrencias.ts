@@ -99,9 +99,23 @@ export function vezesAntesDe(e: BaseDoEvento, dia: string): number {
   return n;
 }
 
-/** O dia é uma das vezes da série. */
+/** O dia é uma das vezes da série (anda pela regra até ele, respeitando o fim por data e por vezes). */
 export function ehOcorrencia(e: BaseDoEvento, dia: string): boolean {
-  const comeco = momentoNoFuso(dia, "00:00", e.fuso);
-  const fim = momentoNoFuso(somarDias(dia, 1), "00:00", e.fuso);
-  return ocorrenciasEntre(e, comeco, fim, 5).some((o) => o.dia === dia);
+  if (!e.regra) return dia === e.inicioDia;
+  const { ate: dataFinal, vezes, ...semFim } = e.regra;
+  const regra = semFim as RegraDeRecorrencia;
+  let d: string | null = primeiroDia({
+    tipo: "horario",
+    regra,
+    horas: [e.inicioHora ?? "00:00"],
+    fuso: e.fuso,
+    inicio: e.inicioDia,
+  });
+  for (let n = 0; d && d <= dia && n < MAXIMO_DE_DIAS; n++) {
+    if (dataFinal != null && d > dataFinal) return false;
+    if (vezes != null && n >= vezes) return false;
+    if (d === dia) return true;
+    d = proximoDia(regra, d, 0, e.inicioDia);
+  }
+  return false;
 }

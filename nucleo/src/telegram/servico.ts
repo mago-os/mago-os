@@ -302,14 +302,31 @@ async function tocarBotao(o: OpcoesDoTelegram, b: BotaoTocadoNoTelegram): Promis
   const convite = DADOS_DOS_BOTOES.convite.exec(b.data ?? "");
   if (convite) {
     const resposta = convite[1] === "vou" ? "vou" : convite[1] === "nao" ? "nao_vou" : "talvez";
-    const ok = await comPessoa(o.poolApp, pessoa.pessoaId, pessoa.empresaId, async (c) => {
-      const e = await eventoPorId(c, convite[2] as string);
-      if (!e || e.situacao === "cancelado") return false;
-      return responderConvite(c, e, pessoa.pessoaId, resposta);
-    }).catch(() => false);
-    if (ok)
+    // O convite pode ser de outra empresa da pessoa (ela trocou a do Telegram depois): procura nas empresas dela.
+    const empresas = await comPessoa(o.poolApp, pessoa.pessoaId, null, async (c) =>
+      (
+        await c.query<{ empresa_id: string }>(
+          "select empresa_id from vinculos where pessoa_id = $1 and situacao = 'ativo'",
+          [pessoa.pessoaId],
+        )
+      ).rows.map((x) => x.empresa_id),
+    ).catch(() => [pessoa.empresaId]);
+    let empresaDoEvento: string | null = null;
+    for (const empresa of [pessoa.empresaId, ...empresas.filter((x) => x !== pessoa.empresaId)]) {
+      const feito = await comPessoa(o.poolApp, pessoa.pessoaId, empresa, async (c) => {
+        const e = await eventoPorId(c, convite[2] as string);
+        if (!e || e.situacao === "cancelado") return false;
+        return responderConvite(c, e, pessoa.pessoaId, resposta);
+      }).catch(() => false);
+      if (feito) {
+        empresaDoEvento = empresa;
+        break;
+      }
+    }
+    const ok = empresaDoEvento !== null;
+    if (empresaDoEvento)
       await auditar(o.poolApp, {
-        empresaId: pessoa.empresaId,
+        empresaId: empresaDoEvento,
         ator: { tipo: "pessoa", pessoaId: pessoa.pessoaId },
         acao: "evento.respondeu",
         alvo: { tipo: "evento", id: convite[2] as string },

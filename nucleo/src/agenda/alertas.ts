@@ -64,7 +64,7 @@ export async function alertasDaEmpresa(c: pg.PoolClient, agora: Date): Promise<n
   const ate = new Date(agora.getTime() + (MAXIMO_EM_MINUTOS + 1) * 60_000);
   const ids = await c.query<{ id: string }>(
     `select id from eventos where empresa_id = empresa_ativa() and situacao = 'marcado'
-        and (regra is not null or (inicio_em > $1 and inicio_em <= $2)) limit 2000`,
+        and (regra is not null or (inicio_em > $1::timestamptz - interval '2 minutes' and inicio_em <= $2)) limit 2000`,
     [agora, ate],
   );
   // As vezes mudadas ou canceladas saem da série.
@@ -80,9 +80,11 @@ export async function alertasDaEmpresa(c: pg.PoolClient, agora: Date): Promise<n
   let n = 0;
   for (const { id } of ids.rows) {
     const e = (await eventoPorId(c, id)) as EventoDaAgenda;
-    for (const o of ocorrenciasEntre(baseDo(e), agora, ate, 50)) {
+    // Até 2 minutos depois do começo, para o alerta "na hora" (0 minutos) sair na verificação seguinte.
+    const desde = new Date(agora.getTime() - 2 * 60_000);
+    for (const o of ocorrenciasEntre(baseDo(e), desde, ate, 50)) {
       if (e.regra && excecoes.has(`${e.id}:${o.dia}`)) continue;
-      if (o.inicioEm.getTime() <= agora.getTime()) continue;
+      if (o.inicioEm.getTime() <= desde.getTime()) continue;
       for (const p of e.participantes) {
         if (p.resposta === "nao_vou") continue;
         let alertas = e.alertas;
@@ -97,6 +99,8 @@ export async function alertasDaEmpresa(c: pg.PoolClient, agora: Date): Promise<n
         for (const m of alertas) {
           const hora = o.inicioEm.getTime() - m * 60_000;
           if (hora > agora.getTime()) continue;
+          // Depois do começo, só o alerta "na hora" ainda vale.
+          if (m > 0 && o.inicioEm.getTime() <= agora.getTime()) continue;
           const marcou = await c.query(
             `insert into alertas_de_evento (empresa_id, evento_id, pessoa_id, inicio_da_ocorrencia, minutos)
              values (empresa_ativa(), $1, $2, $3, $4) on conflict do nothing`,

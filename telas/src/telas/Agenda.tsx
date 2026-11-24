@@ -361,11 +361,17 @@ export function FormularioDoEvento({
   );
   const [inicio, setInicio] = useState(inicial?.inicio.hora ?? "15:00");
   const [fim, setFim] = useState(inicial?.fim.hora ?? "16:00");
-  const [diaDoFim, setDiaDoFim] = useState(inicial?.fim.dia ?? dia);
+  // Numa vez da série, o fim fica a mesma distância do começo (eventos de mais de um dia).
+  const duracao = inicial
+    ? Math.round((Date.parse(inicial.fim.dia) - Date.parse(inicial.inicio.dia)) / 86_400_000)
+    : 0;
+  const [diaDoFim, setDiaDoFim] = useState(
+    inicial ? new Date(Date.parse(dia) + duracao * 86_400_000).toISOString().slice(0, 10) : dia,
+  );
   const [local, setLocal] = useState(inicial?.local ?? "");
   const [link, setLink] = useState(inicial?.link ?? "");
   const [participantes, setParticipantes] = useState<string[]>(
-    inicial?.participantes.map((p) => p.pessoaId).filter((p) => p !== euId) ?? [],
+    inicial?.participantes.map((p) => p.pessoaId).filter((p) => p !== inicial.criadoPor) ?? [],
   );
   const [repetir, setRepetir] = useState<"" | "diaria" | "semanal" | "mensal">(
     (inicial?.regra?.frequencia as "diaria" | "semanal" | "mensal" | undefined) ?? "",
@@ -403,7 +409,10 @@ export function FormularioDoEvento({
       local: local.trim() || null,
       link: link.trim() || null,
       participantes,
-      regra: repetir ? { frequencia: repetir, intervalo: 1 } : null,
+      // Na edição, a repetição só vai se a pessoa mudou o "Repetir" (senão a regra fica como estava, inteira).
+      ...(!inicial || repetir !== (inicial.regra?.frequencia ?? "")
+        ? { regra: repetir ? { frequencia: repetir, intervalo: 1 } : null }
+        : {}),
       alertas: listaDeAlertas,
     };
     setOcupado(true);
@@ -505,7 +514,7 @@ export function FormularioDoEvento({
           <span className="font-medium">Participantes</span>
           <div className="flex flex-wrap gap-3">
             {pessoas
-              .filter((p) => p.id !== euId)
+              .filter((p) => p.id !== (inicial?.criadoPor ?? euId))
               .map((p) => (
                 <label key={p.id} className="flex items-center gap-1">
                   <input

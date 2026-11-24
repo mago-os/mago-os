@@ -476,4 +476,34 @@ describe.skipIf(!bancoDisponivel)("agenda simples", () => {
     // O dia 21, cancelado, não alerta.
     expect(await alertas(new Date("2030-01-21T11:50:00Z"))).toBe(0);
   });
+
+  it("o alerta na hora (0 minutos) sai; esta e as seguintes na primeira vez muda a série inteira", async () => {
+    const ana = await como("ana@teste.invalid");
+    const r = await pedir("POST", "/agenda/eventos", ana, {
+      titulo: "Ligação",
+      inicio: { dia: "2030-03-04", hora: "09:00" },
+      fim: { dia: "2030-03-04", hora: "09:30" },
+      fuso: "UTC",
+      participantes: [],
+      regra: { frequencia: "semanal", intervalo: 1, vezes: 3 },
+      alertas: [0],
+    });
+    const ligacao = r.json() as EventoDaAgenda;
+    expect(await alertas(new Date("2030-03-04T08:59:00Z"))).toBe(0);
+    expect(await alertas(new Date("2030-03-04T09:00:30Z"))).toBe(1);
+    expect(
+      (
+        await pedir("POST", `/agenda/eventos/${ligacao.id}`, ana, {
+          inicio: { dia: "2030-03-04", hora: "10:00" },
+          fim: { dia: "2030-03-04", hora: "10:30" },
+          alcance: "este_e_seguintes",
+          ocorrencia: "2030-03-04",
+        })
+      ).statusCode,
+    ).toBe(200);
+    const vezes = (await agendaDe("ana@teste.invalid", "2030-03-01", "2030-03-31"))
+      .filter((o) => o.titulo === "Ligação")
+      .map((o) => o.inicioEm.slice(0, 16));
+    expect(vezes).toEqual(["2030-03-04T10:00", "2030-03-11T10:00", "2030-03-18T10:00"]);
+  });
 });

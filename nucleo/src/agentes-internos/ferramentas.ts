@@ -504,13 +504,23 @@ async function executarSemMarca(
         const fuso = await fusoDaPessoa(c, pessoaId);
         const ocorrencias = await listarAgenda(c, olham, { de, ate, pessoas, fuso });
         const quem = quemPediu(ctx.permissoes, pessoaId, "ver");
-        const prazos = quem
-          ? (await listarTarefas(c, quem, { minhas: true, de, ate })).map((t) => ({
-              tarefaId: t.id,
-              titulo: t.titulo,
-              prazo: t.prazo?.em ?? null,
-            }))
-          : [];
+        const doResponsavel = responsavel
+          ? quemPediu(responsavel.permissoes, responsavel.pessoaId, "ver")
+          : null;
+        const prazos =
+          quem && (!responsavel || doResponsavel)
+            ? (
+                await soAsDoResponsavel(
+                  c,
+                  await listarTarefas(c, quem, { minhas: true, de, ate }),
+                  (t) => t.id,
+                )
+              ).map((t) => ({
+                tarefaId: t.id,
+                titulo: t.titulo,
+                prazo: t.prazo?.em ?? null,
+              }))
+            : [];
         return { fuso, ocorrencias, prazosDasMinhasTarefas: prazos };
       });
       return { conteudo: r };

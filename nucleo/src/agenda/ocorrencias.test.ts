@@ -59,4 +59,17 @@ describe("ocorrências da agenda", () => {
     expect(ehOcorrencia(ny, "2026-11-02")).toBe(true);
     expect(ehOcorrencia(ny, "2026-11-03")).toBe(false);
   });
+
+  it("uma vez da série é achada mesmo com vezes longas que se sobrepõem", () => {
+    const semana: BaseDoEvento = {
+      ...reuniao,
+      inicioHora: null,
+      fimHora: null,
+      inicioDia: "2026-11-02",
+      fimDia: "2026-11-08",
+      diaInteiro: true,
+      regra: { frequencia: "diaria", intervalo: 1 },
+    };
+    expect(ehOcorrencia(semana, "2026-11-20")).toBe(true);
+  });
 });

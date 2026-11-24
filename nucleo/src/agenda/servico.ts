@@ -8,6 +8,7 @@
 import {
   type AlcanceDaMudanca,
   canaisDoTipo,
+  DIAS_MAXIMOS_DO_EVENTO,
   type EventoDaAgenda,
   type OcorrenciaNaAgenda,
   type PedidoDeEdicaoDeEvento,
@@ -493,6 +494,8 @@ function conferirDados(d: DadosDoEvento): void {
   if (d.diaInteiro ? b < a : b <= a) throw new RecusaDaAgenda("O fim vem depois do começo.");
   if (!d.diaInteiro && (!d.inicio.hora || !d.fim.hora))
     throw new RecusaDaAgenda("Evento com horário precisa da hora do começo e do fim.");
+  if ((Date.parse(d.fim.dia) - Date.parse(d.inicio.dia)) / 86_400_000 > DIAS_MAXIMOS_DO_EVENTO)
+    throw new RecusaDaAgenda(`Um evento dura no máximo ${DIAS_MAXIMOS_DO_EVENTO} dias.`);
 }
 
 const mudouOHorario = (a: DadosDoEvento, b: DadosDoEvento) =>
@@ -524,10 +527,15 @@ export async function editarEvento(
   pedido: PedidoDeEdicaoDeEvento,
 ): Promise<EventoDaAgenda> {
   if (e.situacao === "cancelado") throw new RecusaDaAgenda("Esse evento foi cancelado.");
-  const alcance: AlcanceDaMudanca = e.regra ? (pedido.alcance ?? "todos") : "todos";
   const dia = pedido.ocorrencia;
+  // "Esta e as seguintes" na primeira vez é a série inteira.
+  const pedido0 = e.regra ? (pedido.alcance ?? "todos") : "todos";
+  const alcance: AlcanceDaMudanca =
+    pedido0 === "este_e_seguintes" && dia === e.inicio.dia ? "todos" : pedido0;
   if (e.regra && alcance !== "todos" && (!dia || !ehOcorrencia(baseDo(e), dia)))
     throw new RecusaDaAgenda("Esse dia não é uma das vezes do evento.");
+  if (e.serieId && pedido.regra)
+    throw new RecusaDaAgenda("Uma vez mudada de uma série não ganha repetição própria; mude a série.");
   await conferirLigacoes(c, { ...pedido, ...(pedido.fuso ? { fuso: pedido.fuso } : {}) });
   const antes = dadosDe(e);
   const participantesNovos = pedido.participantes
@@ -573,16 +581,14 @@ export async function editarEvento(
       ocorrencia: dia as string,
     });
   } else {
-    base = naOcorrencia(antes, dia as string);
-    base = { ...base, regra: e.regra };
+    // A série nova continua com o que sobrou das vezes (se o pedido não trouxer outra regra).
+    const regraQueSobra =
+      e.regra?.vezes != null
+        ? { ...e.regra, vezes: Math.max(1, e.regra.vezes - vezesAntesDe(baseDo(e), dia as string)) }
+        : e.regra;
+    base = { ...naOcorrencia(antes, dia as string), regra: regraQueSobra };
     const depois = aplicar(base, pedido);
     conferirDados(depois);
-    // A série nova continua com o que sobrou das vezes.
-    if (depois.regra?.vezes != null && e.regra?.vezes != null)
-      depois.regra = {
-        ...depois.regra,
-        vezes: Math.max(1, e.regra.vezes - vezesAntesDe(baseDo(e), dia as string)),
-      };
     await c.query(
       "delete from eventos where empresa_id = empresa_ativa() and serie_id = $1 and ocorrencia_original >= $2",
       [e.id, dia],
