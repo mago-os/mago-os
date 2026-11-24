@@ -243,7 +243,11 @@ function filtrosDaM304(filtro: FiltroDaLista, valores: unknown[]): string[] {
     const ate = filtro.ate ? `${v(filtro.ate)}::date` : "'infinity'::date";
     partes.push(`(t.prazo_em is not null and ${diaDoPrazo} between ${de} and ${ate})`);
   }
-  if (filtro.subtarefas === false) partes.push("t.tarefa_mae_id is null");
+  // Sem as subtarefas (ficam dentro das mães), menos a aberta cuja mãe já fechou: ela não some de vista.
+  if (filtro.subtarefas === false)
+    partes.push(`(t.tarefa_mae_id is null or (t.status not in ('concluida', 'cancelada') and exists (
+      select 1 from tarefas m where m.empresa_id = t.empresa_id and m.id = t.tarefa_mae_id
+         and m.status in ('concluida', 'cancelada'))))`);
   // Texto livre: contém (sem acento e sem diferença de maiúsculas) ou uma palavra parecida no título; também na
   // descrição e nos comentários. Os curingas do LIKE valem como texto.
   if (filtro.texto) {

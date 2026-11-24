@@ -778,6 +778,12 @@ function VisaoKanban({
                 <a href={`/tarefas/${t.id}`} className="font-medium text-pretty hover:underline">
                   {t.titulo}
                 </a>
+                {t.tarefaMaeId && (
+                  // Subtarefa aberta cuja mãe já fechou: aparece sozinha no Kanban.
+                  <a href={`/tarefas/${t.tarefaMaeId}`} className="text-xs text-texto-2 hover:underline">
+                    Subtarefa de uma tarefa encerrada
+                  </a>
+                )}
                 <span className="flex flex-wrap items-center gap-1.5 text-xs text-texto-2">
                   <MarcaDePrioridade prioridade={t.prioridade} />
                   <span>{nomeDe(t.responsavel, nomes)}</span>

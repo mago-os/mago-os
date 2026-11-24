@@ -610,7 +610,8 @@ describe.skipIf(!bancoDisponivel)("rotinas por horário", () => {
     expect(nova.rows[0]).toEqual({
       titulo: "Revisar: Post de lançamento",
       responsavel_pessoa_id: ids.rita,
-      tarefa_mae_id: ids.post,
+      // A mãe já estava concluída: a tarefa nasce solta, no projeto dela (mãe fechada não ganha subtarefa).
+      tarefa_mae_id: null,
       projeto_id: ids.blog,
     });
     // "Toda tarefa nova" rodou para as duas tarefas da Ana, mas não para a revisão, que a rotina criou.

@@ -171,6 +171,13 @@ describe.skipIf(!bancoDisponivel)("visões e filtros", () => {
     expect(await titulos(`/tarefas?etiquetas=${etiqueta}`)).toEqual(["Da Flora urgente"]);
     expect(await titulos(`/tarefas?espaco=${espaco}`)).toEqual(["Da Flora urgente", "Sub"]);
     expect(await titulos(`/tarefas?espaco=${espaco}&subtarefas=0`)).toEqual(["Da Flora urgente"]);
+    // A subtarefa aberta cuja mãe fechou não some do Kanban (vem sozinha).
+    await dono.query("update tarefas set status = 'cancelada', encerrada_em = now() where id = $1", [mae]);
+    expect((await titulos(`/tarefas?espaco=${espaco}&subtarefas=0`)).sort()).toEqual([
+      "Da Flora urgente",
+      "Sub",
+    ]);
+    await dono.query("update tarefas set status = 'a_fazer', encerrada_em = null where id = $1", [mae]);
     expect((await titulos("/tarefas?prioridades=sem")).includes("Da Flora urgente")).toBe(false);
     expect((await pedir("GET", "/tarefas?prazo=ontem", ana)).statusCode).toBe(400);
   });

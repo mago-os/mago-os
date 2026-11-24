@@ -548,12 +548,24 @@ async function criarTarefaDaRotina(
   const recusa = await recusaDoPlanejamento(c, null, plano);
   if (recusa) throw new FalhaSemVolta(recusa);
   // Como subtarefa da que disparou (ou ao lado dela, se ela já for subtarefa): fica no projeto e na lista da mãe.
-  const mae = acao.comoSubtarefa && ctx.disparo ? (ctx.disparo.maeId ?? ctx.disparo.id) : null;
+  // Subtarefa só de uma mãe aberta (como na tela: mãe fechada não ganha subtarefa). Com a mãe já fechada, a tarefa
+  // nasce solta, no projeto dela.
+  const candidata = acao.comoSubtarefa && ctx.disparo ? (ctx.disparo.maeId ?? ctx.disparo.id) : null;
+  const daMae = candidata
+    ? (
+        await c.query<{ aberta: boolean; projeto_id: string | null }>(
+          `select status not in ('concluida', 'cancelada') as aberta, projeto_id from tarefas
+            where id = $1 and empresa_id = empresa_ativa()`,
+          [candidata],
+        )
+      ).rows[0]
+    : undefined;
+  const mae = daMae?.aberta ? candidata : null;
   let tarefa = await criarTarefa(c, quem, {
     titulo: preencher(ctx, acao.titulo).slice(0, 200),
     descricao: acao.descricao ? preencher(ctx, acao.descricao) : null,
     responsavel: acao.responsavel ?? { tipo: "pessoa", pessoaId: dono.pessoaId },
-    ...(mae ? { tarefaMaeId: mae } : { projetoId: acao.projetoId ?? null }),
+    ...(mae ? { tarefaMaeId: mae } : { projetoId: acao.projetoId ?? daMae?.projeto_id ?? null }),
   });
   if (Object.keys(plano).length > 0) {
     await planejar(c, tarefa, plano, ctx.fuso);
