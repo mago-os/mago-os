@@ -11,8 +11,8 @@ Escrita em 15/11/2026 por Sandro Nolasco e Claude. Passou para cá em 16/11/2026
 | [M2-prova.md](M2-prova.md) | M2 Prova de ponta a ponta | Concluído em 19/11/2026 |
 | [M3-projetos.md](M3-projetos.md) | M3 Projetos e tarefas completos | Concluído em 20/11/2026 |
 | [M4-agentes.md](M4-agentes.md) | M4 Agentes internos e regras | Concluído em 22/11/2026 |
-| [M5-telegram-e-rotinas.md](M5-telegram-e-rotinas.md) | M5 Telegram e rotinas | Aprovado em 22/11/2026, em construção |
-| [M2-a-M6.md](M2-a-M6.md) | M6 | Não iniciado (subtarefas escritas antes de cada marco) |
+| [M5-telegram-e-rotinas.md](M5-telegram-e-rotinas.md) | M5 Telegram e rotinas | Concluído em 24/11/2026 |
+| [M6-endurecimento-e-uso-real.md](M6-endurecimento-e-uso-real.md) | M6 Endurecimento e uso real | Proposta em 24/11/2026, aguardando aprovação |
 
 ## Como ler esta spec
 
