@@ -79,6 +79,8 @@ export const AVISOS_URGENTES_NO_TELEGRAM = [
   "agentes_parados",
   // M5-05: o aviso de uma rotina é um lembrete que alguém marcou de propósito.
   "aviso_de_rotina",
+  // O aviso de que a rotina rodou só existe quando o dono pediu ("Me avisar cada vez que rodar"): já é um pedido dele.
+  "rotina_rodou",
 ] as const satisfies readonly TipoDeAviso[];
 
 /**
