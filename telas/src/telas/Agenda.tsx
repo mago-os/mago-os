@@ -273,6 +273,7 @@ export function Agenda({ euId }: { euId: string }) {
       </div>
       {criando && (
         <FormularioDoEvento
+          key={`${criando.dia}-${criando.hora ?? ""}`}
           euId={euId}
           sugestao={criando}
           aoCancelar={() => setCriando(null)}
@@ -703,7 +704,9 @@ export function FormularioDoEvento({
   const [inicio, setInicio] = useState(inicial?.inicio.hora ?? horaSugerida);
   const [fim, setFim] = useState(
     inicial?.fim.hora ??
-      `${String(Math.min(23, Number(horaSugerida.slice(0, 2)) + 1)).padStart(2, "0")}:${horaSugerida.slice(3, 5)}`,
+      (Number(horaSugerida.slice(0, 2)) >= 23
+        ? "23:59"
+        : `${String(Number(horaSugerida.slice(0, 2)) + 1).padStart(2, "0")}:${horaSugerida.slice(3, 5)}`),
   );
   // Numa vez da série, o fim fica a mesma distância do começo (eventos de mais de um dia).
   const duracao = inicial
