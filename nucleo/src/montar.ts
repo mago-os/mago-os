@@ -60,6 +60,7 @@ import {
 } from "./permissoes/rotas.ts";
 import { criarVerificador } from "./permissoes/verificar.ts";
 import { registrarRotasDosProjetos } from "./projetos/rotas.ts";
+import { continuarRastreio, levarRastreio, type RastreioLevado } from "./rastreio-dos-trabalhos.ts";
 import {
   cuidarDaExecucao,
   cuidarDasRotinas,
@@ -173,14 +174,16 @@ export async function montarApi(config: Config, deps: DependenciasDaApi): Promis
     // Agentes internos (M4-02): a mensagem da pessoa, a delegação e a tarefa atribuída (M4-04) viram trabalho na fila; o motor roda cada um.
     const acordarAgente = (empresaId: string, execucaoId: string) => {
       void fila
-        .send(FILA_AGENTES_INTERNOS, { empresaId, execucaoId })
+        .send(FILA_AGENTES_INTERNOS, { empresaId, execucaoId, rastreio: levarRastreio() })
         .catch((erro) =>
           app.log.error({ erro, execucaoId }, "Fila dos agentes internos não recebeu o trabalho"),
         );
     };
     /** Acorda a fila dos anexos (o antivírus), do app e do Telegram. */
     const acordarFilaDosAnexos = () => {
-      void fila.send(FILA_ANEXOS, {}).catch((erro) => app.log.warn({ erro }, "Fila dos anexos não acordou"));
+      void fila
+        .send(FILA_ANEXOS, { rastreio: levarRastreio() })
+        .catch((erro) => app.log.warn({ erro }, "Fila dos anexos não acordou"));
     };
     registrarRotasDasTarefas(app, verificador, banco.pool, { acordarAgente });
     registrarRotasDosProjetos(app, verificador, banco.pool);
@@ -319,35 +322,44 @@ export async function montarApi(config: Config, deps: DependenciasDaApi): Promis
     }
     trabalhos.push(async () => {
       await fila.createQueue(FILA_AGENTES_INTERNOS);
-      await fila.work<{ empresaId: string; execucaoId: string }>(
+      await fila.work<{ empresaId: string; execucaoId: string; rastreio?: RastreioLevado }>(
         FILA_AGENTES_INTERNOS,
         { batchSize: 1 },
         async (trabalhos) => {
-          for (const t of trabalhos) await rodarExecucao(opcoesDoMotor, t.data.empresaId, t.data.execucaoId);
+          for (const t of trabalhos)
+            await continuarRastreio(t.data.rastreio, "agentes-internos", () =>
+              rodarExecucao(opcoesDoMotor, t.data.empresaId, t.data.execucaoId),
+            );
         },
       );
       // Todo dia, às 4h (UTC): os passos com mais de 90 dias são apagados (M4-07).
       await fila.createQueue(FILA_PASSOS_ANTIGOS);
       await fila.schedule(FILA_PASSOS_ANTIGOS, "0 4 * * *");
-      await fila.work(FILA_PASSOS_ANTIGOS, async () => {
-        const n = await apagarPassosAntigos(banco.pool);
-        if (n > 0) app.log.info({ evento: "passos.apagados", n }, "Passos com mais de 90 dias apagados");
-      });
+      await fila.work(FILA_PASSOS_ANTIGOS, () =>
+        continuarRastreio(null, FILA_PASSOS_ANTIGOS, async () => {
+          const n = await apagarPassosAntigos(banco.pool);
+          if (n > 0) app.log.info({ evento: "passos.apagados", n }, "Passos com mais de 90 dias apagados");
+        }),
+      );
       // A cada minuto: pedidos de aprovação de mais de 24 horas vencem (M4-03).
       await fila.createQueue(FILA_APROVACOES_VENCIDAS);
       await fila.schedule(FILA_APROVACOES_VENCIDAS, "* * * * *");
-      await fila.work(FILA_APROVACOES_VENCIDAS, async () => {
-        const n = await verificarAprovacoesVencidas(banco.pool, app.log);
-        if (n > 0) app.log.info({ evento: "aprovacoes.vencidas", n }, "Pedidos de aprovação vencidos");
-      });
+      await fila.work(FILA_APROVACOES_VENCIDAS, () =>
+        continuarRastreio(null, FILA_APROVACOES_VENCIDAS, async () => {
+          const n = await verificarAprovacoesVencidas(banco.pool, app.log);
+          if (n > 0) app.log.info({ evento: "aprovacoes.vencidas", n }, "Pedidos de aprovação vencidos");
+        }),
+      );
       // A cada minuto: execuções esquecidas (reinício no meio, ou trabalho que não chegou à fila).
       await fila.createQueue(FILA_EXECUCOES_ESQUECIDAS);
       await fila.schedule(FILA_EXECUCOES_ESQUECIDAS, "* * * * *");
-      await fila.work(FILA_EXECUCOES_ESQUECIDAS, async () => {
-        const n = await verificarExecucoesEsquecidas(opcoesDoMotor);
-        if (n > 0)
-          app.log.warn({ evento: "agentes_internos.esquecidas", n }, "Execuções esquecidas cuidadas");
-      });
+      await fila.work(FILA_EXECUCOES_ESQUECIDAS, () =>
+        continuarRastreio(null, FILA_EXECUCOES_ESQUECIDAS, async () => {
+          const n = await verificarExecucoesEsquecidas(opcoesDoMotor);
+          if (n > 0)
+            app.log.warn({ evento: "agentes_internos.esquecidas", n }, "Execuções esquecidas cuidadas");
+        }),
+      );
     });
     registrarRotasDoAgente(app, opcoesDosAgentes);
     registrarServidorMcp(app, { ...opcoesDosAgentes, anexos: servicosDosAnexos });
@@ -364,10 +376,12 @@ export async function montarApi(config: Config, deps: DependenciasDaApi): Promis
     trabalhos.push(async () => {
       await fila.createQueue(FILA_AGENDA);
       await fila.schedule(FILA_AGENDA, "* * * * *");
-      await fila.work(FILA_AGENDA, async () => {
-        const n = await cuidarDosAlertasDaAgenda(banco.pool, app.log);
-        if (n > 0) app.log.info({ evento: "agenda.alertas", n }, "Alertas da agenda");
-      });
+      await fila.work(FILA_AGENDA, () =>
+        continuarRastreio(null, FILA_AGENDA, async () => {
+          const n = await cuidarDosAlertasDaAgenda(banco.pool, app.log);
+          if (n > 0) app.log.info({ evento: "agenda.alertas", n }, "Alertas da agenda");
+        }),
+      );
     });
     // Rotinas (M5-05): a verificação a cada minuto roda as que chegaram na hora; o "Rodar agora" roda na hora.
     const opcoesDasRotinas: OpcoesDoMotorDasRotinas = {
@@ -391,10 +405,12 @@ export async function montarApi(config: Config, deps: DependenciasDaApi): Promis
     trabalhos.push(async () => {
       await fila.createQueue(FILA_ROTINAS);
       await fila.schedule(FILA_ROTINAS, "* * * * *");
-      await fila.work(FILA_ROTINAS, async () => {
-        const n = await cuidarDasRotinas(opcoesDasRotinas);
-        if (n > 0) app.log.info({ evento: "rotinas.cuidadas", n }, "Rotinas cuidadas");
-      });
+      await fila.work(FILA_ROTINAS, () =>
+        continuarRastreio(null, FILA_ROTINAS, async () => {
+          const n = await cuidarDasRotinas(opcoesDasRotinas);
+          if (n > 0) app.log.info({ evento: "rotinas.cuidadas", n }, "Rotinas cuidadas");
+        }),
+      );
     });
     // Verificação a cada minuto (M2-04): tarefas de agentes sem sinal voltam para A fazer. O pg-boss garante que só
     // uma cópia da API roda cada vez.
@@ -404,41 +420,50 @@ export async function montarApi(config: Config, deps: DependenciasDaApi): Promis
       await fila.schedule(FILA_NOTIFICACOES, "* * * * *");
       const vapid = config.acesso?.vapid ?? null;
       const enviar = vapid ? enviadorWebPush(vapid) : null;
-      await fila.work(FILA_NOTIFICACOES, async () => {
-        // Uma parte com erro não para a outra.
-        const prazos = await verificarPrazos(banco.pool).catch((erro) => {
-          app.log.error({ erro }, "Verificação de prazos falhou");
-          return 0;
-        });
-        const pushes = enviar ? await enviarPushPendentes(banco.pool, enviar, app.log) : 0;
-        if (prazos + pushes > 0)
-          app.log.info({ evento: "notificacoes", prazos, pushes }, "Avisos de prazo e push");
-      });
+      await fila.work(FILA_NOTIFICACOES, () =>
+        continuarRastreio(null, FILA_NOTIFICACOES, async () => {
+          // Uma parte com erro não para a outra.
+          const prazos = await verificarPrazos(banco.pool).catch((erro) => {
+            app.log.error({ erro }, "Verificação de prazos falhou");
+            return 0;
+          });
+          const pushes = enviar ? await enviarPushPendentes(banco.pool, enviar, app.log) : 0;
+          if (prazos + pushes > 0)
+            app.log.info({ evento: "notificacoes", prazos, pushes }, "Avisos de prazo e push");
+        }),
+      );
       if (servicosDosAnexos) {
         await fila.createQueue(FILA_ANEXOS);
         await fila.schedule(FILA_ANEXOS, "* * * * *");
-        await fila.work(FILA_ANEXOS, async () => {
-          const feito = await cuidarDosAnexos(banco.pool, servicosDosAnexos, app.log);
-          if (feito.liberados + feito.bloqueados + feito.apagados > 0)
-            app.log.info({ evento: "anexos", ...feito }, "Anexos cuidados");
-        });
+        // Acordada por um envio (com o rastreio de quem enviou) ou pela verificação a cada minuto.
+        await fila.work<{ rastreio?: RastreioLevado } | null>(FILA_ANEXOS, (trabalhos) =>
+          continuarRastreio(trabalhos[0]?.data?.rastreio, FILA_ANEXOS, async () => {
+            const feito = await cuidarDosAnexos(banco.pool, servicosDosAnexos, app.log);
+            if (feito.liberados + feito.bloqueados + feito.apagados > 0)
+              app.log.info({ evento: "anexos", ...feito }, "Anexos cuidados");
+          }),
+        );
         await fila.createQueue(FILA_ESPACO);
         await fila.schedule(FILA_ESPACO, "0 9 * * *");
-        await fila.work(FILA_ESPACO, async () => {
-          const bytes = await espacoTotal(banco.pool);
-          if (bytes > LIMITE_DE_AVISO_DO_ESPACO)
-            app.log.error(
-              { evento: "anexos.espaco", bytes, limite: LIMITE_DE_AVISO_DO_ESPACO },
-              "Os anexos passaram de 5 GB: hora de rever o plano do depósito",
-            );
-        });
+        await fila.work(FILA_ESPACO, () =>
+          continuarRastreio(null, FILA_ESPACO, async () => {
+            const bytes = await espacoTotal(banco.pool);
+            if (bytes > LIMITE_DE_AVISO_DO_ESPACO)
+              app.log.error(
+                { evento: "anexos.espaco", bytes, limite: LIMITE_DE_AVISO_DO_ESPACO },
+                "Os anexos passaram de 5 GB: hora de rever o plano do depósito",
+              );
+          }),
+        );
       }
       await fila.createQueue(FILA_AGENTES_VIVOS);
       await fila.schedule(FILA_AGENTES_VIVOS, "* * * * *");
-      await fila.work(FILA_AGENTES_VIVOS, async () => {
-        const devolvidas = await verificarAgentesVivos({ ...opcoesDosAgentes, log: app.log });
-        if (devolvidas > 0) app.log.warn({ evento: "agente.sem_sinal", devolvidas }, "Tarefas devolvidas");
-      });
+      await fila.work(FILA_AGENTES_VIVOS, () =>
+        continuarRastreio(null, FILA_AGENTES_VIVOS, async () => {
+          const devolvidas = await verificarAgentesVivos({ ...opcoesDosAgentes, log: app.log });
+          if (devolvidas > 0) app.log.warn({ evento: "agente.sem_sinal", devolvidas }, "Tarefas devolvidas");
+        }),
+      );
     });
     registrarRotaDaAuditoria(app, verificador, banco.pool);
     registrarRotasDoAdministrador(app, verificador, banco.pool);
@@ -459,24 +484,39 @@ export async function montarApi(config: Config, deps: DependenciasDaApi): Promis
       bot,
       receber: async (atualizacao) => {
         // Sem repetir: vincular e as travas não podem rodar duas vezes (tratarAtualizacao não lança pelo envio).
-        await fila.send(FILA_TELEGRAM, atualizacao, { retryLimit: 0 });
+        await fila.send(FILA_TELEGRAM, { atualizacao, rastreio: levarRastreio() }, { retryLimit: 0 });
       },
     });
     if (bot && opcoesDoBot) {
       const urlDoWebhook = `${config.acesso.urlPublica}/api/telegram/webhook`;
       trabalhos.push(async () => {
         await fila.createQueue(FILA_TELEGRAM);
-        await fila.work<Parameters<typeof tratarAtualizacao>[1]>(FILA_TELEGRAM, async (lote) => {
-          for (const t of lote) await tratarAtualizacao(opcoesDoBot, t.data);
-        });
+        type MensagemNaFila = {
+          atualizacao: Parameters<typeof tratarAtualizacao>[1];
+          rastreio?: RastreioLevado;
+        };
+        await fila.work<MensagemNaFila | Parameters<typeof tratarAtualizacao>[1]>(
+          FILA_TELEGRAM,
+          async (lote) => {
+            for (const t of lote) {
+              // As mensagens que já estavam na fila antes do rastreio vêm sem o envelope.
+              const m = "atualizacao" in t.data ? t.data : { atualizacao: t.data };
+              await continuarRastreio(m.rastreio, "telegram", () =>
+                tratarAtualizacao(opcoesDoBot, m.atualizacao),
+              );
+            }
+          },
+        );
         // A cada minuto: respostas que não chegaram ao Telegram (servidor reiniciado, Telegram fora do ar).
         await fila.createQueue(FILA_TELEGRAM_ENTREGAS);
         await fila.schedule(FILA_TELEGRAM_ENTREGAS, "* * * * *");
-        await fila.work(FILA_TELEGRAM_ENTREGAS, async () => {
-          const n = await entregarPendentesNoTelegram(opcoesDoBot);
-          if (n > 0)
-            app.log.info({ evento: "telegram.entregas", n }, "Respostas atrasadas entregues no Telegram");
-        });
+        await fila.work(FILA_TELEGRAM_ENTREGAS, () =>
+          continuarRastreio(null, FILA_TELEGRAM_ENTREGAS, async () => {
+            const n = await entregarPendentesNoTelegram(opcoesDoBot);
+            if (n > 0)
+              app.log.info({ evento: "telegram.entregas", n }, "Respostas atrasadas entregues no Telegram");
+          }),
+        );
         // Ligar o webhook não segura a subida da API: se o Telegram não responder, tenta de novo a cada minuto. O
         // cartão de Meu perfil só deixa gerar código depois que o webhook ligou.
         const ligarBot = async () => {

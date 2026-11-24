@@ -12,7 +12,7 @@
 # Nenhum valor aparece na tela nem no log.
 set -euo pipefail
 python3 -I - /opt/mago-os/infisical.env /opt/mago-os <<'PY'
-import sys, json, urllib.request, urllib.parse, re, os
+import sys, json, urllib.request, urllib.parse, re, os, base64
 env = dict(re.findall(r"^(\w+)=(.*)$", open(sys.argv[1]).read(), re.M))
 pasta = sys.argv[2]
 B = "https://app.infisical.com"; WS = "7e951d3d-b27b-4e98-96ff-30ddbeef7bf2"
@@ -57,6 +57,13 @@ arquivos = {
         **{k: s[k] for k in ("MAGO_COFRE_CHAVE_MESTRA", "MAGO_COFRE_VERSAO", "MAGO_COFRE_CHAVE_ANTERIOR") if s.get(k)},
         # Telegram (M5-01), opcional: sem o token e o segredo do webhook, o bot fica desligado.
         **{k: s[k] for k in ("MAGO_TELEGRAM_TOKEN", "MAGO_TELEGRAM_SEGREDO") if s.get(k)},
+        # Rastreio e registros no Grafana Cloud (M6-02), opcionais: sem os três, nada sai do servidor.
+        **({
+            "OTEL_EXPORTER_OTLP_ENDPOINT": s["GRAFANA_OTLP_ENDPOINT"],
+            "OTEL_EXPORTER_OTLP_HEADERS": "Authorization=Basic%20" + base64.b64encode(
+                f"{s['GRAFANA_OTLP_INSTANCIA']}:{s['GRAFANA_OTLP_TOKEN']}".encode()).decode(),
+            "OTEL_RESOURCE_ATTRIBUTES": "deployment.environment=teste",
+        } if all(s.get(k) for k in ("GRAFANA_OTLP_ENDPOINT", "GRAFANA_OTLP_INSTANCIA", "GRAFANA_OTLP_TOKEN")) else {}),
         # Anexos (M3-08), opcionais: o bucket só dos anexos no Backblaze e o ClamAV do compose (rede interna).
         **({
             "MAGO_ANEXOS_ENDPOINT": s["B2_ANEXOS_ENDPOINT"], "MAGO_ANEXOS_BUCKET": s["B2_ANEXOS_BUCKET"],

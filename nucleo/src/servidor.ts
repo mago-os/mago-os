@@ -7,6 +7,8 @@ import Fastify, { type FastifyInstance, LogController, type RouteOptions } from 
 import type { Banco } from "./banco.ts";
 import type { Config } from "./config.ts";
 import { sobreOSistema } from "./index.ts";
+import { comNumeroDeRastreio, rastreioAtual } from "./rastreio-dos-trabalhos.ts";
+import { enderecoSemValores, limparRegistro, limparTexto } from "./registros.ts";
 
 /** Número de rastreio do pedido: o trace id do OpenTelemetry, ou um novo no mesmo formato se não houver. */
 export function numeroDeRastreio(): string {
@@ -42,7 +44,32 @@ export function criarServidor(
       base: { servico: "mago-os-nucleo", ambiente: config.ambiente, versao: config.versao ?? "local" },
       messageKey: "mensagem",
       timestamp: () => `,"hora":"${new Date().toISOString()}"`,
-      formatters: { level: (nivel) => ({ nivel }) },
+      // Sem dado pessoal nem sensível nos registros (M6-02): eles saem do servidor para o destino central.
+      formatters: {
+        level: (nivel) => ({ nivel }),
+        log: (objeto) => limparRegistro(objeto) as Record<string, unknown>,
+      },
+      // Fora de um pedido (a fila, as rotinas, o Telegram), o número do trabalho entra em cada registro; num pedido,
+      // ele já vem do próprio pedido.
+      mixin: (_objeto, _nivel, registro) => {
+        if ((registro.bindings() as { rastreio?: string }).rastreio) return {};
+        const rastreio = rastreioAtual();
+        return rastreio ? { rastreio } : {};
+      },
+      hooks: {
+        logMethod(argumentos, metodo) {
+          metodo.apply(
+            this,
+            argumentos.map((a) => (typeof a === "string" ? limparTexto(a) : a)) as typeof argumentos,
+          );
+        },
+      },
+      serializers: {
+        req: (pedido: { method: string; url: string }) => ({
+          metodo: pedido.method,
+          url: enderecoSemValores(pedido.url),
+        }),
+      },
       ...(opcoes.destinoDosRegistros ? { stream: opcoes.destinoDosRegistros } : {}),
     },
     logController: new LogController({ requestIdLogLabel: "rastreio" }),
@@ -50,8 +77,10 @@ export function criarServidor(
   });
 
   if (opcoes.aoRegistrarRota) app.addHook("onRoute", opcoes.aoRegistrarRota);
-  app.addHook("onRequest", async (pedido, resposta) => {
+  // O número do pedido segue para a fila, os agentes, o Telegram e as rotinas (M6-02).
+  app.addHook("onRequest", (pedido, resposta, pronto) => {
     resposta.header("x-rastreio", pedido.id);
+    comNumeroDeRastreio(pedido.id, pronto);
   });
 
   app.get("/saude", async (_pedido, resposta): Promise<RespostaSaude> => {

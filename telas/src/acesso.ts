@@ -4,6 +4,7 @@
  */
 
 import { startAuthentication, startRegistration } from "@simplewebauthn/browser";
+import { conferirErroDoSistema } from "./erros";
 
 export interface Sessao {
   pessoa: { id: string; nome: string; email: string };
@@ -68,6 +69,7 @@ async function enviar(caminho: string, corpo: unknown): Promise<Resultado & { da
       credentials: "same-origin",
       body: JSON.stringify(corpo),
     });
+    conferirErroDoSistema(r);
     const dados = (await r.json().catch(() => null)) as { code?: string; message?: string } | null;
     if (r.ok) return { ok: true, dados };
     if (r.status === 429 && !dados?.code) {
@@ -87,6 +89,7 @@ async function enviar(caminho: string, corpo: unknown): Promise<Resultado & { da
 export async function lerSessao(): Promise<Sessao | null> {
   try {
     const r = await fetch(`${BASE}/estado`, { credentials: "same-origin" });
+    conferirErroDoSistema(r);
     if (!r.ok) return null;
     return (await r.json()) as Sessao | null;
   } catch {
@@ -143,6 +146,7 @@ export async function prepararPasskey(tipo: TipoDePasskey): Promise<unknown | Re
   const caminho = tipo === "cadastro" ? "generate-register-options" : "generate-authenticate-options";
   try {
     const r = await fetch(`${BASE}/passkey/${caminho}`, { credentials: "same-origin" });
+    conferirErroDoSistema(r);
     const dados = (await r.json().catch(() => null)) as { code?: string; message?: string } | null;
     if (!r.ok)
       return { ok: false, mensagem: mensagemDoErro(dados?.code, dados?.message) } satisfies Resultado;
@@ -233,6 +237,7 @@ export interface AvisoDeAcesso {
 async function ler<T>(caminho: string): Promise<T | null> {
   try {
     const r = await fetch(`${BASE}${caminho}`, { credentials: "same-origin" });
+    conferirErroDoSistema(r);
     return r.ok ? ((await r.json()) as T) : null;
   } catch {
     return null;
@@ -288,6 +293,7 @@ export interface PasskeyCadastrada {
 async function lerConta<T>(caminho: string): Promise<T | null> {
   try {
     const r = await fetch(`/api${caminho}`, { credentials: "same-origin" });
+    conferirErroDoSistema(r);
     return r.ok ? ((await r.json()) as T) : null;
   } catch {
     return null;
@@ -302,6 +308,7 @@ async function enviarConta(metodo: "POST" | "PUT", caminho: string, corpo: unkno
       credentials: "same-origin",
       body: JSON.stringify(corpo),
     });
+    conferirErroDoSistema(r);
     if (r.ok) return { ok: true };
     const dados = (await r.json().catch(() => null)) as { code?: string; message?: string } | null;
     return {

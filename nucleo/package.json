@@ -64,6 +64,8 @@
     "@opentelemetry/api": "catalog:",
     "@opentelemetry/instrumentation-http": "catalog:",
     "@opentelemetry/instrumentation-pg": "catalog:",
+    "@opentelemetry/instrumentation-pino": "catalog:",
+    "@opentelemetry/instrumentation-undici": "catalog:",
     "@opentelemetry/sdk-node": "catalog:",
     "better-auth": "catalog:",
     "fastify": "catalog:",
