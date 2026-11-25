@@ -47,7 +47,7 @@ NOME="Telegram do Sandro"
 st,cps=api("GET","/api/v1/provisioning/contact-points")
 existente=[c for c in cps if c["name"]==NOME]
 cp={"name":NOME,"type":"telegram","settings":{"bottoken":bot,"chatid":chat,"parse_mode":"None",
-    "message":"{{ range .Alerts.Firing }}Mago OS (teste): {{ .Annotations.summary }}\n{{ .Annotations.description }}\n{{ end }}{{ range .Alerts.Resolved }}Mago OS (teste): resolvido: {{ .Annotations.summary }}\n{{ end }}"},
+    "message":"{{ range .Alerts.Firing }}Mago OS ({{ .Labels.ambiente }}): {{ .Annotations.summary }}\n{{ .Annotations.description }}\n{{ end }}{{ range .Alerts.Resolved }}Mago OS ({{ .Labels.ambiente }}): resolvido: {{ .Annotations.summary }}\n{{ end }}"},
     "disableResolveMessage":False}
 if existente: print("cp", api2("PUT","/api/v1/provisioning/contact-points/"+existente[0]["uid"],cp)[0])
 else: print("cp", api2("POST","/api/v1/provisioning/contact-points",cp)[0])
@@ -78,18 +78,21 @@ painel={"title":"Mago OS","uid":"mago-os","timezone":"browser","refresh":"1m","t
   ],"schemaVersion":39}
 st,r=api2("POST","/api/dashboards/db",{"dashboard":painel,"folderUid":uid,"overwrite":True,"message":"M6-02"})
 print("painel", st, G + r.get("url", "") if st == 200 else r)
-def regra(titulo,expr,limite,resumo,descricao,painel_id):
+def regra(titulo,expr,limite,resumo,descricao,painel_id,ambiente):
     return {"title":titulo,"ruleGroup":"mago-os","folderUID":uid,"noDataState":"OK","execErrState":"OK","for":"0s","condition":"C",
       "data":[{"refId":"A","relativeTimeRange":{"from":600,"to":0},"datasourceUid":"grafanacloud-logs","model":{"refId":"A","expr":expr,"queryType":"instant","instant":True}},
               {"refId":"B","datasourceUid":"__expr__","relativeTimeRange":{"from":0,"to":0},"model":{"refId":"B","type":"reduce","expression":"A","reducer":"last","settings":{"mode":"replaceNN","replaceWithValue":0}}},
               {"refId":"C","datasourceUid":"__expr__","relativeTimeRange":{"from":0,"to":0},"model":{"refId":"C","type":"threshold","expression":"B","conditions":[{"evaluator":{"type":"gt","params":[limite]}}]}}],
-      "annotations":{"summary":resumo,"description":descricao,"__dashboardUid__":"mago-os","__panelId__":str(painel_id)},"labels":{"sistema":"mago-os","ambiente":"teste"}}
-B2='{service_name="mago-os-nucleo", deployment_environment="teste"}'
-regras=[
-  regra("Mago OS: erros acima do limite",f'sum(count_over_time({B2} | nivel=~"error|fatal" [10m]))',10,"mais de 10 erros nos últimos 10 minutos","Abra o painel Mago OS no Grafana, veja qual rota ou trabalho falha e siga um número de rastreio (docs/operacao/rastreio.md).",1),
-  regra("Mago OS: fila parada",f'sum(count_over_time({B2} | evento="agentes_internos.esquecidas" [10m]))',0,"execuções dos agentes ficaram paradas na fila","Confira se a API está no ar (/api/saude) e os registros da fila; se ela travou, publicar.sh forcar (docs/operacao/rastreio.md).",4),
-  regra("Mago OS: agentes com erro",f'sum(count_over_time({B2} |~ "Agente interno|MCP: erro" | nivel="error" [10m]))',3,"mais de 3 erros de agentes nos últimos 10 minutos","Abra a execução do agente e veja o passo que falhou; conta de IA sem crédito ou chave trocada é o mais comum.",5),
-]
+      "annotations":{"summary":resumo,"description":descricao,"__dashboardUid__":"mago-os","__panelId__":str(painel_id)},"labels":{"sistema":"mago-os","ambiente":ambiente}}
+# Os mesmos três alertas no teste e na produção (M6-05b); o título diz o ambiente.
+regras=[]
+for ambiente, rotulo in (("teste", "Mago OS"), ("producao", "Mago OS (produção)")):
+    B2='{service_name="mago-os-nucleo", deployment_environment="%s"}' % ambiente
+    regras += [
+      regra(f"{rotulo}: erros acima do limite",f'sum(count_over_time({B2} | nivel=~"error|fatal" [10m]))',10,"mais de 10 erros nos últimos 10 minutos","Abra o painel Mago OS no Grafana, veja qual rota ou trabalho falha e siga um número de rastreio (docs/operacao/rastreio.md).",1,ambiente),
+      regra(f"{rotulo}: fila parada",f'sum(count_over_time({B2} | evento="agentes_internos.esquecidas" [10m]))',0,"execuções dos agentes ficaram paradas na fila","Confira se a API está no ar (/api/saude) e os registros da fila; se ela travou, publicar.sh forcar (docs/operacao/rastreio.md).",4,ambiente),
+      regra(f"{rotulo}: agentes com erro",f'sum(count_over_time({B2} |~ "Agente interno|MCP: erro" | nivel="error" [10m]))',3,"mais de 3 erros de agentes nos últimos 10 minutos","Abra a execução do agente e veja o passo que falhou; conta de IA sem crédito ou chave trocada é o mais comum.",5,ambiente),
+    ]
 st,existentes=api("GET","/api/v1/provisioning/alert-rules")
 for rg in regras:
     e=[x for x in existentes if x["title"]==rg["title"]]

@@ -82,13 +82,13 @@ Pronto quando: a produção roda na VPS02, separada do teste e ainda sem DNS, e 
 
 Precisa da aprovação escrita do Sandro (DNS).
 
-- [ ] Registro `app` na zona osmago.com da Cloudflare, com proxy, **só depois da aprovação escrita do Sandro** no chat
-- [ ] Bot do Telegram de produção (criado pelo Sandro no BotFather, token no Infisical `prod`), com o webhook em app.osmago.com
-- [ ] Cliente OAuth "Mago OS" do Google para app.osmago.com, com o app publicado (só nome, e-mail e foto, que não pedem verificação do Google)
-- [ ] Remetente de e-mail de produção no Resend (o mesmo domínio, chave própria do ambiente `prod`)
+- [x] Registro `app` na zona osmago.com da Cloudflare, com proxy, **só depois da aprovação escrita do Sandro** no chat
+- [x] Bot do Telegram de produção (criado pelo Sandro no BotFather, token no Infisical `prod`), com o webhook em app.osmago.com
+- [x] Cliente OAuth "Mago OS" do Google para app.osmago.com (correção em 25/11/2026: fica em "Testando", com os usuários de teste, até a página de Política de Privacidade, que o Google exige para publicar; cartão #190)
+- [x] Remetente de e-mail de produção no Resend (o mesmo domínio, chave própria do ambiente `prod`)
 - [ ] Vigias da produção no Uptime Kuma da VPS01 (API, tela, backup, restauração, auditoria), avisando no Telegram do Sandro
-- [ ] Primeira empresa da produção: 4xpert (decisão 7), com o Sandro como Dono da plataforma e administrador, 2FA obrigatório para administradores desde o primeiro acesso
-- [ ] O MCP de produção em app.osmago.com/mcp, e o guia dos agentes externos atualizado (cada agente ganha chave nova; as do teste não valem na produção)
+- [x] Primeira empresa da produção: 4xpert (decisão 7), com o Sandro como Dono da plataforma e administrador, 2FA obrigatório para administradores desde o primeiro acesso
+- [x] O MCP de produção em app.osmago.com/mcp, e o guia dos agentes externos atualizado (cada agente ganha chave nova; as do teste não valem na produção)
 
 Pronto quando: o Sandro entra em app.osmago.com, com senha ou Google e o 2FA, vincula o Telegram ao bot de produção e conversa com o coordenador.
 

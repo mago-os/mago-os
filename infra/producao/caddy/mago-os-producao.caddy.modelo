@@ -15,9 +15,6 @@
 }
 
 app.osmago.com {
-	# Até o DNS (M6-05b): certificado próprio do Caddy. Com o DNS, apagar esta linha (o Caddy pega o certificado
-	# de verdade sozinho).
-	tls internal
 	encode zstd gzip
 
 	# Só a Cloudflare (e a conferência local do publicar.sh) chega aqui: quem souber o IP da VPS não passa por fora.

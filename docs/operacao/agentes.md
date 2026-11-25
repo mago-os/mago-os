@@ -6,7 +6,7 @@ Referências: [decisão 0017](../decisoes/0017-chave-do-agente.md) (chave e agen
 
 ## O que o agente precisa saber
 
-- **Endereço:** `https://teste.osmago.com/mcp` (transporte HTTP do MCP, sem sessão). Na troca para `app.osmago.com` (M6), muda só este endereço, e cada agente ganha chave nova.
+- **Endereço:** `https://app.osmago.com/mcp` na produção (desde 25/11/2026) e `https://teste.osmago.com/mcp` no teste (transporte HTTP do MCP, sem sessão). Cada ambiente tem as próprias chaves: a chave de um agente do teste não vale na produção. Para ligar um agente à produção, criar a chave na tela do agente em app.osmago.com e trocar, nos passos abaixo, `teste.osmago.com` por `app.osmago.com`.
 - **Chave:** cabeçalho `Authorization: Bearer mago_ag_...`. Ela aparece uma vez só, na hora de criar. Nunca em arquivo versionado, commit, chat ou linha de comando.
 - **Ciclo:** a cada minuto, `minhas_tarefas`; pegar a próxima (`pegar_tarefa`), comentar o andamento (`comentar`), entregar (`entregar_resultado`). Não soube fazer: `soltar_tarefa` com o motivo (a tarefa volta para a pessoa responsável pelo agente).
 - **Sinal de vida:** todo pedido conta. Sem sinal por mais tempo que o limite do agente (padrão 15 minutos), a tarefa pegada volta para A fazer e a pessoa responsável é avisada. Trabalho longo: chamar `estou_vivo` de vez em quando.
