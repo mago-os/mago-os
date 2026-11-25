@@ -8,7 +8,7 @@ Todos os segredos do Mago OS ficam no Infisical Cloud (região EUA, https://app.
 | --- | --- | --- |
 | Development (`dev`) | Local (Mac e ambiente do Claude) | Por enquanto ninguém: o ambiente local não tem senha |
 | Staging (`staging`) | Teste (teste.osmago.com, VPS02) | Identidade `vps02` (só leitura) |
-| Production (`prod`) | Produção (app.osmago.com, M6) | A definir no M6 |
+| Production (`prod`), no projeto **`mago-os-producao`** | Produção (app.osmago.com, M6-05) | Identidade `vps02-producao` (só leitura, só deste projeto) |
 
 ## Identidades
 
@@ -39,6 +39,18 @@ Todos os segredos do Mago OS ficam no Infisical Cloud (região EUA, https://app.
 | `MAGO_AVISO_BACKUP`, `MAGO_AVISO_RESTAURACAO`, `MAGO_AVISO_AUDITORIA` | Endereços "push" do Uptime Kuma (VPS01) | `bin/avisar.sh`, ver [monitoramento.md](monitoramento.md) |
 | `B2_AUDITORIA_KEY_ID`, `B2_AUDITORIA_APPLICATION_KEY` | Chave própria do depósito travado `mago-os-auditoria` (só ele, leitura e escrita) | `auditoria-copia.sh` e `auditoria-verificar.sh`, ver [auditoria.md](auditoria.md) |
 | `GHCR_LEITURA_TOKEN` | Token "classic" do Sandro (`mago-os-vps02-baixar-imagem`), só `read:packages`, **sem vencimento**: trocar em qualquer suspeita de vazamento (apagar em github.com/settings/tokens e gravar o novo no Infisical) | A VPS baixar a imagem do ghcr.io |
+
+## Segredos da produção (projeto `mago-os-producao`, ambiente Production)
+
+Gerados em 25/11/2026 (M6-05) pelo `claude-mac` com `infisical-gravar.py prod NOME` (o "prod" grava no projeto da
+produção): `MAGO_DB_SENHA_DONO`, `MAGO_DB_SENHA_APP`, `MAGO_DB_SENHA_ACESSO`, `MAGO_ACESSO_SEGREDO`,
+`MAGO_COFRE_CHAVE_MESTRA`, `PGBACKREST_CIPHER_PASS` (reserva no Mac em
+`~/Credenciais/Nolask/Clientes/MagoOS/pgbackrest-cipher-pass-mago-os-producao.txt`: **sem ela, nenhum backup da
+produção pode ser restaurado**), `MAGO_VAPID_PUBLICA` e `MAGO_VAPID_PRIVADA` (par novo, só da produção). Copiados do
+teste, por enquanto: `GHCR_LEITURA_TOKEN` (o mesmo token de leitura das imagens) e os três `GRAFANA_OTLP_*` (a mesma
+conta do Grafana; o ambiente vai em cada registro). Criados pelo Sandro no Backblaze: `B2_*`, `B2_ANEXOS_*` e
+`B2_AUDITORIA_*` dos três buckets da produção. Na M6-05b: o bot do Telegram, o cliente do Google, o Resend e os
+endereços do Uptime Kuma (`MAGO_AVISO_*`).
 
 ## Como os segredos chegam à VPS
 

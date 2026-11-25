@@ -1,0 +1,9 @@
+[Unit]
+Description=Mago OS: publicar na produção a versão aprovada pelo Sandro (tag :producao)
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/opt/mago-os-producao/bin/publicar.sh
+TimeoutStartSec=20min

@@ -90,6 +90,77 @@ jobs:
           path: playwright-report/
           retention-days: 7
 
+  # M6-05: a versão que está no ar continua funcionando com o banco já migrado pela versão nova (a publicação roda as
+  # migrações antes de trocar a versão, e a anterior fica no ar alguns segundos, ou de vez se a nova falhar). Roda os
+  # testes da main, e os da versão aprovada para a produção, com as migrações deste PR. Só quando o PR muda as
+  # migrações.
+  compatibilidade:
+    name: Banco novo com a versão anterior
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: pgvector/pgvector:pg18
+        env:
+          POSTGRES_USER: mago
+          POSTGRES_DB: mago
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports: ["54318:5432"]
+        options: >-
+          --health-cmd "pg_isready -U mago -d mago"
+          --health-interval 2s --health-timeout 3s --health-retries 30
+    env:
+      MAGO_EXIGIR_BANCO: "1"
+      MAGO_TESTE_BANCO_URL: postgres://mago@127.0.0.1:54318/postgres
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - name: O PR muda as migrações?
+        id: mudou
+        run: |
+          if git diff --quiet "origin/${{ github.base_ref }}...HEAD" -- nucleo/migracoes; then
+            echo "nova=nao" >> "$GITHUB_OUTPUT"; echo "Sem migração nova: nada a conferir."
+          else
+            echo "nova=sim" >> "$GITHUB_OUTPUT"
+          fi
+      - name: As versões anteriores (a main e a que está na produção) com as migrações deste PR
+        if: steps.mudou.outputs.nova == 'sim'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git worktree add ../anterior "origin/${{ github.base_ref }}"
+          rm -rf ../anterior/nucleo/migracoes && cp -r nucleo/migracoes ../anterior/nucleo/migracoes
+          # A produção pode estar várias versões atrás da main: a última aprovada para ela (Releases "producao-").
+          marca=$(gh release list --limit 50 --json tagName -q '[.[] | select(.tagName | startswith("producao-"))][0].tagName')
+          if [ -n "$marca" ]; then
+            git fetch --tags -q origin
+            producao=$(git rev-list -n1 "$marca")
+            if [ "$producao" != "$(git rev-parse "origin/${{ github.base_ref }}")" ]; then
+              git worktree add ../producao "$producao"
+              rm -rf ../producao/nucleo/migracoes && cp -r nucleo/migracoes ../producao/nucleo/migracoes
+              echo "Também confere a versão da produção: ${producao:0:7}"
+            fi
+          fi
+      - uses: pnpm/action-setup@v6
+        if: steps.mudou.outputs.nova == 'sim'
+      - uses: actions/setup-node@v7
+        if: steps.mudou.outputs.nova == 'sim'
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - name: Testes das versões anteriores contra o banco novo
+        if: steps.mudou.outputs.nova == 'sim'
+        # A documentação gerada do banco muda de propósito com a migração nova; o resto tem que passar.
+        run: |
+          for pasta in ../anterior ../producao; do
+            [ -d "$pasta" ] || continue
+            echo "== $pasta"
+            (cd "$pasta" && pnpm install --frozen-lockfile &&
+              pnpm exec vitest run --exclude "**/documentacao-banco.test.ts" --exclude "**/node_modules/**")
+          done
+
   seguranca:
     name: Segurança
     runs-on: ubuntu-latest

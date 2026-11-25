@@ -11,13 +11,16 @@ import sys
 import urllib.request
 
 B = "https://app.infisical.com"
-WS = "7e951d3d-b27b-4e98-96ff-30ddbeef7bf2"
+WS_TESTE = "7e951d3d-b27b-4e98-96ff-30ddbeef7bf2"
+# A produção fica num projeto próprio do Infisical (M6-05, decisão 0044): "prod" grava e lê nele.
+WS_PRODUCAO = "97ca1793-1118-4097-ab03-fb499ada9570"
 
 if len(sys.argv) != 3 or sys.argv[1] not in ("dev", "staging", "prod"):
     sys.exit(__doc__)
 if sys.stdout.isatty():
     sys.exit("Recusado: a saída é a tela. Use um pipe.")
 ambiente, chave = sys.argv[1:]
+WS = WS_PRODUCAO if ambiente == "prod" else WS_TESTE
 arquivo = os.environ.get("INFISICAL_CREDENCIAIS",
                          os.path.expanduser("~/Credenciais/Nolask/Clientes/MagoOS/infisical-mago-os-claude.env"))
 cred = dict(re.findall(r"^(\w+)=(.*)$", open(arquivo).read(), re.M))

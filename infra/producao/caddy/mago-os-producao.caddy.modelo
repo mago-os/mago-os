@@ -1,0 +1,60 @@
+# Mago OS (produção, M6-05). Gerado por /opt/mago-os-producao/bin/publicar.sh a partir deste modelo: não editar à
+# mão, editar o modelo. Fica fora do Caddyfile da Ratoeira e do arquivo do teste; se a Ratoeira for reinstalada,
+# recolocar a linha "import /etc/caddy/mago-os-producao.caddy" no fim do Caddyfile.
+
+# Mesma regra de IP do teste (lista da Cloudflare em cloudflare.com/ips): a API recebe o IP verdadeiro só quando o
+# pedido vem mesmo da Cloudflare. Nome próprio do trecho, para não chocar com o do teste.
+(mago_os_producao_api) {
+	@pela_cloudflare remote_ip 173.245.48.0/20 103.21.244.0/22 103.22.200.0/22 103.31.4.0/22 141.101.64.0/18 108.162.192.0/18 190.93.240.0/20 188.114.96.0/20 197.234.240.0/22 198.41.128.0/17 162.158.0.0/15 104.16.0.0/13 104.24.0.0/14 172.64.0.0/13 131.0.72.0/22 2400:cb00::/32 2606:4700::/32 2803:f800::/32 2405:b500::/32 2405:8100::/32 2a06:98c0::/29 2c0f:f248::/32
+	reverse_proxy @pela_cloudflare 127.0.0.1:{{PORTA_API}} {
+		header_up X-Forwarded-For {http.request.header.CF-Connecting-IP}
+	}
+	reverse_proxy 127.0.0.1:{{PORTA_API}} {
+		header_up X-Forwarded-For {remote_host}
+	}
+}
+
+app.osmago.com {
+	# Até o DNS (M6-05b): certificado próprio do Caddy. Com o DNS, apagar esta linha (o Caddy pega o certificado
+	# de verdade sozinho).
+	tls internal
+	encode zstd gzip
+
+	# Só a Cloudflare (e a conferência local do publicar.sh) chega aqui: quem souber o IP da VPS não passa por fora.
+	# Tudo fica dentro de um "route", que roda na ordem escrita (o abort vem antes de qualquer resposta).
+	@fora_da_cloudflare not remote_ip 173.245.48.0/20 103.21.244.0/22 103.22.200.0/22 103.31.4.0/22 141.101.64.0/18 108.162.192.0/18 190.93.240.0/20 188.114.96.0/20 197.234.240.0/22 198.41.128.0/17 162.158.0.0/15 104.16.0.0/13 104.24.0.0/14 172.64.0.0/13 131.0.72.0/22 2400:cb00::/32 2606:4700::/32 2803:f800::/32 2405:b500::/32 2405:8100::/32 2a06:98c0::/29 2c0f:f248::/32 127.0.0.1/8 ::1
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options nosniff
+		Referrer-Policy strict-origin-when-cross-origin
+		# Os mesmos de telas/cabecalhos-de-seguranca.ts (M6-04); um teste confere que são iguais.
+		Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data:; connect-src 'self' https://*.backblazeb2.com; media-src 'self' blob: https://*.backblazeb2.com; worker-src 'self'; manifest-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'"
+		X-Frame-Options DENY
+		Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=(), usb=()"
+		-Server
+	}
+
+	route {
+		abort @fora_da_cloudflare
+
+		handle_path /api/* {
+			import mago_os_producao_api
+		}
+
+		handle /mcp {
+			import mago_os_producao_api
+		}
+
+		handle {
+			root * {{PASTA_TELA}}
+			@imutavel path /assets/*
+			header @imutavel Cache-Control "public, max-age=31536000, immutable"
+			@manifesto path /manifest.webmanifest
+			header @manifesto Content-Type application/manifest+json
+			@semcache path /sw.js /registerSW.js /index.html /manifest.webmanifest
+			header @semcache Cache-Control "no-cache"
+			try_files {path} /index.html
+			file_server
+		}
+	}
+}

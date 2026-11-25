@@ -50,3 +50,4 @@ Uma nota curta por decisão importante: o que foi decidido, por quê e o que foi
 | [0041](0041-agenda-simples.md) | Agenda simples: eventos com participantes, recorrência (só este, este e os seguintes, todos), convite com resposta, alertas por tela, push e Telegram, e "ocupado" para o funcionário | Aceita |
 | [0042](0042-teste-de-vazamento.md) | Teste de vazamento em todas as partes: a empresa B usa tudo e a A repete com os ids da B; rota nova e função que passa por cima do isolamento precisam de cobertura | Aceita |
 | [0043](0043-rastreio-de-ponta-a-ponta.md) | Rastreio de ponta a ponta: o número segue a fila, os agentes e o Telegram; registros sem dado pessoal; Grafana Cloud por OTLP; número com Copiar no erro do sistema | Aceita |
+| [0044](0044-producao-na-vps02.md) | Produção na VPS02 separada do teste (pasta, compose, Infisical e buckets próprios), publicação só com a aprovação do Sandro, backup antes e migrações compatíveis com a versão anterior | Aceita |

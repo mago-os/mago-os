@@ -3,9 +3,14 @@
 # compara com a cópia. Avisa o monitoramento (avisar.sh auditoria): "ok" quando tudo bate, "falha" com o motivo.
 # Também dá para rodar na hora: /opt/mago-os/bin/auditoria-verificar.sh
 set -uo pipefail
+# Ambiente (M6-05): o teste usa os padrões; a produção tem ambiente.conf na pasta dela (/opt/mago-os-producao).
+BASE=$(cd "$(dirname "$(readlink -f "$0")")/.." && pwd)
+# shellcheck disable=SC1091
+[ -f "$BASE/ambiente.conf" ] && . "$BASE/ambiente.conf"
+PROJETO=${PROJETO:-mago-os}
+export DOCKER_CONFIG=$BASE/.docker
 
-BASE=/opt/mago-os
-REDE_BANCO=mago-os_mago_db
+REDE_BANCO=${PROJETO}_mago_db
 ENV_AUDITORIA=$BASE/auditoria.env
 log() { echo "$(date -u +%FT%TZ) $*"; }
 
@@ -24,10 +29,10 @@ if [ -n "${AUDITORIA_CHAVE:-}" ]; then
   marcador=""
   while :; do
     lista=$(s3 "https://$AUDITORIA_ENDPOINT/$AUDITORIA_DEPOSITO/?list-type=2&prefix=eventos/${marcador:+&continuation-token=$marcador}") || {
-      /opt/mago-os/bin/avisar.sh auditoria falha "não consegui listar a cópia no Backblaze"; exit 1; }
+      "$BASE/bin/avisar.sh" auditoria falha "não consegui listar a cópia no Backblaze"; exit 1; }
     for chave in $(echo "$lista" | grep -o '<Key>[^<]*</Key>' | sed 's/<[^>]*>//g'); do
       s3 -o "$pasta/$(echo "$chave" | tr '/' '_')" "https://$AUDITORIA_ENDPOINT/$AUDITORIA_DEPOSITO/$chave" || {
-        /opt/mago-os/bin/avisar.sh auditoria falha "não consegui baixar $chave"; exit 1; }
+        "$BASE/bin/avisar.sh" auditoria falha "não consegui baixar $chave"; exit 1; }
     done
     marcador=$(echo "$lista" | grep -o '<NextContinuationToken>[^<]*' | sed 's/<NextContinuationToken>//' || true)
     [ -n "$marcador" ] || break
@@ -42,9 +47,9 @@ codigo=$?
 resumo=$(echo "$saida" | python3 -c 'import sys,json;d=json.load(sys.stdin);print(d["resumo"])' 2>/dev/null || echo "sem resumo")
 if [ $codigo -eq 0 ]; then
   log "Auditoria íntegra: $resumo."
-  /opt/mago-os/bin/avisar.sh auditoria ok "$resumo"
+  "$BASE/bin/avisar.sh" auditoria ok "$resumo"
 else
   log "AUDITORIA COM PROBLEMA: $saida"
-  /opt/mago-os/bin/avisar.sh auditoria falha "problema na auditoria ($resumo); ver /var/log/mago-os-auditoria.log"
+  "$BASE/bin/avisar.sh" auditoria falha "problema na auditoria ($resumo); ver /var/log/$PROJETO-auditoria.log"
   exit 1
 fi

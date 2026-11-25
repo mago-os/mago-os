@@ -74,6 +74,8 @@ Precisa da aprovação do Sandro (publicação em produção, segurança e conta
 - [ ] Backup da produção nos três depósitos, com a trava de 30 dias, o teste de restauração semanal e os avisos no Uptime Kuma, como no teste
 - [ ] Manual de operação: `docs/operacao/producao.md` (publicar, voltar, ver o estado) e `infra/producao/README.md` (remontar do zero)
 
+Situação em 25/11/2026 (decisão 0044): montagem, publicação aprovada, teste de compatibilidade das migrações e manual prontos no PR; aplicar na VPS02 espera o projeto do Infisical e os buckets da produção, criados pelo Sandro.
+
 Pronto quando: a produção roda na VPS02, separada do teste e ainda sem DNS, e uma versão aprovada pelo Sandro no GitHub chega lá sem parar o sistema, com o backup antes da troca.
 
 ### M6-05b app.osmago.com no ar: DNS, bot, login com Google, avisos e a primeira empresa

@@ -10,6 +10,7 @@ Como publicar, voltar uma versão, restaurar o backup, trocar chaves e o que faz
 | Infraestrutura da VPS02 e como remontar do zero | [infra/vps02/README.md](../../infra/vps02/README.md) | Já existe |
 | Backup e restauração do banco (B2) | [backup.md](backup.md) | Já existe |
 | Publicar e voltar uma versão no teste | [publicacao.md](publicacao.md) | Já existe |
+| Produção: publicar com a aprovação do Sandro, voltar e ver o estado | [producao.md](producao.md) | Já existe (a montagem no servidor depende do Infisical e dos buckets da produção) |
 | Segredos: ambientes, identidades e como criar ou trocar | [segredos.md](segredos.md) | Já existe |
 | Monitoramento e o que fazer se cair | [monitoramento.md](monitoramento.md) | Já existe |
 | Login: primeiro acesso, trocar e-mail, destravar, cliente do Google | [acesso.md](acesso.md) | Já existe |
