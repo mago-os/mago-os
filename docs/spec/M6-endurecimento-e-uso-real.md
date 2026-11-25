@@ -92,6 +92,22 @@ Precisa da aprovação escrita do Sandro (DNS).
 
 Pronto quando: o Sandro entra em app.osmago.com, com senha ou Google e o 2FA, vincula o Telegram ao bot de produção e conversa com o coordenador.
 
+### M6-05c Páginas públicas (Sobre e Política de Privacidade) e login com Google publicado (cartão #190)
+
+Pedido do Sandro em 25/11/2026, logo depois da M6-05b: o Google só tira o login do modo "Testando" (só os usuários de teste da lista) com uma página inicial e uma Política de Privacidade públicas. Decidido pelo Sandro em 25/11/2026: as duas páginas ficam dentro do próprio Mago OS, sem DNS nem servidor novo. Precisa da aprovação do Sandro (texto da política, dados da empresa e o registro de verificação no DNS).
+
+- [ ] **app.osmago.com/sobre** (a página inicial que o Google pede): o que é o Mago OS, para quem é, o que faz (tarefas, projetos, agentes de IA com permissões e auditoria, Telegram), contato e os botões "Entrar" e "Política de Privacidade". Aberta sem login, com o topo simples das telas de acesso, tema claro e escuro e celular
+- [ ] **app.osmago.com/privacidade:** o texto de `docs/legal/politica-de-privacidade.md` (LGPD; papéis de controlador e operador; dados coletados; bases legais; login com Google e a frase de uso limitado que o Google exige; fornecedores; transferência para fora do Brasil; prazos de guarda; cookies; direitos do titular; contato). O texto vive num arquivo só, que a tela lê, com a versão e a data no topo
+- [ ] Links "Sobre" e "Privacidade" no rodapé das telas de acesso (entrar, convite, nova conta, recuperar senha)
+- [ ] Teste de tela: as duas páginas abrem sem login, têm título, os links funcionam e nenhum texto usa o travessão
+- [ ] Publicado no teste e, com a aprovação do Sandro no GitHub, na produção
+- [ ] Google Auth Platform › Branding do cliente "Mago OS": nome, logo do mago (120 x 120), e-mail de suporte, página inicial `https://app.osmago.com/sobre`, política `https://app.osmago.com/privacidade`, domínio autorizado `osmago.com` e o contato do desenvolvedor
+- [ ] Domínio osmago.com conferido no Google Search Console, com um registro TXT na Cloudflare, **só depois da aprovação escrita do Sandro**
+- [ ] App publicado ("Em produção"). Como o login pede só nome, e-mail e foto (escopos não sensíveis), o Google confere só a marca (alguns dias úteis), sem a revisão de segurança paga
+- [ ] A revisão do advogado fica com o Sandro, antes do primeiro cliente de fora da 4xpert (item 15 da revisão de segurança, junto com os contratos com os fornecedores)
+
+Pronto quando: as duas páginas estão no ar em app.osmago.com, o Google aprova a marca e uma conta Google fora da lista de teste entra no app.osmago.com sem o aviso de "app não verificado".
+
 ### M6-03 Restauração do backup e remontagem da produção do zero
 
 O teste de restauração do banco já roda toda segunda no teste (M0-11). Esta tarefa ensaia o desastre inteiro.
