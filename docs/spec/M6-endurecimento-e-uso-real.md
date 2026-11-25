@@ -100,10 +100,10 @@ Pedido do Sandro em 25/11/2026, logo depois da M6-05b: o Google só tira o login
 - [x] **app.osmago.com/privacidade:** o texto de `telas/src/textos/politica-de-privacidade.md` (LGPD; papéis de controlador e operador; dados coletados; bases legais; login com Google e a frase de uso limitado que o Google exige; fornecedores; transferência para fora do Brasil; prazos de guarda; cookies; direitos do titular; contato). O texto vive num arquivo só, que a tela lê, com a versão e a data no topo
 - [x] Links "Sobre" e "Privacidade" no rodapé das telas de acesso (entrar, convite, nova conta, recuperar senha)
 - [x] Teste de tela: as duas páginas abrem sem login, têm título, os links funcionam e nenhum texto usa o travessão
-- [ ] Publicado no teste e, com a aprovação do Sandro no GitHub, na produção
-- [ ] Google Auth Platform › Branding do cliente "Mago OS": nome, logo do mago (120 x 120), e-mail de suporte, página inicial `https://app.osmago.com/sobre`, política `https://app.osmago.com/privacidade`, domínio autorizado `osmago.com` e o contato do desenvolvedor
-- [ ] Domínio osmago.com conferido no Google Search Console, com um registro TXT na Cloudflare, **só depois da aprovação escrita do Sandro**
-- [ ] App publicado ("Em produção"). Como o login pede só nome, e-mail e foto (escopos não sensíveis), o Google confere só a marca (alguns dias úteis), sem a revisão de segurança paga
+- [x] Publicado no teste e, com a aprovação do Sandro no GitHub, na produção (25/11/2026, versão 808c3de)
+- [x] Google Auth Platform › Branding do cliente "Mago OS" (25/11/2026, pelo Sandro; correção: sem logo, para não depender da verificação da marca): nome, e-mail de suporte, página inicial `https://app.osmago.com/sobre`, política `https://app.osmago.com/privacidade`, domínio autorizado `osmago.com` e o contato do desenvolvedor
+- [x] Domínio osmago.com conferido no Google Search Console, com um registro TXT na Cloudflare, **só depois da aprovação escrita do Sandro** (25/11/2026: sem logo e com escopos não sensíveis, o Google publicou sem pedir a conferência; fica para quando entrar o logo)
+- [x] App publicado ("Em produção", 25/11/2026; uma conta fora da lista de teste passou pelo Google sem o aviso de app não verificado). Como o login pede só nome, e-mail e foto (escopos não sensíveis), o Google confere só a marca (alguns dias úteis), sem a revisão de segurança paga
 - [ ] A revisão do advogado fica com o Sandro, antes do primeiro cliente de fora da 4xpert (item 15 da revisão de segurança, junto com os contratos com os fornecedores)
 
 Pronto quando: as duas páginas estão no ar em app.osmago.com, o Google aprova a marca e uma conta Google fora da lista de teste entra no app.osmago.com sem o aviso de "app não verificado".
@@ -112,13 +112,15 @@ Pronto quando: as duas páginas estão no ar em app.osmago.com, o Google aprova 
 
 O teste de restauração do banco já roda toda segunda no teste (M0-11). Esta tarefa ensaia o desastre inteiro.
 
-- [ ] Ensaio de desastre (decisão 12): na própria VPS02, num conjunto de containers e volumes à parte, remontar a produção só com o repositório, o Infisical e os backups do Backblaze, seguindo o `infra/producao/README.md` à risca, e medir o tempo. Meta: no ar em até 4 horas, perdendo no máximo 5 minutos de dados. O ensaio roda de madrugada, para não disputar memória com o uso
-- [ ] Os anexos também voltam (decisão 12): o bucket de anexos de produção guarda as versões apagadas por 30 dias, e o ensaio confere que um anexo apagado volta
-- [ ] A cópia da auditoria travada por 1 ano é conferida contra o banco restaurado (a corrente bate)
-- [ ] O que o ensaio mostrar de errado no manual é corrigido no mesmo dia
-- [ ] O ensaio se repete a cada 6 meses (cartão no quadro), e o teste semanal automático passa a rodar também na produção
+- [x] Ensaio de desastre (decisão 12): na própria VPS02, num conjunto de containers e volumes à parte, remontar a produção só com o repositório, o Infisical e os backups do Backblaze, seguindo o `infra/producao/README.md` à risca, e medir o tempo. Meta: no ar em até 4 horas, perdendo no máximo 5 minutos de dados. O ensaio roda de madrugada, para não disputar memória com o uso
+- [x] Os anexos também voltam (decisão 12): o bucket de anexos de produção guarda as versões apagadas por 30 dias, e o ensaio confere que um anexo apagado volta
+- [x] A cópia da auditoria travada por 1 ano é conferida contra o banco restaurado (a corrente bate)
+- [x] O que o ensaio mostrar de errado no manual é corrigido no mesmo dia
+- [x] O ensaio se repete a cada 6 meses (cartão #193), e o teste semanal automático passa a rodar também na produção (desde a M6-05, segunda às 04h45 UTC)
 
 Pronto quando: a produção foi remontada do zero a partir do backup, com o tempo medido e anotado no manual, e os containers do ensaio foram apagados.
+
+Feito em 25/11/2026 à tarde, com o ok do Sandro ("pode fazer agora": a produção ainda não tinha uso de verdade, então não havia memória a disputar): `infra/producao/ensaio-remontagem.sh`, API no ar em 26 s e 3 min 36 s de dados perdidos, dentro da meta (4 horas e 5 minutos). Resultado e o que o ensaio não cobre (Caddy e DNS) no `infra/producao/README.md`.
 
 ### M6-06 Início do uso pela 4xpert e ajustes
 
