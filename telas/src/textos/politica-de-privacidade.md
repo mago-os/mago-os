@@ -1,16 +1,21 @@
+<!--
+Fonte da página https://app.osmago.com/privacidade (M6-05c, cartão #190). Escrita em 25/11/2026 com os dados que o
+Sandro informou; revisão por advogado antes do primeiro cliente de fora da 4xpert. Ao mudar o texto, subir a versão e a
+data da linha abaixo do título e avisar dentro do sistema se a mudança for importante (seção 14).
+A página entende só: títulos (#, ##), parágrafos, listas com "- ", tabelas simples, **negrito** e [links](https://...).
+-->
+
 # Política de Privacidade do Mago OS
 
-Versão 1, de [DATA DA PUBLICAÇÃO]. Rascunho escrito em 25/11/2026 para o cartão #190, a ser revisado por advogado
-antes do primeiro cliente de fora da 4xpert. Este texto é a fonte da página https://app.osmago.com/privacidade: ao
-mudar um, mudar o outro no mesmo PR. Os trechos entre colchetes são dados que o Sandro precisa informar.
+Versão 1, de 25 de novembro de 2026.
 
 ## 1. Quem somos
 
 O Mago OS é um sistema em que pessoas e agentes de inteligência artificial trabalham juntos em tarefas, projetos e
-rotinas de uma empresa. Ele é oferecido por [RAZÃO SOCIAL], CNPJ [CNPJ], com sede em [ENDEREÇO] ("nós").
+rotinas de uma empresa. Ele é oferecido pela Nolask Tecnologia Digital, CNPJ 36.142.232/0001-21 ("nós").
 
-Para falar sobre privacidade ou exercer os seus direitos, escreva para [E-MAIL DE PRIVACIDADE]. O nosso encarregado
-pelo tratamento de dados pessoais é [NOME DO ENCARREGADO].
+Para falar sobre privacidade ou exercer os seus direitos, escreva para privacidade@osmago.com. O nosso encarregado
+pelo tratamento de dados pessoais é Sandro Nolasco.
 
 ## 2. Nosso papel com os seus dados
 
@@ -110,7 +115,7 @@ Pela LGPD (art. 18), você pode pedir: confirmação de que tratamos dados seus,
 bloqueio ou eliminação do que for desnecessário, portabilidade, informação sobre com quem compartilhamos, e revogar
 um consentimento. Você também pode reclamar à Autoridade Nacional de Proteção de Dados (ANPD).
 
-Para pedir, escreva para [E-MAIL DE PRIVACIDADE]. Respondemos em até 15 dias. Se o dado pertence a uma empresa
+Para pedir, escreva para privacidade@osmago.com. Respondemos em até 15 dias. Se o dado pertence a uma empresa
 cliente (seção 2), encaminhamos o pedido a ela.
 
 ## 12. Crianças e adolescentes

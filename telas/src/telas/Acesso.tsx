@@ -18,6 +18,7 @@ import { Button } from "@/componentes/ui/button";
 import { Campo } from "@/componentes/ui/campo";
 import { Card, CardDescricao, CardTitulo } from "@/componentes/ui/card";
 import { ConfirmarSegundoFator } from "./DoisFatores";
+import { RodapePublico } from "./Publicas";
 import { usePasskeyPronta } from "./usePasskey";
 
 export function Moldura({
@@ -41,6 +42,7 @@ export function Moldura({
         </div>
         {children}
       </Card>
+      <RodapePublico />
     </main>
   );
 }

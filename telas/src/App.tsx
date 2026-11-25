@@ -53,6 +53,7 @@ import { AvisoDaParada } from "./telas/Parada";
 import { MeuPerfil } from "./telas/Perfil";
 import { CentralDePrioridades, Prioridades } from "./telas/Prioridades";
 import { PaginaDoProjeto, Projetos } from "./telas/Projetos";
+import { PAGINAS_PUBLICAS, Privacidade, Sobre } from "./telas/Publicas";
 import { ListaDeRotinas, PaginaDaRotina } from "./telas/Rotinas";
 import { Skills } from "./telas/Skills";
 import { PaginaDaTarefa, Tarefas } from "./telas/Tarefas";
@@ -180,6 +181,16 @@ export function App() {
   async function aoTrocarEmpresa(empresaId: string) {
     const r = await trocarEmpresa(empresaId);
     if (r.ok) window.location.reload();
+  }
+
+  // Páginas públicas (Sobre e Política de Privacidade): abertas sem login, sem a casca.
+  if (PAGINAS_PUBLICAS.includes(caminho)) {
+    return (
+      <div className="min-h-dvh">
+        <TopoSimples tema={tema} aoTrocarTema={setTema} />
+        {caminho === "/sobre" ? <Sobre /> : <Privacidade />}
+      </div>
+    );
   }
 
   // Telas de acesso: abertas sem login, sem a casca.
