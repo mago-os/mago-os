@@ -12,6 +12,7 @@ BASE=$(cd "$(dirname "$(readlink -f "$0")")/.." && pwd)
 # shellcheck disable=SC1091
 [ -f "$BASE/ambiente.conf" ] && . "$BASE/ambiente.conf"
 PROJETO=${PROJETO:-mago-os}
+export DOCKER_CONFIG=$BASE/.docker
 
 REDE_BANCO=${PROJETO}_mago_db
 ENV_AUDITORIA=$BASE/auditoria.env

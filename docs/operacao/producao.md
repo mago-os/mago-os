@@ -36,7 +36,7 @@ como elas são compatíveis com a versão anterior, voltar o código basta. Para
 | O quê | Como |
 | --- | --- |
 | Versão no ar | `cat /opt/mago-os-producao/estado/versao` (com o DNS: https://app.osmago.com/api/saude) |
-| Histórico de publicações | `/opt/mago-os-producao/estado/historico` e GitHub › Releases (`producao-...`) |
+| Histórico de publicações | `/opt/mago-os-producao/estado/historico` (o que foi publicado de fato); GitHub › Releases (`producao-...`) registra as aprovações |
 | Containers | `docker ps --filter name=mago-os-producao` |
 | Backup | `cd /opt/mago-os-producao && docker compose exec -u postgres db pgbackrest --stanza=mago info` |
 | Memória, disco e Backblaze | `/opt/mago-os-producao/bin/recursos.sh` (roda a cada 5 minutos e avisa o monitoramento) |

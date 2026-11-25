@@ -103,7 +103,9 @@ for nome, valores in arquivos.items():
     os.replace(tmp, destino)
     print(f"{nome}: {len(valores)} variáveis")
 import subprocess
+# Cada ambiente guarda o próprio acesso ao ghcr.io (o publicar.sh usa o mesmo DOCKER_CONFIG).
 r = subprocess.run(["docker", "login", "ghcr.io", "-u", "mago-os-vps02", "--password-stdin"],
-                   input=s["GHCR_LEITURA_TOKEN"], text=True, capture_output=True)
+                   input=s["GHCR_LEITURA_TOKEN"], text=True, capture_output=True,
+                   env={**os.environ, "DOCKER_CONFIG": os.path.join(pasta, ".docker")})
 print("ghcr.io: " + ("acesso de leitura ok" if r.returncode == 0 else "FALHOU: " + r.stderr.strip()[:200]))
 PY

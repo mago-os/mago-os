@@ -8,6 +8,7 @@ BASE=$(cd "$(dirname "$(readlink -f "$0")")/.." && pwd)
 # shellcheck disable=SC1091
 [ -f "$BASE/ambiente.conf" ] && . "$BASE/ambiente.conf"
 PROJETO=${PROJETO:-mago-os}
+export DOCKER_CONFIG=$BASE/.docker
 
 REDE_BANCO=${PROJETO}_mago_db
 ENV_AUDITORIA=$BASE/auditoria.env
@@ -49,6 +50,6 @@ if [ $codigo -eq 0 ]; then
   "$BASE/bin/avisar.sh" auditoria ok "$resumo"
 else
   log "AUDITORIA COM PROBLEMA: $saida"
-  "$BASE/bin/avisar.sh" auditoria falha "problema na auditoria ($resumo); ver /var/log/mago-os-auditoria.log"
+  "$BASE/bin/avisar.sh" auditoria falha "problema na auditoria ($resumo); ver /var/log/$PROJETO-auditoria.log"
   exit 1
 fi

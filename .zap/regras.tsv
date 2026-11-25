@@ -11,4 +11,4 @@
 10010	FAIL	(Cookie No HttpOnly Flag)
 10011	FAIL	(Cookie Without Secure Flag)
 10054	FAIL	(Cookie without SameSite Attribute)
-10055	IGNORE	(CSP: Wildcard Directive: imagens de qualquer https (a foto do Google) e o Backblaze para os anexos, de propósito)
+10055	WARN	(CSP: Wildcard Directive: hoje só img-src https: (a foto do Google) e o Backblaze dos anexos, de propósito; continua aviso para mostrar curinga novo)

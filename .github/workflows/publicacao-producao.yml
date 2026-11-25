@@ -64,11 +64,12 @@ jobs:
       - name: Marcar a imagem como a da produção
         run: docker buildx imagetools create --tag "$IMAGEM:producao" "$IMAGEM:$VERSAO"
 
-      - name: Registrar no histórico de versões
+      - name: Registrar a aprovação no histórico de versões
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          # O registro é da aprovação: a publicação de fato fica no histórico da VPS (estado/historico).
           marca="producao-$(TZ=America/Sao_Paulo date +%Y%m%d-%H%M)-${VERSAO:0:7}"
           gh release create "$marca" --target "$VERSAO" --generate-notes \
-            --title "Produção $(TZ=America/Sao_Paulo date '+%d/%m/%Y %H:%M') (${VERSAO:0:7})"
+            --title "Aprovada para a produção $(TZ=America/Sao_Paulo date '+%d/%m/%Y %H:%M') (${VERSAO:0:7})"
           echo "A VPS02 publica em até 1 minuto (com backup antes). Acompanhar: journalctl -u mago-os-producao-publicar"

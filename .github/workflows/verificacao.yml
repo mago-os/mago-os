@@ -92,7 +92,8 @@ jobs:
 
   # M6-05: a versão que está no ar continua funcionando com o banco já migrado pela versão nova (a publicação roda as
   # migrações antes de trocar a versão, e a anterior fica no ar alguns segundos, ou de vez se a nova falhar). Roda os
-  # testes da main com as migrações deste PR. Só quando o PR muda as migrações.
+  # testes da main, e os da versão aprovada para a produção, com as migrações deste PR. Só quando o PR muda as
+  # migrações.
   compatibilidade:
     name: Banco novo com a versão anterior
     if: github.event_name == 'pull_request'
@@ -124,12 +125,24 @@ jobs:
           else
             echo "nova=sim" >> "$GITHUB_OUTPUT"
           fi
-      - name: A versão anterior (a main) com as migrações deste PR
+      - name: As versões anteriores (a main e a que está na produção) com as migrações deste PR
         if: steps.mudou.outputs.nova == 'sim'
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           git worktree add ../anterior "origin/${{ github.base_ref }}"
-          rm -rf ../anterior/nucleo/migracoes
-          cp -r nucleo/migracoes ../anterior/nucleo/migracoes
+          rm -rf ../anterior/nucleo/migracoes && cp -r nucleo/migracoes ../anterior/nucleo/migracoes
+          # A produção pode estar várias versões atrás da main: a última aprovada para ela (Releases "producao-").
+          marca=$(gh release list --limit 50 --json tagName -q '[.[] | select(.tagName | startswith("producao-"))][0].tagName')
+          if [ -n "$marca" ]; then
+            git fetch --tags -q origin
+            producao=$(git rev-list -n1 "$marca")
+            if [ "$producao" != "$(git rev-parse "origin/${{ github.base_ref }}")" ]; then
+              git worktree add ../producao "$producao"
+              rm -rf ../producao/nucleo/migracoes && cp -r nucleo/migracoes ../producao/nucleo/migracoes
+              echo "Também confere a versão da produção: ${producao:0:7}"
+            fi
+          fi
       - uses: pnpm/action-setup@v6
         if: steps.mudou.outputs.nova == 'sim'
       - uses: actions/setup-node@v7
@@ -137,13 +150,16 @@ jobs:
         with:
           node-version-file: .nvmrc
           cache: pnpm
-      - name: Testes da versão anterior contra o banco novo
+      - name: Testes das versões anteriores contra o banco novo
         if: steps.mudou.outputs.nova == 'sim'
-        working-directory: ../anterior
         # A documentação gerada do banco muda de propósito com a migração nova; o resto tem que passar.
         run: |
-          pnpm install --frozen-lockfile
-          pnpm exec vitest run --exclude "**/documentacao-banco.test.ts" --exclude "**/node_modules/**"
+          for pasta in ../anterior ../producao; do
+            [ -d "$pasta" ] || continue
+            echo "== $pasta"
+            (cd "$pasta" && pnpm install --frozen-lockfile &&
+              pnpm exec vitest run --exclude "**/documentacao-banco.test.ts" --exclude "**/node_modules/**")
+          done
 
   seguranca:
     name: Segurança

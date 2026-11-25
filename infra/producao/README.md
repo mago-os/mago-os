@@ -45,7 +45,9 @@ sem ele, usa os padrões do teste.
 4. Se a imagem do banco ainda não existir: `docker build -t mago-os-db:pg18 /opt/mago-os/db-image`.
 5. `cd /opt/mago-os-producao && docker compose up -d` e, no primeiro uso,
    `docker compose exec -u postgres db pgbackrest --stanza=mago stanza-create` (para restaurar, ver backup.md).
-6. Acrescentar `import /etc/caddy/mago-os-producao.caddy` ao fim do Caddyfile (o `publicar.sh` cria o arquivo) e
+6. Criar o arquivo vazio `/etc/caddy/mago-os-producao.caddy` (`touch`; o `publicar.sh` escreve nele na primeira
+   publicação), acrescentar `import /etc/caddy/mago-os-producao.caddy` ao fim do Caddyfile, conferir com
+   `caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile`, `systemctl reload caddy` e
    `systemctl daemon-reload && systemctl enable --now mago-os-producao-publicar.timer mago-os-producao-auditoria-copia.timer`.
 7. A primeira publicação acontece quando o Sandro aprovar a versão no GitHub (docs/operacao/producao.md).
 

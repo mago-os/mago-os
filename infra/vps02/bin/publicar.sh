@@ -29,6 +29,8 @@ REDE_BORDA=${PROJETO}-borda
 BACKUP_ANTES_DE_PUBLICAR=${BACKUP_ANTES_DE_PUBLICAR:-0}
 CURL_EXTRA=${CURL_EXTRA:-}
 MODO=${1:-auto}
+# Cada ambiente entra no ghcr.io com o próprio token (segredos.sh grava em $BASE/.docker).
+export DOCKER_CONFIG=$BASE/.docker
 
 log() { echo "$(date -u +%FT%TZ) $*"; }
 mkdir -p "$ESTADO" "$TELAS"
@@ -48,7 +50,7 @@ if [ "$alvo" = "$atual" ] && [ "$MODO" = auto ]; then exit 0; fi
 versao=$(docker image inspect "$alvo" --format '{{index .Config.Labels "org.opencontainers.image.revision"}}')
 log "Publicando a versão ${versao:0:7} ($MODO)."
 
-# 0. Produção: backup completo antes de mudar o banco (na primeira publicação, ainda não há o que guardar).
+# 0. Produção: backup (incremental) antes de mudar o banco (na primeira publicação, ainda não há o que guardar).
 if [ "$BACKUP_ANTES_DE_PUBLICAR" = 1 ] && [ -n "$atual" ]; then
   "$BASE/bin/backup.sh" antes-de-publicar || { log "FALHOU: o backup antes de publicar não deu certo. Nada mudou."; exit 1; }
 fi
@@ -100,7 +102,8 @@ rm -rf "$TELAS/$versao" && mv "$TELAS/$versao.tmp" "$TELAS/$versao"
 chmod -R a+rX "$TELAS/$versao"
 
 # 6. Troca o Caddy (recarrega, sem reiniciar: a Ratoeira não sente). Se o Caddy recusar, volta o arquivo antigo.
-cp "$CADDY" "$CADDY.antes"
+# Na primeira publicação do ambiente, o arquivo ainda não existe (o "antes" fica vazio).
+if [ -f "$CADDY" ]; then cp "$CADDY" "$CADDY.antes"; else : > "$CADDY.antes"; fi
 sed -e "s|{{PORTA_API}}|$porta|g" -e "s|{{PASTA_TELA}}|$TELAS/$versao|g" "$BASE/caddy/$PROJETO.caddy.modelo" > "$CADDY"
 if ! caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile >/dev/null 2>&1; then
   cp "$CADDY.antes" "$CADDY"; desistir "o Caddy recusou a configuração nova"
@@ -126,7 +129,13 @@ if [ -n "$atual" ] && [ "$atual" != "$alvo" ]; then echo "$atual" > "$ESTADO/ant
 echo "$alvo" > "$ESTADO/atual"; echo "$cor" > "$ESTADO/cor"; echo "$versao" > "$ESTADO/versao"
 echo "$(date -u +%FT%TZ) $versao $MODO" >> "$ESTADO/historico"
 
-# 9. Limpeza: guarda as 3 últimas telas e imagens.
+# 9. Limpeza: guarda as 3 últimas telas e imagens. O teste e a produção dividem o Docker: nunca apaga a imagem atual
+# nem a anterior de nenhum dos dois (é a que o "voltar" usa).
 ls -1t "$TELAS" | tail -n +4 | while read -r velha; do rm -rf "${TELAS:?}/$velha"; done
-docker images "$IMAGEM" --format '{{.ID}}' | awk '!v[$0]++' | tail -n +4 | xargs -r docker rmi >/dev/null 2>&1 || true
+protegidas=$(cat /opt/mago-os*/estado/atual /opt/mago-os*/estado/anterior 2>/dev/null |
+  xargs -r -n1 docker image inspect --format '{{.Id}}' 2>/dev/null || true)
+docker images "$IMAGEM" --format '{{.ID}}' | awk '!v[$0]++' | tail -n +4 | while read -r id; do
+  completo=$(docker image inspect --format '{{.Id}}' "$id" 2>/dev/null || true)
+  grep -qx "$completo" <<< "$protegidas" || docker rmi "$id" >/dev/null 2>&1 || true
+done
 log "Pronto: $DOMINIO está na versão ${versao:0:7} (cor $cor)."
