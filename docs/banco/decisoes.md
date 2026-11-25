@@ -370,3 +370,11 @@ O login (`mago_acesso`) não lê papéis nem as regras da plataforma direto. As 
 - `participantes_de_evento` guarda quem foi convidado e a resposta (pendente, vou, nao_vou, talvez), da pessoa (marca `[pessoal]`).
 - `alertas_de_evento` guarda cada alerta mandado por começo de vez, pessoa e minutos: nada vai duas vezes, e um horário novo vale como começo novo. Fica 30 dias.
 - Quem vê o evento inteiro é decidido no núcleo, pelo alcance de "agenda.ver" (tudo, equipe ou só os em que a pessoa está); o banco isola as empresas. `empresas_com_agenda()` dá à verificação dos alertas só os ids das empresas com evento a alertar.
+
+## 52. Contatos (25/11/2026, M7-01)
+
+- `contatos` guarda pessoas e organizações de fora da empresa ([decisão 0045](../decisoes/0045-contatos.md)), com os papéis num array (lead, cliente, fornecedor, parceiro, outro), o responsável (pessoa da equipe; sai da empresa, fica sem responsável) e a situação. Quem cadastrou não é chave estrangeira: o contato é da empresa e fica quando a pessoa sai.
+- `identificadores_de_contato` guarda e-mails (minúsculas), telefones (formato internacional) e redes. O mesmo valor não se repete no mesmo contato e só um e-mail e um telefone são principais (índices únicos); repetido em outro contato da empresa é permitido e o núcleo avisa (índice `identificadores_repetidos`).
+- Juntar não apaga: o contato que sai vira `juntado`, com `juntado_em_id` apontando para o que ficou (apagar o que ficou apaga também os juntados nele). Os identificadores, as organizações, as etiquetas e os vínculos com tarefas e projetos passam para o que ficou na mesma transação.
+- `contatos_em_organizacoes` liga uma pessoa a uma organização (o gatilho `conferir_contato_em_organizacao()` confere os tipos). `etiquetas_de_contato` usa as etiquetas da empresa. `contatos_de_tarefa` e `contatos_de_projeto` guardam quem a tarefa ou o projeto cita; o projeto também dá ao funcionário membro o acesso aos contatos dele. Quem vê o quê é decidido no núcleo, pelo alcance de "contatos.ver"; o banco isola as empresas.
+- `visoes_de_contatos` guarda os filtros da lista de cada pessoa, como `visoes_salvas` faz com as tarefas.

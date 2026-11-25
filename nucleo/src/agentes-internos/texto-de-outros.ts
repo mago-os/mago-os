@@ -21,6 +21,12 @@ export interface FontesDeTexto {
   tarefasInteiras?: string[];
   /** Comentários mostrados (a busca mostra trechos). */
   comentarios?: string[];
+  /**
+   * Contatos mostrados com as observações (M7-01). Conta como de outros a observação de um contato cadastrado por
+   * outra pessoa ou por agente externo, e também a de um contato mudado depois de cadastrado (não se guarda quem
+   * escreveu cada mudança, então vale a dúvida).
+   */
+  contatos?: string[];
 }
 
 /** Se alguma das fontes tem texto de outra pessoa ou de agente externo. */
@@ -33,7 +39,8 @@ export async function haTextoDeOutros(
   const tarefas = ids([...(f.tarefas ?? []), ...(f.tarefasInteiras ?? [])]);
   const inteiras = ids(f.tarefasInteiras);
   const comentarios = ids(f.comentarios);
-  if (tarefas.length + comentarios.length === 0) return false;
+  const contatos = ids(f.contatos);
+  if (tarefas.length + comentarios.length + contatos.length === 0) return false;
   const r = await c.query<{ ha: boolean }>(
     `select exists (
        select 1 from tarefas t where t.empresa_id = empresa_ativa() and t.id = any($2::uuid[])
@@ -53,8 +60,12 @@ export async function haTextoDeOutros(
           and (${deOutros("a.enviado_por_pessoa_id", "a.enviado_por_agente_id")}
                or (a.descricao is not null and a.descrito_por_pessoa_id is not null
                    and a.descrito_por_pessoa_id <> $1::uuid))
+       union all
+       select 1 from contatos ct where ct.empresa_id = empresa_ativa() and ct.id = any($5::uuid[])
+          and ct.observacoes is not null
+          and (ct.atualizado_em > ct.criado_em or ${deOutros("ct.criado_por", "ct.criado_por_agente_id")})
      ) as ha`,
-    [pedidoPor, tarefas, inteiras, comentarios],
+    [pedidoPor, tarefas, inteiras, comentarios, contatos],
   );
   return r.rows[0]?.ha ?? false;
 }

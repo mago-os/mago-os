@@ -14,6 +14,7 @@ const GRUPOS: Record<TipoDeResultado, string> = {
   anexo: "Anexos",
   projeto: "Projetos",
   espaco: "Espaços",
+  contato: "Contatos",
   pessoa: "Pessoas",
   agente: "Agentes",
 };

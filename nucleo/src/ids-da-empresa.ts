@@ -14,7 +14,7 @@ export const NAO_ENCONTRADO_NA_EMPRESA =
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /** Campos que guardam ids (além dos que terminam em Id ou Ids, como tarefaId, pessoaId e agenteIds). */
-const CAMPOS_DE_IDS = new Set(["participantes", "etiquetas", "pessoas", "skills"]);
+const CAMPOS_DE_IDS = new Set(["participantes", "etiquetas", "pessoas", "skills", "contatos"]);
 const eCampoDeId = (campo: string) => /Ids?$/.test(campo) || CAMPOS_DE_IDS.has(campo);
 
 /**

@@ -97,7 +97,7 @@ describe.skipIf(!bancoDisponivel)("servidor MCP", () => {
     await banco?.apagar();
   });
 
-  it("lista as catorze ferramentas, com descrição e esquema de entrada", async () => {
+  it("lista as dezenove ferramentas, com descrição e esquema de entrada", async () => {
     const cliente = await conectar(chaves.Um?.chave ?? "");
     const { tools } = await cliente.listTools();
     expect(tools.map((t) => t.name)).toEqual([
@@ -115,6 +115,11 @@ describe.skipIf(!bancoDisponivel)("servidor MCP", () => {
       "pegar_instrucoes",
       "listar_skills",
       "pegar_skill",
+      "listar_contatos",
+      "ver_contato",
+      "criar_contato",
+      "atualizar_contato",
+      "ligar_contato",
     ]);
     expect(tools.every((t) => (t.description ?? "").length > 20 && t.inputSchema.type === "object")).toBe(
       true,
@@ -164,6 +169,54 @@ describe.skipIf(!bancoDisponivel)("servidor MCP", () => {
     expect((await chamar(outro, "listar_skills")).structuredContent?.skills).toEqual([]);
     await outro.close();
     await cliente.close();
+  });
+
+  it("contatos pelo MCP (M7-01): cadastra, avisa o repetido, liga à tarefa dele, e a outra empresa não vê", async () => {
+    const cliente = await conectar(chaves.Um?.chave ?? "");
+    const criado = await chamar(cliente, "criar_contato", {
+      tipo: "pessoa",
+      nome: "Ana da Acme",
+      identificadores: [{ tipo: "email", valor: "ana@acme.invalid", principal: true }],
+    });
+    expect(criado.isError).toBeFalsy();
+    const contatoId = (criado.structuredContent?.contato as { id: string } | undefined)?.id ?? "";
+    const repetido = await chamar(cliente, "criar_contato", {
+      tipo: "pessoa",
+      nome: "Ana Souza",
+      identificadores: [{ tipo: "email", valor: "ana@acme.invalid", principal: true }],
+    });
+    expect(repetido.structuredContent?.repetidos).toMatchObject([{ contatoId, nome: "Ana da Acme" }]);
+    const lista = await chamar(cliente, "listar_contatos", { texto: "acme" });
+    expect(((lista.structuredContent?.contatos ?? []) as { id: string }[]).map((k) => k.id)).toContain(
+      contatoId,
+    );
+    const t = await dono.query<{ id: string }>(
+      "insert into tarefas (empresa_id, titulo, responsavel_agente_id) values ($1, 'Ligar para a Ana', $2) returning id",
+      [empresas.Um, agentes.Um],
+    );
+    const tarefaId = t.rows[0]?.id as string;
+    const ligou = await chamar(cliente, "ligar_contato", { tarefaId, contatos: [contatoId] });
+    expect(ligou.structuredContent).toEqual({ tarefaId, contatos: [contatoId] });
+    const ver = await chamar(cliente, "ver_contato", { contatoId });
+    expect(ver.structuredContent?.tarefas).toEqual([tarefaId]);
+    // Tarefa que não é dele: recusa.
+    const alheia = await dono.query<{ id: string }>(
+      "insert into tarefas (empresa_id, titulo) values ($1, 'De outra pessoa') returning id",
+      [empresas.Um],
+    );
+    expect(
+      (await chamar(cliente, "ligar_contato", { tarefaId: alheia.rows[0]?.id, contatos: [contatoId] }))
+        .isError,
+    ).toBe(true);
+    await cliente.close();
+    const outro = await conectar(chaves.Dois?.chave ?? "");
+    expect((await chamar(outro, "ver_contato", { contatoId })).isError).toBe(true);
+    expect((await chamar(outro, "listar_contatos", { texto: "acme" })).structuredContent?.contatos).toEqual(
+      [],
+    );
+    await outro.close();
+    // As tarefas deste teste saem, para não entrarem na lista dos próximos.
+    await dono.query("delete from tarefas where id = any($1::uuid[])", [[tarefaId, alheia.rows[0]?.id]]);
   });
 
   it("sem chave válida, nem conecta", async () => {

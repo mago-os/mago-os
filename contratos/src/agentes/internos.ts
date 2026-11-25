@@ -9,6 +9,7 @@
 import { type Static, type TSchema, Type } from "typebox";
 import { PedidoDeEvento } from "../agenda/eventos.ts";
 import { conferir, DataHora, Dia, Id, OuNulo, type Problema, type Regra, Texto } from "../comum.ts";
+import { FiltroDeContatos, PedidoDeContato, PedidoDeEditarContato } from "../contatos/contatos.ts";
 import { PedidoDeRotina } from "../rotinas/rotinas.ts";
 import { PedidoDePrazo, Prioridade } from "../tarefas/prazos.ts";
 import { Responsavel, StatusTarefa } from "../tarefas/tarefa.ts";
@@ -391,6 +392,44 @@ export const FERRAMENTAS_INTERNAS = [
     descricao:
       "Desliga uma rotina que quem pediu pode parar (a dele ou, para o administrador, qualquer uma). Ela para de rodar até alguém ligar de novo.",
     entrada: Type.Object({ rotinaId: Id }, { additionalProperties: false }),
+    papeis: ["coordenador", "especialista"],
+  },
+  {
+    nome: "listar_contatos",
+    descricao:
+      "Lista os contatos da empresa (pessoas e organizações de fora: clientes, leads, fornecedores, parceiros) que quem pediu pode ver, com o nome, os papéis, o e-mail e o telefone principais. Filtre por texto (nome, e-mail, telefone ou rede), tipo, papel, etiqueta, responsável ou organização. Use para achar um contato antes de ver, atualizar ou ligar a uma tarefa.",
+    entrada: FiltroDeContatos,
+    papeis: ["coordenador", "especialista"],
+  },
+  {
+    nome: "ver_contato",
+    descricao:
+      "Abre um contato que quem pediu pode ver, com todos os e-mails, telefones e redes, as organizações (ou as pessoas ligadas, na organização), as observações e as tarefas abertas e fechadas ligadas a ele.",
+    entrada: Type.Object({ contatoId: Id }, { additionalProperties: false }),
+    papeis: ["coordenador", "especialista"],
+  },
+  {
+    nome: "criar_contato",
+    descricao:
+      "Cadastra um contato (pessoa ou organização) em nome de quem pediu, com os e-mails, telefones (no formato internacional, como +5511987654321) e redes que a pessoa informou. Procure antes com listar_contatos: se o e-mail ou o telefone já estiver em outro contato, a resposta avisa; conte à pessoa em vez de cadastrar de novo. Nunca invente dados que a pessoa não deu.",
+    entrada: PedidoDeContato,
+    papeis: ["coordenador", "especialista"],
+  },
+  {
+    nome: "atualizar_contato",
+    descricao:
+      "Muda um contato que quem pediu pode editar: só o que vier muda; e-mails, telefones, redes, organizações, papéis e etiquetas vêm sempre com a lista completa (a nova substitui a antiga, então leia com ver_contato antes). Também arquiva ou desarquiva. Juntar e apagar contatos só no app.",
+    entrada: Type.Object({ contatoId: Id, mudancas: PedidoDeEditarContato }, { additionalProperties: false }),
+    papeis: ["coordenador", "especialista"],
+  },
+  {
+    nome: "ligar_contato",
+    descricao:
+      "Liga uma tarefa que quem pediu pode editar aos contatos que ela cita (lista completa, até 20: a nova substitui a antiga; lista vazia tira todos). Use quando a tarefa é sobre um cliente, lead ou fornecedor.",
+    entrada: Type.Object(
+      { tarefaId: Id, contatos: Type.Array(Id, { maxItems: 20, uniqueItems: true }) },
+      { additionalProperties: false },
+    ),
     papeis: ["coordenador", "especialista"],
   },
   {
