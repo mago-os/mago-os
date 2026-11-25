@@ -86,7 +86,7 @@ Precisa da aprovação escrita do Sandro (DNS).
 - [x] Bot do Telegram de produção (criado pelo Sandro no BotFather, token no Infisical `prod`), com o webhook em app.osmago.com
 - [x] Cliente OAuth "Mago OS" do Google para app.osmago.com (correção em 25/11/2026: fica em "Testando", com os usuários de teste, até a página de Política de Privacidade, que o Google exige para publicar; cartão #190)
 - [x] Remetente de e-mail de produção no Resend (o mesmo domínio, chave própria do ambiente `prod`)
-- [ ] Vigias da produção no Uptime Kuma da VPS01 (API, tela, backup, restauração, auditoria), avisando no Telegram do Sandro
+- [x] Vigias da produção no Uptime Kuma da VPS01 (API, tela, backup, restauração, auditoria e recursos), avisando no Telegram do Sandro (25/11/2026: os seis no ar e verdes, com backup, restauração e auditoria rodados à mão para conferir)
 - [x] Primeira empresa da produção: 4xpert (decisão 7), com o Sandro como Dono da plataforma e administrador, 2FA obrigatório para administradores desde o primeiro acesso
 - [x] O MCP de produção em app.osmago.com/mcp, e o guia dos agentes externos atualizado (cada agente ganha chave nova; as do teste não valem na produção)
 
@@ -110,7 +110,7 @@ Pronto quando: a produção foi remontada do zero a partir do backup, com o temp
 - [ ] Agentes da 4xpert na produção: coordenador e especialistas com as contas de IA da 4xpert no cofre, os tetos de gasto definidos pelo Sandro, e o Hermes ligado pelo MCP de produção
 - [ ] Uso de verdade, com uma lista de ajustes no quadro (cartões "M6-06: ..."). Ajuste pequeno entra direto, com PR e o "ok" do Sandro; mudança de escopo vai para a Fase 2 com a aprovação dele. Sem prazo fixo de uso (decisão do Sandro em 24/11/2026): os ajustes continuam enquanto aparecerem, com prioridade sobre o resto, e a Fase 2 pode começar em paralelo
 - [ ] O teste.osmago.com continua só com dados falsos, como lugar de conferir cada mudança antes da produção
-- [ ] Alerta quando a VPS02 ou o Backblaze ficarem apertados (memória livre abaixo de 1 GB, disco acima de 80%, Backblaze acima de 7 GB), para o Sandro aumentar CPU, memória ou disco da VPS02 ou decidir o plano do Backblaze
+- [x] Alerta quando a VPS02 ou o Backblaze ficarem apertados (memória livre abaixo de 1 GB, disco acima de 80%, Backblaze acima de 7 GB), para o Sandro aumentar CPU, memória ou disco da VPS02 ou decidir o plano do Backblaze (adiantado no M6-05: `recursos.sh` a cada 5 minutos e o vigia "recursos" no Uptime Kuma)
 
 Pronto quando: a equipe da 4xpert começa a usar o Mago OS em app.osmago.com, e o Sandro dá a Fase 1 por concluída.
 
