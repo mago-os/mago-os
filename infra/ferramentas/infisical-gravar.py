@@ -17,7 +17,9 @@ import urllib.error
 import urllib.request
 
 B = "https://app.infisical.com"
-WS = "7e951d3d-b27b-4e98-96ff-30ddbeef7bf2"
+WS_TESTE = "7e951d3d-b27b-4e98-96ff-30ddbeef7bf2"
+# A produção fica num projeto próprio do Infisical (M6-05, decisão 0044): "prod" grava e lê nele.
+WS_PRODUCAO = "97ca1793-1118-4097-ab03-fb499ada9570"
 
 
 def chamar(metodo, caminho, dados=None, token=None):
@@ -36,6 +38,7 @@ def main():
     if len(args) != 2 or args[0] not in ("dev", "staging", "prod"):
         sys.exit(__doc__)
     ambiente, chave = args
+    WS = WS_PRODUCAO if ambiente == "prod" else WS_TESTE
     valor = sys.stdin.read().strip()
     if not valor:
         sys.exit("Valor vazio na entrada: nada gravado.")
