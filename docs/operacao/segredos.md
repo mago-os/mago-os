@@ -8,7 +8,7 @@ Todos os segredos do Mago OS ficam no Infisical Cloud (região EUA, https://app.
 | --- | --- | --- |
 | Development (`dev`) | Local (Mac e ambiente do Claude) | Por enquanto ninguém: o ambiente local não tem senha |
 | Staging (`staging`) | Teste (teste.osmago.com, VPS02) | Identidade `vps02` (só leitura) |
-| Production (`prod`) | Produção (app.osmago.com, M6) | A definir no M6 |
+| Production (`prod`), no projeto **`mago-os-producao`** | Produção (app.osmago.com, M6-05) | Identidade `vps02-producao` (só leitura, só deste projeto) |
 
 ## Identidades
 

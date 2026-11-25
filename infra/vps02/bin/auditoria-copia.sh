@@ -7,16 +7,20 @@
 # certo, marca os eventos como copiados. Se algo falhar, os mesmos eventos vão na próxima vez.
 # Chaves em /opt/mago-os/auditoria.env (gerado por bin/segredos.sh a partir do Infisical).
 set -euo pipefail
+# Ambiente (M6-05): o teste usa os padrões; a produção tem ambiente.conf na pasta dela (/opt/mago-os-producao).
+BASE=$(cd "$(dirname "$(readlink -f "$0")")/.." && pwd)
+# shellcheck disable=SC1091
+[ -f "$BASE/ambiente.conf" ] && . "$BASE/ambiente.conf"
+PROJETO=${PROJETO:-mago-os}
 
-BASE=/opt/mago-os
-REDE_BANCO=mago-os_mago_db
+REDE_BANCO=${PROJETO}_mago_db
 ENV_AUDITORIA=$BASE/auditoria.env
 log() { echo "$(date -u +%FT%TZ) $*"; }
 
 [ -s "$ENV_AUDITORIA" ] || { log "Sem $ENV_AUDITORIA (chaves do depósito da auditoria): nada a fazer."; exit 0; }
 # shellcheck disable=SC1090
 source "$ENV_AUDITORIA"
-exec 9>/run/lock/mago-os-auditoria-copia.lock
+exec 9>"/run/lock/$PROJETO-auditoria-copia.lock"
 flock -n 9 || { log "Outra cópia em andamento; saindo."; exit 0; }
 
 alvo=$(cat "$BASE/estado/atual")
@@ -38,5 +42,5 @@ curl -fsS -m 120 --aws-sigv4 "aws:amz:$AUDITORIA_REGIAO:s3" --user "$AUDITORIA_C
 { echo "update auditoria.eventos set copiado_em = now() where copiado_em is null and id in ("
   sed "s/.*/'&'/" "$pasta/lote.ids" | paste -sd, -
   echo ");"
-} | docker exec -i mago-os-db-1 psql -U mago -d mago -q -v ON_ERROR_STOP=1 >/dev/null
+} | docker exec -i "$PROJETO-db-1" psql -U mago -d mago -q -v ON_ERROR_STOP=1 >/dev/null
 log "Auditoria: $quantos eventos copiados para $nome."

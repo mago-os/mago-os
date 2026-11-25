@@ -11,11 +11,21 @@
 # Uso: /opt/mago-os/bin/segredos.sh   (depois: docker compose up -d --force-recreate, para os containers lerem)
 # Nenhum valor aparece na tela nem no log.
 set -euo pipefail
-python3 -I - /opt/mago-os/infisical.env /opt/mago-os <<'PY'
+# Ambiente (M6-05): o teste usa os padrões; a produção tem ambiente.conf na pasta dela (outro projeto do Infisical).
+BASE=$(cd "$(dirname "$(readlink -f "$0")")/.." && pwd)
+# shellcheck disable=SC1091
+[ -f "$BASE/ambiente.conf" ] && . "$BASE/ambiente.conf"
+export AMBIENTE=${AMBIENTE:-teste}
+export INFISICAL_PROJETO=${INFISICAL_PROJETO:-7e951d3d-b27b-4e98-96ff-30ddbeef7bf2}
+export INFISICAL_AMBIENTE=${INFISICAL_AMBIENTE:-staging}
+export DOMINIO=${DOMINIO:-teste.osmago.com}
+export DEPOSITO_AUDITORIA=${DEPOSITO_AUDITORIA:-mago-os-auditoria}
+python3 -I - "$BASE/infisical.env" "$BASE" <<'PY'
 import sys, json, urllib.request, urllib.parse, re, os, base64
 env = dict(re.findall(r"^(\w+)=(.*)$", open(sys.argv[1]).read(), re.M))
 pasta = sys.argv[2]
-B = "https://app.infisical.com"; WS = "7e951d3d-b27b-4e98-96ff-30ddbeef7bf2"
+AMBIENTE = os.environ["AMBIENTE"]; DOMINIO = os.environ["DOMINIO"]
+B = "https://app.infisical.com"; WS = os.environ["INFISICAL_PROJETO"]; AMB_INFISICAL = os.environ["INFISICAL_AMBIENTE"]
 def j(url, data=None, h={}):
     r = urllib.request.Request(url, data=json.dumps(data).encode() if data else None,
                                headers={"Content-Type": "application/json", "User-Agent": "mago-os-vps02", **h})
@@ -23,13 +33,16 @@ def j(url, data=None, h={}):
 t = j(B + "/api/v1/auth/universal-auth/login",
       {"clientId": env["INFISICAL_CLIENT_ID"].strip(), "clientSecret": env["INFISICAL_CLIENT_SECRET"].strip()})["accessToken"]
 s = {x["secretKey"]: x["secretValue"].strip()
-     for x in j(B + f"/api/v3/secrets/raw?workspaceId={WS}&environment=staging&secretPath=/",
+     for x in j(B + f"/api/v3/secrets/raw?workspaceId={WS}&environment={AMB_INFISICAL}&secretPath=/",
                 h={"Authorization": "Bearer " + t})["secrets"]}
 faltam = [k for k in ["MAGO_DB_SENHA_DONO", "MAGO_DB_SENHA_APP", "B2_KEY_ID", "B2_APPLICATION_KEY", "B2_ENDPOINT",
-                      "B2_BUCKET", "B2_REGION", "PGBACKREST_CIPHER_PASS", "MAGO_CAMPAINHA_SEGREDO",
-                      "GHCR_LEITURA_TOKEN", "MAGO_DB_SENHA_ACESSO", "MAGO_ACESSO_SEGREDO"] if not s.get(k)]
+                      "B2_BUCKET", "B2_REGION", "PGBACKREST_CIPHER_PASS", "GHCR_LEITURA_TOKEN",
+                      "MAGO_DB_SENHA_ACESSO", "MAGO_ACESSO_SEGREDO"] if not s.get(k)]
+# A campainha do GitHub só existe no teste (a produção confere a versão sozinha, a cada minuto).
+if AMBIENTE == "teste" and not s.get("MAGO_CAMPAINHA_SEGREDO"):
+    faltam.append("MAGO_CAMPAINHA_SEGREDO")
 if faltam:
-    sys.exit("Faltam no Infisical (staging): " + ", ".join(faltam))
+    sys.exit(f"Faltam no Infisical ({AMB_INFISICAL}): " + ", ".join(faltam))
 q = lambda v: urllib.parse.quote(v, safe="")
 arquivos = {
     ".env": {"POSTGRES_USER": "mago", "POSTGRES_DB": "mago", "POSTGRES_PASSWORD": s["MAGO_DB_SENHA_DONO"]},
@@ -39,7 +52,7 @@ arquivos = {
         "S3_BUCKET": s["B2_BUCKET"], "S3_REGION": s["B2_REGION"], "CIPHER_PASS": s["PGBACKREST_CIPHER_PASS"],
     }.items()},
     "api.env": {
-        "AMBIENTE": "teste",
+        "AMBIENTE": AMBIENTE,
         "DATABASE_URL": f"postgres://mago_app:{q(s['MAGO_DB_SENHA_APP'])}@db:5432/mago",
         "DATABASE_URL_DONO": f"postgres://mago:{q(s['MAGO_DB_SENHA_DONO'])}@db:5432/mago",
         "MAGO_DB_SENHA_APP": s["MAGO_DB_SENHA_APP"],
@@ -47,7 +60,7 @@ arquivos = {
         "DATABASE_URL_ACESSO": f"postgres://mago_acesso:{q(s['MAGO_DB_SENHA_ACESSO'])}@db:5432/mago",
         "MAGO_DB_SENHA_ACESSO": s["MAGO_DB_SENHA_ACESSO"],
         "MAGO_ACESSO_SEGREDO": s["MAGO_ACESSO_SEGREDO"],
-        "MAGO_URL_PUBLICA": "https://teste.osmago.com",
+        "MAGO_URL_PUBLICA": f"https://{DOMINIO}",
         # Login com Google (M1-04), opcional: sem os dois, a API sobe só com e-mail e senha.
         # Push (M3-06), opcional: sem as duas chaves VAPID, o push fica desligado.
         **{k: s[k] for k in ("MAGO_GOOGLE_ID", "MAGO_GOOGLE_SEGREDO", "MAGO_RESEND_CHAVE", "MAGO_VAPID_PUBLICA",
@@ -62,7 +75,7 @@ arquivos = {
             "OTEL_EXPORTER_OTLP_ENDPOINT": s["GRAFANA_OTLP_ENDPOINT"],
             "OTEL_EXPORTER_OTLP_HEADERS": "Authorization=Basic%20" + base64.b64encode(
                 f"{s['GRAFANA_OTLP_INSTANCIA']}:{s['GRAFANA_OTLP_TOKEN']}".encode()).decode(),
-            "OTEL_RESOURCE_ATTRIBUTES": "deployment.environment=teste",
+            "OTEL_RESOURCE_ATTRIBUTES": f"deployment.environment={AMBIENTE}",
         } if all(s.get(k) for k in ("GRAFANA_OTLP_ENDPOINT", "GRAFANA_OTLP_INSTANCIA", "GRAFANA_OTLP_TOKEN")) else {}),
         # Anexos (M3-08), opcionais: o bucket só dos anexos no Backblaze e o ClamAV do compose (rede interna).
         **({
@@ -72,12 +85,12 @@ arquivos = {
         } if all(s.get(k) for k in ("B2_ANEXOS_ENDPOINT", "B2_ANEXOS_BUCKET", "B2_ANEXOS_KEY_ID",
                                      "B2_ANEXOS_APPLICATION_KEY")) else {}),
     },
-    "campainha.env": {"MAGO_CAMPAINHA_SEGREDO": s["MAGO_CAMPAINHA_SEGREDO"]},
+    "campainha.env": {"MAGO_CAMPAINHA_SEGREDO": s["MAGO_CAMPAINHA_SEGREDO"]} if s.get("MAGO_CAMPAINHA_SEGREDO") else {},
     # Cópia travada da auditoria (M1-09), opcional até o depósito existir. Mesma região do backup.
     "auditoria.env": {
         "AUDITORIA_CHAVE": s["B2_AUDITORIA_KEY_ID"], "AUDITORIA_SEGREDO": s["B2_AUDITORIA_APPLICATION_KEY"],
         "AUDITORIA_ENDPOINT": s["B2_ENDPOINT"].replace("https://", ""), "AUDITORIA_REGIAO": s["B2_REGION"],
-        "AUDITORIA_DEPOSITO": "mago-os-auditoria",
+        "AUDITORIA_DEPOSITO": os.environ["DEPOSITO_AUDITORIA"],
     } if s.get("B2_AUDITORIA_KEY_ID") and s.get("B2_AUDITORIA_APPLICATION_KEY") else {},
     # Opcionais: sem eles, o avisar.sh só registra no log.
     "avisos.env": {k: v for k, v in s.items() if k.startswith("MAGO_AVISO_")},
