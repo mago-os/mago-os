@@ -55,8 +55,9 @@ O painel **Mago OS** (https://happyivy2139.grafana.net/d/mago-os/mago-os, pasta 
 os pedidos por hora e por resposta, os pedidos mais lentos (acima de 1 segundo, com o número de rastreio), a fila
 parada, os agentes com erro e os últimos erros. Em cima, a escolha do ambiente (teste ou produção).
 
-Os alertas rodam a cada minuto e avisam no Telegram do Sandro pelo bot de teste (@OsMagoTesteBot), com a mensagem
-"Mago OS (teste): ..." e outra quando resolver. Tudo isso é montado pelo `infra/grafana/montar.py`, que pode rodar
+Os alertas rodam a cada minuto, para o teste e para a produção (títulos "Mago OS: ..." e "Mago OS (produção): ..."),
+e avisam no Telegram do Sandro pelo bot de teste (@OsMagoTesteBot), com a mensagem "Mago OS (teste): ..." ou
+"Mago OS (producao): ..." e outra quando resolver. Tudo isso é montado pelo `infra/grafana/montar.py`, que pode rodar
 de novo para refazer (por exemplo, numa conta nova ou para a produção).
 
 | Alerta | O que fazer |

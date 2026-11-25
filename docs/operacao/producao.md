@@ -42,12 +42,21 @@ como elas são compatíveis com a versão anterior, voltar o código basta. Para
 | Memória, disco e Backblaze | `/opt/mago-os-producao/bin/recursos.sh` (roda a cada 5 minutos e avisa o monitoramento) |
 | Registros e rastreio | Grafana Cloud, ambiente `producao` no painel "Mago OS" ([rastreio.md](rastreio.md)) |
 
-## Até o DNS (M6-05b)
+## Endereço e contas (M6-05b, 25/11/2026)
 
-- O Caddy atende app.osmago.com com certificado próprio (`tls internal`) e só aceita pedidos da Cloudflare ou do
-  próprio servidor. A conferência local do `publicar.sh` usa `curl -k` (`CURL_EXTRA` no `ambiente.conf`).
-- Com o DNS: apagar a linha `tls internal` do modelo do Caddy, tirar `CURL_EXTRA` do `ambiente.conf` e publicar de
-  novo (`publicar.sh forcar`).
+- **app.osmago.com:** registro A na Cloudflare (proxy laranja) para a VPS02, criado com o ok escrito do Sandro em
+  25/11/2026. Certificado do Let's Encrypt, pego pelo Caddy sozinho. Só a Cloudflare chega à origem.
+- **Primeira empresa:** 4xpert, com o Sandro (nlk.osmago77@gmail.com) como Dono da plataforma e administrador, criada
+  pelo `plataforma.ts iniciar` dentro da imagem no ar (como no teste, trocando a rede e o `api.env` pelos da
+  produção). 2FA obrigatório para administradores desde o primeiro acesso.
+- **Telegram:** bot de produção próprio (token em `MAGO_TELEGRAM_TOKEN`), webhook em app.osmago.com/api/telegram/webhook.
+- **Login com Google:** cliente "Mago OS" para app.osmago.com, ainda em "Testando" (só os usuários de teste da lista,
+  até 100) até existir a página de Política de Privacidade (cartão #190).
+- **E-mail:** Resend, chave só de envio da produção, remetente `nao-responda@osmago.com`.
+- **MCP:** `https://app.osmago.com/mcp`; cada agente da produção tem chave própria, criada na tela do agente (as do
+  teste não valem aqui).
+- **Monitoramento:** vigias da produção no Uptime Kuma (API, tela, backup, restauração, auditoria e recursos) e os
+  alertas "Mago OS (produção)" do Grafana, no Telegram do Sandro.
 
 ## Regras
 
