@@ -38,6 +38,16 @@ const Nome = Texto(80, "Nome do agente como aparece nas telas (ex.: Claude no Ma
 const Descricao = Texto(1000, "Para que serve o agente.");
 const OndeRoda = Texto(100, "Onde o agente roda, em texto livre (ex.: VPS01, Mac do Sandro).");
 
+/**
+ * Por onde o agente externo entra com a chave dele (M7-02, decisão 0047): só pelo MCP, só pela API pública ou pelos
+ * dois (padrão). O agente interno não usa chave: fica "os_dois" e não muda nada.
+ */
+export const CANAIS_DO_AGENTE = ["mcp", "api", "os_dois"] as const;
+export const CanaisDoAgente = Type.Enum(CANAIS_DO_AGENTE, {
+  description: "mcp (só MCP), api (só a API pública) ou os_dois (padrão).",
+});
+export type CanaisDoAgente = Static<typeof CanaisDoAgente>;
+
 export const Agente = Type.Object(
   {
     id: Id,
@@ -54,6 +64,8 @@ export const Agente = Type.Object(
     respondeAId: OuNulo(Id),
     situacao: SituacaoAgente,
     minutosSemSinal: MinutosSemSinal,
+    /** Por onde a chave dele entra (M7-02). */
+    canais: CanaisDoAgente,
     ultimoSinalEm: OuNulo(DataHora),
     criadoEm: DataHora,
     atualizadoEm: DataHora,
@@ -121,6 +133,7 @@ export const PedidoDeEditarAgente = Type.Object(
     ondeRoda: Type.Optional(OuNulo(OndeRoda)),
     responsavelId: Type.Optional(Id),
     minutosSemSinal: Type.Optional(MinutosSemSinal),
+    canais: Type.Optional(CanaisDoAgente),
   },
   { additionalProperties: false, minProperties: 1 },
 );
