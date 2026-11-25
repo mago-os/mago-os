@@ -107,8 +107,11 @@ sugere, a decisão é humana, como no plano).
 - [ ] Meta: verificação da empresa (Nolask) no portfólio de negócios da Meta, app "Mago OS" com o produto WhatsApp,
   número de teste e o pedido das permissões do WhatsApp Business. Passo a passo para o Sandro, que faz com a conta
   dele; eu preparo os textos, a política (já no ar) e o vídeo de demonstração quando a Meta pedir
-- [ ] Google (Gmail): levantamento do que o Google exige para ler e-mails de outras empresas (escopos restritos,
-  verificação e a avaliação de segurança), com custo e prazo, para o Sandro decidir antes do M13
+- [x] Google (Gmail): levantamento do que o Google exige para ler e-mails de outras empresas (escopos restritos,
+  verificação e a avaliação de segurança), com custo e prazo, para o Sandro decidir antes do M13. Feito em
+  25/11/2026: ler a caixa exige a avaliação CASA (US$ 500 a 4.500 por ano, 2 a 6 semanas, todo ano). Decisão do
+  Sandro no mesmo dia ([decisão 0046](../decisoes/0046-email-pelo-agregador.md)): o e-mail dos clientes vai só por
+  um agregador (Composio ou concorrente), e o app próprio verificado fica para o centésimo cliente pagante
 - [ ] Logo no Branding do Google e a conferência do domínio osmago.com (registro TXT só com o ok escrito do Sandro),
   que ficaram de fora na M6-05c
 
