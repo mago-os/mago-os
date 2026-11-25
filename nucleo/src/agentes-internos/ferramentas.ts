@@ -32,6 +32,8 @@ import { auditar } from "../auditoria/registrar.ts";
 import { avisarDepois } from "../avisos/eventos.ts";
 import { buscar as buscarNoMago } from "../busca/index.ts";
 import type { FerramentaParaModelo } from "../contas-de-ia/conversa.ts";
+import { eFerramentaDeContatos, executarFerramentaDeContatos } from "../contatos/ferramentas.ts";
+import { quemOlhaContatos, RecusaDosContatos } from "../contatos/servico.ts";
 import { resumoDeCustos } from "../custos/servico.ts";
 import { comEmpresa } from "../empresa.ts";
 import { idsForaDaEmpresa, NAO_ENCONTRADO_NA_EMPRESA, uuidsDe } from "../ids-da-empresa.ts";
@@ -192,6 +194,11 @@ function fontesDaFerramenta(
       return null;
     case "ver_tarefa":
       return { tarefasInteiras: tarefaDaEntrada };
+    // Contatos (M7-01): a lista mostra só nomes e jeitos de falar (não conta); a ficha mostra as observações.
+    case "listar_contatos":
+      return null;
+    case "ver_contato":
+      return typeof entrada.contatoId === "string" ? { contatos: [entrada.contatoId] } : null;
     case "buscar": {
       const rs = ((conteudo as { resultados?: unknown[] })?.resultados ?? []) as {
         tipo?: string;
@@ -489,6 +496,45 @@ async function executarSemMarca(
             : {}),
         },
       };
+    }
+    // Contatos (M7-01): com o alcance de quem pediu e o do responsável pelo agente (o menor dos dois).
+    case "listar_contatos":
+    case "ver_contato":
+    case "criar_contato":
+    case "atualizar_contato":
+    case "ligar_contato": {
+      if (!eFerramentaDeContatos(nome)) throw new RecusaDaFerramenta("Ferramenta desconhecida.");
+      try {
+        const conteudo = await executarFerramentaDeContatos(
+          {
+            poolApp: ctx.poolApp,
+            empresaId: ctx.empresaId,
+            agenteId: ctx.agente.id,
+            autorId: pessoaId,
+            olham: (acao) => [
+              quemOlhaContatos(ctx.permissoes, pessoaId, acao),
+              ...(responsavel ? [quemOlhaContatos(responsavel.permissoes, responsavel.pessoaId, acao)] : []),
+            ],
+            tarefasDoContato: async (c, contatoId) => {
+              const quem = quemPediu(ctx.permissoes, pessoaId, "ver");
+              if (!quem) return [];
+              return soAsDoResponsavel(c, await listarTarefas(c, quem, { contatoId }), (t) => t.id);
+            },
+            tarefaQueEdita: async (c, tarefaId) => tarefaDeQuemPediu(c, tarefaId, "editar", true),
+            limiteDaLista: 100,
+            origem: ctx.opcoesMcp.origem,
+            rastreio: null,
+            detalhes: { execucaoId, pedidoPor: pessoaId },
+            log: ctx.log,
+          },
+          nome,
+          entrada,
+        );
+        return { conteudo };
+      } catch (erro) {
+        if (erro instanceof RecusaDosContatos) throw new RecusaDaFerramenta(erro.message);
+        throw erro;
+      }
     }
     // Agenda (M5-07): com o alcance de quem pediu e o do responsável pelo agente (o menor dos dois).
     case "ver_agenda": {

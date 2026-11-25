@@ -36,6 +36,7 @@ import { useTempoReal } from "@/tempo-real";
 import { Aviso } from "./Acesso";
 import { useAoVoltar } from "./Administrador";
 import { AnexosDaTarefa, useAnexos } from "./Anexos";
+import { ContatosLigados } from "./Contatos";
 import { ExecucoesDaTarefa } from "./Execucoes";
 import { LinhaDoTempo } from "./LinhaDoTempo";
 import { Checklist, Subtarefas } from "./PartesDaTarefa";
@@ -774,6 +775,7 @@ export function PaginaDaTarefa({
       </Card>
 
       <PlanejamentoDaTarefa tarefa={tarefa} podeEditar={podeEditar} aoMudar={() => void carregar()} />
+      <ContatosLigados alvo={{ tipo: "tarefas", id: tarefa.id }} podeMudar={podeEditar} />
       <Subtarefas
         tarefa={tarefa}
         subtarefas={aberta.subtarefas}

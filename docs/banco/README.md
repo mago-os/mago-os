@@ -255,6 +255,42 @@ erDiagram
     bigint limite_de_tokens
     text ao_chegar_no_limite
   }
+  contatos {
+    uuid id PK
+    uuid empresa_id FK
+    text tipo
+    text nome
+    text[] papeis
+    text documento
+    uuid responsavel_id
+    text fuso
+    text observacoes
+    text situacao
+    uuid juntado_em_id
+    uuid criado_por
+    uuid criado_por_agente_id
+    timestamp_with_time_zone criado_em
+    timestamp_with_time_zone atualizado_em
+  }
+  contatos_de_projeto {
+    uuid empresa_id FK
+    uuid projeto_id PK
+    uuid contato_id PK
+    integer ordem
+  }
+  contatos_de_tarefa {
+    uuid empresa_id FK
+    uuid tarefa_id PK
+    uuid contato_id PK
+    integer ordem
+  }
+  contatos_em_organizacoes {
+    uuid empresa_id FK
+    uuid pessoa_id PK
+    uuid organizacao_id PK
+    text cargo
+    integer ordem
+  }
   conversas {
     uuid id PK
     uuid empresa_id FK
@@ -304,6 +340,11 @@ erDiagram
     text nome
     text cor
     timestamp_with_time_zone criada_em
+  }
+  etiquetas_de_contato {
+    uuid empresa_id FK
+    uuid contato_id PK
+    uuid etiqueta_id PK
   }
   etiquetas_de_tarefa {
     uuid empresa_id FK
@@ -391,6 +432,18 @@ erDiagram
     text evento
     uuid tarefa_do_evento_id
     uuid evento_id
+  }
+  identificadores_de_contato {
+    uuid id PK
+    uuid empresa_id FK
+    uuid contato_id
+    text tipo
+    text rede
+    text valor
+    boolean principal
+    boolean whatsapp
+    text rotulo
+    integer ordem
   }
   itens_de_checklist {
     uuid id PK
@@ -699,6 +752,14 @@ erDiagram
     uuid conversa_id
     date resumo_do_dia_em
   }
+  visoes_de_contatos {
+    uuid id PK
+    uuid empresa_id FK
+    uuid pessoa_id
+    text nome
+    jsonb filtro
+    timestamp_with_time_zone criada_em
+  }
   visoes_salvas {
     uuid id PK
     uuid empresa_id FK
@@ -873,15 +934,21 @@ erDiagram
   empresas ||--o{ consumo_de_ia : "empresa_id"
   empresas ||--o{ contadores_de_agente : "empresa_id"
   empresas ||--o{ contas_de_ia : "empresa_id"
+  empresas ||--o{ contatos : "empresa_id"
+  empresas ||--o{ contatos_de_projeto : "empresa_id"
+  empresas ||--o{ contatos_de_tarefa : "empresa_id"
+  empresas ||--o{ contatos_em_organizacoes : "empresa_id"
   empresas ||--o{ conversas : "empresa_id"
   empresas ||--o{ espacos : "empresa_id"
   empresas ||--o{ estados_de_prioridade : "empresa_id"
   empresas ||--o{ etiquetas : "empresa_id"
+  empresas ||--o{ etiquetas_de_contato : "empresa_id"
   empresas ||--o{ etiquetas_de_tarefa : "empresa_id"
   empresas ||--o{ eventos : "empresa_id"
   empresas ||--o{ eventos_para_rotinas : "empresa_id"
   empresas ||--o{ execucoes_de_agente : "empresa_id"
   empresas ||--o{ execucoes_de_rotina : "empresa_id"
+  empresas ||--o{ identificadores_de_contato : "empresa_id"
   empresas ||--o{ itens_de_checklist : "empresa_id"
   empresas ||--o{ layouts_de_tela : "empresa_id"
   empresas ||--o{ listas : "empresa_id"
@@ -912,6 +979,7 @@ erDiagram
   pessoas ||--o{ vinculos : "pessoa_id"
   empresas ||--o{ vinculos_do_telegram : "empresa_id"
   pessoas ||--o{ vinculos_do_telegram : "pessoa_id"
+  empresas ||--o{ visoes_de_contatos : "empresa_id"
   empresas ||--o{ visoes_salvas : "empresa_id"
   empresas ||--o{ auditoria_eventos : "empresa_id"
   pessoas ||--o{ acesso_aparelhos : "pessoa_id"
@@ -1330,6 +1398,70 @@ Isolamento por empresa (Row Level Security): ligado e forçado.
 | limite_de_tokens | bigint | não |  | empresa | Assinatura: tokens por mês a partir dos quais o administrador é avisado (ou a conta para). |
 | ao_chegar_no_limite | text | sim | `'avisar'::text` | empresa | avisar (só avisa) ou parar (para aos 100%). |
 
+### contatos
+
+Contatos da empresa (M7-01): pessoas e organizações de fora (clientes, leads, fornecedores, parceiros).
+
+Isolamento por empresa (Row Level Security): ligado e forçado.
+
+| Coluna | Tipo | Obrigatória | Padrão | Marca | Descrição |
+| --- | --- | --- | --- | --- | --- |
+| id | uuid | sim | `uuidv7()` | sistema | Identificador. Chave primária. |
+| empresa_id | uuid | sim |  | sistema | Empresa do contato. Aponta para empresas.id. |
+| tipo | text | sim |  | empresa | pessoa ou organizacao. |
+| nome | text | sim |  | pessoal | Nome da pessoa ou da organização. |
+| papeis | text[] | sim | `'{outro}'::text[]` | empresa | lead, cliente, fornecedor, parceiro ou outro (um ou mais). |
+| documento | text | não |  | pessoal | CPF (11 dígitos) ou CNPJ (14 dígitos), só os números. |
+| responsavel_id | uuid | não |  | sistema | A pessoa da equipe que cuida do contato. |
+| fuso | text | não |  | empresa | Fuso horário do contato (IANA). |
+| observacoes | text | não |  | pessoal | O que a equipe precisa saber sobre o contato. |
+| situacao | text | sim | `'ativo'::text` | sistema | ativo, arquivado ou juntado (foi juntado em outro). |
+| juntado_em_id | uuid | não |  | sistema | No contato juntado: o contato que ficou. |
+| criado_por | uuid | sim |  | sistema | Quem cadastrou (pessoa). |
+| criado_por_agente_id | uuid | não |  | sistema | O agente que cadastrou pela ferramenta, a pedido de quem criou. |
+| criado_em | timestamp with time zone | sim | `now()` | sistema | Quando foi cadastrado. |
+| atualizado_em | timestamp with time zone | sim | `now()` | sistema | A última mudança. |
+
+### contatos_de_projeto
+
+Os contatos que cada projeto cita (até 20). O funcionário membro do projeto vê esses contatos.
+
+Isolamento por empresa (Row Level Security): ligado e forçado.
+
+| Coluna | Tipo | Obrigatória | Padrão | Marca | Descrição |
+| --- | --- | --- | --- | --- | --- |
+| empresa_id | uuid | sim |  | sistema | Empresa (a mesma do projeto e do contato). Aponta para empresas.id. |
+| projeto_id | uuid | sim |  | sistema | Projeto. Chave primária. |
+| contato_id | uuid | sim |  | sistema | Contato. Chave primária. |
+| ordem | integer | sim | `0` | sistema | Posição no projeto. |
+
+### contatos_de_tarefa
+
+Os contatos que cada tarefa cita (até 20).
+
+Isolamento por empresa (Row Level Security): ligado e forçado.
+
+| Coluna | Tipo | Obrigatória | Padrão | Marca | Descrição |
+| --- | --- | --- | --- | --- | --- |
+| empresa_id | uuid | sim |  | sistema | Empresa (a mesma da tarefa e do contato). Aponta para empresas.id. |
+| tarefa_id | uuid | sim |  | sistema | Tarefa. Chave primária. |
+| contato_id | uuid | sim |  | sistema | Contato. Chave primária. |
+| ordem | integer | sim | `0` | sistema | Posição na tarefa. |
+
+### contatos_em_organizacoes
+
+A pessoa (contato) ligada a uma organização (contato), com o cargo.
+
+Isolamento por empresa (Row Level Security): ligado e forçado.
+
+| Coluna | Tipo | Obrigatória | Padrão | Marca | Descrição |
+| --- | --- | --- | --- | --- | --- |
+| empresa_id | uuid | sim |  | sistema | Empresa dos dois contatos. Aponta para empresas.id. |
+| pessoa_id | uuid | sim |  | sistema | O contato do tipo pessoa. Chave primária. |
+| organizacao_id | uuid | sim |  | sistema | O contato do tipo organização. Chave primária. |
+| cargo | text | não |  | pessoal | O cargo da pessoa na organização. |
+| ordem | integer | sim | `0` | sistema | Posição na ficha (a primeira aparece na lista). |
+
 ### conversas
 
 Conversas de uma pessoa com um agente interno (M4-02). Só a dona vê.
@@ -1414,6 +1546,18 @@ Isolamento por empresa (Row Level Security): ligado e forçado.
 | nome | text | sim |  | empresa | Nome da etiqueta (único na empresa). |
 | cor | text | sim |  | empresa | Cor da etiqueta nas telas (#rrggbb). |
 | criada_em | timestamp with time zone | sim | `now()` | sistema | Quando a etiqueta foi criada. |
+
+### etiquetas_de_contato
+
+Quais etiquetas da empresa cada contato tem.
+
+Isolamento por empresa (Row Level Security): ligado e forçado.
+
+| Coluna | Tipo | Obrigatória | Padrão | Marca | Descrição |
+| --- | --- | --- | --- | --- | --- |
+| empresa_id | uuid | sim |  | sistema | Empresa (a mesma do contato e da etiqueta). Aponta para empresas.id. |
+| contato_id | uuid | sim |  | sistema | Contato. Chave primária. |
+| etiqueta_id | uuid | sim |  | sistema | Etiqueta. Chave primária. |
 
 ### etiquetas_de_tarefa
 
@@ -1536,6 +1680,25 @@ Isolamento por empresa (Row Level Security): ligado e forçado.
 | evento | text | não |  | sistema | O evento que disparou (só pela origem evento). |
 | tarefa_do_evento_id | uuid | não |  | sistema | A tarefa que disparou (ou a escolhida para o Rodar agora de uma rotina por evento). |
 | evento_id | uuid | não |  | sistema | O evento da fila (para não rodar duas vezes). |
+
+### identificadores_de_contato
+
+E-mails, telefones e redes de cada contato (M7-01). O mesmo valor em outro contato da empresa só avisa.
+
+Isolamento por empresa (Row Level Security): ligado e forçado.
+
+| Coluna | Tipo | Obrigatória | Padrão | Marca | Descrição |
+| --- | --- | --- | --- | --- | --- |
+| id | uuid | sim | `uuidv7()` | sistema | Identificador. Chave primária. |
+| empresa_id | uuid | sim |  | sistema | Empresa do contato. Aponta para empresas.id. |
+| contato_id | uuid | sim |  | sistema | O contato. |
+| tipo | text | sim |  | sistema | email, telefone ou rede. |
+| rede | text | não |  | sistema | Na rede: qual (instagram, linkedin, site...). |
+| valor | text | sim |  | pessoal | O e-mail (minúsculas), o telefone (+ e código do país) ou o @ ou endereço do perfil. |
+| principal | boolean | sim | `false` | empresa | O e-mail ou o telefone principal. |
+| whatsapp | boolean | sim | `false` | empresa | No telefone: tem WhatsApp. |
+| rotulo | text | não |  | empresa | No telefone: de onde é (celular, recepção). |
+| ordem | integer | sim | `0` | sistema | Posição na ficha. |
 
 ### itens_de_checklist
 
@@ -2032,6 +2195,21 @@ Isolamento por empresa (Row Level Security): ligado e forçado.
 | vinculado_em | timestamp with time zone | sim | `now()` | sistema | Quando a conta foi vinculada. |
 | conversa_id | uuid | não |  | sistema | A conversa atual pelo Telegram (vazio: a próxima mensagem começa uma nova). |
 | resumo_do_dia_em | date | não |  | sistema | O último dia, no fuso da pessoa, em que o resumo do dia foi pelo Telegram (ou foi pulado). |
+
+### visoes_de_contatos
+
+Visões da lista de contatos salvas por cada pessoa (só dela).
+
+Isolamento por empresa (Row Level Security): ligado e forçado.
+
+| Coluna | Tipo | Obrigatória | Padrão | Marca | Descrição |
+| --- | --- | --- | --- | --- | --- |
+| id | uuid | sim | `uuidv7()` | sistema | Identificador. Chave primária. |
+| empresa_id | uuid | sim |  | sistema | Empresa. Aponta para empresas.id. |
+| pessoa_id | uuid | sim |  | sistema | Dona da visão. |
+| nome | text | sim |  | empresa | Nome da visão. |
+| filtro | jsonb | sim |  | empresa | Os filtros (FiltroDeContatos do contrato). |
+| criada_em | timestamp with time zone | sim | `now()` | sistema | Quando foi salva. |
 
 ### visoes_salvas
 

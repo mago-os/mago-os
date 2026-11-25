@@ -25,6 +25,7 @@ import { useTempoReal } from "@/tempo-real";
 import { Aviso } from "./Acesso";
 import { useAoVoltar } from "./Administrador";
 import { ListasDoProjeto, StatusDoProjetoEditor } from "./ConfigDoProjeto";
+import { ContatosLigados } from "./Contatos";
 import {
   Filtro,
   MarcaDeAgente,
@@ -633,6 +634,8 @@ export function PaginaDoProjeto({
           )}
         </Card>
       )}
+
+      <ContatosLigados alvo={{ tipo: "projetos", id: projeto.id }} podeMudar={podeEditar} />
 
       {podeEditar && !editando && (
         <details className="grid gap-3">

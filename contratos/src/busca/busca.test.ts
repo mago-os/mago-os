@@ -18,6 +18,7 @@ describe("busca", () => {
       "anexo",
       "projeto",
       "espaco",
+      "contato",
       "pessoa",
       "agente",
     ]);

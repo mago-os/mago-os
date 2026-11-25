@@ -22,6 +22,11 @@ const ASSINATURAS: Record<string, string> = {
   pegar_instrucoes: "6f98fa7b7f891010",
   listar_skills: "0cb3f917f5a79670",
   pegar_skill: "c87ea4362a392c5f",
+  listar_contatos: "d69f41d17c48fe9d",
+  ver_contato: "bbe23035d9ce9b60",
+  criar_contato: "464682cd2677d4cf",
+  atualizar_contato: "6deb10eb2e47fba9",
+  ligar_contato: "be8ebcd543a4477e",
 };
 
 function assinatura(f: (typeof FERRAMENTAS_MCP)[number]): string {
@@ -30,7 +35,7 @@ function assinatura(f: (typeof FERRAMENTAS_MCP)[number]): string {
 }
 
 describe("ferramentas do MCP", () => {
-  it("são as catorze da spec (oito do M2, duas da M3-02, uma da M3-08 e três da M4-05), com nomes únicos e descrição", () => {
+  it("são as dezenove da spec (oito do M2, duas da M3-02, uma da M3-08, três da M4-05 e cinco da M7-01), com nomes únicos e descrição", () => {
     expect(FERRAMENTAS_MCP.map((f) => f.nome)).toEqual([
       "minhas_tarefas",
       "ver_tarefa",
@@ -46,6 +51,11 @@ describe("ferramentas do MCP", () => {
       "pegar_instrucoes",
       "listar_skills",
       "pegar_skill",
+      "listar_contatos",
+      "ver_contato",
+      "criar_contato",
+      "atualizar_contato",
+      "ligar_contato",
     ]);
     for (const f of FERRAMENTAS_MCP) expect(f.descricao.length).toBeGreaterThan(20);
   });

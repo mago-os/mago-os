@@ -40,9 +40,13 @@ import { entregarAoAgenteInterno } from "../agentes-internos/tarefa-atribuida.ts
 import { buscarAnexo, listarAnexos, type ServicosDosAnexos, semCaminho } from "../anexos/servico.ts";
 import { auditar } from "../auditoria/registrar.ts";
 import { avisarDepois } from "../avisos/eventos.ts";
+import { executarFerramentaDeContatos } from "../contatos/ferramentas.ts";
+import { quemOlhaContatos, RecusaDosContatos } from "../contatos/servico.ts";
 import { comEmpresa } from "../empresa.ts";
 import { idsForaDaEmpresa, NAO_ENCONTRADO_NA_EMPRESA, uuidsDe } from "../ids-da-empresa.ts";
 import { montarInstrucoes, skillsDoAgente } from "../instrucoes/servico.ts";
+import { catalogoDeModulos } from "../permissoes/modulos.ts";
+import { permissoesNaEmpresa } from "../permissoes/verificar.ts";
 import { buscarItem, editarItem, listarChecklist } from "../tarefas/checklist.ts";
 import {
   acontecimentoDaAcao,
@@ -634,6 +638,53 @@ export async function executar(
       );
       if (!skill) throw new RecusaDaFerramenta("Essa skill não está atribuída a você.");
       return skill;
+    }
+    // Contatos (M7-01): com a permissão da pessoa responsável pelo agente; ligar, só nas tarefas dele.
+    case "listar_contatos":
+    case "ver_contato":
+    case "criar_contato":
+    case "atualizar_contato":
+    case "ligar_contato": {
+      const r = await naEmpresa((c) =>
+        c.query<{ responsavel_id: string }>(
+          "select responsavel_id from agentes where id = $1 and empresa_id = empresa_ativa()",
+          [agente.agenteId],
+        ),
+      );
+      const responsavelId = r.rows[0]?.responsavel_id;
+      const permissoes = responsavelId
+        ? await permissoesNaEmpresa(o.poolApp, responsavelId, agente.empresaId, catalogoDeModulos())
+        : null;
+      if (!responsavelId || !permissoes)
+        throw new RecusaDaFerramenta("A pessoa responsável por você não está mais ativa na empresa.");
+      try {
+        const feito = await executarFerramentaDeContatos(
+          {
+            poolApp: o.poolApp,
+            empresaId: agente.empresaId,
+            agenteId: agente.agenteId,
+            autorId: responsavelId,
+            olham: (acao) => [quemOlhaContatos(permissoes, responsavelId, acao)],
+            tarefasDoContato: (c, contatoId) =>
+              listarTarefas(c, { ...quem, comoGerente: true }, { contatoId }),
+            tarefaQueEdita: (c, tarefaId) => buscarTarefa(c, quem, tarefaId, true),
+            limiteDaLista: 100,
+            origem: o.origem,
+            rastreio: o.rastreio ?? null,
+            detalhes: { pedidoPor: responsavelId },
+            log: o.log,
+          },
+          nome,
+          entrada as Record<string, unknown>,
+        );
+        if (nome === "listar_contatos")
+          await ler(Math.max(1, (feito.contatos as unknown[] | undefined)?.length ?? 0));
+        else if (nome === "ver_contato") await ler(1);
+        return feito;
+      } catch (e) {
+        if (e instanceof RecusaDosContatos) throw new RecusaDaFerramenta(e.message);
+        throw e;
+      }
     }
   }
 }

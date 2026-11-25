@@ -612,6 +612,57 @@ describe.skipIf(!bancoDisponivel)("vazamento entre empresas em todas as partes (
     await usar(x, admin, "POST", `/agenda/eventos/${ids.evento}`, { titulo: `Reunião ${M} 2` });
     await usar(x, func, "POST", `/agenda/eventos/${ids.evento}/resposta`, { resposta: "vou" });
 
+    // Contatos (M7-01): organização, pessoa ligada, repetido, tarefa, projeto, visão e juntar.
+    ids.organizacao = (
+      await usar(x, admin, "POST", "/contatos", {
+        tipo: "organizacao",
+        nome: `Organização ${M}`,
+        papeis: ["cliente"],
+        etiquetas: [ids.etiqueta],
+        observacoes: `Observação ${M}`,
+      })
+    ).contato.id;
+    ids.contato = (
+      await usar(x, admin, "POST", "/contatos", {
+        tipo: "pessoa",
+        nome: `Contato ${M}`,
+        identificadores: [
+          { tipo: "email", valor: `contato.${x.sigla.toLowerCase()}@teste.invalid`, principal: true },
+        ],
+        organizacoes: [{ organizacaoId: ids.organizacao, cargo: `Cargo ${M}` }],
+        responsavelId: func.id,
+      })
+    ).contato.id;
+    ids.contato2 = (
+      await usar(x, func, "POST", "/contatos", {
+        tipo: "pessoa",
+        nome: `Contato repetido ${M}`,
+        identificadores: [
+          { tipo: "email", valor: `contato.${x.sigla.toLowerCase()}@teste.invalid`, principal: true },
+        ],
+      })
+    ).contato.id;
+    await usar(x, func, "GET", `/contatos?texto=${encodeURIComponent(M)}&organizacao=${ids.organizacao}`);
+    await usar(x, admin, "GET", `/contatos/${ids.organizacao}`);
+    await usar(x, admin, "POST", `/contatos/${ids.contato}`, {
+      observacoes: `Mudou ${M}`,
+      etiquetas: [ids.etiqueta],
+    });
+    await usar(x, admin, "POST", `/tarefas/${ids.tarefa}/contatos`, {
+      contatos: [ids.contato, ids.organizacao],
+    });
+    await usar(x, admin, "GET", `/tarefas/${ids.tarefa}/contatos`);
+    await usar(x, admin, "POST", `/projetos/${ids.projeto}/contatos`, { contatos: [ids.organizacao] });
+    await usar(x, admin, "GET", `/projetos/${ids.projeto}/contatos`);
+    ids.visaoDeContatos = (
+      await usar(x, admin, "POST", "/contatos-visoes", {
+        nome: `Visão ${M}`,
+        filtro: { organizacaoId: ids.organizacao, etiquetas: [ids.etiqueta], responsaveis: [func.id] },
+      })
+    ).id;
+    await usar(x, admin, "GET", "/contatos-visoes");
+    await usar(x, gestor, "POST", "/contatos/juntar", { ficaId: ids.contato, saiId: ids.contato2 });
+
     // Rotinas (por horário e por evento, com filtro de projeto).
     ids.rotina = (
       await usar(x, admin, "POST", "/rotinas", {
@@ -743,6 +794,8 @@ describe.skipIf(!bancoDisponivel)("vazamento entre empresas em todas as partes (
     await usar(x, admin, "DELETE", `/conversas/${ids.conversa}`, undefined, d);
     await usar(x, admin, "POST", `/agenda/eventos/${ids.evento}/cancelar`, {}, d);
     await usar(x, admin, "DELETE", `/rotinas/${ids.rotina}`, undefined, d);
+    await usar(x, admin, "DELETE", `/contatos-visoes/${ids.visaoDeContatos}`, undefined, d);
+    await usar(x, admin, "DELETE", `/contatos/${ids.contato2}`, undefined, d);
     await usar(x, admin, "POST", `/empresa/convites/${ids.convite}/cancelar`, undefined, d);
     await usar(x, admin, "POST", `/empresa/pessoas/${x.extra.vinculoId}/desligar`, undefined, d);
     await usar(x, func, "DELETE", "/conta/telegram", undefined, d);
@@ -801,6 +854,18 @@ describe.skipIf(!bancoDisponivel)("vazamento entre empresas em todas as partes (
           },
         },
       ],
+      ["listar_contatos", { texto: M, organizacaoId: ids.organizacao }],
+      ["ver_contato", { contatoId: ids.organizacao }],
+      [
+        "criar_contato",
+        {
+          tipo: "pessoa",
+          nome: `Contato do agente ${M}`,
+          organizacoes: [{ organizacaoId: ids.organizacao }],
+        },
+      ],
+      ["atualizar_contato", { contatoId: ids.contato, mudancas: { etiquetas: [ids.etiqueta] } }],
+      ["ligar_contato", { tarefaId: ids.tarefa, contatos: [ids.contato] }],
       ["ligar_rotina", { rotinaId: ids.rotina }],
       ["parar_rotina", { rotinaId: ids.rotinaEvento }],
       ["criar_tarefa", { titulo: `Tarefa do agente ${M}`, projetoId: ids.projeto }],
@@ -895,6 +960,15 @@ describe.skipIf(!bancoDisponivel)("vazamento entre empresas em todas as partes (
     await chamar("listar_skills", {});
     await chamar("pegar_skill", { skillId: ids.skill });
     await chamar("entregar_resultado", { tarefaId: ids.tarefa2, resultado: `Resultado ${M}` });
+    await chamar("listar_contatos", { texto: M, organizacaoId: ids.organizacao });
+    await chamar("ver_contato", { contatoId: ids.organizacao });
+    await chamar("criar_contato", {
+      tipo: "pessoa",
+      nome: `Contato pelo MCP ${M}`,
+      organizacoes: [{ organizacaoId: ids.organizacao }],
+    });
+    await chamar("atualizar_contato", { contatoId: ids.contato, mudancas: { etiquetas: [ids.etiqueta] } });
+    await chamar("ligar_contato", { tarefaId: ids.tarefa2, contatos: [ids.contato] });
     await chamar("soltar_tarefa", { tarefaId: ids.tarefa2, motivo: `Soltei ${M}` });
   }
 
