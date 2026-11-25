@@ -80,6 +80,9 @@ const FUNCOES_COMO_DONO: Record<string, string> = {
   "public.esquecer_atualizacao_do_telegram": "devolve a mensagem do Telegram para tratar de novo",
   "public.marcar_resumo_do_dia_no_telegram": "o resumo do dia da própria pessoa, uma vez por dia",
   "public.reconhecer_chave": "reconhece o agente pelo começo da chave (a chave inteira é conferida depois)",
+  "public.reconhecer_chave_de_api":
+    "reconhece a chave de API pelo começo, antes de saber a empresa (a chave inteira é conferida depois)",
+  "public.chaves_de_api_vencendo": "chaves de API que vencem em até 30 dias, sem aviso ainda (só ids)",
   "public.reconhecer_telegram": "reconhece a pessoa e a empresa pela conta do Telegram vinculada",
   "public.usar_passo_do_autenticador": "o código do autenticador da própria pessoa não vale duas vezes",
   "public.vincular_telegram": "vincula a conta do Telegram pelo resumo do código de uso único",

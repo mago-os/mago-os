@@ -37,40 +37,44 @@ sugere, a decisão é humana, como no plano).
 
 ### M7-01 Contatos: pessoas e organizações, com vários e-mails e telefones
 
-- [ ] Banco: contatos do tipo **pessoa** ou **organização** (a pessoa pode estar ligada a uma ou mais organizações,
+Situação: **feita** em 25/11/2026 (PR #203, decisão 0045).
+
+- [x] Banco: contatos do tipo **pessoa** ou **organização** (a pessoa pode estar ligada a uma ou mais organizações,
   com o cargo), com o papel (lead, cliente, fornecedor, parceiro ou outro, mais de um ao mesmo tempo), etiquetas,
   responsável (pessoa da equipe), fuso horário, observações e situação (ativo ou arquivado). Tudo com `empresa_id` e
   RLS, colunas marcadas (`[pessoal]` para nome, e-mails, telefones e documentos)
-- [ ] Vários **identificadores** por contato (e-mails, telefones em formato internacional, @ de redes), cada um
+- [x] Vários **identificadores** por contato (e-mails, telefones em formato internacional, @ de redes), cada um
   marcado como principal ou não. Um identificador repetido na mesma empresa não bloqueia o cadastro (recepção,
   família, contato@): mostra o aviso "já existe em outro contato" e sugere juntar
-- [ ] **Juntar contatos** à mão (escolher o que fica), com auditoria e sem perder nada: identificadores, tarefas e
+- [x] **Juntar contatos** à mão (escolher o que fica), com auditoria e sem perder nada: identificadores, tarefas e
   notas vão para o que fica
-- [ ] Tarefas e projetos ligados a contatos (uma tarefa pode citar vários), e a ficha do contato mostra as tarefas
+- [x] Tarefas e projetos ligados a contatos (uma tarefa pode citar vários), e a ficha do contato mostra as tarefas
   abertas e fechadas ligadas a ele
-- [ ] Telas: lista de contatos (busca, filtros por papel, etiqueta e responsável, visões salvas como nas tarefas),
+- [x] Telas: lista de contatos (busca, filtros por papel, etiqueta e responsável, visões salvas como nas tarefas),
   ficha do contato e escolha do contato na tarefa. Entra na busca geral do sistema
-- [ ] Permissões (módulo `contatos`: ver, criar, editar, juntar, arquivar e apagar), auditoria das ações
+- [x] Permissões (módulo `contatos`: ver, criar, editar, juntar, arquivar e apagar), auditoria das ações
   importantes e o alcance (funcionário vê os contatos de que é responsável ou ligados a projetos dele; administrador e
   gestor veem todos, como nos projetos)
-- [ ] Ferramentas dos agentes internos e do MCP (regra 12): listar, ver, criar e atualizar contatos, ligar contato a
+- [x] Ferramentas dos agentes internos e do MCP (regra 12): listar, ver, criar e atualizar contatos, ligar contato a
   tarefa. Juntar e apagar são de alto risco e ficam só na tela
-- [ ] Testes de banco (isolamento), de unidade, de tela e o teste de vazamento da M6-01 cobrindo as rotas novas
+- [x] Testes de banco (isolamento), de unidade, de tela e o teste de vazamento da M6-01 cobrindo as rotas novas
 
 ### M7-02 API pública: endereços a partir dos contratos, chaves com escopo e documentação
 
-- [ ] Os endereços da API pública saem dos contratos que cada módulo já declara (como o MCP), num lugar só: tarefas,
+Situação: **feita** em 25/11/2026 (decisão 0047). Junto, a página de Termos de Uso (app.osmago.com/termos), pedida pela Meta.
+
+- [x] Os endereços da API pública saem dos contratos que cada módulo já declara (como o MCP), num lugar só: tarefas,
   projetos, comentários, contatos e agentes no começo. Mesma conferência de permissão, mesmo alcance e mesma
   auditoria da tela e do MCP
-- [ ] **Chaves de API** da empresa (tela Configurações › API): nome, escopo (quais módulos e se lê ou também
+- [x] **Chaves de API** da empresa (tela Configurações › API): nome, escopo (quais módulos e se lê ou também
   escreve), validade, limite opcional por IP, criar, trocar e revogar. A chave aparece uma vez só. Agentes externos
   usam a própria chave nos dois caminhos, e o administrador escolhe na tela do agente "só MCP", "só API" ou "os
   dois" (padrão)
-- [ ] Limites: pedidos por minuto por chave e por empresa (uma empresa não derruba as outras) e o limite de registros
+- [x] Limites: pedidos por minuto por chave e por empresa (uma empresa não derruba as outras) e o limite de registros
   lidos por hora de cada agente (padrão 500, como no plano), que pausa o agente e avisa o administrador
-- [ ] Documentação gerada dos contratos (OpenAPI), pública em app.osmago.com/api/docs, sem nenhum dado, com exemplos
+- [x] Documentação gerada dos contratos (OpenAPI), pública em app.osmago.com/api/docs, sem nenhum dado, com exemplos
   em português, e o teste que confere que ela está em dia
-- [ ] Testes: escopo e validade da chave, IP, limites, e o teste de vazamento cobrindo a API pública
+- [x] Testes: escopo e validade da chave, IP, limites, e o teste de vazamento cobrindo a API pública
 
 ### M7-03 Webhooks de saída: avisos assinados quando algo acontece
 

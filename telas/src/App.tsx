@@ -4,6 +4,7 @@ import {
   CalendarClock,
   CalendarDays,
   Contact,
+  KeyRound,
   Landmark,
   ScrollText,
   Shield,
@@ -39,6 +40,7 @@ import { Agentes, PaginaDoAgente } from "./telas/Agentes";
 import { AvisosDeAcesso, MeusAparelhos } from "./telas/Aparelhos";
 import { ListaDeAprovacoes, PaginaDaAprovacao } from "./telas/Aprovacoes";
 import { AvisosDoMago } from "./telas/Avisos";
+import { ChavesDeApi } from "./telas/ChavesDeApi";
 import { ContasDeIa } from "./telas/ContasDeIa";
 import { ListaDeContatos, PaginaDoContato } from "./telas/Contatos";
 import { Conversa } from "./telas/Conversa";
@@ -55,7 +57,7 @@ import { AvisoDaParada } from "./telas/Parada";
 import { MeuPerfil } from "./telas/Perfil";
 import { CentralDePrioridades, Prioridades } from "./telas/Prioridades";
 import { PaginaDoProjeto, Projetos } from "./telas/Projetos";
-import { PAGINAS_PUBLICAS, Privacidade, Sobre } from "./telas/Publicas";
+import { PAGINAS_PUBLICAS, Privacidade, Sobre, Termos } from "./telas/Publicas";
 import { ListaDeRotinas, PaginaDaRotina } from "./telas/Rotinas";
 import { Skills } from "./telas/Skills";
 import { PaginaDaTarefa, Tarefas } from "./telas/Tarefas";
@@ -190,7 +192,7 @@ export function App() {
     return (
       <div className="min-h-dvh">
         <TopoSimples tema={tema} aoTrocarTema={setTema} />
-        {caminho === "/sobre" ? <Sobre /> : <Privacidade />}
+        {caminho === "/sobre" ? <Sobre /> : caminho === "/termos" ? <Termos /> : <Privacidade />}
       </div>
     );
   }
@@ -249,6 +251,9 @@ export function App() {
     ...(pode("rotinas", "ver") ? [{ caminho: "/rotinas", nome: "Rotinas", icone: CalendarClock }] : []),
     ...(pode("empresa", "ver")
       ? [{ caminho: "/dados-da-empresa", nome: "Dados da empresa", icone: Landmark }]
+      : []),
+    ...(pode("api", "ver") && permissoes?.modulos.api?.acoes.ver === "tudo"
+      ? [{ caminho: "/chaves-de-api", nome: "Chaves de API", icone: KeyRound }]
       : []),
     ...(pode("seguranca", "ver") || dono
       ? [{ caminho: "/seguranca", nome: "Segurança", icone: Shield }]
@@ -367,6 +372,8 @@ export function App() {
     conteudo = <Auditoria nomes={nomes} />;
   else if (caminho === "/empresas" && dono) conteudo = <Empresas />;
   else if (caminho === "/aparelhos") conteudo = <MeusAparelhos />;
+  else if (caminho === "/chaves-de-api" && menuExtra.some((m) => m.caminho === "/chaves-de-api"))
+    conteudo = <ChavesDeApi euId={sessao.pessoa.id} />;
   else if (caminho === "/prioridades" && temEmpresaAtiva) conteudo = <Prioridades />;
   else if (caminho === "/dados-da-empresa" && temEmpresaAtiva && pode("empresa", "ver"))
     conteudo = <DadosDaEmpresa />;

@@ -94,6 +94,8 @@ export const MODULOS_DO_NUCLEO: readonly DeclaracaoDeModulo[] = [
     temDadosSensiveis: false,
     area: null,
   },
+  // API pública (M7-02, decisão 0047): as chaves de API da empresa. Padrão: só o administrador vê, cria, troca e revoga.
+  { id: "api", nome: "API pública", acoes: ["ver", "criar", "editar"], temDadosSensiveis: false, area: null },
   // Projetos (M3-01): o administrador e o gestor veem todos; o funcionário, os que é membro. Criar e editar (e
   // arquivar) são do administrador e do gestor, e o diretor edita o próprio projeto; excluir, só o administrador.
   // "Meus" nos projetos: ver = sou membro; editar = sou o diretor.

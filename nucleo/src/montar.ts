@@ -35,6 +35,7 @@ import {
 } from "./anexos/deposito.ts";
 import { registrarDepositoLocal, registrarRotasDosAnexos } from "./anexos/index.ts";
 import { cuidarDosAnexos, espacoTotal, type ServicosDosAnexos } from "./anexos/servico.ts";
+import { avisarChavesVencendo, registrarApiPublica } from "./api-publica/index.ts";
 import { registrarRotasDosAvisos } from "./avisos/index.ts";
 import { enviadorWebPush, enviarPushPendentes, verificarPrazos } from "./avisos/notificacoes.ts";
 import type { criarBanco } from "./banco.ts";
@@ -375,6 +376,8 @@ export async function montarApi(config: Config, deps: DependenciasDaApi): Promis
     });
     registrarRotasDoAgente(app, opcoesDosAgentes);
     registrarServidorMcp(app, { ...opcoesDosAgentes, anexos: servicosDosAnexos });
+    // API pública (M7-02): /v1, a documentação e as chaves de API da empresa.
+    registrarApiPublica(app, { verificador, poolApp: banco.pool, urlPublica: opcoesDosAgentes.urlPublica });
     registrarRotasDosAnexos(app, {
       verificador,
       poolApp: banco.pool,
@@ -474,6 +477,7 @@ export async function montarApi(config: Config, deps: DependenciasDaApi): Promis
       await fila.work(FILA_AGENTES_VIVOS, () =>
         continuarRastreio(null, FILA_AGENTES_VIVOS, async () => {
           const devolvidas = await verificarAgentesVivos({ ...opcoesDosAgentes, log: app.log });
+          await avisarChavesVencendo(banco.pool);
           if (devolvidas > 0) app.log.warn({ evento: "agente.sem_sinal", devolvidas }, "Tarefas devolvidas");
         }),
       );

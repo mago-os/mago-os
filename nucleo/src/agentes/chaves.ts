@@ -195,6 +195,8 @@ async function somar(
 export async function autenticarAgente(
   cabecalho: string | undefined,
   o: OpcoesDaChave,
+  /** Por onde o pedido entrou (M7-02): o MCP direto ou a API pública. */
+  canal: "mcp" | "api" = "mcp",
 ): Promise<ResultadoDaChave> {
   const limites = o.limites ?? LIMITES_DO_AGENTE;
   const chave = /^Bearer\s+(\S+)$/i.exec(cabecalho ?? "")?.[1] ?? "";
@@ -211,6 +213,7 @@ export async function autenticarAgente(
     revogada_em: Date | null;
     situacao_do_agente: string;
     situacao_da_empresa: string;
+    canais: "mcp" | "api" | "os_dois";
   }>("select * from reconhecer_chave($1)", [prefixo]);
   const linha = achada.rows[0];
   const resumo = Buffer.from(resumoDaChave(chave), "hex");
@@ -244,6 +247,7 @@ export async function autenticarAgente(
   if (linha.valida_ate && linha.valida_ate.getTime() <= Date.now()) return recusar("vencida", 401);
   if (linha.situacao_do_agente === "desligado") return recusar("agente_desligado", 403);
   if (linha.situacao_do_agente === "pausado") return recusar("agente_pausado", 403);
+  if (linha.canais !== "os_dois" && linha.canais !== canal) return recusar("canal", 403);
 
   const feito = await comEmpresa(o.poolApp, linha.empresa_id, async (c) => {
     const pedidos = await somar(c, {

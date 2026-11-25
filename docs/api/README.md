@@ -768,6 +768,7 @@ Recebe:
 - `ondeRoda` (string ou null)
 - `responsavelId` (id): Identificador (UUID).
 - `minutosSemSinal` (integer): Minutos sem sinal até a tarefa voltar para a fila (padrão 15).
+- `canais` ("mcp" | "api" | "os_dois"): mcp (só MCP), api (só a API pública) ou os_dois (padrão).
 
 ### POST `/agentes/:id/chaves`
 

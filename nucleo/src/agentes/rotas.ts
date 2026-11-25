@@ -155,6 +155,7 @@ export function registrarRotasDosAgentes(app: FastifyInstance, o: OpcoesDosAgent
             ondeRoda: r.valor.ondeRoda === undefined ? atual.ondeRoda : r.valor.ondeRoda,
             responsavelId,
             minutosSemSinal: r.valor.minutosSemSinal ?? atual.minutosSemSinal,
+            ...(r.valor.canais ? { canais: r.valor.canais } : {}),
           });
         });
         if (feito === "nao_encontrado") return naoEncontrado(resposta);

@@ -10,7 +10,7 @@ import { comentar } from "../tarefas/servico.ts";
 const FORMATO_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 const COLUNAS = `a.id, a.empresa_id, a.nome, a.descricao, a.tipo, a.onde_roda, a.responsavel_id, a.papel,
-  a.especialidade, a.responde_a_id, a.situacao, a.minutos_sem_sinal, a.ultimo_sinal_em, a.criado_em, a.atualizado_em,
+  a.especialidade, a.responde_a_id, a.situacao, a.minutos_sem_sinal, a.canais, a.ultimo_sinal_em, a.criado_em, a.atualizado_em,
   a.desligado_em`;
 
 interface LinhaDoAgente {
@@ -26,6 +26,7 @@ interface LinhaDoAgente {
   responde_a_id: string | null;
   situacao: SituacaoAgente;
   minutos_sem_sinal: number;
+  canais: "mcp" | "api" | "os_dois";
   ultimo_sinal_em: Date | null;
   criado_em: Date;
   atualizado_em: Date;
@@ -46,6 +47,7 @@ export function linhaParaAgente(l: LinhaDoAgente): Agente {
     respondeAId: l.responde_a_id,
     situacao: l.situacao,
     minutosSemSinal: l.minutos_sem_sinal,
+    canais: l.canais,
     ultimoSinalEm: l.ultimo_sinal_em ? l.ultimo_sinal_em.toISOString() : null,
     criadoEm: l.criado_em.toISOString(),
     atualizadoEm: l.atualizado_em.toISOString(),
@@ -106,6 +108,8 @@ export interface DadosDoAgente {
   ondeRoda: string | null;
   responsavelId: string;
   minutosSemSinal: number;
+  /** Por onde a chave entra (M7-02); sem o campo, não muda. */
+  canais?: "mcp" | "api" | "os_dois";
 }
 
 export async function cadastrarAgente(c: pg.PoolClient, d: DadosDoAgente): Promise<Agente> {
@@ -126,7 +130,7 @@ export async function cadastrarAgente(c: pg.PoolClient, d: DadosDoAgente): Promi
 export async function editarAgente(c: pg.PoolClient, atual: Agente, d: DadosDoAgente): Promise<Agente> {
   const r = await c.query<LinhaDoAgente>(
     `update agentes a set nome = $2, descricao = $3, onde_roda = $4, responsavel_id = $5, minutos_sem_sinal = $6,
-            atualizado_em = now()
+            canais = $7, atualizado_em = now()
       where a.id = $1 and a.empresa_id = empresa_ativa() returning ${COLUNAS}`,
     [
       atual.id,
@@ -135,6 +139,7 @@ export async function editarAgente(c: pg.PoolClient, atual: Agente, d: DadosDoAg
       d.ondeRoda?.trim() || null,
       d.responsavelId,
       d.minutosSemSinal,
+      d.canais ?? atual.canais,
     ],
   );
   return linhaParaAgente(r.rows[0] as LinhaDoAgente);

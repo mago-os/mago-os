@@ -70,6 +70,8 @@ const FORA: Record<string, string> = {
   "POST /plataforma/empresas/convites": "só o Dono da plataforma",
   "POST /plataforma/empresas/convites/:id/reenviar": "só o Dono da plataforma",
   "POST /plataforma/empresas/convites/:id/cancelar": "só o Dono da plataforma",
+  "GET /openapi.json": "pública, sem nenhum dado (a documentação da API, M7-02)",
+  "GET /docs": "pública, sem nenhum dado (a documentação da API, M7-02)",
   "GET /mcp": "o MCP sem sessão só responde que não aceita; o POST /mcp está no roteiro",
   "DELETE /mcp": "o MCP sem sessão só responde que não aceita; o POST /mcp está no roteiro",
   "PUT /deposito-local":
@@ -98,6 +100,8 @@ interface Empresa {
   extra: Pessoa;
   ids: Record<string, string>;
   chaveDoAgente: string;
+  /** A chave de API da empresa (M7-02), em nome do administrador, com todos os módulos. */
+  chaveDeApi?: string;
 }
 interface Pedido {
   metodo: string;
@@ -106,6 +110,8 @@ interface Pedido {
   rota: string;
   /** Pedido feito pela chave do agente (MCP e estou-vivo), não por uma pessoa. */
   peloAgente?: boolean;
+  /** Pedido feito pela chave de API da empresa (M7-02). */
+  pelaApi?: boolean;
   /** Ação que apaga ou encerra: a B só a faz depois que a A tentou. */
   destrutivo?: boolean;
 }
@@ -223,7 +229,8 @@ describe.skipIf(!bancoDisponivel)("vazamento entre empresas em todas as partes (
     opcoes: { destrutivo?: boolean } = {},
     // biome-ignore lint/suspicious/noExplicitAny: as respostas variam por rota; o roteiro lê só o que precisa.
   ): Promise<any> {
-    const peloAgente = "chave" in quem;
+    const pelaApi = "chave" in quem && quem.chave.startsWith("mago_api_");
+    const peloAgente = "chave" in quem && !pelaApi;
     if (x.sigla === "B")
       pedidosDaB.push({
         metodo,
@@ -231,6 +238,7 @@ describe.skipIf(!bancoDisponivel)("vazamento entre empresas em todas as partes (
         ...(corpo !== undefined ? { corpo } : {}),
         rota: rotaDe(metodo, url),
         ...(peloAgente ? { peloAgente } : {}),
+        ...(pelaApi ? { pelaApi } : {}),
         ...(opcoes.destrutivo ? { destrutivo: true } : {}),
       });
     if (opcoes.destrutivo) return null;
@@ -663,6 +671,40 @@ describe.skipIf(!bancoDisponivel)("vazamento entre empresas em todas as partes (
     await usar(x, admin, "GET", "/contatos-visoes");
     await usar(x, gestor, "POST", "/contatos/juntar", { ficaId: ids.contato, saiId: ids.contato2 });
 
+    // API pública (M7-02): a chave da empresa, os endereços /v1 e a troca.
+    const criada = await usar(x, admin, "POST", "/empresa/chaves-de-api", {
+      nome: `Chave ${M}`,
+      escopo: { tarefas: "escrever", projetos: "ler", contatos: "escrever", agentes: "ler" },
+      pessoaId: admin.id,
+    });
+    ids.chaveDeApi = criada.chave.id;
+    x.chaveDeApi = criada.segredo;
+    await usar(x, admin, "GET", "/empresa/chaves-de-api");
+    const k = { chave: criada.segredo as string };
+    await usar(x, k, "GET", `/v1/tarefas?projetoId=${ids.projeto}&texto=${encodeURIComponent(M)}`);
+    await usar(x, k, "GET", `/v1/tarefas/${ids.tarefa}`);
+    ids.tarefaDaApi = (
+      await usar(x, k, "POST", "/v1/tarefas", { titulo: `Tarefa pela API ${M}`, projetoId: ids.projeto })
+    ).id;
+    await usar(x, k, "POST", `/v1/tarefas/${ids.tarefaDaApi}/status`, { status: "em_andamento" });
+    await usar(x, k, "GET", `/v1/tarefas/${ids.tarefa}/comentarios`);
+    await usar(x, k, "POST", `/v1/tarefas/${ids.tarefaDaApi}/comentarios`, { texto: `Pela API ${M}` });
+    await usar(x, k, "POST", `/v1/tarefas/${ids.tarefaDaApi}/contatos`, { contatos: [ids.contato] });
+    await usar(x, k, "GET", "/v1/projetos");
+    await usar(x, k, "GET", `/v1/projetos/${ids.projeto}`);
+    await usar(x, k, "GET", `/v1/contatos?organizacaoId=${ids.organizacao}`);
+    await usar(x, k, "GET", `/v1/contatos/${ids.organizacao}`);
+    ids.contatoDaApi = (
+      await usar(x, k, "POST", "/v1/contatos", { tipo: "pessoa", nome: `Pela API ${M}` })
+    ).contato.id;
+    await usar(x, k, "POST", `/v1/contatos/${ids.contatoDaApi}`, {
+      organizacoes: [{ organizacaoId: ids.organizacao }],
+    });
+    await usar(x, k, "GET", "/v1/agentes");
+    ids.chaveDeApi2 = (
+      await usar(x, admin, "POST", `/empresa/chaves-de-api/${ids.chaveDeApi}/trocar`, {})
+    ).chave.id;
+
     // Rotinas (por horário e por evento, com filtro de projeto).
     ids.rotina = (
       await usar(x, admin, "POST", "/rotinas", {
@@ -796,6 +838,7 @@ describe.skipIf(!bancoDisponivel)("vazamento entre empresas em todas as partes (
     await usar(x, admin, "DELETE", `/rotinas/${ids.rotina}`, undefined, d);
     await usar(x, admin, "DELETE", `/contatos-visoes/${ids.visaoDeContatos}`, undefined, d);
     await usar(x, admin, "DELETE", `/contatos/${ids.contato2}`, undefined, d);
+    await usar(x, admin, "POST", `/empresa/chaves-de-api/${ids.chaveDeApi2}/revogar`, {}, d);
     await usar(x, admin, "POST", `/empresa/convites/${ids.convite}/cancelar`, undefined, d);
     await usar(x, admin, "POST", `/empresa/pessoas/${x.extra.vinculoId}/desligar`, undefined, d);
     await usar(x, func, "DELETE", "/conta/telegram", undefined, d);
@@ -1043,11 +1086,13 @@ describe.skipIf(!bancoDisponivel)("vazamento entre empresas em todas as partes (
       // O texto que a A escreve leva a marca dela: a marca da B na resposta só pode ter vindo da B.
       const corpo =
         p.corpo === undefined ? undefined : JSON.parse(JSON.stringify(p.corpo).replaceAll(MARCA.B, "Xzq7"));
-      const quem = p.peloAgente
-        ? [{ chave: E.A.chaveDoAgente }]
-        : p.metodo === "GET"
-          ? [E.A.admin, E.A.gestor, E.A.func]
-          : [E.A.admin];
+      const quem = p.pelaApi
+        ? [{ chave: E.A.chaveDeApi as string }]
+        : p.peloAgente
+          ? [{ chave: E.A.chaveDoAgente }]
+          : p.metodo === "GET"
+            ? [E.A.admin, E.A.gestor, E.A.func]
+            : [E.A.admin];
       for (const q of quem) {
         const r = await injetar(p.metodo, p.url, q, corpo);
         // A pessoa (ou a chave) da A entrou: a recusa veio da empresa, não da falta de login.

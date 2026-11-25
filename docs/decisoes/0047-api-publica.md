@@ -1,7 +1,7 @@
 # 0047 API pública
 
 - **Data:** 25/11/2026
-- **Situação:** proposta (esperando o ok do Sandro)
+- **Situação:** aceita (aprovada pelo Sandro no chat em 25/11/2026, com os quatro pontos recomendados)
 - **Tarefa:** M7-02
 
 ## Contexto
