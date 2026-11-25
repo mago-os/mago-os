@@ -12,7 +12,7 @@ Escrita em 15/11/2026 por Sandro Nolasco e Claude. Passou para cá em 16/11/2026
 | [M3-projetos.md](M3-projetos.md) | M3 Projetos e tarefas completos | Concluído em 20/11/2026 |
 | [M4-agentes.md](M4-agentes.md) | M4 Agentes internos e regras | Concluído em 22/11/2026 |
 | [M5-telegram-e-rotinas.md](M5-telegram-e-rotinas.md) | M5 Telegram e rotinas | Concluído em 24/11/2026 |
-| [M6-endurecimento-e-uso-real.md](M6-endurecimento-e-uso-real.md) | M6 Endurecimento e uso real | Aprovado em 24/11/2026 |
+| [M6-endurecimento-e-uso-real.md](M6-endurecimento-e-uso-real.md) | M6 Endurecimento e uso real | Aprovado em 24/11/2026, concluído em 25/11/2026 (fim da Fase 1) |
 
 ## Como ler esta spec
 

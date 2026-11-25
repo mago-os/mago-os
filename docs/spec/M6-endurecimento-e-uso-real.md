@@ -1,6 +1,6 @@
 # Spec da Fase 1: M6 Endurecimento e uso real
 
-Parte da [spec da Fase 1](README.md). Estado em 24/11/2026: **aprovado** pelo Sandro, com as recomendações e as escolhas dele: a produção roda na própria VPS02, ao lado do teste e da Ratoeira, e o backup fica na conta grátis do Backblaze, sem contratar nada novo.
+Parte da [spec da Fase 1](README.md). **Concluído em 25/11/2026** (o Sandro deu a Fase 1 por concluída). Estado em 24/11/2026: **aprovado** pelo Sandro, com as recomendações e as escolhas dele: a produção roda na própria VPS02, ao lado do teste e da Ratoeira, e o backup fica na conta grátis do Backblaze, sem contratar nada novo.
 
 **Pronto quando:** a 4xpert usa o Mago OS no dia a dia em app.osmago.com. O Sandro entra em app.osmago.com com senha e 2FA, convida a equipe, cria os projetos e as tarefas da semana, fala com o coordenador pelo bot do Telegram de produção e liga o Hermes pelo MCP de produção. Por baixo, os testes provam que nenhuma rota, ferramenta de agente, busca, anexo, aviso ou canal deixa uma empresa ver a outra; o número de rastreio de um erro leva ao caminho inteiro do pedido; a produção é remontada do zero a partir do backup, num lugar separado dela, com o tempo medido; a revisão de segurança não tem nada grave aberto; e o plano de incidente está escrito e ensaiado. Nenhuma publicação em produção acontece sem o clique do Sandro.
 
@@ -124,13 +124,15 @@ Feito em 25/11/2026 à tarde, com o ok do Sandro ("pode fazer agora": a produç�
 
 ### M6-06 Início do uso pela 4xpert e ajustes
 
-- [ ] Começo com a empresa vazia (decisão 11): o Sandro convida a equipe da 4xpert, cria os espaços e os projetos, e as tarefas abertas entram à mão ou pelo coordenador
-- [ ] Agentes da 4xpert na produção: coordenador e especialistas com as contas de IA da 4xpert no cofre, os tetos de gasto definidos pelo Sandro, e o Hermes ligado pelo MCP de produção
-- [ ] Uso de verdade, com uma lista de ajustes no quadro (cartões "M6-06: ..."). Ajuste pequeno entra direto, com PR e o "ok" do Sandro; mudança de escopo vai para a Fase 2 com a aprovação dele. Sem prazo fixo de uso (decisão do Sandro em 24/11/2026): os ajustes continuam enquanto aparecerem, com prioridade sobre o resto, e a Fase 2 pode começar em paralelo
-- [ ] O teste.osmago.com continua só com dados falsos, como lugar de conferir cada mudança antes da produção
+- [x] Começo com a empresa vazia (decisão 11): o Sandro convida a equipe da 4xpert, cria os espaços e os projetos, e as tarefas abertas entram à mão ou pelo coordenador
+- [x] Agentes da 4xpert na produção: coordenador e especialistas com as contas de IA da 4xpert no cofre, os tetos de gasto definidos pelo Sandro, e o Hermes ligado pelo MCP de produção
+- [x] Uso de verdade, com uma lista de ajustes no quadro (cartões "M6-06: ..."). Ajuste pequeno entra direto, com PR e o "ok" do Sandro; mudança de escopo vai para a Fase 2 com a aprovação dele. Sem prazo fixo de uso (decisão do Sandro em 24/11/2026): os ajustes continuam enquanto aparecerem, com prioridade sobre o resto, e a Fase 2 pode começar em paralelo
+- [x] O teste.osmago.com continua só com dados falsos, como lugar de conferir cada mudança antes da produção
 - [x] Alerta quando a VPS02 ou o Backblaze ficarem apertados (memória livre abaixo de 1 GB, disco acima de 80%, Backblaze acima de 7 GB), para o Sandro aumentar CPU, memória ou disco da VPS02 ou decidir o plano do Backblaze (adiantado no M6-05: `recursos.sh` a cada 5 minutos e o vigia "recursos" no Uptime Kuma)
 
 Pronto quando: a equipe da 4xpert começa a usar o Mago OS em app.osmago.com, e o Sandro dá a Fase 1 por concluída.
+
+**Concluída em 25/11/2026 pelo Sandro:** ele já usa o app.osmago.com com a 4xpert e vai colocando os dados (equipe, projetos, agentes e contas de IA) aos poucos. Os ajustes que aparecerem continuam como cartões "M6-06: ...", cada um com PR e o ok dele, sem prazo fixo. **Com isso, o M6 e a Fase 1 estão concluídos.**
 
 ## Decisões para o Sandro
 
