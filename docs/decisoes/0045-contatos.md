@@ -1,7 +1,7 @@
 # 0045 Contatos
 
 - **Data:** 25/11/2026
-- **Situação:** proposta (esperando o ok do Sandro)
+- **Situação:** aceita (aprovada pelo Sandro no chat em 25/11/2026, com os três pontos recomendados)
 - **Tarefa:** M7-01
 
 ## Contexto
