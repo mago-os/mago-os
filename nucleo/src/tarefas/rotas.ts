@@ -156,7 +156,7 @@ function varios(valor: string | string[] | undefined): string[] {
 /**
  * Os filtros da lista a partir da query (M3-04): minhas=1, status=a,b, projeto=<id>|sem, espaco=<id>,
  * responsaveis=p:<id>,a:<id>, agente=1, prioridades=alta,sem, etiquetas=<id>,<id>, prazo=atrasadas|hoje|semana|sem_prazo,
- * de=AAAA-MM-DD, ate=AAAA-MM-DD, subtarefas=0. O resultado é conferido pelo contrato.
+ * de=AAAA-MM-DD, ate=AAAA-MM-DD, contato=<id>, subtarefas=0. O resultado é conferido pelo contrato.
  */
 export function filtroDaQuery(q: Record<string, string | string[] | undefined>): Record<string, unknown> {
   const um = (n: string) => {
@@ -182,6 +182,7 @@ export function filtroDaQuery(q: Record<string, string | string[] | undefined>):
     ...(prioridades.length > 0 ? { prioridades } : {}),
     ...(etiquetas.length > 0 ? { etiquetas } : {}),
     ...(um("prazo") ? { prazo: um("prazo") } : {}),
+    ...(um("contato") ? { contatoId: um("contato") } : {}),
     ...(um("de") ? { de: um("de") } : {}),
     ...(um("ate") ? { ate: um("ate") } : {}),
     ...(varios(q.subtarefas).some((x) => x === "0" || x === "false") ? { subtarefas: false } : {}),

@@ -16,11 +16,13 @@ export const TIPOS_DE_RESULTADO = [
   "anexo",
   "projeto",
   "espaco",
+  // M7-01: os contatos (nome, e-mails, telefones e redes), com a mesma permissão da lista.
+  "contato",
   "pessoa",
   "agente",
 ] as const;
 export const TipoDeResultado = Type.Enum(TIPOS_DE_RESULTADO, {
-  description: "tarefa, comentario, anexo, projeto, espaco, pessoa ou agente.",
+  description: "tarefa, comentario, anexo, projeto, espaco, contato, pessoa ou agente.",
 });
 export type TipoDeResultado = Static<typeof TipoDeResultado>;
 

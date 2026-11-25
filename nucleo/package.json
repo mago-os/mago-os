@@ -21,6 +21,7 @@
     "./tarefas/prioridades": "./src/tarefas/prioridades.ts",
     "./projetos": "./src/projetos/index.ts",
     "./agenda": "./src/agenda/index.ts",
+    "./contatos": "./src/contatos/index.ts",
     "./agentes": "./src/agentes/index.ts",
     "./contas-de-ia": "./src/contas-de-ia/index.ts",
     "./agentes-internos": "./src/agentes-internos/index.ts",

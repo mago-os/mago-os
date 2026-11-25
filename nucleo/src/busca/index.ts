@@ -13,6 +13,7 @@ import {
 } from "@mago-os/contratos";
 import type { FastifyInstance, FastifyRequest } from "fastify";
 import type pg from "pg";
+import { listarContatos, type QuemOlhaContatos, quemOlhaContatos } from "../contatos/servico.ts";
 import { comPessoa } from "../empresa.ts";
 import { filtroDoAlcance } from "../permissoes/calcular.ts";
 import { acessoDo, type Verificador } from "../permissoes/verificar.ts";
@@ -44,6 +45,8 @@ export interface OndeBuscar {
   /** Filtro das pessoas (o mesmo da tela Pessoas), ou nulo. */
   pessoas: { tipo: "tudo" } | { tipo: "equipe"; area: string | null } | { tipo: "meus" } | null;
   agentes: boolean;
+  /** Quem olha os contatos (M7-01), ou nulo/ausente: não busca contatos. */
+  contatos?: QuemOlhaContatos | null;
 }
 
 /** Busca na empresa ativa. Cada tipo só entra se "onde" deixa. */
@@ -169,6 +172,23 @@ export async function buscar(
       });
   }
 
+  if (onde.contatos && onde.contatos.alcance !== "nada" && quer("contato")) {
+    const achados = await listarContatos(
+      c,
+      [onde.contatos],
+      { texto: bruto.slice(0, 200) },
+      RESULTADOS_POR_TIPO,
+    );
+    for (const k of achados)
+      resultados.push({
+        tipo: "contato",
+        id: k.id,
+        titulo: k.nome,
+        trecho: k.organizacao ?? k.emailPrincipal ?? k.telefonePrincipal ?? null,
+        link: `/contatos/${k.id}`,
+      });
+  }
+
   if (onde.pessoas && quer("pessoa")) {
     const f = onde.pessoas;
     const condicao =
@@ -227,6 +247,7 @@ export function ondeBuscar(pedido: FastifyRequest): OndeBuscar {
           : { tipo: "meus" }
       : null,
     agentes: ver("agentes") !== "nada",
+    contatos: ver("contatos") === "nada" ? null : quemOlhaContatos(permissoes, sessao.pessoa.id, "ver"),
   };
 }
 

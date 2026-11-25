@@ -229,6 +229,11 @@ function filtrosDaM304(filtro: FiltroDaLista, valores: unknown[]): string[] {
     partes.push(`exists (select 1 from etiquetas_de_tarefa et where et.tarefa_id = t.id
                   and et.empresa_id = t.empresa_id and et.etiqueta_id = any(${v(filtro.etiquetas)}::uuid[]))`);
   }
+  // A ficha do contato (M7-01): só as tarefas ligadas a ele.
+  if (filtro.contatoId) {
+    partes.push(`exists (select 1 from contatos_de_tarefa ct where ct.tarefa_id = t.id
+                  and ct.empresa_id = t.empresa_id and ct.contato_id = ${v(filtro.contatoId)}::uuid)`);
+  }
   // O dia do prazo como quem pede vê (no fuso dele) e o "hoje" dele.
   const diaDoPrazo = `(t.prazo_em at time zone ${FUSO_DE_QUEM_PEDE})::date`;
   const hoje = `(now() at time zone ${FUSO_DE_QUEM_PEDE})::date`;

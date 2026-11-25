@@ -84,6 +84,16 @@ export const MODULOS_DO_NUCLEO: readonly DeclaracaoDeModulo[] = [
     temDadosSensiveis: false,
     area: null,
   },
+  // Contatos (M7-01, decisão 0045): pessoas e organizações de fora. O administrador e o gestor veem e editam todos; o
+  // funcionário, os seus (responsável, cadastrou ou ligado a um projeto de que é membro). aprovar: juntar (padrão:
+  // administrador e gestor). excluir: apagar, só o administrador.
+  {
+    id: "contatos",
+    nome: "Contatos",
+    acoes: ["ver", "criar", "editar", "aprovar", "excluir"],
+    temDadosSensiveis: false,
+    area: null,
+  },
   // Projetos (M3-01): o administrador e o gestor veem todos; o funcionário, os que é membro. Criar e editar (e
   // arquivar) são do administrador e do gestor, e o diretor edita o próprio projeto; excluir, só o administrador.
   // "Meus" nos projetos: ver = sou membro; editar = sou o diretor.

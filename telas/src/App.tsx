@@ -3,6 +3,7 @@ import {
   Building2,
   CalendarClock,
   CalendarDays,
+  Contact,
   Landmark,
   ScrollText,
   Shield,
@@ -39,6 +40,7 @@ import { AvisosDeAcesso, MeusAparelhos } from "./telas/Aparelhos";
 import { ListaDeAprovacoes, PaginaDaAprovacao } from "./telas/Aprovacoes";
 import { AvisosDoMago } from "./telas/Avisos";
 import { ContasDeIa } from "./telas/ContasDeIa";
+import { ListaDeContatos, PaginaDoContato } from "./telas/Contatos";
 import { Conversa } from "./telas/Conversa";
 import { AceitarConvite } from "./telas/Convite";
 import { Custos } from "./telas/Custos";
@@ -242,6 +244,7 @@ export function App() {
       ? [{ caminho: "/pessoas", nome: "Pessoas", icone: Users }]
       : []),
     ...(pode("agentes", "ver") ? [{ caminho: "/agentes", nome: "Agentes", icone: Bot }] : []),
+    ...(pode("contatos", "ver") ? [{ caminho: "/contatos", nome: "Contatos", icone: Contact }] : []),
     ...(pode("agenda", "ver") ? [{ caminho: "/agenda", nome: "Agenda", icone: CalendarDays }] : []),
     ...(pode("rotinas", "ver") ? [{ caminho: "/rotinas", nome: "Rotinas", icone: CalendarClock }] : []),
     ...(pode("empresa", "ver")
@@ -262,6 +265,7 @@ export function App() {
   const execucaoAberta = /^\/execucoes\/([0-9a-f-]{36})$/i.exec(caminho)?.[1];
   const rotinaAberta = /^\/rotinas\/([0-9a-f-]{36})$/i.exec(caminho)?.[1];
   const eventoAberto = /^\/agenda\/([0-9a-f-]{36})$/i.exec(caminho)?.[1];
+  const contatoAberto = /^\/contatos\/([0-9a-f-]{36})$/i.exec(caminho)?.[1];
   if (caminho === "/perfil") conteudo = <MeuPerfil />;
   else if (caminho === "/conversa" && temEmpresaAtiva) conteudo = <Conversa euId={sessao.pessoa.id} />;
   else if (caminho === "/agentes" && pode("agentes", "ver"))
@@ -300,6 +304,10 @@ export function App() {
   else if (eventoAberto && temEmpresaAtiva && pode("agenda", "ver"))
     conteudo = <PaginaDoEvento id={eventoAberto} euId={sessao.pessoa.id} />;
   else if (caminho === "/rotinas" && temEmpresaAtiva && pode("rotinas", "ver")) conteudo = <ListaDeRotinas />;
+  else if (caminho === "/contatos" && temEmpresaAtiva && pode("contatos", "ver"))
+    conteudo = <ListaDeContatos podeCriar={pode("contatos", "criar")} />;
+  else if (contatoAberto && temEmpresaAtiva && pode("contatos", "ver"))
+    conteudo = <PaginaDoContato id={contatoAberto} />;
   else if (rotinaAberta && temEmpresaAtiva && pode("rotinas", "ver"))
     conteudo = <PaginaDaRotina id={rotinaAberta} />;
   else if (caminho === "/aprovacoes" && temEmpresaAtiva) conteudo = <ListaDeAprovacoes />;
