@@ -108,6 +108,43 @@ export const CATALOGO_DE_ACOES: readonly AcaoDoCatalogo[] = [
     padraoInterno: "executa",
     padraoExterno: null,
   },
+  // Contatos (M7-01, decisão 0045): ler executa; criar, atualizar e ligar executam com a permissão de quem pediu.
+  // Juntar e apagar são de alto risco (só no app). Também pelo MCP, com a permissão do responsável pelo agente.
+  {
+    acao: "listar_contatos",
+    nome: "Listar contatos",
+    mudaDados: false,
+    padraoInterno: "executa",
+    padraoExterno: "executa",
+  },
+  {
+    acao: "ver_contato",
+    nome: "Ver um contato",
+    mudaDados: false,
+    padraoInterno: "executa",
+    padraoExterno: "executa",
+  },
+  {
+    acao: "criar_contato",
+    nome: "Cadastrar contato",
+    mudaDados: true,
+    padraoInterno: "executa",
+    padraoExterno: "executa",
+  },
+  {
+    acao: "atualizar_contato",
+    nome: "Atualizar contato",
+    mudaDados: true,
+    padraoInterno: "executa",
+    padraoExterno: "executa",
+  },
+  {
+    acao: "ligar_contato",
+    nome: "Ligar contato a tarefa",
+    mudaDados: true,
+    padraoInterno: "executa",
+    padraoExterno: "executa",
+  },
   // Agenda (M5-07): ver executa; marcar um evento pede aprovação (manda convite a outras pessoas).
   {
     acao: "ver_agenda",
@@ -337,6 +374,7 @@ export function modoDepoisDeTextoDeOutros(acao: string, modo: ModoDeAcao): ModoD
 export const ACOES_DE_ALTO_RISCO: readonly { assunto: string; ondeNoApp: string }[] = [
   { assunto: "excluir tarefas", ondeNoApp: "na página da tarefa" },
   { assunto: "excluir projetos e espaços", ondeNoApp: "em Projetos" },
+  { assunto: "juntar ou apagar contatos", ondeNoApp: "em Contatos" },
   { assunto: "convidar, mudar ou desligar pessoas", ondeNoApp: "em Pessoas" },
   { assunto: "mudar permissões", ondeNoApp: "em Pessoas" },
   { assunto: "segurança e login (2FA, aparelhos, sessões)", ondeNoApp: "em Segurança e em Meu perfil" },
@@ -352,6 +390,7 @@ export const ACOES_DE_ALTO_RISCO: readonly { assunto: string; ondeNoApp: string 
 /** Começos de nome que denunciam uma ferramenta de alto risco: nenhuma ferramenta de agente pode ter. */
 export const PREFIXOS_DE_ALTO_RISCO = [
   "excluir",
+  "juntar",
   "apagar",
   "remover",
   "desligar",

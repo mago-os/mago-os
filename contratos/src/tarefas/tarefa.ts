@@ -340,6 +340,8 @@ export const FiltroDeTarefas = Type.Object(
     /** O dia do prazo (no fuso de quem pede) dentro destes dias, para o calendário (M3-04). */
     de: Type.Optional(Dia),
     ate: Type.Optional(Dia),
+    /** Só as tarefas ligadas a este contato (M7-01, a ficha do contato). */
+    contatoId: Type.Optional(Id),
     /** Inclui as subtarefas na lista (padrão: sim). */
     subtarefas: Type.Optional(Type.Boolean()),
     /** Texto livre: no título, na descrição ou nos comentários, sem acento e aceitando erro de digitação. */
