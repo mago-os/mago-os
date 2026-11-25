@@ -2,8 +2,8 @@
 
 Primeiro marco da Fase 2. Ordem dos marcos aprovada pelo Sandro em 25/11/2026 (M7 Base, M8 Conversas, M9 Vendas, M10
 Financeiro do dia a dia, M11 Atendimento, M12 Agentes mais fortes, M13 Integrações e agenda, M14 Organização, M15
-Plataforma), podendo mudar conforme o uso da 4xpert. Estado em 25/11/2026: **proposta, esperando a aprovação do
-Sandro.**
+Plataforma), podendo mudar conforme o uso da 4xpert. Estado em 25/11/2026: **aprovado** pelo Sandro, com
+todas as 7 recomendações.
 
 O M7 constrói o que os marcos seguintes usam: o cadastro único de contatos (WhatsApp, CRM, atendimento e portal
 ligam tudo a um contato), a API pública com chaves e os webhooks (integrações, n8n e agentes que não falam MCP), o
@@ -24,6 +24,8 @@ Meta está enviado.
 | M7-04 | Aviso imediato aos agentes externos por webhook | M7-03 | P |
 | M7-05 | Seletor completo de empresas, com os avisos de todas num lugar só | Fase 1 | M |
 | M7-06 | Pedidos de aprovação de fora: app na Meta (WhatsApp) e plano do Gmail no Google | Fase 1 | P |
+
+Cartões no quadro: issues #196 (M7-01) a #201 (M7-06).
 
 A ordem da tabela é a de construção, com a M7-06 começando já no primeiro dia, em paralelo (é quase toda do Sandro,
 com o meu passo a passo), porque a Meta e o Google levam semanas para responder.
