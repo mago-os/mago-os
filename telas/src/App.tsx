@@ -157,6 +157,12 @@ export function App() {
     void carregarAvisos();
     void lerPerfil().then((p) => setDono(p?.donoDaPlataforma ?? false));
   }, [completa, carregarEmpresas, carregarAvisos]);
+  // Os números do seletor (M7-05): a cada minuto, para as outras empresas (a aberta se atualiza pelo sino).
+  useEffect(() => {
+    if (!completa) return;
+    const relogio = setInterval(() => void carregarEmpresas(), 60_000);
+    return () => clearInterval(relogio);
+  }, [completa, carregarEmpresas]);
 
   // Permissões na empresa ativa (só existe com uma empresa escolhida; sem empresa, não há o que pedir à API).
   const temEmpresaAtiva = empresas.some((e) => e.ativa);
@@ -419,7 +425,17 @@ export function App() {
       aoTrocarEmpresa={(id) => void aoTrocarEmpresa(id)}
       aoSair={() => void aoSair()}
       instalar={instalar ? () => void instalar.prompt() : null}
-      sino={temEmpresaAtiva ? <Sino /> : null}
+      sino={
+        temEmpresaAtiva ? (
+          <Sino
+            variasEmpresas={empresas.length > 1}
+            aoMudar={() => void carregarEmpresas()}
+            aoTrocarEmpresa={async (id) => {
+              await trocarEmpresa(id);
+            }}
+          />
+        ) : null
+      }
       busca={
         temEmpresaAtiva ? (
           <Busca

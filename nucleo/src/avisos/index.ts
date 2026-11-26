@@ -83,8 +83,8 @@ export async function avisarResponsavel(
     texto: `O agente ${a.agenteNome} ${a.oQueAconteceu}.${sufixo}`,
     link,
   });
-  const contato = await c.query<{ nome: string; email: string }>(
-    "select nome, email from pessoas where id = $1",
+  const contato = await c.query<{ nome: string; email: string; empresa: string | null }>(
+    "select nome, email, (select e.nome from empresas e where e.id = empresa_ativa()) as empresa from pessoas where id = $1",
     [a.responsavelId],
   );
   const pessoa = contato.rows[0];
@@ -98,9 +98,29 @@ export async function avisarResponsavel(
         oQueAconteceu: a.oQueAconteceu,
         tarefas: a.tarefas,
         link: `${new URL(urlPublica).origin}${link}`,
+        ...(pessoa.empresa ? { empresa: pessoa.empresa } : {}),
       })
       .catch((erro) => log.error({ erro }, "Aviso de agente: o e-mail não saiu"));
   };
+}
+
+/**
+ * Os avisos não lidos da pessoa na empresa ativa que ela ainda pode ver (o de tarefa só enquanto ela vê a tarefa), os
+ * mais novos primeiro. Usado pelo sino e, empresa por empresa, pelo seletor e por "Todas as empresas" (M7-05).
+ */
+export async function avisosVisiveis(c: pg.PoolClient, pessoaId: string, limite = 50): Promise<Aviso[]> {
+  const r = await c.query<LinhaDoAviso>(
+    `select a.id, a.empresa_id, a.pessoa_id, a.tipo, a.texto, a.link, a.criado_em, a.lido_em, a.tarefa_id from avisos a
+      where a.empresa_id = empresa_ativa() and a.pessoa_id = $1 and a.lido_em is null
+      order by a.criado_em desc limit $2`,
+    [pessoaId, Math.ceil(limite * 1.6)],
+  );
+  const visiveis: LinhaDoAviso[] = [];
+  for (const l of r.rows) {
+    if (!l.tarefa_id || (await pessoaVeTarefa(c, pessoaId, l.tarefa_id))) visiveis.push(l);
+    if (visiveis.length >= limite) break;
+  }
+  return visiveis.map(paraAviso);
 }
 
 /** Rotas da própria pessoa: os avisos não lidos e marcar como lido. Qualquer perfil (todos veem agentes). */
@@ -113,21 +133,7 @@ export function registrarRotasDosAvisos(
 ): void {
   app.get("/avisos", { preHandler: verificador.exigir("tarefas", "ver") }, async (pedido) => {
     const { sessao } = acessoDo(pedido);
-    return comPessoa(poolApp, sessao.pessoa.id, sessao.empresaId, async (c) => {
-      const r = await c.query<LinhaDoAviso>(
-        // Aviso de tarefa só aparece enquanto a pessoa ainda vê a tarefa (perdeu o acesso, o aviso some).
-        `select a.id, a.empresa_id, a.pessoa_id, a.tipo, a.texto, a.link, a.criado_em, a.lido_em, a.tarefa_id from avisos a
-          where a.empresa_id = empresa_ativa() and a.pessoa_id = $1 and a.lido_em is null
-          order by a.criado_em desc limit 80`,
-        [sessao.pessoa.id],
-      );
-      const visiveis: LinhaDoAviso[] = [];
-      for (const l of r.rows) {
-        if (!l.tarefa_id || (await pessoaVeTarefa(c, sessao.pessoa.id, l.tarefa_id))) visiveis.push(l);
-        if (visiveis.length >= 50) break;
-      }
-      return visiveis.slice(0, 50).map(paraAviso);
-    });
+    return comPessoa(poolApp, sessao.pessoa.id, sessao.empresaId, (c) => avisosVisiveis(c, sessao.pessoa.id));
   });
 
   app.post(

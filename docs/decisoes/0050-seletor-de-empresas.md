@@ -1,7 +1,7 @@
 # 0050 Seletor completo de empresas
 
 - **Data:** 26/11/2026
-- **Situação:** proposta (esperando o ok do Sandro)
+- **Situação:** aceita (aprovada pelo Sandro no chat em 26/11/2026)
 - **Tarefa:** M7-05
 
 ## Contexto

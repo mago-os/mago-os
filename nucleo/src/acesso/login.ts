@@ -81,6 +81,8 @@ export interface DadosDoAvisoDeAgente {
   oQueAconteceu: string;
   tarefas: string[];
   link: string;
+  /** A empresa do aviso (M7-05): vai no começo do assunto. */
+  empresa?: string;
 }
 
 export interface OpcoesDoLogin {

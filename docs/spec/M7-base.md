@@ -102,12 +102,14 @@ Situação: **feita** em 26/11/2026 (decisão 0049). Com o aviso ligado, o agent
 
 ### M7-05 Seletor completo de empresas, com os avisos de todas num lugar só
 
-- [ ] Seletor no topo com todas as empresas da pessoa e, ao lado de cada uma, quantos avisos e aprovações estão
+Situação: **feita** em 26/11/2026 (decisão 0050).
+
+- [x] Seletor no topo com todas as empresas da pessoa e, ao lado de cada uma, quantos avisos e aprovações estão
   esperando
-- [ ] Central de avisos com a opção "todas as empresas", cada aviso marcado com a empresa; abrir um aviso de outra
+- [x] Central de avisos com a opção "todas as empresas", cada aviso marcado com a empresa; abrir um aviso de outra
   empresa troca para ela
-- [ ] Push e e-mail dizem de qual empresa é o aviso
-- [ ] Testes de tela e de isolamento (o contador e a lista não mostram nada além do que a pessoa já pode ver em cada
+- [x] Push e e-mail dizem de qual empresa é o aviso
+- [x] Testes de tela e de isolamento (o contador e a lista não mostram nada além do que a pessoa já pode ver em cada
   empresa)
 
 ### M7-06 Pedidos de aprovação de fora: app na Meta (WhatsApp) e plano do Gmail no Google

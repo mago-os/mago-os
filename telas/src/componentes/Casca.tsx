@@ -165,11 +165,15 @@ export function Casca(props: PropsDaCasca) {
                   onChange={(e) => props.aoTrocarEmpresa(e.target.value)}
                 >
                   {!ativa && <option value="">Escolha a empresa</option>}
-                  {empresas.map((e) => (
-                    <option key={e.id} value={e.id}>
-                      {e.nome}
-                    </option>
-                  ))}
+                  {empresas.map((e) => {
+                    // O que está esperando em cada empresa (M7-05): avisos e aprovações.
+                    const n = (e.avisos ?? 0) + (e.aprovacoes ?? 0);
+                    return (
+                      <option key={e.id} value={e.id}>
+                        {n > 0 ? `${e.nome} (${n > 99 ? "99+" : n})` : e.nome}
+                      </option>
+                    );
+                  })}
                 </select>
               ) : (
                 ativa && <span className="hidden truncate text-sm text-texto-2 sm:inline">{ativa.nome}</span>

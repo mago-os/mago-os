@@ -2,12 +2,14 @@
  * Conta da própria pessoa (M1-10): meu perfil, minhas empresas e trocar a empresa ativa.
  * Só com a sessão completa (com o 2FA, quando ele vale). A pessoa só mexe nela mesma.
  */
-import { conferir, FusoHorario, Idioma, Texto } from "@mago-os/contratos";
+import { conferir, FusoHorario, Idioma, MAXIMO_DO_CONTADOR, Texto } from "@mago-os/contratos";
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import type pg from "pg";
 import type { Login } from "../acesso/login.ts";
 import { origemDoPedido, type SessaoDoPedido, sessaoDoPedido } from "../acesso/rotas.ts";
+import { listarAprovacoes } from "../agentes/regras.ts";
 import { auditar } from "../auditoria/registrar.ts";
+import { avisosVisiveis } from "../avisos/index.ts";
 import { comPessoa } from "../empresa.ts";
 
 const Nome = Texto(200, "Nome");
@@ -136,20 +138,53 @@ export function registrarRotasDaConta(
     return { ok: true };
   });
 
-  // Empresas onde a pessoa tem vínculo ativo (o banco só mostra essas), para o seletor no topo.
-  app.get("/conta/empresas", async (pedido, resposta) => {
-    const sessao = await exigirCompleta(pedido, resposta);
-    if (!sessao) return resposta;
-    const empresas = await comPessoa(poolApp, sessao.pessoa.id, null, async (c) => {
+  // Empresas onde a pessoa tem vínculo ativo (o banco só mostra essas), para o seletor no topo. Com cada uma, o que
+  // está esperando nela (M7-05): os avisos não lidos que ela ainda vê e as aprovações pendentes que ela pode decidir,
+  // contados empresa por empresa, com a pessoa e o vínculo dela em cada uma.
+  const minhasEmpresas = (pessoaId: string) =>
+    comPessoa(poolApp, pessoaId, null, async (c) => {
       const r = await c.query<{ id: string; nome: string; perfil: string; area: string | null }>(
         `select e.id, e.nome, v.perfil, v.area from empresas e
            join vinculos v on v.empresa_id = e.id and v.pessoa_id = $1 and v.situacao = 'ativo'
           where e.situacao = 'ativa' order by e.nome`,
-        [sessao.pessoa.id],
+        [pessoaId],
       );
       return r.rows;
     });
-    return empresas.map((e) => ({ ...e, ativa: e.id === sessao.empresaId }));
+  const LIMITE = MAXIMO_DO_CONTADOR + 1;
+
+  app.get("/conta/empresas", async (pedido, resposta) => {
+    const sessao = await exigirCompleta(pedido, resposta);
+    if (!sessao) return resposta;
+    const empresas = await minhasEmpresas(sessao.pessoa.id);
+    const comNumeros = [];
+    for (const e of empresas) {
+      const numeros = await comPessoa(poolApp, sessao.pessoa.id, e.id, async (c) => ({
+        avisos: (await avisosVisiveis(c, sessao.pessoa.id, LIMITE)).length,
+        aprovacoes: Math.min(
+          LIMITE,
+          (await listarAprovacoes(c, sessao.pessoa.id, e.perfil === "administrador", "pendente")).length,
+        ),
+      })).catch(() => ({ avisos: 0, aprovacoes: 0 }));
+      comNumeros.push({ ...e, ativa: e.id === sessao.empresaId, ...numeros });
+    }
+    return comNumeros;
+  });
+
+  // Os avisos não lidos de todas as empresas da pessoa (o sino em "Todas as empresas", M7-05), com o nome de cada uma.
+  app.get("/conta/avisos", async (pedido, resposta) => {
+    const sessao = await exigirCompleta(pedido, resposta);
+    if (!sessao) return resposta;
+    const empresas = await minhasEmpresas(sessao.pessoa.id);
+    const todos = [];
+    for (const e of empresas) {
+      const avisos = await comPessoa(poolApp, sessao.pessoa.id, e.id, (c) =>
+        avisosVisiveis(c, sessao.pessoa.id),
+      );
+      for (const aviso of avisos) todos.push({ aviso, empresaNome: e.nome });
+    }
+    todos.sort((a, b) => b.aviso.criadoEm.localeCompare(a.aviso.criadoEm));
+    return { avisos: todos.slice(0, 50) };
   });
 
   app.post("/conta/empresa-ativa", async (pedido, resposta) => {

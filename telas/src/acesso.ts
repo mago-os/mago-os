@@ -269,6 +269,9 @@ export interface EmpresaMinha {
   perfil: "administrador" | "gestor_area" | "funcionario";
   area: string | null;
   ativa: boolean;
+  /** O que está esperando nela (M7-05): avisos não lidos e aprovações que a pessoa pode decidir (até 100). */
+  avisos: number;
+  aprovacoes: number;
 }
 
 export interface Perfil {

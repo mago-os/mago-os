@@ -326,6 +326,11 @@ export async function enviarPushPendentes(
   for (const { empresa_id } of empresas.rows) {
     try {
       const lote = await comEmpresa(poolApp, empresa_id, async (c) => {
+        // O push diz de qual empresa é o aviso (M7-05, decisão 0050).
+        const empresa = await c.query<{ nome: string }>(
+          "select nome from empresas where id = empresa_ativa()",
+        );
+        const titulo = empresa.rows[0]?.nome ? `Mago OS · ${empresa.rows[0].nome}` : "Mago OS";
         const pessoas = await c.query<{ pessoa_id: string; fuso: string }>(
           `select distinct a.pessoa_id, coalesce(p.fuso_horario, 'UTC') as fuso
              from avisos a join pessoas p on p.id = a.pessoa_id
@@ -353,7 +358,7 @@ export async function enviarPushPendentes(
           for (const a of avisos.rows) {
             if (prefs.porTipo[a.tipo]?.push === false) continue;
             const conteudo = JSON.stringify({
-              titulo: "Mago OS",
+              titulo,
               corpo: TEXTO_DO_PUSH[a.tipo],
               link: a.link,
             });
