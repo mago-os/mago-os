@@ -78,15 +78,17 @@ Situação: **feita** em 25/11/2026 (decisão 0047). Junto, a página de Termos 
 
 ### M7-03 Webhooks de saída: avisos assinados quando algo acontece
 
-- [ ] Tela Configurações › Webhooks: endereço (https), eventos escolhidos e um segredo por webhook
-- [ ] Eventos do começo: tarefa criada, atualizada, concluída e comentada; contato criado e atualizado; aprovação
+Situação: **feita** em 26/11/2026 (decisão 0048). A entrega roda a cada 5 segundos (a fila do pg-boss vai de minuto em minuto).
+
+- [x] Tela Configurações › Webhooks: endereço (https), eventos escolhidos e um segredo por webhook
+- [x] Eventos do começo: tarefa criada, atualizada, concluída e comentada; contato criado e atualizado; aprovação
   pedida e respondida
-- [ ] Cada aviso sai assinado (HMAC com o segredo e a hora, para o outro lado conferir e recusar repetição), com um
+- [x] Cada aviso sai assinado (HMAC com o segredo e a hora, para o outro lado conferir e recusar repetição), com um
   número único (o outro lado ignora se já recebeu)
-- [ ] Entrega pela fila: novas tentativas com espera crescente por até 24 horas; depois de 3 dias falhando, o
+- [x] Entrega pela fila: novas tentativas com espera crescente por até 24 horas; depois de 3 dias falhando, o
   webhook é desligado e o administrador avisado. Histórico das entregas na tela (código, tempo, nova tentativa à mão)
-- [ ] O aviso não leva dado sensível nem o texto inteiro: leva o que mudou e o id, e quem precisar busca pela API
-- [ ] Testes: assinatura, repetição, falha e desligamento, e que uma empresa nunca recebe evento de outra
+- [x] O aviso não leva dado sensível nem o texto inteiro: leva o que mudou e o id, e quem precisar busca pela API
+- [x] Testes: assinatura, repetição, falha e desligamento, e que uma empresa nunca recebe evento de outra
 
 ### M7-04 Aviso imediato aos agentes externos por webhook
 

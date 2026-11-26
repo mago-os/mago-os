@@ -22,6 +22,7 @@
     "./projetos": "./src/projetos/index.ts",
     "./agenda": "./src/agenda/index.ts",
     "./api-publica": "./src/api-publica/index.ts",
+    "./webhooks": "./src/webhooks/index.ts",
     "./contatos": "./src/contatos/index.ts",
     "./agentes": "./src/agentes/index.ts",
     "./contas-de-ia": "./src/contas-de-ia/index.ts",

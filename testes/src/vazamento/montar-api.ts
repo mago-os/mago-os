@@ -29,6 +29,10 @@ export interface ApiDeTeste {
   /** E-mails que a API mandou (cada chamada ao carteiro, com os argumentos). */
   emails: { tipo: string; argumentos: unknown[] }[];
   interno: NonNullable<Awaited<ReturnType<typeof montarApi>>["interno"]>;
+  /** Os avisos dos webhooks que a API mandou (M7-03): o envio é falso e responde o que o teste quiser. */
+  webhooks: { url: string; cabecalhos: Record<string, string>; corpo: string }[];
+  /** O código que o envio falso responde (padrão 200; nulo: sem resposta). */
+  respostaDosWebhooks: { codigo: number | null };
   fechar(): Promise<void>;
 }
 
@@ -48,6 +52,8 @@ export async function montarApiDeTeste(
   const enviados: { fila: string; dados: unknown }[] = [];
   const rotas: { metodo: string; url: string }[] = [];
   const emails: { tipo: string; argumentos: unknown[] }[] = [];
+  const webhooks: { url: string; cabecalhos: Record<string, string>; corpo: string }[] = [];
+  const respostaDosWebhooks: { codigo: number | null } = { codigo: 200 };
   const carteiroDeEmail = new Proxy(
     {},
     {
@@ -109,6 +115,12 @@ export async function montarApiDeTeste(
     carteiroDeEmail,
     modelos: opcoes.modelos,
     provedores: provedoresFalsos({ [CHAVE_DE_IA]: ["modelo-bom"], [TOKEN_DO_PLANO]: ["modelo-bom"] }),
+    semRelogioDosWebhooks: true,
+    enviarWebhook: async (url, cabecalhos, corpo) => {
+      webhooks.push({ url, cabecalhos, corpo });
+      const codigo = respostaDosWebhooks.codigo;
+      return { codigo, erro: codigo === 200 ? null : "O endereço não respondeu.", ms: 3 };
+    },
     aoRegistrarRota: (r: RouteOptions) => {
       const metodos = ([] as string[]).concat(r.method);
       for (const m of metodos) if (m !== "HEAD") rotas.push({ metodo: m, url: r.url });
@@ -128,6 +140,8 @@ export async function montarApiDeTeste(
     enviados,
     emails,
     interno,
+    webhooks,
+    respostaDosWebhooks,
     async fechar() {
       await app.close();
       await poolApp.end();

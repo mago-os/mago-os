@@ -84,6 +84,12 @@ import {
 import { type BotLigado, registrarRotasDoTelegram } from "./telegram/rotas.ts";
 import { COMANDOS_LIGADOS, type OpcoesDoTelegram, tratarAtualizacao } from "./telegram/servico.ts";
 import { registrarTempoReal } from "./tempo-real/index.ts";
+import {
+  cuidarDosWebhooks,
+  type Enviar,
+  type OpcoesDaEntrega,
+  registrarRotasDosWebhooks,
+} from "./webhooks/index.ts";
 
 /** Fila da verificação de agente vivo (a cada minuto). */
 const FILA_AGENTES_VIVOS = "agentes-vivos";
@@ -122,6 +128,10 @@ export interface DependenciasDaApi {
   aoRegistrarRota?: (rota: RouteOptions) => void;
   /** Nos testes: o carteiro dos e-mails (padrão: o Resend, ou o registro sem a chave). */
   carteiroDeEmail?: ReturnType<typeof carteiroDoLog>;
+  /** Nos testes: quem manda os avisos dos webhooks (padrão: https de verdade, M7-03). */
+  enviarWebhook?: Enviar;
+  /** Nos testes: sem a entrega a cada 5 segundos (o teste chama a entrega quando quer). */
+  semRelogioDosWebhooks?: boolean;
 }
 
 /** As peças de dentro, para os testes rodarem os trabalhos da fila com a mesma montagem (M6-01). */
@@ -130,6 +140,8 @@ export interface InternoDaApi {
   rotinas: OpcoesDoMotorDasRotinas;
   bot: OpcoesDoTelegram | null;
   anexos: ServicosDosAnexos | null;
+  /** A entrega dos webhooks (M7-03); nula sem o cofre. */
+  webhooks: OpcoesDaEntrega | null;
 }
 
 export interface ApiMontada {
@@ -217,6 +229,41 @@ export async function montarApi(config: Config, deps: DependenciasDaApi): Promis
     if (!config.cofre) app.log.warn("Contas de IA desligadas: MAGO_COFRE_CHAVE_MESTRA não foi informada");
     else if (config.cofre.deTeste) app.log.warn("Cofre com a chave fixa do Mac: só para dados falsos");
     const cofre = config.cofre ? criarCofre(config.cofre) : null;
+    // Webhooks de saída (M7-03): as rotas e a entrega a cada 5 segundos (a fila do pg-boss vai de minuto em minuto, e
+    // o aviso tem que sair logo; cada entrega é reivindicada no banco, então mais de uma cópia da API não repete).
+    const opcoesDosWebhooks: OpcoesDaEntrega | null = cofre
+      ? {
+          poolApp: banco.pool,
+          cofre,
+          log: app.log,
+          ...(deps.enviarWebhook ? { enviar: deps.enviarWebhook } : {}),
+        }
+      : null;
+    let entregando = false;
+    const entregarWebhooks = () => {
+      if (!opcoesDosWebhooks || entregando) return;
+      entregando = true;
+      void cuidarDosWebhooks(opcoesDosWebhooks)
+        .catch((erro) => app.log.error({ erro }, "Webhooks: falha na entrega"))
+        .finally(() => {
+          entregando = false;
+        });
+    };
+    registrarRotasDosWebhooks(app, {
+      verificador,
+      poolApp: banco.pool,
+      cofre,
+      ...(deps.semRelogioDosWebhooks ? {} : { acordar: entregarWebhooks }),
+    });
+    let relogioDosWebhooks: ReturnType<typeof setInterval> | null = null;
+    app.addHook("onClose", async () => {
+      if (relogioDosWebhooks) clearInterval(relogioDosWebhooks);
+    });
+    trabalhos.push(async () => {
+      if (!opcoesDosWebhooks || relogioDosWebhooks || deps.semRelogioDosWebhooks) return;
+      relogioDosWebhooks = setInterval(entregarWebhooks, 5000);
+      relogioDosWebhooks.unref();
+    });
     registrarRotasDasContasDeIa(app, {
       verificador,
       poolApp: banco.pool,
@@ -569,6 +616,7 @@ export async function montarApi(config: Config, deps: DependenciasDaApi): Promis
       rotinas: opcoesDasRotinas,
       bot: bot ? opcoesDoBot : null,
       anexos: servicosDosAnexos,
+      webhooks: opcoesDosWebhooks,
     };
   } else {
     app.log.warn("Login desligado: DATABASE_URL_ACESSO não foi informada (só permitido no Mac)");

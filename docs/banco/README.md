@@ -342,6 +342,21 @@ erDiagram
     text idioma
     text telefone
   }
+  entregas_de_webhook {
+    uuid id PK
+    uuid empresa_id FK
+    uuid webhook_id
+    text evento
+    jsonb corpo
+    text situacao
+    integer tentativas
+    integer ultimo_codigo
+    text ultimo_erro
+    integer ultimo_tempo_ms
+    timestamp_with_time_zone proxima_em
+    timestamp_with_time_zone criada_em
+    timestamp_with_time_zone entregue_em
+  }
   espacos {
     uuid id PK
     uuid empresa_id FK
@@ -796,6 +811,22 @@ erDiagram
     text agrupar_por
     timestamp_with_time_zone criada_em
   }
+  webhooks {
+    uuid id PK
+    uuid empresa_id FK
+    text nome
+    text url
+    text[] eventos
+    text situacao
+    text desligado_porque
+    bytea segredo_cifrado
+    text final_do_segredo
+    timestamp_with_time_zone falhando_desde
+    timestamp_with_time_zone ultima_entrega_em
+    uuid criado_por
+    timestamp_with_time_zone criado_em
+    timestamp_with_time_zone atualizado_em
+  }
   auditoria_correntes {
     uuid corrente PK
     bigint ultima_sequencia
@@ -967,6 +998,7 @@ erDiagram
   empresas ||--o{ contatos_de_tarefa : "empresa_id"
   empresas ||--o{ contatos_em_organizacoes : "empresa_id"
   empresas ||--o{ conversas : "empresa_id"
+  empresas ||--o{ entregas_de_webhook : "empresa_id"
   empresas ||--o{ espacos : "empresa_id"
   empresas ||--o{ estados_de_prioridade : "empresa_id"
   empresas ||--o{ etiquetas : "empresa_id"
@@ -1009,6 +1041,7 @@ erDiagram
   pessoas ||--o{ vinculos_do_telegram : "pessoa_id"
   empresas ||--o{ visoes_de_contatos : "empresa_id"
   empresas ||--o{ visoes_salvas : "empresa_id"
+  empresas ||--o{ webhooks : "empresa_id"
   empresas ||--o{ auditoria_eventos : "empresa_id"
   pessoas ||--o{ acesso_aparelhos : "pessoa_id"
   pessoas ||--o{ acesso_avisos : "pessoa_id"
@@ -1568,6 +1601,28 @@ Isolamento por empresa (Row Level Security): ligado e forçado.
 | fuso_horario | text | sim | `'America/Sao_Paulo'::text` | empresa | Fuso horário IANA da conta (ex.: America/Sao_Paulo). |
 | idioma | text | sim | `'pt-BR'::text` | empresa | Idioma da conta (ex.: pt-BR). |
 | telefone | text | não |  | empresa | Telefone de contato da conta (opcional). |
+
+### entregas_de_webhook
+
+Fila e histórico das entregas dos webhooks (M7-03): uma linha por aviso e webhook, com as tentativas. Ficam 30 dias.
+
+Isolamento por empresa (Row Level Security): ligado e forçado.
+
+| Coluna | Tipo | Obrigatória | Padrão | Marca | Descrição |
+| --- | --- | --- | --- | --- | --- |
+| id | uuid | sim | `uuidv7()` | sistema | Número único da entrega (o mesmo em todas as tentativas). Chave primária. |
+| empresa_id | uuid | sim |  | sistema | Empresa. Aponta para empresas.id. |
+| webhook_id | uuid | sim |  | sistema | O webhook. |
+| evento | text | sim |  | sistema | O evento (ex.: tarefa.concluida). |
+| corpo | jsonb | sim |  | sistema | O aviso (AvisoDoWebhook do contrato): só ids e nomes de campos. |
+| situacao | text | sim | `'esperando'::text` | sistema | esperando, entregue, falhou (vai tentar de novo) ou desistiu. |
+| tentativas | integer | sim | `0` | sistema | Quantas vezes tentou. |
+| ultimo_codigo | integer | não |  | sistema | O código HTTP da última resposta. |
+| ultimo_erro | text | não |  | sistema | O que deu errado (sem o corpo da resposta). |
+| ultimo_tempo_ms | integer | não |  | sistema | Quanto a última tentativa demorou. |
+| proxima_em | timestamp with time zone | não |  | sistema | Quando tenta de novo (nulo: terminou). |
+| criada_em | timestamp with time zone | sim | `now()` | sistema | Quando o evento aconteceu. |
+| entregue_em | timestamp with time zone | não |  | sistema | Quando foi entregue. |
 
 ### espacos
 
@@ -2295,6 +2350,29 @@ Isolamento por empresa (Row Level Security): ligado e forçado.
 | filtro | jsonb | sim | `'{}'::jsonb` | pessoal | Filtros das tarefas (contrato FiltroDeTarefas). |
 | agrupar_por | text | não |  | pessoal | Como a lista agrupa as tarefas. |
 | criada_em | timestamp with time zone | sim | `now()` | sistema | Quando a visão foi salva. |
+
+### webhooks
+
+Webhooks de saída da empresa (M7-03): para onde os avisos vão e quais eventos.
+
+Isolamento por empresa (Row Level Security): ligado e forçado.
+
+| Coluna | Tipo | Obrigatória | Padrão | Marca | Descrição |
+| --- | --- | --- | --- | --- | --- |
+| id | uuid | sim | `uuidv7()` | sistema | Identificador. Chave primária. |
+| empresa_id | uuid | sim |  | sistema | Empresa do webhook. Aponta para empresas.id. |
+| nome | text | sim |  | empresa | Para que serve (ex.: n8n da 4xpert). |
+| url | text | sim |  | sensivel | Endereço https que recebe os avisos (pode levar um código na URL). |
+| eventos | text[] | sim |  | empresa | Os eventos escolhidos. |
+| situacao | text | sim | `'ligado'::text` | sistema | ligado ou desligado. |
+| desligado_porque | text | não |  | sistema | manual (alguém desligou) ou falhas (3 dias sem entregar). |
+| segredo_cifrado | bytea | sim |  | sensivel | O segredo que assina os avisos, cifrado pelo cofre da empresa. |
+| final_do_segredo | text | sim |  | sistema | Os 4 últimos caracteres do segredo, para reconhecer na tela. |
+| falhando_desde | timestamp with time zone | não |  | sistema | Desde quando as entregas falham sem nenhum acerto no meio. |
+| ultima_entrega_em | timestamp with time zone | não |  | sistema | A última entrega certa. |
+| criado_por | uuid | sim |  | sistema | Quem cadastrou. |
+| criado_em | timestamp with time zone | sim | `now()` | sistema | Quando foi cadastrado. |
+| atualizado_em | timestamp with time zone | sim | `now()` | sistema | A última mudança. |
 
 ### auditoria.correntes
 

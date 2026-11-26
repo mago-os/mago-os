@@ -4,6 +4,7 @@ import {
   CalendarClock,
   CalendarDays,
   Contact,
+  Webhook as IconeDeWebhook,
   KeyRound,
   Landmark,
   ScrollText,
@@ -61,6 +62,7 @@ import { PAGINAS_PUBLICAS, Privacidade, Sobre, Termos } from "./telas/Publicas";
 import { ListaDeRotinas, PaginaDaRotina } from "./telas/Rotinas";
 import { Skills } from "./telas/Skills";
 import { PaginaDaTarefa, Tarefas } from "./telas/Tarefas";
+import { Webhooks } from "./telas/Webhooks";
 import { aplicarTema, lerTema, type Tema } from "./tema";
 
 /** Telas de acesso, abertas sem login (sem biblioteca de rotas por enquanto: o endereço escolhe a tela). */
@@ -253,7 +255,10 @@ export function App() {
       ? [{ caminho: "/dados-da-empresa", nome: "Dados da empresa", icone: Landmark }]
       : []),
     ...(pode("api", "ver") && permissoes?.modulos.api?.acoes.ver === "tudo"
-      ? [{ caminho: "/chaves-de-api", nome: "Chaves de API", icone: KeyRound }]
+      ? [
+          { caminho: "/chaves-de-api", nome: "Chaves de API", icone: KeyRound },
+          { caminho: "/webhooks", nome: "Webhooks", icone: IconeDeWebhook },
+        ]
       : []),
     ...(pode("seguranca", "ver") || dono
       ? [{ caminho: "/seguranca", nome: "Segurança", icone: Shield }]
@@ -374,6 +379,8 @@ export function App() {
   else if (caminho === "/aparelhos") conteudo = <MeusAparelhos />;
   else if (caminho === "/chaves-de-api" && menuExtra.some((m) => m.caminho === "/chaves-de-api"))
     conteudo = <ChavesDeApi euId={sessao.pessoa.id} />;
+  else if (caminho === "/webhooks" && menuExtra.some((m) => m.caminho === "/webhooks"))
+    conteudo = <Webhooks />;
   else if (caminho === "/prioridades" && temEmpresaAtiva) conteudo = <Prioridades />;
   else if (caminho === "/dados-da-empresa" && temEmpresaAtiva && pode("empresa", "ver"))
     conteudo = <DadosDaEmpresa />;

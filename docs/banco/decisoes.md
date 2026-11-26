@@ -385,3 +385,10 @@ O login (`mago_acesso`) não lê papéis nem as regras da plataforma direto. As 
 - `reconhecer_chave_de_api()` acha a chave pelo começo antes de saber a empresa e devolve também a situação do vínculo da pessoa (desligada, a chave para) e da empresa. `reconhecer_chave()` passou a devolver `agentes.canais` (só MCP, só API ou os dois).
 - `contadores_da_api` conta os pedidos por minuto por chave e da empresa inteira (chave nula), apagados com os dos agentes depois de 2 horas. `chaves_de_api_vencendo()` dá à verificação a cada minuto só os ids das chaves que vencem em até 30 dias, para o aviso `chave_de_api_vencendo` sair uma vez.
 - Ajuste de 26/11/2026 (pedido do Sandro): `chaves_de_api.removida_em` tira da lista da tela a chave já revogada ou vencida. A linha não se apaga (a auditoria guarda o começo dela); o banco só aceita a data numa chave parada.
+
+## 54. Webhooks de saída (26/11/2026, M7-03)
+
+- `webhooks` guarda o endereço, os eventos e a situação ([decisão 0048](../decisoes/0048-webhooks-de-saida.md)), com o segredo cifrado pelo cofre da empresa (decisão 0021, contexto amarrado ao webhook) e só os 4 últimos caracteres às claras, para a tela.
+- `entregas_de_webhook` é a fila e o histórico: uma linha por aviso e webhook, com o número único (o mesmo em todas as tentativas), o corpo (só ids e nomes de campos), as tentativas e a próxima vez. Ficam 30 dias.
+- Os gatilhos em `tarefas`, `comentarios_de_tarefa` (só comentário), `contatos` e `aprovacoes` gravam a entrega na mesma transação da mudança, pela função `gravar_aviso_de_webhook()`, que roda com quem mudou (RLS da empresa ativa): só os webhooks ligados da própria empresa que escolheram o evento recebem. "tarefa.atualizada" só conta título, descrição, status, responsável, prazo, prioridade e projeto.
+- `empresas_com_entregas_de_webhook()` dá ao trabalho de entrega só os ids das empresas com entrega na hora ou com webhook a desligar (3 dias falhando).

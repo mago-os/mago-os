@@ -131,6 +131,18 @@ pessoa em nome de quem ela age. A chave nunca passa do que essa pessoa pode.</p>
 <p>Limites: ${LIMITES_DA_API.pedidosPorMinutoPorChave} pedidos por minuto por chave e
 ${LIMITES_DA_API.pedidosPorMinutoPorEmpresa} por empresa. Passou, a resposta é 429 com o cabeçalho Retry-After.</p>
 <p>Os erros vêm sempre assim: <code>{"code":"FORA_DO_ESCOPO","message":"..."}</code>.</p>
+<h2 id="webhooks">Webhooks: como conferir o aviso</h2>
+<p>O administrador cadastra o endereço em Webhooks e recebe um segredo (<code>whsec_...</code>). Cada aviso é um POST
+com um JSON que leva só os ids (<code>{"id":"...","evento":"tarefa.concluida","ocorridoEm":"...","empresaId":"...","dados":{"tipo":"tarefa","id":"..."}}</code>)
+e três cabeçalhos: <code>mago-evento</code>, <code>mago-entrega</code> (o número único, o mesmo em todas as tentativas)
+e <code>mago-assinatura</code>, no formato <code>t=&lt;segundos&gt;,v1=&lt;assinatura&gt;</code>.</p>
+<p>Para conferir: junte o número <code>t</code>, um ponto e o corpo exatamente como chegou (<code>t.corpo</code>), calcule o
+HMAC SHA-256 com o segredo e compare em hexadecimal com o <code>v1</code>. Recuse o aviso se a hora <code>t</code> tiver
+mais de 5 minutos, e ignore um <code>mago-entrega</code> que você já recebeu. Responda com qualquer código 2xx em até
+10 segundos; senão, o Mago OS tenta de novo depois de 1, 5 e 30 minutos e de 2, 6 e 12 horas.</p>
+<pre>// Node.js
+const [t, v1] = assinatura.split(",").map((p) =&gt; p.slice(p.indexOf("=") + 1));
+const certo = crypto.createHmac("sha256", segredo).update(t + "." + corpo).digest("hex") === v1;</pre>
 <h2>Endereços</h2>
 ${blocos}
 </main>
