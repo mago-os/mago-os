@@ -189,6 +189,24 @@ describe.skipIf(!bancoDisponivel)("API pública", () => {
         .statusCode,
     ).toBe(200);
     expect((await pelaApi("GET", "/v1/tarefas", nova)).statusCode).toBe(401);
+    // A chave parada sai da lista (a linha fica, para a auditoria); a ativa não sai.
+    const lista = async () =>
+      (
+        (await naTela("GET", "/empresa/chaves-de-api", P.adminA?.cookie ?? "")).json().chaves as {
+          id: string;
+        }[]
+      ).map((x) => x.id);
+    const ativa = await criarChave("A", { nome: "ativa", escopo: { tarefas: "ler" } });
+    expect(
+      (await naTela("POST", `/empresa/chaves-de-api/${ativa.chave.id}/remover`, P.adminA?.cookie ?? "", {}))
+        .statusCode,
+    ).toBe(409);
+    expect(
+      (await naTela("POST", `/empresa/chaves-de-api/${novaId}/remover`, P.adminA?.cookie ?? "", {}))
+        .statusCode,
+    ).toBe(200);
+    expect(await lista()).not.toContain(novaId);
+    expect((await dono.query("select 1 from chaves_de_api where id = $1", [novaId])).rowCount).toBe(1);
   });
 
   it("IP fora da lista é recusado", async () => {

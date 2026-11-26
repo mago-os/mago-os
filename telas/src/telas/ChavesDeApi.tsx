@@ -12,7 +12,7 @@ import {
   MODULOS_DA_API,
   type ModuloDaApi,
 } from "@mago-os/contratos";
-import { KeyRound, Plus } from "lucide-react";
+import { Check, Copy, KeyRound, Plus, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { Button } from "@/componentes/ui/button";
 import { Campo } from "@/componentes/ui/campo";
@@ -51,6 +51,7 @@ export function ChavesDeApi({ euId }: { euId: string }) {
   const [chaves, setChaves] = useState<ChaveDeApi[] | null>(null);
   const [criando, setCriando] = useState(false);
   const [segredo, setSegredo] = useState<string | null>(null);
+  const [copiada, setCopiada] = useState(false);
   const [mensagem, setMensagem] = useState<Mensagem>(null);
   const pessoas = usePessoas();
   const nomes = Object.fromEntries(pessoas.map((p) => [p.id, p.nome]));
@@ -88,8 +89,27 @@ export function ChavesDeApi({ euId }: { euId: string }) {
     });
     if (!r.ok || !r.dados) return setMensagem({ tipo: "erro", texto: r.mensagem ?? "" });
     setSegredo(r.dados.segredo);
+    setCopiada(false);
     setCriando(false);
     setMensagem(null);
+    void carregar();
+  }
+
+  async function copiar(texto: string) {
+    try {
+      await navigator.clipboard.writeText(texto);
+      setCopiada(true);
+      setTimeout(() => setCopiada(false), 3000);
+    } catch {
+      setMensagem({ tipo: "erro", texto: "Não deu para copiar. Selecione a chave e copie à mão." });
+    }
+  }
+
+  async function remover(k: ChaveDeApi) {
+    if (!confirm(`Apagar a chave "${k.nome}" da lista? O registro dela continua na auditoria.`)) return;
+    const r = await pedir("POST", `/empresa/chaves-de-api/${k.id}/remover`, {});
+    if (!r.ok) return setMensagem({ tipo: "erro", texto: r.mensagem ?? "" });
+    setMensagem({ tipo: "ok", texto: "Chave apagada da lista." });
     void carregar();
   }
 
@@ -98,6 +118,7 @@ export function ChavesDeApi({ euId }: { euId: string }) {
     const r = await pedir<ChaveDeApiCriada>("POST", `/empresa/chaves-de-api/${k.id}/trocar`, {});
     if (!r.ok || !r.dados) return setMensagem({ tipo: "erro", texto: r.mensagem ?? "" });
     setSegredo(r.dados.segredo);
+    setCopiada(false);
     void carregar();
   }
 
@@ -136,16 +157,31 @@ export function ChavesDeApi({ euId }: { euId: string }) {
           <CardDescricao>
             Ela aparece só esta vez. Guarde num lugar seguro, como o cofre de senhas.
           </CardDescricao>
-          <code className="break-all rounded bg-suave p-2 text-sm">{segredo}</code>
+          <code
+            className={
+              copiada
+                ? "break-all rounded bg-ok/10 p-2 text-sm ring-2 ring-ok/40 transition-colors"
+                : "break-all rounded bg-suave p-2 text-sm transition-colors"
+            }
+          >
+            {segredo}
+          </code>
+          <p role="status" className="min-h-5 text-sm text-ok">
+            {copiada ? "Chave copiada para a área de transferência." : ""}
+          </p>
           <div className="flex gap-2">
+            <Button size="pequeno" variant="contorno" onClick={() => void copiar(segredo)}>
+              {copiada ? <Check /> : <Copy />}
+              {copiada ? "Copiada!" : "Copiar"}
+            </Button>
             <Button
               size="pequeno"
-              variant="contorno"
-              onClick={() => void navigator.clipboard?.writeText(segredo)}
+              variant="fantasma"
+              onClick={() => {
+                setSegredo(null);
+                setCopiada(false);
+              }}
             >
-              Copiar
-            </Button>
-            <Button size="pequeno" variant="fantasma" onClick={() => setSegredo(null)}>
               Já guardei
             </Button>
           </div>
@@ -260,6 +296,18 @@ export function ChavesDeApi({ euId }: { euId: string }) {
                 {k.ips.length > 0 && <span>IPs: {k.ips.join(", ")}</span>}
                 <span>{k.ultimoUsoEm ? `Último uso ${dia(k.ultimoUsoEm)}` : "Nunca usada"}</span>
               </span>
+              {!ativa && (
+                <div className="flex gap-2">
+                  <Button
+                    size="pequeno"
+                    variant="fantasma"
+                    className="text-perigo"
+                    onClick={() => void remover(k)}
+                  >
+                    <Trash2 /> Apagar
+                  </Button>
+                </div>
+              )}
               {ativa && (
                 <div className="flex gap-2">
                   {!k.trocadaPorId && (
