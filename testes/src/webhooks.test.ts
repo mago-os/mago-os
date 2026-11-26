@@ -245,4 +245,65 @@ describe.skipIf(!bancoDisponivel)("webhooks de saída", () => {
     const daB = (await naTela("GET", "/empresa/webhooks", b)).json().webhooks as { id: string }[];
     expect(daB.map((w) => w.id)).toEqual([W.B?.id]);
   });
+
+  it("aviso imediato ao agente externo (M7-04): tarefa recebida e menção vão só para o endereço dele", async () => {
+    const a = await dono.query<{ id: string }>(
+      "insert into agentes (empresa_id, nome, responsavel_id) values ($1, 'Hermes', $2) returning id",
+      [E.A, P.adminA?.id],
+    );
+    const agenteId = a.rows[0]?.id as string;
+    const ligou = await naTela("POST", `/agentes/${agenteId}/aviso`, P.adminA?.cookie ?? "", {
+      url: "https://hermes.exemplo.com.br/mago",
+    });
+    expect(ligou.statusCode, ligou.body).toBe(201);
+    const segredo = ligou.json().segredo as string;
+    // Não aparece na tela Webhooks.
+    const daEmpresa = (await naTela("GET", "/empresa/webhooks", P.adminA?.cookie ?? "")).json().webhooks as {
+      id: string;
+    }[];
+    expect(daEmpresa.map((w) => w.id)).not.toContain(ligou.json().aviso.webhookId);
+    api.webhooks.length = 0;
+    const t = await naTela("POST", "/tarefas", P.adminA?.cookie ?? "", {
+      titulo: "Para o Hermes",
+      responsavel: { tipo: "agente", agenteId },
+    });
+    expect(t.statusCode, t.body).toBe(201);
+    await naTela("POST", `/tarefas/${t.json().id}/comentarios`, P.adminA?.cookie ?? "", {
+      texto: "@Hermes olha isso",
+      mencoes: [{ tipo: "agente", agenteId }],
+    });
+    await entregar();
+    const doHermes = api.webhooks.filter((w) => w.url.includes("hermes."));
+    expect(doHermes.map((w) => w.cabecalhos["mago-evento"]).sort()).toEqual([
+      "agente.mencionado",
+      "agente.tarefa_recebida",
+    ]);
+    for (const w of doHermes) {
+      const [t1, v1] = (w.cabecalhos["mago-assinatura"] ?? "").split(",");
+      const esperado = createHmac("sha256", segredo)
+        .update(`${t1?.slice(2)}.${w.corpo}`)
+        .digest("hex");
+      expect(v1).toBe(`v1=${esperado}`);
+      expect(JSON.parse(w.corpo).dados.agenteId).toBe(agenteId);
+    }
+    // O webhook da empresa nunca recebe os eventos do agente.
+    expect(
+      api.webhooks
+        .filter((w) => !w.url.includes("hermes."))
+        .some((w) => w.cabecalhos["mago-evento"]?.startsWith("agente.")),
+    ).toBe(false);
+    // A empresa B não alcança o aviso do agente da A.
+    expect((await naTela("GET", `/agentes/${agenteId}/aviso`, P.adminB?.cookie ?? "")).statusCode).toBe(404);
+    // Desligado: volta a só perguntar.
+    expect((await naTela("DELETE", `/agentes/${agenteId}/aviso`, P.adminA?.cookie ?? "")).statusCode).toBe(
+      200,
+    );
+    api.webhooks.length = 0;
+    await naTela("POST", "/tarefas", P.adminA?.cookie ?? "", {
+      titulo: "Outra",
+      responsavel: { tipo: "agente", agenteId },
+    });
+    await entregar();
+    expect(api.webhooks.filter((w) => w.url.includes("hermes."))).toHaveLength(0);
+  });
 });

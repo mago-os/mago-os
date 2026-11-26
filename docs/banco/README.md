@@ -826,6 +826,7 @@ erDiagram
     uuid criado_por
     timestamp_with_time_zone criado_em
     timestamp_with_time_zone atualizado_em
+    uuid agente_id
   }
   auditoria_correntes {
     uuid corrente PK
@@ -2373,6 +2374,7 @@ Isolamento por empresa (Row Level Security): ligado e forçado.
 | criado_por | uuid | sim |  | sistema | Quem cadastrou. |
 | criado_em | timestamp with time zone | sim | `now()` | sistema | Quando foi cadastrado. |
 | atualizado_em | timestamp with time zone | sim | `now()` | sistema | A última mudança. |
+| agente_id | uuid | não |  | sistema | No aviso imediato de um agente externo (M7-04): o agente. Nulo: webhook da empresa. |
 
 ### auditoria.correntes
 

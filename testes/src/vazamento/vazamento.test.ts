@@ -728,6 +728,14 @@ describe.skipIf(!bancoDisponivel)("vazamento entre empresas em todas as partes (
       {},
     );
 
+    // Aviso imediato ao agente externo (M7-04).
+    await usar(x, admin, "POST", `/agentes/${ids.robo}/aviso`, {
+      url: `https://agente-${x.sigla.toLowerCase()}.exemplo.com.br/mago`,
+    });
+    await usar(x, admin, "GET", `/agentes/${ids.robo}/aviso`);
+    await usar(x, admin, "POST", `/agentes/${ids.robo}/aviso/trocar-segredo`, {});
+    await usar(x, admin, "POST", `/agentes/${ids.robo}/aviso/teste`, {});
+
     // Rotinas (por horário e por evento, com filtro de projeto).
     ids.rotina = (
       await usar(x, admin, "POST", "/rotinas", {
@@ -864,6 +872,7 @@ describe.skipIf(!bancoDisponivel)("vazamento entre empresas em todas as partes (
     await usar(x, admin, "POST", `/empresa/chaves-de-api/${ids.chaveDeApi2}/revogar`, {}, d);
     await usar(x, admin, "POST", `/empresa/chaves-de-api/${ids.chaveDeApi2}/remover`, {}, d);
     await usar(x, admin, "DELETE", `/empresa/webhooks/${ids.webhook}`, undefined, d);
+    await usar(x, admin, "DELETE", `/agentes/${ids.robo}/aviso`, undefined, d);
     await usar(x, admin, "POST", `/empresa/convites/${ids.convite}/cancelar`, undefined, d);
     await usar(x, admin, "POST", `/empresa/pessoas/${x.extra.vinculoId}/desligar`, undefined, d);
     await usar(x, func, "DELETE", "/conta/telegram", undefined, d);

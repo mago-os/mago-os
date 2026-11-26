@@ -5,6 +5,7 @@
  */
 import {
   type AcaoDosWebhooks,
+  conferirPedidoDeAvisoDoAgente,
   conferirPedidoDeEditarWebhook,
   conferirPedidoDeWebhook,
   type Problema,
@@ -18,15 +19,20 @@ import { comPessoa } from "../empresa.ts";
 import { acessoDo, type Verificador } from "../permissoes/verificar.ts";
 import {
   apagarWebhook,
+  avisoDoAgente,
   buscarWebhook,
   criarWebhook,
+  desligarAvisoDoAgente,
   editarWebhook,
+  ligarAvisoDoAgente,
   listarEntregas,
   listarWebhooks,
   mandarTeste,
+  mandarTesteDoAviso,
   RecusaDoWebhook,
   reenviar,
   trocarSegredo,
+  trocarSegredoDoAviso,
 } from "./servico.ts";
 
 function invalido(resposta: FastifyReply, problemas: Problema[]) {
@@ -214,6 +220,131 @@ export function registrarRotasDosWebhooks(
       await registrar(pedido, "webhook.reenviou", id, { entregaId });
       o.acordar?.();
       return resposta.code(202).send({ ok: true });
+    },
+  );
+
+  // Aviso imediato ao agente externo (M7-04, decisão 0049): na tela do agente, para quem edita agentes. ---------
+
+  /** O agente externo da empresa que quem pede pode editar (o administrador, ou a pessoa responsável por ele). */
+  const agenteQueEdita = async (c: pg.PoolClient, pedido: FastifyRequest, id: string) => {
+    if (!/^[0-9a-f-]{36}$/i.test(id)) return null;
+    const { sessao, alcance } = acessoDo(pedido);
+    const r = await c.query<{ id: string; nome: string; tipo: string; responsavel_id: string }>(
+      "select id, nome, tipo, responsavel_id from agentes where id = $1 and empresa_id = empresa_ativa()",
+      [id],
+    );
+    const a = r.rows[0];
+    if (a?.tipo !== "externo") return null;
+    return alcance === "tudo" || a.responsavel_id === sessao.pessoa.id ? a : null;
+  };
+  const semCofre = (resposta: FastifyReply) =>
+    resposta.code(503).send({ code: "COFRE_DESLIGADO", message: "O aviso precisa do cofre ligado." });
+  const naoAchouAgente = (resposta: FastifyReply) =>
+    resposta.code(404).send({ code: "NAO_ENCONTRADO", message: "Agente externo não encontrado." });
+  const registrarDoAgente = (
+    pedido: FastifyRequest,
+    acao: AcaoDosWebhooks,
+    agenteId: string,
+    detalhes = {},
+  ) => {
+    const { sessao } = acessoDo(pedido);
+    return auditar(
+      poolApp,
+      {
+        empresaId: sessao.empresaId,
+        ator: { tipo: "pessoa", pessoaId: sessao.pessoa.id },
+        acao,
+        alvo: { tipo: "agente", id: agenteId },
+        origem: origemDoPedido(pedido),
+        rastreio: pedido.id,
+        detalhes,
+      },
+      pedido.log,
+    );
+  };
+
+  app.get(
+    "/agentes/:id/aviso",
+    { preHandler: verificador.exigir("agentes", "editar") },
+    async (pedido, resposta) => {
+      const { id } = pedido.params as { id: string };
+      const feito = await naEmpresa(pedido, async (c) => {
+        if (!(await agenteQueEdita(c, pedido, id))) return null;
+        const aviso = await avisoDoAgente(c, id);
+        return { aviso, entregas: aviso ? await listarEntregas(c, aviso.webhookId) : [] };
+      });
+      return feito ?? naoAchouAgente(resposta);
+    },
+  );
+
+  app.post(
+    "/agentes/:id/aviso",
+    { preHandler: verificador.exigir("agentes", "editar") },
+    async (pedido, resposta) => {
+      if (!o.cofre) return semCofre(resposta);
+      const cofre = o.cofre;
+      const { id } = pedido.params as { id: string };
+      const r = conferirPedidoDeAvisoDoAgente(pedido.body);
+      if (!r.ok) return invalido(resposta, r.problemas);
+      const { sessao } = acessoDo(pedido);
+      const feito = await naEmpresa(pedido, async (c) => {
+        const agente = await agenteQueEdita(c, pedido, id);
+        return agente
+          ? ligarAvisoDoAgente(c, cofre, sessao.empresaId, agente, r.valor.url, sessao.pessoa.id)
+          : null;
+      });
+      if (!feito) return naoAchouAgente(resposta);
+      await registrarDoAgente(pedido, "agente.ligou_aviso", id, { dominio: dominio(r.valor.url) });
+      return resposta.code(feito.segredo ? 201 : 200).send(feito);
+    },
+  );
+
+  app.post(
+    "/agentes/:id/aviso/trocar-segredo",
+    { preHandler: verificador.exigir("agentes", "editar") },
+    async (pedido, resposta) => {
+      if (!o.cofre) return semCofre(resposta);
+      const cofre = o.cofre;
+      const { id } = pedido.params as { id: string };
+      const { sessao } = acessoDo(pedido);
+      const feito = await naEmpresa(pedido, async (c) => {
+        if (!(await agenteQueEdita(c, pedido, id))) return null;
+        const aviso = await avisoDoAgente(c, id, true);
+        return aviso ? trocarSegredoDoAviso(c, cofre, sessao.empresaId, aviso.webhookId) : null;
+      });
+      if (!feito) return naoAchouAgente(resposta);
+      await registrarDoAgente(pedido, "webhook.trocou_segredo", id);
+      return resposta.code(201).send({ segredo: feito });
+    },
+  );
+
+  app.post(
+    "/agentes/:id/aviso/teste",
+    { preHandler: verificador.exigir("agentes", "editar") },
+    async (pedido, resposta) => {
+      const { id } = pedido.params as { id: string };
+      const feito = await naEmpresa(pedido, async (c) => {
+        if (!(await agenteQueEdita(c, pedido, id))) return null;
+        const aviso = await avisoDoAgente(c, id);
+        return aviso ? mandarTesteDoAviso(c, aviso.webhookId) : null;
+      });
+      if (!feito) return naoAchouAgente(resposta);
+      o.acordar?.();
+      return resposta.code(202).send({ entregaId: feito });
+    },
+  );
+
+  app.delete(
+    "/agentes/:id/aviso",
+    { preHandler: verificador.exigir("agentes", "editar") },
+    async (pedido, resposta) => {
+      const { id } = pedido.params as { id: string };
+      const feito = await naEmpresa(pedido, async (c) =>
+        (await agenteQueEdita(c, pedido, id)) ? desligarAvisoDoAgente(c, id) : null,
+      );
+      if (!feito) return naoAchouAgente(resposta);
+      await registrarDoAgente(pedido, "agente.desligou_aviso", id);
+      return { ok: true };
     },
   );
 }

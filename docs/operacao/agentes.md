@@ -29,6 +29,40 @@ MAGO_AGENTE_CHAVE="$(cat)" node infra/ferramentas/agente-de-teste.ts --uma-vez
 
 (cole a chave e aperte Ctrl-D; assim ela não fica no histórico do terminal). Sem `--uma-vez`, ele pergunta a cada minuto.
 
+## Aviso imediato (M7-04)
+
+Em vez de esperar a pergunta de cada minuto, o agente pode ser avisado **na hora** ([decisão 0049](../decisoes/0049-aviso-imediato-aos-agentes.md)). Precisa de um endereço https público no agente que receba um POST (o Hermes tem; o agente de teste não).
+
+1. Na página do agente externo, parte **Aviso imediato**: cole o endereço (ex.: `https://hermes.minhaempresa.com/mago`) e clique **Ligar aviso**. O segredo (`whsec_...`) aparece uma vez: guarde no cofre, como a chave.
+2. Clique **Mandar teste** e confira, nas últimas entregas, que chegou com código 2xx.
+3. O Mago OS avisa em três casos: `agente.tarefa_recebida` (o agente ficou como responsável), `agente.mencionado` (alguém o mencionou com @ num comentário) e `agente.aprovacao_respondida` (uma ação que ele pediu foi aprovada ou recusada).
+4. O aviso leva só ids, por exemplo `{"id":"<número da entrega>","evento":"agente.tarefa_recebida","ocorridoEm":"...","empresaId":"...","dados":{"tipo":"tarefa","id":"<tarefa>","status":"a_fazer","agenteId":"<agente>"}}`. Ao receber, o agente chama `minhas_tarefas` ou `ver_tarefa` com a chave dele.
+5. **Conferir a assinatura** (cabeçalho `mago-assinatura: t=<segundos>,v1=<hex>`): calcule o HMAC SHA-256 de `<t>.<corpo exatamente como chegou>` com o segredo e compare com `v1`. Recuse se `t` tiver mais de 5 minutos e ignore um `mago-entrega` já recebido. Responda 2xx em até 10 segundos (depois trabalhe); senão, o Mago OS tenta de novo depois de 1, 5 e 30 minutos e 2, 6 e 12 horas, e desliga o aviso depois de 3 dias sem acertar (os administradores e a pessoa responsável pelo agente são avisados).
+
+```js
+// Node.js
+import { createHmac, timingSafeEqual } from "node:crypto";
+function avisoValido(corpo, cabecalho, segredo) {
+  const partes = Object.fromEntries(cabecalho.split(",").map((p) => p.split("=")));
+  if (Math.abs(Date.now() / 1000 - Number(partes.t)) > 300) return false;
+  const esperado = createHmac("sha256", segredo).update(`${partes.t}.${corpo}`).digest("hex");
+  return timingSafeEqual(Buffer.from(esperado), Buffer.from(partes.v1 ?? ""));
+}
+```
+
+```python
+# Python
+import hashlib, hmac, time
+def aviso_valido(corpo: bytes, cabecalho: str, segredo: str) -> bool:
+    partes = dict(p.split("=", 1) for p in cabecalho.split(","))
+    if abs(time.time() - int(partes["t"])) > 300:
+        return False
+    esperado = hmac.new(segredo.encode(), f"{partes['t']}.".encode() + corpo, hashlib.sha256).hexdigest()
+    return hmac.compare_digest(esperado, partes.get("v1", ""))
+```
+
+6. **A pergunta continua como reserva:** com o aviso ligado, pergunte (`minhas_tarefas`) a cada **5 minutos** em vez de a cada minuto. Se um aviso se perder (o agente fora do ar), a tarefa chega pela pergunta.
+
 ## Trocar a chave sem parar
 
 1. Crie a chave nova na página do agente.
@@ -49,7 +83,7 @@ O Hermes Agent (v0.23) roda em Docker na VPS01, instalado em `/opt/hermes`, com 
 2. **Chave:** criar "Hermes na VPS01" e guardar no Infisical, ambiente `staging`, como `MAGO_HERMES_CHAVE` (no Mac: `python3 -I infra/ferramentas/infisical-gravar.py staging MAGO_HERMES_CHAVE`, colando a chave na entrada, ver [segredos](segredos.md)).
 3. **Levar a chave ao Hermes:** a VPS01 lê `MAGO_HERMES_CHAVE` do Infisical para a variável de ambiente do container do Hermes (no arquivo de ambiente do compose em `/opt/hermes`, fora de qualquer repositório). Nunca escrever a chave na configuração versionada.
 4. **Servidor MCP no Hermes:** na configuração de servidores MCP do Hermes (em `/root/.hermes`), acrescentar um servidor HTTP chamado `mago-os`, com o endereço `https://teste.osmago.com/mcp` e o cabeçalho `Authorization: Bearer ${MAGO_HERMES_CHAVE}` lido da variável de ambiente. Conferir o nome exato das chaves de configuração na documentação da versão instalada do Hermes antes de editar, e reiniciar o container.
-5. **Rotina a cada minuto:** criar no Hermes uma tarefa agendada (cron `* * * * *`) com as instruções abaixo. É ele que pergunta; o aviso do Mago OS para o agente, por webhook, fica para a Fase 2.
+5. **Rotina de reserva e aviso imediato:** criar no Hermes uma tarefa agendada com as instruções abaixo, a cada minuto (cron `* * * * *`) enquanto ele não tiver o aviso imediato e a cada 5 minutos (`*/5 * * * *`) depois de ligar o aviso (M7-04, seção "Aviso imediato" acima). Com o aviso ligado, o endereço do Hermes que recebe o POST confere a assinatura e dispara a mesma rotina na hora.
 6. **Teste do marco (depois do M2):** o Sandro cria a tarefa "verificar backup e espaço em disco da VPS01" para o Hermes, e o relatório aparece na tela.
 
 **Instruções para o Hermes** (texto da rotina):
