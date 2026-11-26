@@ -40,6 +40,7 @@ erDiagram
     uuid responde_a_id
     integer limite_de_rodadas
     integer limite_de_minutos
+    text canais
   }
   agentes_da_parada {
     uuid empresa_id PK
@@ -182,6 +183,24 @@ erDiagram
     timestamp_with_time_zone revogada_em
     uuid revogada_por
   }
+  chaves_de_api {
+    uuid id PK
+    uuid empresa_id FK
+    text nome
+    text prefixo
+    text resumo
+    uuid pessoa_id
+    jsonb escopo
+    cidr[] ips
+    timestamp_with_time_zone valida_ate
+    uuid criada_por
+    timestamp_with_time_zone criada_em
+    timestamp_with_time_zone ultimo_uso_em
+    timestamp_with_time_zone revogada_em
+    uuid revogada_por
+    uuid trocada_por_id
+    timestamp_with_time_zone avisou_vencimento_em
+  }
   chaves_de_dados {
     uuid empresa_id PK
     integer versao_da_mestra
@@ -223,6 +242,12 @@ erDiagram
     bigint custo_micros
     boolean sem_preco
     timestamp_with_time_zone criado_em
+  }
+  contadores_da_api {
+    uuid empresa_id FK
+    uuid chave_id
+    timestamp_with_time_zone inicio
+    integer valor
   }
   contadores_de_agente {
     uuid empresa_id FK
@@ -927,11 +952,13 @@ erDiagram
   empresas ||--o{ avisos : "empresa_id"
   empresas ||--o{ avisos_de_gasto : "empresa_id"
   empresas ||--o{ chaves_de_agente : "empresa_id"
+  empresas ||--o{ chaves_de_api : "empresa_id"
   empresas ||--o{ chaves_de_dados : "empresa_id"
   empresas ||--o{ codigos_do_telegram : "empresa_id"
   pessoas ||--o{ codigos_do_telegram : "pessoa_id"
   empresas ||--o{ comentarios_de_tarefa : "empresa_id"
   empresas ||--o{ consumo_de_ia : "empresa_id"
+  empresas ||--o{ contadores_da_api : "empresa_id"
   empresas ||--o{ contadores_de_agente : "empresa_id"
   empresas ||--o{ contas_de_ia : "empresa_id"
   empresas ||--o{ contatos : "empresa_id"
@@ -1057,6 +1084,7 @@ Isolamento por empresa (Row Level Security): ligado e forçado.
 | responde_a_id | uuid | não |  | empresa | Especialista: o coordenador a quem responde. |
 | limite_de_rodadas | integer | não |  | empresa | Agente interno: rodadas por execução (vazio: o padrão, 30). |
 | limite_de_minutos | integer | não |  | empresa | Agente interno: minutos por execução (vazio: o padrão, 10). |
+| canais | text | sim | `'os_dois'::text` | empresa | Por onde a chave do agente externo entra: mcp, api ou os_dois. |
 
 ### agentes_da_parada
 
@@ -1283,6 +1311,31 @@ Isolamento por empresa (Row Level Security): ligado e forçado.
 | revogada_em | timestamp with time zone | não |  | sistema | Quando a chave foi revogada (deixa de valer no pedido seguinte). |
 | revogada_por | uuid | não |  | sistema | Pessoa que revogou a chave. |
 
+### chaves_de_api
+
+Chaves da API pública (M7-02). Só o começo e o resumo SHA-256 ficam aqui: a chave inteira aparece uma vez, na tela.
+
+Isolamento por empresa (Row Level Security): ligado e forçado.
+
+| Coluna | Tipo | Obrigatória | Padrão | Marca | Descrição |
+| --- | --- | --- | --- | --- | --- |
+| id | uuid | sim | `uuidv7()` | sistema | Identificador da chave. Chave primária. |
+| empresa_id | uuid | sim |  | sistema | Empresa da chave. Aponta para empresas.id. |
+| nome | text | sim |  | empresa | Para que serve a chave (ex.: n8n da 4xpert). |
+| prefixo | text | sim |  | sistema | Começo da chave (mago_api_ + 10 caracteres), para achar e reconhecer. |
+| resumo | text | sim |  | sensivel | Resumo SHA-256 da chave inteira. A chave em si não fica guardada. |
+| pessoa_id | uuid | sim |  | sistema | Pessoa em nome de quem a chave age (nunca passa do que ela pode). |
+| escopo | jsonb | sim |  | empresa | Módulos que a chave alcança e se lê ou escreve (EscopoDaChave do contrato). |
+| ips | cidr[] | sim | `'{}'::cidr[]` | empresa | IPs ou faixas de onde a chave pode ser usada. Vazio: de qualquer lugar. |
+| valida_ate | timestamp with time zone | sim |  | empresa | Até quando a chave vale (no máximo 1 ano). |
+| criada_por | uuid | sim |  | sistema | Quem criou a chave. |
+| criada_em | timestamp with time zone | sim | `now()` | sistema | Quando a chave foi criada. |
+| ultimo_uso_em | timestamp with time zone | não |  | sistema | Último pedido aceito com a chave. |
+| revogada_em | timestamp with time zone | não |  | sistema | Quando a chave foi revogada (deixa de valer no pedido seguinte). |
+| revogada_por | uuid | não |  | sistema | Quem revogou a chave. |
+| trocada_por_id | uuid | não |  | sistema | A chave nova que substituiu esta numa troca. |
+| avisou_vencimento_em | timestamp with time zone | não |  | sistema | Quando o aviso de vencimento (30 dias antes) saiu. |
+
 ### chaves_de_dados
 
 Chave de cifra de cada empresa (envelope do cofre), cifrada pela chave mestra que fica fora do banco.
@@ -1352,6 +1405,19 @@ Isolamento por empresa (Row Level Security): ligado e forçado.
 | custo_micros | bigint | sim | `0` | sistema | Custo em microdólares (zero na assinatura). |
 | sem_preco | boolean | sim | `false` | sistema | O modelo não tinha preço: o custo usou o maior da tabela. |
 | criado_em | timestamp with time zone | sim | `now()` | sistema | Quando a chamada terminou. |
+
+### contadores_da_api
+
+Pedidos por minuto na API pública, por chave e da empresa inteira (chave nula). Apagados depois de 2 horas.
+
+Isolamento por empresa (Row Level Security): ligado e forçado.
+
+| Coluna | Tipo | Obrigatória | Padrão | Marca | Descrição |
+| --- | --- | --- | --- | --- | --- |
+| empresa_id | uuid | sim |  | sistema | Empresa contada. Aponta para empresas.id. |
+| chave_id | uuid | não |  | sistema | Chave contada; nula: o total da empresa. |
+| inicio | timestamp with time zone | sim |  | sistema | Começo do minuto. |
+| valor | integer | sim | `0` | sistema | Quantos pedidos no minuto. |
 
 ### contadores_de_agente
 

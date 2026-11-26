@@ -19,6 +19,7 @@ export * from "./agentes/limites.ts";
 export * from "./agentes/parada.ts";
 export * from "./agentes/passos.ts";
 export * from "./agentes/regras.ts";
+export * from "./api/publica.ts";
 export * from "./auditoria.ts";
 export * from "./avisos/notificacoes.ts";
 export * from "./busca/busca.ts";

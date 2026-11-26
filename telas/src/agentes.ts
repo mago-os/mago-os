@@ -25,6 +25,8 @@ export interface DadosDoAgente {
   ondeRoda: string | null;
   responsavelId: string;
   minutosSemSinal: number;
+  /** Só na edição do agente externo (M7-02): por onde a chave dele entra. */
+  canais?: "mcp" | "api" | "os_dois";
 }
 
 export const cadastrarAgente = (d: DadosDoAgente) => pedir<Agente>("POST", "/agentes", d);

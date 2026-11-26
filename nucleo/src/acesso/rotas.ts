@@ -5,6 +5,7 @@
 import { normalizarEmail } from "@mago-os/contratos";
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import type pg from "pg";
+import { identidadeDaPonte } from "../api-publica/ponte.ts";
 import { auditar, type DadosDoEvento } from "../auditoria/registrar.ts";
 import { nomeDoAparelho, sessaoAindaVale } from "./aparelhos.ts";
 import {
@@ -49,7 +50,9 @@ export function origemDoPedido(pedido: FastifyRequest): DadosDoEvento["origem"] 
   const encaminhado = pedido.headers["x-forwarded-for"];
   const ip =
     (Array.isArray(encaminhado) ? encaminhado[0] : encaminhado)?.split(",")[0]?.trim() || pedido.ip || null;
-  return { canal: "painel", ip, aparelho: nomeDoAparelho(pedido.headers["user-agent"]) };
+  // O pedido interno da API pública (M7-02) entra na auditoria com o canal "api".
+  const canal = identidadeDaPonte(pedido) ? "api" : "painel";
+  return { canal, ip, aparelho: nomeDoAparelho(pedido.headers["user-agent"]) };
 }
 
 export interface SessaoDoPedido {

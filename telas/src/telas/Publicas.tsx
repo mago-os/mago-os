@@ -10,8 +10,9 @@ import { Button } from "@/componentes/ui/button";
 import { Card } from "@/componentes/ui/card";
 import { type Bloco, lerTexto, type Trecho } from "@/lib/texto-simples";
 import politica from "@/textos/politica-de-privacidade.md?raw";
+import termos from "@/textos/termos-de-uso.md?raw";
 
-export const PAGINAS_PUBLICAS = ["/sobre", "/privacidade"];
+export const PAGINAS_PUBLICAS = ["/sobre", "/privacidade", "/termos"];
 
 const CONTATO = "privacidade@osmago.com";
 
@@ -34,6 +35,9 @@ export function RodapePublico() {
       </a>
       <a className="hover:text-tinta hover:underline" href="/privacidade">
         Política de Privacidade
+      </a>
+      <a className="hover:text-tinta hover:underline" href="/termos">
+        Termos de Uso
       </a>
       <span>Nolask Tecnologia Digital</span>
     </footer>
@@ -199,6 +203,23 @@ export function Privacidade() {
     <>
       <main className="mx-auto grid max-w-3xl gap-3 px-4 py-10">
         {BLOCOS_DA_POLITICA.map((bloco, i) => (
+          <BlocoDoTexto key={i} bloco={bloco} />
+        ))}
+      </main>
+      <RodapePublico />
+    </>
+  );
+}
+
+const BLOCOS_DOS_TERMOS = lerTexto(termos);
+
+/** Os Termos de Uso (M7-02, pedidos pela Meta para o app do WhatsApp). */
+export function Termos() {
+  useTitulo("Termos de Uso do Mago OS");
+  return (
+    <>
+      <main className="mx-auto grid max-w-3xl gap-3 px-4 py-10">
+        {BLOCOS_DOS_TERMOS.map((bloco, i) => (
           <BlocoDoTexto key={i} bloco={bloco} />
         ))}
       </main>

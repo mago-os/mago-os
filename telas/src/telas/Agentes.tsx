@@ -194,6 +194,9 @@ function FormularioDoAgente({
       ondeRoda: String(f.get("ondeRoda")).trim() || null,
       responsavelId: String(f.get("responsavelId")),
       minutosSemSinal: Number(f.get("minutosSemSinal")),
+      ...(atual && atual.tipo === "externo" && f.get("canais")
+        ? { canais: String(f.get("canais")) as "mcp" | "api" | "os_dois" }
+        : {}),
     };
     const r = atual ? await editarAgente(atual.id, dados) : await cadastrarAgente(dados);
     if (!r.ok || !r.dados) return setMensagem({ tipo: "erro", texto: r.mensagem ?? "" });
@@ -267,6 +270,23 @@ function FormularioDoAgente({
           rotulo="Minutos sem sinal até a tarefa voltar para a fila"
           defaultValue={atual?.minutosSemSinal ?? MINUTOS_SEM_SINAL_PADRAO}
         />
+        {atual?.tipo === "externo" && (
+          <div className="grid gap-1.5">
+            <label htmlFor="canais" className="text-sm font-medium">
+              Por onde a chave do agente entra
+            </label>
+            <select
+              id="canais"
+              name="canais"
+              defaultValue={atual.canais}
+              className="h-11 rounded-md border border-linha bg-cartao px-2"
+            >
+              <option value="os_dois">MCP e API pública</option>
+              <option value="mcp">Só MCP</option>
+              <option value="api">Só API pública</option>
+            </select>
+          </div>
+        )}
         {mensagem && <Aviso {...mensagem} />}
         <div className="flex gap-2">
           <Button type="submit">{atual ? "Salvar" : "Cadastrar agente"}</Button>

@@ -38,6 +38,7 @@ import { agenteRecebeTarefas } from "../agentes/servico.ts";
 import { registrarPasso } from "../agentes-internos/passos.ts";
 import { entregarAoAgenteInterno } from "../agentes-internos/tarefa-atribuida.ts";
 import { buscarAnexo, listarAnexos, type ServicosDosAnexos, semCaminho } from "../anexos/servico.ts";
+import { identidadeDaPonte } from "../api-publica/ponte.ts";
 import { auditar } from "../auditoria/registrar.ts";
 import { avisarDepois } from "../avisos/eventos.ts";
 import { executarFerramentaDeContatos } from "../contatos/ferramentas.ts";
@@ -95,7 +96,9 @@ export type AcaoDeTarefa =
 
 export function registrarServidorMcp(app: FastifyInstance, o: OpcoesDoMcp): void {
   app.post("/mcp", async (pedido, resposta) => {
-    const origem = { ...origemDoPedido(pedido), canal: "mcp" as const };
+    // Pela API pública (M7-02), o mesmo servidor atende o agente, com o canal "api" na auditoria e na conferência.
+    const viaApi = identidadeDaPonte(pedido)?.tipo === "agente";
+    const origem = { ...origemDoPedido(pedido), canal: viaApi ? ("api" as const) : ("mcp" as const) };
     const opcoesDaChave: OpcoesDaChave = {
       poolApp: o.poolApp,
       carteiro: o.carteiro,
@@ -106,7 +109,7 @@ export function registrarServidorMcp(app: FastifyInstance, o: OpcoesDoMcp): void
       ...(o.limites ? { limites: o.limites } : {}),
       anexos: o.anexos ?? null,
     };
-    const r = await autenticarAgente(pedido.headers.authorization, opcoesDaChave);
+    const r = await autenticarAgente(pedido.headers.authorization, opcoesDaChave, viaApi ? "api" : "mcp");
     if (!r.ok) {
       resposta.header("www-authenticate", 'Bearer realm="mago-os"');
       return resposta.code(r.status).send({

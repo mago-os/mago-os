@@ -14,6 +14,7 @@ import type { FastifyReply, FastifyRequest } from "fastify";
 import type pg from "pg";
 import type { Login } from "../acesso/login.ts";
 import { type SessaoDoPedido, sessaoDoPedido } from "../acesso/rotas.ts";
+import { identidadeDaPonte } from "../api-publica/ponte.ts";
 import { comPessoa } from "../empresa.ts";
 import { type Ajuste, type Filtro, filtroDoAlcance, permissaoNoModulo } from "./calcular.ts";
 
@@ -77,6 +78,9 @@ export function acessoDo(pedido: FastifyRequest): AcessoDoPedido {
   return acesso;
 }
 
+/** A chave de API não tem segundo fator: com ele vazio, as ações perigosas (que pedem o recente) são recusadas. */
+const SEM_SEGUNDO_FATOR = { obrigatorio: false, appAutenticador: false, passkeys: 0, exigePasskey: false };
+
 export function criarVerificador(
   login: Login,
   poolAcesso: pg.Pool,
@@ -88,7 +92,27 @@ export function criarVerificador(
     exigir(modulo, acao) {
       if (!catalogo.has(modulo)) throw new Error(`Módulo desconhecido na rota: ${modulo}`);
       return async (pedido, resposta) => {
-        const sessao = await sessaoDoPedido(login, poolAcesso, pedido);
+        // A API pública (M7-02): o pedido interno da chave de API vem com o bilhete da ponte, em nome da pessoa da
+        // chave; não há sessão nem segundo fator (a chave é o fator). As ações perigosas, que pedem o segundo fator
+        // recente, continuam recusadas por esse caminho.
+        const ponte = identidadeDaPonte(pedido);
+        const sessao: SessaoDoPedido | null =
+          ponte?.tipo === "pessoa" && ponte.pessoaId
+            ? {
+                sessaoId: `api:${ponte.chaveId}`,
+                pessoa: { id: ponte.pessoaId, nome: "", email: "" },
+                empresaId: ponte.empresaId,
+                aparelhoId: null,
+                metodo: null,
+                estado: {
+                  dois: SEM_SEGUNDO_FATOR,
+                  precisa: false,
+                  confirmadoEm: null,
+                  completa: true,
+                  falta: "nada",
+                },
+              }
+            : await sessaoDoPedido(login, poolAcesso, pedido);
         if (!sessao)
           return resposta.code(401).send({ code: "SEM_SESSAO", message: "Entre no Mago OS para continuar." });
         if (!sessao.estado.completa) {

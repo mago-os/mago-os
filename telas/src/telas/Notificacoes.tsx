@@ -43,6 +43,7 @@ const NOMES: Record<TipoDeAviso, string> = {
   convite_de_evento: "Convite para um evento",
   evento_mudou: "Evento mudou ou foi cancelado",
   alerta_de_evento: "Alerta antes de um evento",
+  chave_de_api_vencendo: "Chave de API perto de vencer",
 };
 
 type Mensagem = { texto: string; tipo: "erro" | "ok" } | null;

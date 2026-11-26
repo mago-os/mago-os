@@ -128,6 +128,7 @@ describe("agente", () => {
     respondeAId: null,
     situacao: "ativo",
     minutosSemSinal: 15,
+    canais: "os_dois",
     ultimoSinalEm: null,
     criadoEm: AGORA,
     atualizadoEm: AGORA,

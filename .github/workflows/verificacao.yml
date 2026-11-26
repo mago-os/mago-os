@@ -152,13 +152,16 @@ jobs:
           cache: pnpm
       - name: Testes das versões anteriores contra o banco novo
         if: steps.mudou.outputs.nova == 'sim'
-        # A documentação gerada do banco muda de propósito com a migração nova; o resto tem que passar.
+        # A documentação gerada do banco muda de propósito com a migração nova, e a lista das funções que rodam como
+        # dono também (uma função nova entra na lista da versão nova, conferida no teste desta versão); o resto tem
+        # que passar.
         run: |
           for pasta in ../anterior ../producao; do
             [ -d "$pasta" ] || continue
             echo "== $pasta"
             (cd "$pasta" && pnpm install --frozen-lockfile &&
-              pnpm exec vitest run --exclude "**/documentacao-banco.test.ts" --exclude "**/node_modules/**")
+              pnpm exec vitest run --exclude "**/documentacao-banco.test.ts" --exclude "**/regras-do-banco.test.ts" \
+                --exclude "**/node_modules/**")
           done
 
   seguranca:

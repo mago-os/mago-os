@@ -82,6 +82,8 @@ export const MOTIVOS_DE_RECUSA = [
   "agente_pausado",
   "agente_desligado",
   "passou_do_limite",
+  // M7-02: a chave entrou por um caminho que o administrador fechou para o agente (só MCP ou só API).
+  "canal",
 ] as const;
 export const MotivoDeRecusa = Type.Enum(MOTIVOS_DE_RECUSA);
 export type MotivoDeRecusa = Static<typeof MotivoDeRecusa>;
@@ -143,6 +145,8 @@ export const TIPOS_DE_AVISO = [
   "convite_de_evento",
   "evento_mudou",
   "alerta_de_evento",
+  // M7-02: uma chave de API vence em até 30 dias (vai para quem criou, uma vez).
+  "chave_de_api_vencendo",
 ] as const;
 export const TipoDeAviso = Type.Enum(TIPOS_DE_AVISO);
 export type TipoDeAviso = Static<typeof TipoDeAviso>;
