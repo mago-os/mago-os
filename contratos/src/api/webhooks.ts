@@ -23,6 +23,19 @@ export const EVENTOS_DE_WEBHOOK = [
 export const EventoDeWebhook = Type.Enum(EVENTOS_DE_WEBHOOK);
 export type EventoDeWebhook = Static<typeof EventoDeWebhook>;
 
+/**
+ * Os eventos do aviso ao agente externo: recebeu uma tarefa (ficou como responsável), foi mencionado com @ num
+ * comentário, ou uma aprovação que ele pediu foi respondida. Saem pelo mesmo caminho dos webhooks (assinatura, número
+ * único, novas tentativas), para o endereço de aviso do agente.
+ */
+export const EVENTOS_DO_AGENTE = [
+  "agente.tarefa_recebida",
+  "agente.mencionado",
+  "agente.aprovacao_respondida",
+] as const;
+export const EventoDoAgente = Type.Enum(EVENTOS_DO_AGENTE);
+export type EventoDoAgente = Static<typeof EventoDoAgente>;
+
 export const NOMES_DOS_EVENTOS_DE_WEBHOOK: Record<EventoDeWebhook, string> = {
   "tarefa.criada": "Tarefa criada",
   "tarefa.atualizada": "Tarefa mudou (título, descrição, status, responsável, prazo, prioridade ou projeto)",
@@ -214,19 +227,6 @@ export const EntregaDeWebhook = Type.Object(
 export type EntregaDeWebhook = Static<typeof EntregaDeWebhook>;
 
 // Aviso imediato aos agentes externos (M7-04, decisão 0049) -----------------------------------------------------
-
-/**
- * Os eventos do aviso ao agente externo: recebeu uma tarefa (ficou como responsável), foi mencionado com @ num
- * comentário, ou uma aprovação que ele pediu foi respondida. Saem pelo mesmo caminho dos webhooks (assinatura, número
- * único, novas tentativas), para o endereço de aviso do agente.
- */
-export const EVENTOS_DO_AGENTE = [
-  "agente.tarefa_recebida",
-  "agente.mencionado",
-  "agente.aprovacao_respondida",
-] as const;
-export const EventoDoAgente = Type.Enum(EVENTOS_DO_AGENTE);
-export type EventoDoAgente = Static<typeof EventoDoAgente>;
 
 /** Ligar ou trocar o endereço de aviso do agente externo (só quem edita agentes). O segredo vem na resposta. */
 export const PedidoDeAvisoDoAgente = Type.Object({ url: EnderecoDoWebhook }, { additionalProperties: false });
