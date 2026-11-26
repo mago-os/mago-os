@@ -8,6 +8,7 @@ import { lookup } from "node:dns/promises";
 import { request } from "node:https";
 import { isIP } from "node:net";
 import {
+  type AvisoDoAgente,
   CABECALHO_DA_ASSINATURA,
   CABECALHO_DA_ENTREGA,
   CABECALHO_DO_EVENTO,
@@ -70,7 +71,7 @@ export const gerarSegredo = () => `whsec_${randomBytes(32).toString("base64url")
 
 export async function listarWebhooks(c: pg.PoolClient): Promise<Webhook[]> {
   const r = await c.query<LinhaDoWebhook>(
-    `select ${COLUNAS} from webhooks where empresa_id = empresa_ativa() order by criado_em`,
+    `select ${COLUNAS} from webhooks where empresa_id = empresa_ativa() and agente_id is null order by criado_em`,
   );
   return r.rows.map(paraWebhook);
 }
@@ -82,7 +83,8 @@ export async function buscarWebhook(
 ): Promise<Webhook | null> {
   if (!/^[0-9a-f-]{36}$/i.test(id)) return null;
   const r = await c.query<LinhaDoWebhook>(
-    `select ${COLUNAS} from webhooks where id = $1 and empresa_id = empresa_ativa() ${paraMudar ? "for update" : ""}`,
+    `select ${COLUNAS} from webhooks where id = $1 and empresa_id = empresa_ativa() and agente_id is null
+      ${paraMudar ? "for update" : ""}`,
     [id],
   );
   return r.rows[0] ? paraWebhook(r.rows[0]) : null;
@@ -433,20 +435,25 @@ async function cuidarDaEmpresa(o: OpcoesDaEntrega, empresaId: string): Promise<n
 /** Desliga o webhook que passou 3 dias sem nenhuma entrega certa e avisa os administradores. */
 async function desligarOsQueFalham(o: OpcoesDaEntrega, empresaId: string) {
   const desligados = await comEmpresa(o.poolApp, empresaId, async (c) => {
-    const r = await c.query<{ id: string; nome: string }>(
-      `update webhooks set situacao = 'desligado', desligado_porque = 'falhas', atualizado_em = now()
-        where empresa_id = empresa_ativa() and situacao = 'ligado'
-          and falhando_desde < now() - interval '${DIAS_FALHANDO_ATE_DESLIGAR} days'
-        returning id, nome`,
+    const r = await c.query<{ id: string; nome: string; responsavel_id: string | null }>(
+      `update webhooks w set situacao = 'desligado', desligado_porque = 'falhas', atualizado_em = now()
+        where w.empresa_id = empresa_ativa() and w.situacao = 'ligado'
+          and w.falhando_desde < now() - interval '${DIAS_FALHANDO_ATE_DESLIGAR} days'
+        returning w.id, w.nome,
+          (select g.responsavel_id from agentes g where g.id = w.agente_id and g.empresa_id = w.empresa_id) as responsavel_id`,
     );
     if (r.rows.length === 0) return [];
     const admins = await c.query<{ pessoa_id: string }>(
       "select pessoa_id from vinculos where empresa_id = empresa_ativa() and perfil = 'administrador' and situacao = 'ativo'",
     );
+    // O aviso de um agente (M7-04) também vai para a pessoa responsável por ele.
     for (const w of r.rows)
-      for (const a of admins.rows)
+      for (const pessoaId of new Set([
+        ...admins.rows.map((a) => a.pessoa_id),
+        ...(w.responsavel_id ? [w.responsavel_id] : []),
+      ]))
         await criarAviso(c, {
-          pessoaId: a.pessoa_id,
+          pessoaId,
           tipo: "webhook_desligado",
           texto: `O webhook "${w.nome}" passou ${DIAS_FALHANDO_ATE_DESLIGAR} dias sem conseguir entregar os avisos e foi desligado. Confira o endereço e ligue de novo em Webhooks.`,
           link: "/webhooks",
@@ -467,4 +474,108 @@ async function desligarOsQueFalham(o: OpcoesDaEntrega, empresaId: string) {
       },
       o.log,
     );
+}
+
+// Aviso imediato ao agente externo (M7-04, decisão 0049): um webhook ligado ao agente, fora da tela Webhooks. ---
+
+const EVENTOS_DO_AVISO = ["agente.tarefa_recebida", "agente.mencionado", "agente.aprovacao_respondida"];
+
+interface LinhaDoAviso {
+  id: string;
+  url: string;
+  situacao: "ligado" | "desligado";
+  desligado_porque: "manual" | "falhas" | null;
+  final_do_segredo: string;
+  falhando_desde: Date | null;
+  ultima_entrega_em: Date | null;
+}
+
+const paraAviso = (l: LinhaDoAviso): AvisoDoAgente => ({
+  webhookId: l.id,
+  url: l.url,
+  situacao: l.situacao,
+  desligadoPorque: l.desligado_porque,
+  finalDoSegredo: l.final_do_segredo,
+  falhandoDesde: iso(l.falhando_desde),
+  ultimaEntregaEm: iso(l.ultima_entrega_em),
+});
+
+export async function avisoDoAgente(c: pg.PoolClient, agenteId: string, paraMudar = false) {
+  const r = await c.query<LinhaDoAviso>(
+    `select id, url, situacao, desligado_porque, final_do_segredo, falhando_desde, ultima_entrega_em from webhooks
+      where empresa_id = empresa_ativa() and agente_id = $1 ${paraMudar ? "for update" : ""}`,
+    [agenteId],
+  );
+  return r.rows[0] ? paraAviso(r.rows[0]) : null;
+}
+
+/**
+ * Liga o aviso do agente com o endereço (ou troca o endereço). Na primeira vez gera o segredo e devolve; ao trocar só
+ * o endereço, o segredo continua (segredo nulo na resposta). Ligar de novo zera a contagem de falhas.
+ */
+export async function ligarAvisoDoAgente(
+  c: pg.PoolClient,
+  cofre: Cofre,
+  empresaId: string,
+  agente: { id: string; nome: string },
+  url: string,
+  por: string,
+): Promise<{ aviso: AvisoDoAgente; segredo: string | null }> {
+  const atual = await avisoDoAgente(c, agente.id, true);
+  if (atual) {
+    await c.query(
+      `update webhooks set url = $2, situacao = 'ligado', desligado_porque = null, falhando_desde = null,
+              atualizado_em = now() where id = $1 and empresa_id = empresa_ativa()`,
+      [atual.webhookId, url],
+    );
+    return { aviso: (await avisoDoAgente(c, agente.id)) as AvisoDoAgente, segredo: null };
+  }
+  const segredo = gerarSegredo();
+  const id = (await c.query<{ id: string }>("select uuidv7() as id")).rows[0]?.id as string;
+  const cifrado = await cofre.guardarSegredo(c, empresaId, rotuloDoSegredo(id), segredo);
+  await c.query(
+    `insert into webhooks (id, empresa_id, agente_id, nome, url, eventos, segredo_cifrado, final_do_segredo, criado_por)
+     values ($1, empresa_ativa(), $2, $3, $4, $5, $6, $7, $8)`,
+    [
+      id,
+      agente.id,
+      `Aviso de ${agente.nome}`.slice(0, 80),
+      url,
+      EVENTOS_DO_AVISO,
+      cifrado,
+      segredo.slice(-4),
+      por,
+    ],
+  );
+  return { aviso: (await avisoDoAgente(c, agente.id)) as AvisoDoAgente, segredo };
+}
+
+/** Troca o segredo do aviso do agente. */
+export async function trocarSegredoDoAviso(
+  c: pg.PoolClient,
+  cofre: Cofre,
+  empresaId: string,
+  webhookId: string,
+) {
+  const segredo = gerarSegredo();
+  const cifrado = await cofre.guardarSegredo(c, empresaId, rotuloDoSegredo(webhookId), segredo);
+  await c.query(
+    `update webhooks set segredo_cifrado = $2, final_do_segredo = $3, atualizado_em = now()
+      where id = $1 and empresa_id = empresa_ativa()`,
+    [webhookId, cifrado, segredo.slice(-4)],
+  );
+  return segredo;
+}
+
+/** Desliga o aviso (apaga o webhook do agente e o histórico): o agente volta a só perguntar. */
+export async function desligarAvisoDoAgente(c: pg.PoolClient, agenteId: string): Promise<boolean> {
+  const r = await c.query("delete from webhooks where empresa_id = empresa_ativa() and agente_id = $1", [
+    agenteId,
+  ]);
+  return (r.rowCount ?? 0) > 0;
+}
+
+/** O teste do aviso do agente (o mesmo do botão dos webhooks). */
+export async function mandarTesteDoAviso(c: pg.PoolClient, webhookId: string): Promise<string> {
+  return mandarTeste(c, { id: webhookId } as Webhook);
 }

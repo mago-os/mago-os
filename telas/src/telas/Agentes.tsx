@@ -2,6 +2,7 @@
  * Central de agentes (M2-03): a lista com situação, responsável, último sinal de vida e tarefas abertas, e a página
  * do agente. Todo mundo vê; só o administrador cadastra, edita, pausa, retoma e desliga (a API confere de novo).
  */
+
 import { type ChaveDeAgente, MINUTOS_SEM_SINAL_PADRAO, type SituacaoAgente } from "@mago-os/contratos";
 import { ArrowLeft, BookOpen, Bot, CircleDollarSign, KeyRound, Plus, ScrollText } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
@@ -24,6 +25,7 @@ import { cn } from "@/lib/utils";
 import { useTempoReal } from "@/tempo-real";
 import { Aviso } from "./Acesso";
 import { useAoVoltar } from "./Administrador";
+import { AvisoDoAgente } from "./AvisoDoAgente";
 import { ExecucoesDoAgente } from "./Execucoes";
 import { LimitesDoAgente } from "./LimitesDoAgente";
 import { ModeloDoAgente } from "./ModeloDoAgente";
@@ -421,6 +423,9 @@ export function PaginaDoAgente({
       )}
       {podeEditar && agente.tipo === "externo" && (
         <ChavesDoAgente agenteId={agente.id} desligado={desligado} />
+      )}
+      {podeEditar && agente.tipo === "externo" && !desligado && !editando && (
+        <AvisoDoAgente agenteId={agente.id} />
       )}
       {!desligado && !editando && <RegrasDoAgente agenteId={agente.id} />}
       {agente.tipo === "interno" && !desligado && !editando && (

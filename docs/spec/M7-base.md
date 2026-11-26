@@ -92,10 +92,12 @@ Situação: **feita** em 26/11/2026 (decisão 0048). A entrega roda a cada 5 seg
 
 ### M7-04 Aviso imediato aos agentes externos por webhook
 
-- [ ] Na tela do agente externo, um endereço de aviso opcional. Quando o agente recebe uma tarefa, é mencionado ou
+Situação: **feita** em 26/11/2026 (decisão 0049). Com o aviso ligado, o agente pergunta a cada 5 minutos.
+
+- [x] Na tela do agente externo, um endereço de aviso opcional. Quando o agente recebe uma tarefa, é mencionado ou
   tem uma aprovação respondida, o núcleo avisa na hora (pelos webhooks da M7-03)
-- [ ] A pergunta a cada minuto continua funcionando como reserva (um aviso perdido não perde a tarefa)
-- [ ] Guia dos agentes (`docs/operacao/agentes.md`) e o do Hermes atualizados, com o exemplo de como conferir a
+- [x] A pergunta a cada minuto continua funcionando como reserva (um aviso perdido não perde a tarefa)
+- [x] Guia dos agentes (`docs/operacao/agentes.md`) e o do Hermes atualizados, com o exemplo de como conferir a
   assinatura
 
 ### M7-05 Seletor completo de empresas, com os avisos de todas num lugar só

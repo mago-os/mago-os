@@ -38,6 +38,8 @@ test.describe("chaves de API", () => {
     await c.query("delete from contadores_da_api where empresa_id = $1", [admin.empresaId]);
     await c.query("delete from chaves_de_api where empresa_id = $1", [admin.empresaId]);
     await c.query("delete from webhooks where empresa_id = $1", [admin.empresaId]);
+    await c.query("delete from chaves_de_agente where empresa_id = $1", [admin.empresaId]);
+    await c.query("delete from agentes where empresa_id = $1 and tipo = 'externo'", [admin.empresaId]);
     await c.end();
     await admin.limpar();
   });
@@ -114,6 +116,36 @@ test.describe("chaves de API", () => {
     page.on("dialog", (d) => void d.accept());
     await page.getByRole("button", { name: "Apagar" }).click();
     await expect(page.getByText("Webhook apagado.")).toBeVisible();
+  });
+
+  test("aviso imediato do agente externo: liga, mostra o segredo e manda teste", async ({ page }) => {
+    await autenticadorVirtual(page);
+    await ipProprio(page);
+    await page.goto("/entrar");
+    await page.getByLabel("E-mail").fill(admin.email);
+    await page.getByLabel("Senha").fill(SENHA);
+    await page.getByRole("button", { name: "Entrar", exact: true }).click();
+    const passkey = page.getByRole("button", { name: /Usar passkey/ });
+    await expect(passkey.or(page.getByRole("heading", { name: /, Alice!$/ }))).toBeVisible();
+    if (await passkey.isVisible()) await passkey.click();
+    await expect(page.getByRole("heading", { name: /, Alice!$/ })).toBeVisible();
+    const criado = await page.request.post("/api/agentes", {
+      data: {
+        nome: `Hermes ${test.info().project.name}`,
+        responsavelId: await page.evaluate(async () => {
+          const r = await fetch("/api/acesso/estado");
+          return (await r.json()).pessoa?.id;
+        }),
+      },
+    });
+    expect(criado.ok(), await criado.text()).toBe(true);
+    await page.goto(`/agentes/${(await criado.json()).id}`);
+    await page.getByLabel("Endereço de aviso (https)").fill("https://hermes.exemplo.invalid/mago");
+    await page.getByRole("button", { name: "Ligar aviso" }).click();
+    await expect(page.getByText("Aviso imediato ligado.")).toBeVisible();
+    await expect(page.locator("code").filter({ hasText: /^whsec_/ })).toBeVisible();
+    await page.getByRole("button", { name: "Mandar teste" }).click();
+    await expect(page.getByText(/Teste enviado/)).toBeVisible();
   });
 
   test("os Termos de Uso abrem sem login", async ({ page }) => {

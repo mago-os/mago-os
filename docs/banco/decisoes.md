@@ -392,3 +392,8 @@ O login (`mago_acesso`) não lê papéis nem as regras da plataforma direto. As 
 - `entregas_de_webhook` é a fila e o histórico: uma linha por aviso e webhook, com o número único (o mesmo em todas as tentativas), o corpo (só ids e nomes de campos), as tentativas e a próxima vez. Ficam 30 dias.
 - Os gatilhos em `tarefas`, `comentarios_de_tarefa` (só comentário), `contatos` e `aprovacoes` gravam a entrega na mesma transação da mudança, pela função `gravar_aviso_de_webhook()`, que roda com quem mudou (RLS da empresa ativa): só os webhooks ligados da própria empresa que escolheram o evento recebem. "tarefa.atualizada" só conta título, descrição, status, responsável, prazo, prioridade e projeto.
 - `empresas_com_entregas_de_webhook()` dá ao trabalho de entrega só os ids das empresas com entrega na hora ou com webhook a desligar (3 dias falhando).
+
+## 55. Aviso imediato aos agentes externos (26/11/2026, M7-04)
+
+- `webhooks.agente_id` marca o webhook de aviso de um agente externo ([decisão 0049](../decisoes/0049-aviso-imediato-aos-agentes.md)), um por agente, com só os eventos `agente.*`; os webhooks da empresa nunca recebem esses eventos (e o do agente nunca recebe os da empresa).
+- `gravar_aviso_ao_agente()` grava a entrega para o webhook ligado do agente, a partir dos gatilhos em `tarefas` (o agente virou responsável), `mencoes_de_comentario` (menção num comentário, não em nota interna) e `aprovacoes` (uma ação que ele pediu foi respondida), na mesma transação da mudança, com o RLS da empresa ativa.
