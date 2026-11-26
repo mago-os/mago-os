@@ -146,12 +146,14 @@ export type WebhookCriado = Static<typeof WebhookCriado>;
 export const AvisoDoWebhook = Type.Object(
   {
     id: Id,
-    evento: Type.Union([EventoDeWebhook, Type.Literal("webhook.teste")]),
+    evento: Type.Union([EventoDeWebhook, EventoDoAgente, Type.Literal("webhook.teste")]),
     ocorridoEm: DataHora,
     empresaId: Id,
     dados: Type.Object(
       {
         tipo: Type.Enum(["tarefa", "contato", "aprovacao", "webhook"] as const),
+        /** No aviso ao agente (M7-04): o agente avisado. */
+        agenteId: Type.Optional(Id),
         id: Id,
         /** A tarefa do comentário ou da aprovação, quando há. */
         tarefaId: Type.Optional(OuNulo(Id)),
@@ -211,6 +213,44 @@ export const EntregaDeWebhook = Type.Object(
 );
 export type EntregaDeWebhook = Static<typeof EntregaDeWebhook>;
 
+// Aviso imediato aos agentes externos (M7-04, decisão 0049) -----------------------------------------------------
+
+/**
+ * Os eventos do aviso ao agente externo: recebeu uma tarefa (ficou como responsável), foi mencionado com @ num
+ * comentário, ou uma aprovação que ele pediu foi respondida. Saem pelo mesmo caminho dos webhooks (assinatura, número
+ * único, novas tentativas), para o endereço de aviso do agente.
+ */
+export const EVENTOS_DO_AGENTE = [
+  "agente.tarefa_recebida",
+  "agente.mencionado",
+  "agente.aprovacao_respondida",
+] as const;
+export const EventoDoAgente = Type.Enum(EVENTOS_DO_AGENTE);
+export type EventoDoAgente = Static<typeof EventoDoAgente>;
+
+/** Ligar ou trocar o endereço de aviso do agente externo (só quem edita agentes). O segredo vem na resposta. */
+export const PedidoDeAvisoDoAgente = Type.Object({ url: EnderecoDoWebhook }, { additionalProperties: false });
+export type PedidoDeAvisoDoAgente = Static<typeof PedidoDeAvisoDoAgente>;
+
+export function conferirPedidoDeAvisoDoAgente(valor: unknown) {
+  return conferir(PedidoDeAvisoDoAgente, valor, [problemasDoEndereco]);
+}
+
+/** O aviso do agente como aparece na tela dele (sem o segredo). Nulo: o agente só pergunta a cada minuto. */
+export const AvisoDoAgente = Type.Object(
+  {
+    webhookId: Id,
+    url: EnderecoDoWebhook,
+    situacao: SituacaoDoWebhook,
+    desligadoPorque: OuNulo(Type.Enum(MOTIVOS_DO_WEBHOOK_DESLIGADO)),
+    finalDoSegredo: Type.String({ pattern: "^[A-Za-z0-9_-]{4}$" }),
+    falhandoDesde: OuNulo(DataHora),
+    ultimaEntregaEm: OuNulo(DataHora),
+  },
+  { additionalProperties: false },
+);
+export type AvisoDoAgente = Static<typeof AvisoDoAgente>;
+
 /** Ações de auditoria dos webhooks. Nos detalhes vão ids, os eventos e o motivo, nunca o segredo nem o endereço todo. */
 export const ACOES_WEBHOOKS = [
   "webhook.criou",
@@ -219,5 +259,8 @@ export const ACOES_WEBHOOKS = [
   "webhook.apagou",
   "webhook.desligou_por_falhas",
   "webhook.reenviou",
+  // M7-04: o endereço de aviso do agente externo.
+  "agente.ligou_aviso",
+  "agente.desligou_aviso",
 ] as const;
 export type AcaoDosWebhooks = (typeof ACOES_WEBHOOKS)[number];
