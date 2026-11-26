@@ -127,7 +127,7 @@ ${exemplo}
 <p>Mande a chave em cada pedido, no cabeçalho <code>Authorization: Bearer mago_api_...</code>. O administrador cria a
 chave em Configurações › API e escolhe os módulos (ler ou escrever), a validade (até 1 ano), os IPs permitidos e a
 pessoa em nome de quem ela age. A chave nunca passa do que essa pessoa pode.</p>
-<pre>curl -H "Authorization: Bearer mago_api_..." ${escapar(base)}/v1/tarefas?status=a_fazer</pre>
+<p>Exemplo: um <code>GET ${escapar(base)}/v1/tarefas?status=a_fazer</code> com a chave no cabeçalho de autorização (tipo Bearer).</p>
 <p>Limites: ${LIMITES_DA_API.pedidosPorMinutoPorChave} pedidos por minuto por chave e
 ${LIMITES_DA_API.pedidosPorMinutoPorEmpresa} por empresa. Passou, a resposta é 429 com o cabeçalho Retry-After.</p>
 <p>Os erros vêm sempre assim: <code>{"code":"FORA_DO_ESCOPO","message":"..."}</code>.</p>

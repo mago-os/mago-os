@@ -1,0 +1,3 @@
+# Falsos positivos conferidos (não são segredos). Formato: commit:arquivo:regra:linha.
+# M7-02: o exemplo "Authorization: Bearer mago_api_..." da documentação da API (só o começo, sem chave).
+3eba9f5f72cab34c3640512b40f7a81ff67b1feb:nucleo/src/api-publica/documentacao.ts:curl-auth-header:130
