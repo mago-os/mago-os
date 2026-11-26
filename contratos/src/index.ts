@@ -20,6 +20,7 @@ export * from "./agentes/parada.ts";
 export * from "./agentes/passos.ts";
 export * from "./agentes/regras.ts";
 export * from "./api/publica.ts";
+export * from "./api/webhooks.ts";
 export * from "./auditoria.ts";
 export * from "./avisos/notificacoes.ts";
 export * from "./busca/busca.ts";
