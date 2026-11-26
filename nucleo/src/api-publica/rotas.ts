@@ -32,6 +32,7 @@ import {
   listarChavesDeApi,
   RecusaDaChaveDeApi,
   registrarRecusa,
+  removerChaveDeApi,
   revogarChaveDeApi,
   trocarChaveDeApi,
 } from "./chaves.ts";
@@ -499,6 +500,24 @@ export function registrarApiPublica(app: FastifyInstance, o: OpcoesDaApiPublica)
           .code(404)
           .send({ code: "NAO_ENCONTRADA", message: "Chave não encontrada ou já revogada." });
       await registrar(pedido, "chave_api.revogou", id);
+      return { ok: true };
+    },
+  );
+
+  app.post(
+    "/empresa/chaves-de-api/:id/remover",
+    { preHandler: verificador.exigir("api", "editar") },
+    async (pedido, resposta) => {
+      if (!soTudo(pedido, resposta)) return resposta;
+      const { id } = pedido.params as { id: string };
+      const feito = await naEmpresa(pedido, (c) => removerChaveDeApi(c, id));
+      if (feito === "nao")
+        return resposta.code(404).send({ code: "NAO_ENCONTRADA", message: "Chave não encontrada." });
+      if (feito === "ativa")
+        return resposta
+          .code(409)
+          .send({ code: "CHAVE_ATIVA", message: "Revogue a chave antes de tirar da lista." });
+      await registrar(pedido, "chave_api.removeu", id);
       return { ok: true };
     },
   );

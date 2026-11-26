@@ -77,7 +77,7 @@ export class RecusaDaChaveDeApi extends Error {}
 
 export async function listarChavesDeApi(c: pg.PoolClient): Promise<ChaveDeApi[]> {
   const r = await c.query<LinhaDaChave>(
-    `select ${COLUNAS} from chaves_de_api where empresa_id = empresa_ativa()
+    `select ${COLUNAS} from chaves_de_api where empresa_id = empresa_ativa() and removida_em is null
       order by (revogada_em is not null), criada_em desc`,
   );
   return r.rows.map(linhaParaChaveDeApi);
@@ -156,6 +156,24 @@ export async function revogarChaveDeApi(c: pg.PoolClient, id: string, por: strin
     [id, por],
   );
   return (r.rowCount ?? 0) > 0;
+}
+
+/** Tira da lista da tela uma chave já revogada ou vencida (a linha fica, para a auditoria). */
+export async function removerChaveDeApi(c: pg.PoolClient, id: string): Promise<"ok" | "ativa" | "nao"> {
+  if (!/^[0-9a-f-]{36}$/i.test(id)) return "nao";
+  const r = await c.query<{ parada: boolean }>(
+    `select (revogada_em is not null or valida_ate <= now()) as parada from chaves_de_api
+      where id = $1 and empresa_id = empresa_ativa() and removida_em is null for update`,
+    [id],
+  );
+  const linha = r.rows[0];
+  if (!linha) return "nao";
+  if (!linha.parada) return "ativa";
+  await c.query(
+    "update chaves_de_api set removida_em = now() where id = $1 and empresa_id = empresa_ativa()",
+    [id],
+  );
+  return "ok";
 }
 
 /** O IP está na lista (IP exato ou faixa CIDR). Lista vazia: qualquer um. */

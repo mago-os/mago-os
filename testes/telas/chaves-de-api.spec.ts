@@ -21,6 +21,7 @@ async function autenticadorVirtual(page: Page) {
 
 /** Chaves de API (M7-02): criar, ver a chave uma vez só, usar pela API pública e revogar. E a página /termos. */
 test.describe("chaves de API", () => {
+  test.use({ permissions: ["clipboard-read", "clipboard-write"] });
   let admin: PessoaDeTeste;
 
   test.beforeAll(async () => {
@@ -68,10 +69,18 @@ test.describe("chaves de API", () => {
     });
     expect(criada.status(), await criada.text()).toBe(201);
 
+    // Copiar mostra que copiou.
+    await page.getByRole("button", { name: "Copiar" }).click();
+    await expect(page.getByRole("button", { name: "Copiada!" })).toBeVisible();
+    await expect(page.getByText("Chave copiada para a área de transferência.")).toBeVisible();
+
     page.on("dialog", (d) => void d.accept());
     await page.getByRole("button", { name: "Já guardei" }).click();
     await page.getByRole("button", { name: "Revogar" }).click();
     await expect(page.getByText("Chave revogada.")).toBeVisible();
+    await page.getByRole("button", { name: "Apagar" }).click();
+    await expect(page.getByText("Chave apagada da lista.")).toBeVisible();
+    await expect(page.getByText("n8n de teste")).toHaveCount(0);
     const depois = await request.get("/api/v1/tarefas", { headers: { authorization: `Bearer ${segredo}` } });
     expect(depois.status()).toBe(401);
   });

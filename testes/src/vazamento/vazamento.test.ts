@@ -839,6 +839,7 @@ describe.skipIf(!bancoDisponivel)("vazamento entre empresas em todas as partes (
     await usar(x, admin, "DELETE", `/contatos-visoes/${ids.visaoDeContatos}`, undefined, d);
     await usar(x, admin, "DELETE", `/contatos/${ids.contato2}`, undefined, d);
     await usar(x, admin, "POST", `/empresa/chaves-de-api/${ids.chaveDeApi2}/revogar`, {}, d);
+    await usar(x, admin, "POST", `/empresa/chaves-de-api/${ids.chaveDeApi2}/remover`, {}, d);
     await usar(x, admin, "POST", `/empresa/convites/${ids.convite}/cancelar`, undefined, d);
     await usar(x, admin, "POST", `/empresa/pessoas/${x.extra.vinculoId}/desligar`, undefined, d);
     await usar(x, func, "DELETE", "/conta/telegram", undefined, d);

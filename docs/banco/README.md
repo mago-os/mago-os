@@ -200,6 +200,7 @@ erDiagram
     uuid revogada_por
     uuid trocada_por_id
     timestamp_with_time_zone avisou_vencimento_em
+    timestamp_with_time_zone removida_em
   }
   chaves_de_dados {
     uuid empresa_id PK
@@ -1335,6 +1336,7 @@ Isolamento por empresa (Row Level Security): ligado e forçado.
 | revogada_por | uuid | não |  | sistema | Quem revogou a chave. |
 | trocada_por_id | uuid | não |  | sistema | A chave nova que substituiu esta numa troca. |
 | avisou_vencimento_em | timestamp with time zone | não |  | sistema | Quando o aviso de vencimento (30 dias antes) saiu. |
+| removida_em | timestamp with time zone | não |  | sistema | Quando a chave (já revogada ou vencida) saiu da lista da tela. Ela continua guardada para a auditoria. |
 
 ### chaves_de_dados
 

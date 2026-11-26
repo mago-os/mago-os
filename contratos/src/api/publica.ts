@@ -389,5 +389,7 @@ export const ACOES_DA_API = [
   "chave_api.trocou",
   "chave_api.revogou",
   "chave_api.recusou",
+  // A chave revogada ou vencida saiu da lista da tela (pedido do Sandro em 26/11/2026); a linha fica guardada.
+  "chave_api.removeu",
 ] as const;
 export type AcaoDaApi = (typeof ACOES_DA_API)[number];
