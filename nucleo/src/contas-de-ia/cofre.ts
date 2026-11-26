@@ -74,6 +74,9 @@ export interface Cofre {
   guardarChaveDeIa(c: pg.PoolClient, empresaId: string, contaId: string, chave: string): Promise<Buffer>;
   /** Decifra a chave de uma conta, só para a chamada ao provedor. */
   abrirChaveDeIa(c: pg.PoolClient, empresaId: string, contaId: string, cifrada: Buffer): Promise<string>;
+  /** Cifra outro segredo da empresa (ex.: o do webhook, M7-03), amarrado ao rótulo (o mesmo para abrir). */
+  guardarSegredo(c: pg.PoolClient, empresaId: string, rotulo: string, segredo: string): Promise<Buffer>;
+  abrirSegredo(c: pg.PoolClient, empresaId: string, rotulo: string, cifrado: Buffer): Promise<string>;
 }
 
 export function criarCofre(mestras: ChavesMestras): Cofre {
@@ -125,6 +128,14 @@ export function criarCofre(mestras: ChavesMestras): Cofre {
     async abrirChaveDeIa(c, empresaId, contaId, cifrada) {
       const dados = await chaveDeDados(c, empresaId, false);
       return decifrar(dados, cifrada, contextoDaContaDeIa(empresaId, contaId)).toString("utf8");
+    },
+    async guardarSegredo(c, empresaId, rotulo, segredo) {
+      const dados = await chaveDeDados(c, empresaId, true);
+      return cifrar(dados, Buffer.from(segredo, "utf8"), `mago-os:segredo:${rotulo}:${empresaId}`);
+    },
+    async abrirSegredo(c, empresaId, rotulo, cifrado) {
+      const dados = await chaveDeDados(c, empresaId, false);
+      return decifrar(dados, cifrado, `mago-os:segredo:${rotulo}:${empresaId}`).toString("utf8");
     },
   };
 }

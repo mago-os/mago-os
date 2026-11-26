@@ -147,6 +147,8 @@ export const TIPOS_DE_AVISO = [
   "alerta_de_evento",
   // M7-02: uma chave de API vence em até 30 dias (vai para quem criou, uma vez).
   "chave_de_api_vencendo",
+  // M7-03: um webhook passou 3 dias sem entregar e foi desligado (vai para os administradores).
+  "webhook_desligado",
 ] as const;
 export const TipoDeAviso = Type.Enum(TIPOS_DE_AVISO);
 export type TipoDeAviso = Static<typeof TipoDeAviso>;

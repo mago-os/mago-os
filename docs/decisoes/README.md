@@ -54,4 +54,4 @@ Uma nota curta por decisão importante: o que foi decidido, por quê e o que foi
 | [0045](0045-contatos.md) | Contatos: pessoa e organização, identificadores repetidos só avisam, juntar só na tela, etiquetas da empresa e ferramentas dos agentes | Aceita |
 | [0046](0046-email-pelo-agregador.md) | E-mail dos clientes só por um agregador (Composio ou concorrente), com o app verificado dele; app próprio no Google no centésimo cliente pagante | Aceita |
 | [0047](0047-api-publica.md) | API pública em /api/v1: chave de API da empresa em nome de uma pessoa, escopo por módulo, validade de 1 ano, troca com 24 horas, IPs e limites por chave e por empresa | Aceita |
-| [0048](0048-webhooks-de-saida.md) | Webhooks de saída: só o administrador, endereço público, segredo gerado e cifrado, aviso só com ids, assinatura HMAC com a hora, 7 tentativas em 20 horas e desligar após 3 dias falhando | Proposta |
+| [0048](0048-webhooks-de-saida.md) | Webhooks de saída: só o administrador, endereço público, segredo gerado e cifrado, aviso só com ids, assinatura HMAC com a hora, 7 tentativas em 20 horas e desligar após 3 dias falhando | Aceita |

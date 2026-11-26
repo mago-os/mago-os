@@ -44,6 +44,7 @@ const NOMES: Record<TipoDeAviso, string> = {
   evento_mudou: "Evento mudou ou foi cancelado",
   alerta_de_evento: "Alerta antes de um evento",
   chave_de_api_vencendo: "Chave de API perto de vencer",
+  webhook_desligado: "Webhook desligado por falhas",
 };
 
 type Mensagem = { texto: string; tipo: "erro" | "ok" } | null;

@@ -28,6 +28,7 @@ import {
   resumoDoDiaNoTelegram,
   tratarAtualizacao,
 } from "@mago-os/nucleo/telegram";
+import { cuidarDosWebhooks } from "@mago-os/nucleo/webhooks";
 import pg from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { bancoDisponivel } from "../preparar-banco.ts";
@@ -705,6 +706,28 @@ describe.skipIf(!bancoDisponivel)("vazamento entre empresas em todas as partes (
       await usar(x, admin, "POST", `/empresa/chaves-de-api/${ids.chaveDeApi}/trocar`, {})
     ).chave.id;
 
+    // Webhooks de saída (M7-03): cadastrar, mudar, trocar o segredo, mandar teste, histórico e tentar de novo.
+    const wh = await usar(x, admin, "POST", "/empresa/webhooks", {
+      nome: `Webhook ${M}`,
+      url: `https://n8n-${x.sigla.toLowerCase()}.exemplo.com.br/webhook`,
+      eventos: ["tarefa.criada", "tarefa.comentada", "contato.criado"],
+    });
+    ids.webhook = wh.webhook.id;
+    await usar(x, admin, "GET", "/empresa/webhooks");
+    await usar(x, admin, "POST", `/empresa/webhooks/${ids.webhook}`, { nome: `Webhook ${M} 2` });
+    await usar(x, admin, "POST", `/empresa/webhooks/${ids.webhook}/trocar-segredo`, {});
+    ids.entregaDeWebhook = (
+      await usar(x, admin, "POST", `/empresa/webhooks/${ids.webhook}/teste`, {})
+    ).entregaId;
+    await usar(x, admin, "GET", `/empresa/webhooks/${ids.webhook}/entregas`);
+    await usar(
+      x,
+      admin,
+      "POST",
+      `/empresa/webhooks/${ids.webhook}/entregas/${ids.entregaDeWebhook}/reenviar`,
+      {},
+    );
+
     // Rotinas (por horário e por evento, com filtro de projeto).
     ids.rotina = (
       await usar(x, admin, "POST", "/rotinas", {
@@ -840,6 +863,7 @@ describe.skipIf(!bancoDisponivel)("vazamento entre empresas em todas as partes (
     await usar(x, admin, "DELETE", `/contatos/${ids.contato2}`, undefined, d);
     await usar(x, admin, "POST", `/empresa/chaves-de-api/${ids.chaveDeApi2}/revogar`, {}, d);
     await usar(x, admin, "POST", `/empresa/chaves-de-api/${ids.chaveDeApi2}/remover`, {}, d);
+    await usar(x, admin, "DELETE", `/empresa/webhooks/${ids.webhook}`, undefined, d);
     await usar(x, admin, "POST", `/empresa/convites/${ids.convite}/cancelar`, undefined, d);
     await usar(x, admin, "POST", `/empresa/pessoas/${x.extra.vinculoId}/desligar`, undefined, d);
     await usar(x, func, "DELETE", "/conta/telegram", undefined, d);
@@ -1204,6 +1228,14 @@ describe.skipIf(!bancoDisponivel)("vazamento entre empresas em todas as partes (
       const r = await injetar(p.metodo, p.url, quem, p.corpo);
       expect(r.statusCode, `${p.metodo} ${p.url}: ${r.body}`).toBeLessThan(300);
     }
+  });
+
+  it("os avisos dos webhooks (M7-03) da empresa A nunca levam nada da B", async () => {
+    await cuidarDosWebhooks(api.interno.webhooks as NonNullable<typeof api.interno.webhooks>);
+    const outra = await daB();
+    const daA = api.webhooks.filter((w) => w.url.includes("n8n-a."));
+    expect(daA.length).toBeGreaterThan(0);
+    for (const w of daA) expect(vazamentosNoTexto(w.corpo, outra.ids, outra.marca)).toEqual([]);
   });
 
   it("os trabalhos da fila rodam para as duas empresas sem misturar", async () => {
