@@ -6,8 +6,8 @@
  * sem serviço pago. No iPhone, só com o app instalado na tela de início (limite da Apple).
  */
 import { type Static, Type } from "typebox";
-import { TIPOS_DE_AVISO, type TipoDeAviso } from "../agentes/chave.ts";
-import { DataHora, Id, OuNulo } from "../comum.ts";
+import { Aviso, TIPOS_DE_AVISO, type TipoDeAviso } from "../agentes/chave.ts";
+import { DataHora, Id, OuNulo, Texto } from "../comum.ts";
 import { Hora } from "../tarefas/prazos.ts";
 
 /** A assinatura de push que o navegador entrega (padrão Web Push). Uma por aparelho. */
@@ -129,3 +129,33 @@ export function horaDoResumo(p: PreferenciasDeNotificacao): string | null {
 
 /** Ações de auditoria da M3-06 (o push ligado e desligado por aparelho). */
 export const ACOES_NOTIFICACOES = ["push.ligou", "push.desligou", "notificacoes.mudou_preferencias"] as const;
+
+// Seletor completo de empresas (M7-05, decisão 0050) -----------------------------------------------------------------
+
+/** Até quanto o contador conta (acima disso, a tela mostra "99+"). */
+export const MAXIMO_DO_CONTADOR = 99;
+
+/**
+ * Uma empresa da pessoa no seletor do topo, com o que está esperando nela: os avisos não lidos que ela ainda pode ver
+ * (os de tarefa só enquanto ela vê a tarefa) e as aprovações pendentes que ela pode decidir.
+ */
+export const EmpresaNoSeletor = Type.Object(
+  {
+    id: Id,
+    nome: Texto(200, "Nome da empresa."),
+    perfil: Type.String(),
+    area: OuNulo(Type.String()),
+    ativa: Type.Boolean(),
+    avisos: Type.Integer({ minimum: 0, maximum: MAXIMO_DO_CONTADOR + 1 }),
+    aprovacoes: Type.Integer({ minimum: 0, maximum: MAXIMO_DO_CONTADOR + 1 }),
+  },
+  { additionalProperties: false },
+);
+export type EmpresaNoSeletor = Static<typeof EmpresaNoSeletor>;
+
+/** Um aviso na central "Todas as empresas": o aviso e o nome da empresa dele. */
+export const AvisoDeQualquerEmpresa = Type.Object(
+  { aviso: Aviso, empresaNome: Texto(200, "Nome da empresa do aviso.") },
+  { additionalProperties: false },
+);
+export type AvisoDeQualquerEmpresa = Static<typeof AvisoDeQualquerEmpresa>;

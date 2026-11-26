@@ -5,12 +5,27 @@
 import type { Aviso } from "@mago-os/contratos";
 import { Bell } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { listarMeusAvisos, marcarAvisoComoLido, marcarTodosComoLidos } from "@/agentes";
+import { listarAvisosDeTodas, listarMeusAvisos, marcarAvisoComoLido, marcarTodosComoLidos } from "@/agentes";
 import { useTempoReal } from "@/tempo-real";
 import { Button } from "./ui/button";
 
-export function Sino() {
+export function Sino({
+  variasEmpresas = false,
+  aoMudar,
+  aoTrocarEmpresa,
+}: {
+  /** A pessoa está em mais de uma empresa: aparece "Todas as empresas" (M7-05). */
+  variasEmpresas?: boolean;
+  /** Algo mudou nos avisos (para o seletor recontar). */
+  aoMudar?: () => void;
+  aoTrocarEmpresa?: (empresaId: string) => Promise<void>;
+} = {}) {
   const [avisos, setAvisos] = useState<Aviso[]>([]);
+  const [todas, setTodas] = useState(false);
+  const [deTodas, setDeTodas] = useState<{ aviso: Aviso; empresaNome: string }[]>([]);
+  // A função de quem chamou muda a cada desenho da tela: guardada à parte, não recarrega os avisos sem parar.
+  const avisarMudanca = useRef(aoMudar);
+  avisarMudanca.current = aoMudar;
   const [aberto, setAberto] = useState(false);
   const [rapido, setRapido] = useState<Aviso | null>(null);
   const conhecidos = useRef<Set<string> | null>(null);
@@ -31,7 +46,15 @@ export function Sino() {
     }
     conhecidos.current = new Set(lista.map((a) => a.id));
     setAvisos(lista);
+    avisarMudanca.current?.();
   }, []);
+  const carregarTodas = useCallback(async () => {
+    const r = await listarAvisosDeTodas();
+    setDeTodas(r.dados?.avisos ?? []);
+  }, []);
+  useEffect(() => {
+    if (todas && aberto) void carregarTodas();
+  }, [todas, aberto, carregarTodas]);
   useEffect(() => {
     void carregar();
     return () => {
@@ -43,6 +66,9 @@ export function Sino() {
   });
 
   async function abrirAviso(a: Aviso) {
+    // Aviso de outra empresa (M7-05): troca para ela antes de abrir.
+    const daAberta = avisos.some((x) => x.id === a.id);
+    if (!daAberta && aoTrocarEmpresa) await aoTrocarEmpresa(a.empresaId);
     await marcarAvisoComoLido(a.id);
     window.location.assign(a.link);
   }
@@ -77,33 +103,52 @@ export function Sino() {
         >
           <div className="flex items-center justify-between px-1 pb-1">
             <span className="text-sm font-semibold">Notificações</span>
-            {avisos.length > 0 && (
+            {avisos.length > 0 && !todas && (
               <Button variant="fantasma" size="pequeno" onClick={() => void todosLidos()}>
                 Marcar todas como lidas
               </Button>
             )}
           </div>
-          {avisos.length === 0 && <p className="px-1 py-3 text-sm text-texto-2">Nada novo por aqui.</p>}
+          {variasEmpresas && (
+            <fieldset className="flex gap-1 px-1 pb-1" aria-label="De quais empresas">
+              <Button
+                size="pequeno"
+                variant={todas ? "fantasma" : "contorno"}
+                onClick={() => setTodas(false)}
+              >
+                Esta empresa
+              </Button>
+              <Button size="pequeno" variant={todas ? "contorno" : "fantasma"} onClick={() => setTodas(true)}>
+                Todas as empresas
+              </Button>
+            </fieldset>
+          )}
+          {(todas ? deTodas.length : avisos.length) === 0 && (
+            <p className="px-1 py-3 text-sm text-texto-2">Nada novo por aqui.</p>
+          )}
           <ul className="grid max-h-96 gap-1 overflow-y-auto">
-            {avisos.map((a) => (
-              <li key={a.id}>
-                <button
-                  type="button"
-                  onClick={() => void abrirAviso(a)}
-                  className="grid w-full gap-0.5 rounded-md px-2 py-2 text-left text-sm hover:bg-suave"
-                >
-                  <span className="text-pretty">{a.texto}</span>
-                  <span className="text-xs text-texto-2">
-                    {new Date(a.criadoEm).toLocaleString("pt-BR", {
-                      day: "2-digit",
-                      month: "2-digit",
-                      hour: "2-digit",
-                      minute: "2-digit",
-                    })}
-                  </span>
-                </button>
-              </li>
-            ))}
+            {(todas ? deTodas : avisos.map((aviso) => ({ aviso, empresaNome: null as string | null }))).map(
+              ({ aviso: a, empresaNome }) => (
+                <li key={a.id}>
+                  <button
+                    type="button"
+                    onClick={() => void abrirAviso(a)}
+                    className="grid w-full gap-0.5 rounded-md px-2 py-2 text-left text-sm hover:bg-suave"
+                  >
+                    {empresaNome && <span className="text-xs font-semibold text-tinta">{empresaNome}</span>}
+                    <span className="text-pretty">{a.texto}</span>
+                    <span className="text-xs text-texto-2">
+                      {new Date(a.criadoEm).toLocaleString("pt-BR", {
+                        day: "2-digit",
+                        month: "2-digit",
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })}
+                    </span>
+                  </button>
+                </li>
+              ),
+            )}
           </ul>
         </div>
       )}

@@ -346,6 +346,7 @@ describe.skipIf(!bancoDisponivel)("vazamento entre empresas em todas as partes (
       fusoHorario: "America/Sao_Paulo",
     });
     await usar(x, admin, "GET", "/conta/empresas");
+    await usar(x, func, "GET", "/conta/avisos");
     await usar(x, admin, "POST", "/conta/empresa-ativa", { empresaId: x.id });
 
     // Espaços, projetos, listas e status.

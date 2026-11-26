@@ -109,7 +109,8 @@ export function emailDeAvisoDeAgente(d: DadosDoAvisoDeAgente) {
           }.`,
         ];
   return {
-    assunto: `O agente ${d.agente} ${d.oQueAconteceu}`,
+    // O e-mail diz de qual empresa é o aviso (M7-05, decisão 0050).
+    assunto: `${d.empresa ? `[${d.empresa}] ` : ""}O agente ${d.agente} ${d.oQueAconteceu}`,
     ...montar(
       `O agente ${d.agente} ${d.oQueAconteceu}`,
       [`Olá, ${d.nome.split(" ")[0]}. Você é a pessoa responsável por este agente no Mago OS.`, ...tarefas],

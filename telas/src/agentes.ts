@@ -48,6 +48,9 @@ export const revogarChave = (agenteId: string, chaveId: string) =>
 
 /** Avisos da própria pessoa (agente sem sinal, passou do limite, desligado). */
 export const listarMeusAvisos = () => pedir<Aviso[]>("GET", "/avisos");
+/** Os avisos de todas as empresas da pessoa (M7-05), com o nome de cada uma. */
+export const listarAvisosDeTodas = () =>
+  pedir<{ avisos: { aviso: Aviso; empresaNome: string }[] }>("GET", "/conta/avisos");
 
 /** Notificações (M3-06): marcar todos como lidos, push neste aparelho e preferências. */
 export const marcarTodosComoLidos = () => pedir<{ ok: true }>("POST", "/avisos/lidos");
