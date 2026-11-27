@@ -25,6 +25,7 @@ import { Campo } from "@/componentes/ui/campo";
 import { Card, CardDescricao, CardTitulo } from "@/componentes/ui/card";
 import { cn } from "@/lib/utils";
 import { listarEtiquetas, pedir } from "@/tarefas";
+import { provavelWhatsapp, telefoneInternacional, telefoneParaLer } from "@/telefones";
 import { Aviso } from "./Acesso";
 import { ConfirmarSegundoFator } from "./DoisFatores";
 import { Etiqueta as EtiquetaDeStatus, Filtro, usePessoas } from "./Tarefas";
@@ -48,21 +49,6 @@ const NOMES_DAS_REDES: Record<Rede, string> = {
 };
 
 /** O telefone no formato internacional: com +, fica; sem, um número brasileiro (10 ou 11 dígitos) ganha o +55. */
-export function telefoneInternacional(texto: string): string {
-  const t = texto.trim();
-  const digitos = t.replace(/\D/g, "");
-  if (t.startsWith("+")) return `+${digitos}`;
-  if (digitos.length === 10 || digitos.length === 11) return `+55${digitos}`;
-  if (digitos.startsWith("55") && (digitos.length === 12 || digitos.length === 13)) return `+${digitos}`;
-  return `+${digitos}`;
-}
-
-/** +5511987654321 → +55 11 98765-4321 (os de fora do Brasil ficam como estão). */
-export function telefoneParaLer(e164: string): string {
-  const m = /^\+55(\d{2})(\d{4,5})(\d{4})$/.exec(e164);
-  return m ? `+55 ${m[1]} ${m[2]}-${m[3]}` : e164;
-}
-
 function textoDoIdentificador(i: Identificador): string {
   if (i.tipo === "telefone") return telefoneParaLer(i.valor);
   if (i.tipo === "rede") return `${NOMES_DAS_REDES[i.rede]}: ${i.valor}`;
@@ -484,7 +470,7 @@ export function FormularioDoContato({
         tipo: "telefone",
         valor: telefoneInternacional(valor),
         principal: !temPrincipal("telefone"),
-        whatsapp: true,
+        whatsapp: provavelWhatsapp(telefoneInternacional(valor)),
         rotulo: null,
       };
     else i = { tipo: "rede", rede: novo.rede, valor, principal: false };
