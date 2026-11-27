@@ -6,6 +6,8 @@
 #   /opt/mago-os/api.env      conexões da API (papéis mago_app e mago_acesso), das migrações (dono) e do login
 #   /opt/mago-os/campainha.env segredo que confere a assinatura da campainha do GitHub (M0-10)
 #   /opt/mago-os/avisos.env   endereços de aviso do Uptime Kuma para o backup e a restauração (M0-12)
+#   /opt/mago-os/evolution.env  a Evolution API (M8-02), quando o Infisical tem MAGO_EVOLUTION_CHAVE,
+#                             MAGO_EVOLUTION_SEGREDO e MAGO_DB_SENHA_EVOLUTION (a API recebe as MAGO_EVOLUTION_*)
 #   /opt/mago-os/auditoria.env chaves do depósito travado da auditoria (M1-09), quando existirem
 # e entra no ghcr.io com o token só de leitura, para baixar a imagem do Mago OS.
 # Uso: /opt/mago-os/bin/segredos.sh   (depois: docker compose up -d --force-recreate, para os containers lerem)
@@ -44,6 +46,8 @@ if AMBIENTE == "teste" and not s.get("MAGO_CAMPAINHA_SEGREDO"):
 if faltam:
     sys.exit(f"Faltam no Infisical ({AMB_INFISICAL}): " + ", ".join(faltam))
 q = lambda v: urllib.parse.quote(v, safe="")
+# Evolution API (M8-02, decisão 0052): só quando as três chaves dela estão no Infisical deste ambiente.
+EVOLUTION = all(s.get(k) for k in ("MAGO_EVOLUTION_CHAVE", "MAGO_EVOLUTION_SEGREDO", "MAGO_DB_SENHA_EVOLUTION"))
 arquivos = {
     ".env": {"POSTGRES_USER": "mago", "POSTGRES_DB": "mago", "POSTGRES_PASSWORD": s["MAGO_DB_SENHA_DONO"]},
     # Os três depósitos do pgBackRest (diário, semanal e mensal) ficam no mesmo bucket, com as mesmas chaves.
@@ -70,6 +74,11 @@ arquivos = {
         **{k: s[k] for k in ("MAGO_COFRE_CHAVE_MESTRA", "MAGO_COFRE_VERSAO", "MAGO_COFRE_CHAVE_ANTERIOR") if s.get(k)},
         # Telegram (M5-01), opcional: sem o token e o segredo do webhook, o bot fica desligado.
         **{k: s[k] for k in ("MAGO_TELEGRAM_TOKEN", "MAGO_TELEGRAM_SEGREDO") if s.get(k)},
+        **({
+            "MAGO_EVOLUTION_URL": "http://evolution:8080", "MAGO_EVOLUTION_CHAVE": s["MAGO_EVOLUTION_CHAVE"],
+            "MAGO_EVOLUTION_SEGREDO": s["MAGO_EVOLUTION_SEGREDO"],
+            "MAGO_EVOLUTION_URL_DOS_AVISOS": "http://api:3000/interno/evolution/avisos",
+        } if EVOLUTION else {}),
         # Rastreio e registros no Grafana Cloud (M6-02), opcionais: sem os três, nada sai do servidor.
         **({
             "OTEL_EXPORTER_OTLP_ENDPOINT": s["GRAFANA_OTLP_ENDPOINT"],
@@ -94,6 +103,25 @@ arquivos = {
     } if s.get("B2_AUDITORIA_KEY_ID") and s.get("B2_AUDITORIA_APPLICATION_KEY") else {},
     # Opcionais: sem eles, o avisar.sh só registra no log.
     "avisos.env": {k: v for k, v in s.items() if k.startswith("MAGO_AVISO_")},
+    # Os nomes das variáveis são os da Evolution 2.3 (conferir no .env.example dela ao trocar de versão). Ela não
+    # guarda as mensagens no banco dela: o Mago OS guarda as que importam (M8-01).
+    "evolution.env": {
+        "SERVER_TYPE": "http", "SERVER_PORT": "8080", "SERVER_URL": "http://evolution:8080",
+        "AUTHENTICATION_API_KEY": s["MAGO_EVOLUTION_CHAVE"],
+        "DATABASE_ENABLED": "true", "DATABASE_PROVIDER": "postgresql",
+        "DATABASE_CONNECTION_URI":
+            f"postgresql://evolution:{q(s['MAGO_DB_SENHA_EVOLUTION'])}@db:5432/evolution?schema=evolution_api",
+        "DATABASE_CONNECTION_CLIENT_NAME": f"mago_os_{AMBIENTE}",
+        "DATABASE_SAVE_DATA_INSTANCE": "true", "DATABASE_SAVE_DATA_NEW_MESSAGE": "false",
+        "DATABASE_SAVE_MESSAGE_UPDATE": "false", "DATABASE_SAVE_DATA_CONTACTS": "false",
+        "DATABASE_SAVE_DATA_CHATS": "false", "DATABASE_SAVE_DATA_LABELS": "false",
+        "DATABASE_SAVE_DATA_HISTORIC": "false",
+        "CACHE_REDIS_ENABLED": "false", "CACHE_LOCAL_ENABLED": "true",
+        "TELEMETRY_ENABLED": "false", "WEBHOOK_GLOBAL_ENABLED": "false",
+        "CONFIG_SESSION_PHONE_CLIENT": "Mago OS", "CONFIG_SESSION_PHONE_NAME": "Chrome",
+        "QRCODE_LIMIT": "30", "DEL_INSTANCE": "false", "LANGUAGE": "pt-BR",
+        "LOG_LEVEL": "ERROR,WARN", "LOG_BAILEYS": "error",
+    } if EVOLUTION else {},
 }
 os.umask(0o077)
 for nome, valores in arquivos.items():

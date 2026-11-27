@@ -49,6 +49,8 @@ import { modelosDeVerdade } from "./contas-de-ia/conversa.ts";
 import { provedoresDeVerdade } from "./contas-de-ia/provedores.ts";
 import { registrarRotasDasContasDeIa } from "./contas-de-ia/rotas.ts";
 import { registrarRotasDosContatos } from "./contatos/rotas.ts";
+import { registrarRotasDosCanais, tratarAvisoDaEvolution } from "./conversas/canais.ts";
+import { type ClienteDaEvolution, criarClienteDaEvolution } from "./conversas/evolution.ts";
 import { registrarRotasDasConversas } from "./conversas/rotas.ts";
 import { registrarRotasDosConvites } from "./convites/rotas.ts";
 import { registrarRotasDosCustos } from "./custos/index.ts";
@@ -112,6 +114,8 @@ const FILA_ESPACO = "anexos-espaco";
 const LIMITE_DE_AVISO_DO_ESPACO = 5 * 1024 * 1024 * 1024;
 /** Mensagens do Telegram (M5-01): o webhook responde na hora e a mensagem é tratada aqui. */
 const FILA_TELEGRAM = "telegram";
+/** Os avisos da Evolution (M8-02): número conectou ou caiu; depois, as mensagens (M8-03). */
+const FILA_EVOLUTION = "evolution";
 const FILA_TELEGRAM_ENTREGAS = "telegram-entregas";
 
 /** O que a API recebe pronto de quem a monta. */
@@ -133,6 +137,8 @@ export interface DependenciasDaApi {
   enviarWebhook?: Enviar;
   /** Nos testes: sem a entrega a cada 5 segundos (o teste chama a entrega quando quer). */
   semRelogioDosWebhooks?: boolean;
+  /** Nos testes: a Evolution falsa (M8-02). Padrão: a de verdade, quando configurada. */
+  evolution?: ClienteDaEvolution;
 }
 
 /** As peças de dentro, para os testes rodarem os trabalhos da fila com a mesma montagem (M6-01). */
@@ -438,6 +444,41 @@ export async function montarApi(config: Config, deps: DependenciasDaApi): Promis
     registrarRotasDaAgenda(app, verificador, banco.pool);
     registrarRotasDosContatos(app, verificador, banco.pool);
     registrarRotasDasConversas(app, verificador, banco.pool);
+    // Canais de WhatsApp pela Evolution API (M8-02): os avisos dela vão para a fila, com novas tentativas.
+    const evolution = config.evolution
+      ? {
+          cliente: deps.evolution ?? criarClienteDaEvolution(config.evolution),
+          segredo: config.evolution.segredo,
+        }
+      : null;
+    registrarRotasDosCanais(app, {
+      verificador,
+      poolApp: banco.pool,
+      evolution,
+      receber: async (aviso) => {
+        await fila.send(
+          FILA_EVOLUTION,
+          { aviso, rastreio: levarRastreio() },
+          { retryLimit: 5, retryDelay: 30, retryBackoff: true },
+        );
+      },
+    });
+    if (evolution)
+      trabalhos.push(async () => {
+        await fila.createQueue(FILA_EVOLUTION);
+        await fila.work<{ aviso: Parameters<typeof tratarAvisoDaEvolution>[1]; rastreio?: RastreioLevado }>(
+          FILA_EVOLUTION,
+          async (lote) => {
+            for (const t of lote)
+              await continuarRastreio(t.data.rastreio, FILA_EVOLUTION, () =>
+                tratarAvisoDaEvolution(
+                  { poolApp: banco.pool, evolution: evolution.cliente, log: app.log },
+                  t.data.aviso,
+                ),
+              );
+          },
+        );
+      });
     trabalhos.push(async () => {
       await fila.createQueue(FILA_AGENDA);
       await fila.schedule(FILA_AGENDA, "* * * * *");

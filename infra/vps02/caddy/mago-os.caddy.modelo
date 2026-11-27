@@ -34,6 +34,11 @@ teste.osmago.com {
 		reverse_proxy 127.0.0.1:3190
 	}
 
+	# Endereços internos (M8-02: os avisos da Evolution): só pela rede do servidor, nunca pela internet.
+	handle /api/interno/* {
+		respond 404
+	}
+
 	# API (núcleo), na cor que estiver no ar (regra de IP no trecho mago_os_api, no começo do arquivo).
 	handle_path /api/* {
 		import mago_os_api

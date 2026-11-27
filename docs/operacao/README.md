@@ -17,6 +17,7 @@ Como publicar, voltar uma versão, restaurar o backup, trocar chaves e o que faz
 | Auditoria: cópia travada, verificação e o que fazer se falhar | [auditoria.md](auditoria.md) | Já existe |
 | Agentes externos: ligar (Hermes, Claude no Mac), trocar a chave e desligar | [agentes.md](agentes.md) | Já existe |
 | Anexos: depósito, antivírus, CORS, espaço e o que fazer se falhar | [anexos.md](anexos.md) | Já existe |
+| WhatsApp pela Evolution API: ligar, reconectar e o que fazer se cair | [evolution.md](evolution.md) | Já existe |
 | Cofre das contas de IA: a chave mestra, como ligar e como trocar | [cofre.md](cofre.md) | Já existe |
 | Rastreio e registros: achar um pedido pelo número, o que sai do servidor, painel e alertas | [rastreio.md](rastreio.md) | Já existe |
 | Plano de incidente: vazamento, invasão, chave vazada, conta tomada e a troca de cada chave | [incidente.md](incidente.md) | Já existe |

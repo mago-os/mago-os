@@ -1,7 +1,7 @@
 # 0052 Evolution API no servidor
 
 - **Data:** 27/11/2026
-- **Situação:** proposta (esperando a aprovação do Sandro)
+- **Situação:** aceita (aprovada pelo Sandro no chat em 27/11/2026, com os dois pontos)
 - **Tarefa:** M8-02
 
 ## Contexto
@@ -23,12 +23,25 @@ A spec do M8, aprovada pelo Sandro em 27/11/2026, põe o WhatsApp primeiro pela 
 4. **Banco:** um banco `evolution` dentro do PostgreSQL de cada ambiente, com um usuário próprio que só enxerga esse banco (sem acesso às tabelas do Mago OS) e com limite de conexões. Entra no backup que já existe (pgBackRest e Backblaze). **Sem Redis:** com poucos números, o cache local dela basta, e é um container a menos. Se ficar lento, volto com a proposta.
 5. **Segredos no Infisical**, por ambiente: a chave da Evolution (`AUTHENTICATION_API_KEY`), a senha do usuário do banco e o segredo dos avisos (abaixo). Gerados por mim com a identidade do Mac, como os outros, e nunca no Git.
 6. **Avisos da Evolution para o Mago OS:** a Evolution manda cada aviso (mensagem chegou, entregue, lida, número conectado ou desconectado, QR code novo) pela rede interna para um endereço do núcleo que só existe nessa rede, com o segredo no cabeçalho. O núcleo confere o segredo, grava o aviso na fila e responde na hora; a fila processa depois, com novas tentativas, para nada se perder. Cada canal do Mago OS vira uma "instância" da Evolution, com o nome igual ao id do canal: o aviso de uma instância só mexe no canal dela, e o canal é de uma empresa só.
-7. **Telemetria desligada** e a tela própria da Evolution (o "manager") desligada: ninguém usa a Evolution a não ser o núcleo, pela API.
+7. **Telemetria desligada.** A tela própria da Evolution (o "manager") fica inacessível, porque a Evolution não tem porta para fora: ninguém usa a Evolution a não ser o núcleo, pela API.
 8. **Aviso de uso (condição da licença):** na tela Configurações > Canais, junto do aviso de risco que a spec já pede, entra "Conexão de WhatsApp pela Evolution API (código aberto, evolution-api)". Com isso a condição 1 da licença fica cumprida. **Pede o seu olho:** o texto e o lugar.
 9. **Tela "Conectar WhatsApp"** (Configurações > Canais, só o administrador, módulo `canais`): nome do canal e equipe que atende; o QR code aparece e se atualiza sozinho até o celular ler; depois mostra o número conectado e a situação, com "desconectar". O número fica preso a uma empresa só (o banco já garante, M8-01). O aviso de risco: a Evolution não é oficial e o WhatsApp pode bloquear o número, principalmente com envio em volume ou para quem não autorizou.
 10. **Número caiu:** aviso aos administradores e à equipe do canal (tela, push e Telegram) e o canal em vermelho. Reconectar é ler o QR de novo.
 11. **Testes com a Evolution falsa:** um servidor falso, nos testes, que imita as respostas e os avisos da Evolution (QR, conectado, desconectado, mensagem). Todos os testes da M8-02 e da M8-03 rodam com ela, sem número de verdade. O número de verdade (decisão 5 da spec) só entra no teste final, em teste.osmago.com.
 12. **Remontagem e backup:** o ensaio de desastre da M6-03 passa a subir a Evolution junto e a conferir o banco dela; o manual de operação ganha "reconectar os números depois de uma remontagem" (as sessões do WhatsApp ficam no banco dela, então em geral voltam sozinhas; se não, cada administrador lê o QR de novo).
+
+## Ajustes ao construir (27/11/2026)
+
+- A Evolution fica no perfil `evolution` do compose: só sobe com `--profile evolution`, para um `docker compose up` do banco nunca a ligar sem os segredos.
+- O nome da instância é `<empresa>_<canal>`: o aviso diz de que empresa é, e o banco (RLS) só deixa mexer no canal daquela empresa. Assim não é preciso uma função que passe por cima do isolamento.
+- O endereço dos avisos é `/interno/evolution/avisos`; o Caddy responde 404 a `/api/interno/*`, e sem o segredo a API responde 401.
+- A tela confere a conexão na própria Evolution a cada pergunta pelo QR: se o aviso de "conectou" se perdeu, o canal fica conectado mesmo assim.
+- O número lido que já está noutro canal (de qualquer empresa) é recusado: o canal fica desconectado, a sessão é encerrada e o administrador é avisado.
+- O QR que expira antes de alguém ler não avisa ninguém; só avisa o número que estava conectado e caiu.
+- Apagar só o canal sem conversas; o que já tem conversas é desconectado.
+- A Evolution não guarda as mensagens no banco dela (só a instância): o Mago OS guarda o que importa (M8-01).
+- No ensaio de desastre, a Evolution nunca sobe (as sessões restauradas tomariam os números da produção); o ensaio confere que o banco dela voltou.
+- Manual de operação: [evolution.md](../operacao/evolution.md).
 
 ## O que foi descartado
 

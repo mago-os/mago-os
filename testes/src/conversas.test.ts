@@ -15,6 +15,7 @@ import {
   RecusaDasConversas,
   receberMensagem,
   registrarRotasDasConversas,
+  registrarRotasDosCanais,
   resolverConversa,
 } from "@mago-os/nucleo/conversas";
 import { comEmpresa } from "@mago-os/nucleo/empresa";
@@ -165,6 +166,7 @@ describe.skipIf(!bancoDisponivel)("conversas com contatos", () => {
     const verificador = criarVerificador(login, poolAcesso, poolApp, catalogoDeModulos());
     registrarRotasDosContatos(app, verificador, poolApp);
     registrarRotasDasConversas(app, verificador, poolApp);
+    registrarRotasDosCanais(app, { verificador, poolApp, evolution: null, receber: async () => {} });
 
     const canal = (empresa: string, autor: string, dados: Parameters<typeof criarCanal>[2]) =>
       comEmpresa(poolApp, empresa, (c) => criarCanal(c, autor, dados));

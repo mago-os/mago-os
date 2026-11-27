@@ -46,6 +46,7 @@ export const TEXTO_DO_PUSH: Record<TipoDeAviso, string> = {
   alerta_de_evento: "Um evento da sua agenda vai começar",
   chave_de_api_vencendo: "Uma chave de API vai vencer",
   webhook_desligado: "Um webhook foi desligado por falhas",
+  canal_desconectado: "Um número de WhatsApp foi desconectado",
 };
 
 /**

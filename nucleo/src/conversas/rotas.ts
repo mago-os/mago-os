@@ -22,7 +22,6 @@ import {
   type AcaoNasConversas,
   buscarConversa,
   conversaAnterior,
-  listarCanais,
   listarConversas,
   mensagensDaConversa,
   quemOlhaConversas,
@@ -202,9 +201,5 @@ export function registrarRotasDasConversas(
         return resposta.code(404).send({ code: "NAO_ENCONTRADO", message: "Contato não encontrado." });
       return feito;
     },
-  );
-
-  app.get("/canais", { preHandler: verificador.exigir("canais", "ver") }, async (pedido) =>
-    naEmpresa(pedido, async (c) => ({ canais: await listarCanais(c) })),
   );
 }

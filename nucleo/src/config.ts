@@ -35,6 +35,13 @@ export interface Config {
    * segredo do webhook, 32 a 256 letras, números, _ ou -), as duas ou nenhuma. Sem elas, o Telegram fica desligado.
    */
   telegram: { token: string; segredo: string } | null;
+  /**
+   * Evolution API (M8-02, decisão 0052). Variáveis MAGO_EVOLUTION_URL (onde a API alcança a Evolution, pela rede
+   * interna), MAGO_EVOLUTION_CHAVE (a chave global dela), MAGO_EVOLUTION_SEGREDO (o segredo dos avisos, 32 a 256
+   * letras, números, _ ou -) e MAGO_EVOLUTION_URL_DOS_AVISOS (onde a Evolution alcança a API), as quatro ou nenhuma.
+   * Sem elas, a conexão de WhatsApp fica desligada (a tela avisa).
+   */
+  evolution: { url: string; chave: string; segredo: string; urlDosAvisos: string } | null;
 }
 
 export interface ConfigDoCofre {
@@ -116,6 +123,7 @@ export function lerConfig(env: Record<string, string | undefined> = process.env)
   const anexos = lerAnexos(env, ambiente, problemas);
   const cofre = lerCofre(env, ambiente, problemas);
   const telegram = lerTelegram(env, problemas);
+  const evolution = lerEvolution(env, problemas);
 
   if (problemas.length > 0) {
     throw new ErroDeConfig(`Configuração inválida:\n- ${problemas.join("\n- ")}`);
@@ -132,7 +140,33 @@ export function lerConfig(env: Record<string, string | undefined> = process.env)
     anexos,
     cofre,
     telegram,
+    evolution,
   };
+}
+
+function lerEvolution(env: Record<string, string | undefined>, problemas: string[]): Config["evolution"] {
+  const url = env.MAGO_EVOLUTION_URL?.trim() ?? "";
+  const chave = env.MAGO_EVOLUTION_CHAVE?.trim() ?? "";
+  const segredo = env.MAGO_EVOLUTION_SEGREDO?.trim() ?? "";
+  const urlDosAvisos = env.MAGO_EVOLUTION_URL_DOS_AVISOS?.trim() ?? "";
+  const todas = [url, chave, segredo, urlDosAvisos];
+  if (todas.every((v) => v === "")) return null;
+  if (todas.some((v) => v === "")) {
+    problemas.push(
+      "Evolution: informe MAGO_EVOLUTION_URL, MAGO_EVOLUTION_CHAVE, MAGO_EVOLUTION_SEGREDO e MAGO_EVOLUTION_URL_DOS_AVISOS juntas",
+    );
+    return null;
+  }
+  for (const [nome, v] of [
+    ["MAGO_EVOLUTION_URL", url],
+    ["MAGO_EVOLUTION_URL_DOS_AVISOS", urlDosAvisos],
+  ] as const)
+    if (!/^https?:\/\/[a-z0-9.-]+(:\d+)?(\/[\w./-]*)?$/i.test(v))
+      problemas.push(`${nome} precisa ser um endereço http(s)`);
+  if (chave.length < 16) problemas.push("MAGO_EVOLUTION_CHAVE precisa ter pelo menos 16 caracteres");
+  if (!/^[A-Za-z0-9_-]{32,256}$/.test(segredo))
+    problemas.push("MAGO_EVOLUTION_SEGREDO precisa ter de 32 a 256 letras, números, _ ou -");
+  return { url, chave, segredo, urlDosAvisos };
 }
 
 function lerTelegram(env: Record<string, string | undefined>, problemas: string[]): Config["telegram"] {

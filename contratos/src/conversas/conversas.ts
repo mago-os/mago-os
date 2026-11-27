@@ -235,3 +235,51 @@ export const ACOES_CONVERSAS = [
   "conversa.apagou",
 ] as const;
 export type AcaoDasConversas = (typeof ACOES_CONVERSAS)[number];
+
+// Canais de WhatsApp pela Evolution API (M8-02, decisão 0052) -----------------------------------------------------
+
+/** Conectar um número de WhatsApp pela Evolution: o nome do canal e a equipe que atende (nula: todos veem). */
+export const PedidoDeCanalDeWhatsapp = Type.Object(
+  { nome: Texto(80, "Nome do canal (ex.: WhatsApp comercial)."), area: Type.Optional(OuNulo(Area)) },
+  { additionalProperties: false },
+);
+export type PedidoDeCanalDeWhatsapp = Static<typeof PedidoDeCanalDeWhatsapp>;
+
+/** Mudar o nome ou a equipe do canal (só o que veio muda). */
+export const PedidoDeEditarCanal = Type.Object(
+  { nome: Type.Optional(Texto(80, "Nome do canal.")), area: Type.Optional(OuNulo(Area)) },
+  { additionalProperties: false, minProperties: 1 },
+);
+export type PedidoDeEditarCanal = Static<typeof PedidoDeEditarCanal>;
+
+/** O QR code para ler no celular, enquanto o número não conectou (imagem PNG em data URL). */
+export const QrDoCanal = Type.Object(
+  {
+    situacao: SituacaoDeCanal,
+    /** Nulo quando já conectou (ou a Evolution ainda não gerou). */
+    qr: OuNulo(Type.String({ pattern: "^data:image/png;base64,[A-Za-z0-9+/=]+$", maxLength: 200000 })),
+    identificador: OuNulo(TelefoneDoCanal),
+  },
+  { additionalProperties: false },
+);
+export type QrDoCanal = Static<typeof QrDoCanal>;
+
+/**
+ * O aviso que a Evolution manda ao núcleo pela rede interna (webhook da instância). Só o formato de fora é conferido
+ * aqui; o "data" de cada evento é lido com cuidado pelo núcleo (a Evolution não é nossa).
+ */
+export const AvisoDaEvolution = Type.Object(
+  {
+    event: Type.String({ minLength: 1, maxLength: 80 }),
+    instance: Type.String({ minLength: 1, maxLength: 120 }),
+    data: Type.Optional(Type.Unknown()),
+  },
+  { description: "Aviso de uma instância da Evolution API." },
+);
+export type AvisoDaEvolution = Static<typeof AvisoDaEvolution>;
+
+/** O aviso de risco e o de uso (condição da licença da Evolution API), na tela de canais. */
+export const AVISO_DE_RISCO_DA_EVOLUTION =
+  "A conexão pela Evolution API não é oficial do WhatsApp. O WhatsApp pode bloquear o número, principalmente com envio em volume ou para quem não autorizou. Use um número que possa correr esse risco.";
+export const AVISO_DE_USO_DA_EVOLUTION =
+  "Conexão de WhatsApp pela Evolution API (código aberto, evolution-api).";
