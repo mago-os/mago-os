@@ -34,6 +34,11 @@ app.osmago.com {
 	route {
 		abort @fora_da_cloudflare
 
+		# Endereços internos (M8-02: os avisos da Evolution): só pela rede do servidor, nunca pela internet.
+		handle /api/interno/* {
+			respond 404
+		}
+
 		handle_path /api/* {
 			import mago_os_producao_api
 		}

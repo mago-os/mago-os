@@ -279,9 +279,15 @@ const paraCanal = (l: LinhaDoCanal): Canal => ({
   criadoEm: l.criado_em.toISOString(),
 });
 
-export async function listarCanais(c: pg.PoolClient): Promise<Canal[]> {
+/** Os canais da empresa (ou só um, pelo id; "para mudar" trava a linha até o fim da transação). */
+export async function listarCanais(
+  c: pg.PoolClient,
+  so: { id: string; paraMudar?: boolean } | null = null,
+): Promise<Canal[]> {
   const r = await c.query<LinhaDoCanal>(
-    `select ${COLUNAS_DO_CANAL} from canais_de_contato where empresa_id = empresa_ativa() order by lower(nome), id`,
+    `select ${COLUNAS_DO_CANAL} from canais_de_contato where empresa_id = empresa_ativa()
+      ${so ? "and id = $1" : ""} order by lower(nome), id ${so?.paraMudar ? "for update" : ""}`,
+    so ? [so.id] : [],
   );
   return r.rows.map(paraCanal);
 }

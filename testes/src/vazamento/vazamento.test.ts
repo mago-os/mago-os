@@ -72,6 +72,8 @@ const FORA: Record<string, string> = {
   "POST /plataforma/empresas/convites": "só o Dono da plataforma",
   "POST /plataforma/empresas/convites/:id/reenviar": "só o Dono da plataforma",
   "POST /plataforma/empresas/convites/:id/cancelar": "só o Dono da plataforma",
+  "POST /interno/evolution/avisos":
+    "sem sessão: só a Evolution, pela rede interna, com o segredo; a empresa vem no nome da instância e o banco confere (canais.test)",
   "GET /openapi.json": "pública, sem nenhum dado (a documentação da API, M7-02)",
   "GET /docs": "pública, sem nenhum dado (a documentação da API, M7-02)",
   "GET /mcp": "o MCP sem sessão só responde que não aceita; o POST /mcp está no roteiro",
@@ -715,6 +717,14 @@ describe.skipIf(!bancoDisponivel)("vazamento entre empresas em todas as partes (
       )
     ).contatoId;
     await usar(x, admin, "GET", "/canais");
+    // Canais de WhatsApp pela Evolution falsa (M8-02): conectar pelo QR, mudar, desconectar e apagar.
+    ids.canalWhatsapp = (
+      await usar(x, admin, "POST", "/canais", { nome: `WhatsApp novo ${M}`, area: "comercial" })
+    ).canal.id;
+    await usar(x, admin, "GET", `/canais/${ids.canalWhatsapp}/qr`);
+    await usar(x, admin, "POST", `/canais/${ids.canalWhatsapp}`, { nome: `WhatsApp ${M} 2` });
+    await usar(x, admin, "POST", `/canais/${ids.canalWhatsapp}/desconectar`);
+    await usar(x, admin, "DELETE", `/canais/${ids.canalWhatsapp}`);
     await usar(x, func, "GET", `/conversas-com-contatos?canal=${ids.canal}&situacoes=esperando_equipe`);
     await usar(x, gestor, "GET", `/conversas-com-contatos/${ids.conversa}`);
     await usar(x, admin, "GET", `/contatos/${ids.contato}/conversas`);

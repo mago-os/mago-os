@@ -405,3 +405,9 @@ O login (`mago_acesso`) não lê papéis nem as regras da plataforma direto. As 
 - `mensagens_com_contatos` guarda o que chegou, o que saiu e as notas internas (`direcao = 'interna'`), com as regras no próprio banco (só o contato escreve o que chega, a entrega só existe no que sai). O índice único por canal e número da mensagem no provedor impede gravar duas vezes; a ordem é a hora que o provedor informa. Os arquivos (foto, documento e áudio) entram na M8-03.
 - `contatos.identificado` (falso no contato criado sozinho pela conversa, até alguém dar o nome) e `contatos.origem_canal_id`. Juntar dois contatos leva as conversas para o que fica.
 - Quem vê o quê é decidido no núcleo, pelo alcance de "conversas.ver" (tudo; equipe: os canais da área da pessoa, os sem equipe e as conversas de que ela é dona; meus: só as dela); o banco isola as empresas.
+
+## 57. Canal desconectado (27/11/2026, M8-02)
+
+- Aviso novo `canal_desconectado` em `avisos` ([decisão 0052](../decisoes/0052-evolution-api.md)): o número de WhatsApp que estava conectado caiu, ou o número lido já está noutro canal. Vai para os administradores e para a equipe do canal (as pessoas da área do canal).
+- O banco da Evolution API (`evolution`, usuário `evolution`) fica no mesmo PostgreSQL de cada ambiente, separado do `mago`, sem nenhuma permissão nas tabelas do Mago OS. Não é migração do Mago OS: é criado pelo `bin/evolution-banco.sh`.
+
