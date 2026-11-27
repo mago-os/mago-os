@@ -514,6 +514,8 @@ export async function editarContato(
     sets.push(`${coluna} = $${valores.length}`);
   };
   if (m.nome !== undefined) set("nome", m.nome.trim());
+  // Quem dá o nome ao contato criado pela conversa o identifica (M8-01).
+  if (m.nome !== undefined) sets.push("identificado = true");
   if (m.papeis !== undefined) set("papeis", m.papeis.length > 0 ? m.papeis : ["outro"]);
   if (m.documento !== undefined) set("documento", m.documento);
   if (m.responsavelId !== undefined) set("responsavel_id", m.responsavelId);
@@ -589,6 +591,19 @@ export async function juntarContatos(
     );
     await c.query(`delete from ${tabela} where contato_id = $1 and empresa_id = empresa_ativa()`, [sai.id]);
   }
+  // As conversas do "sai" passam para o "fica" (M8-01). Se os dois têm uma conversa não resolvida no mesmo canal, a
+  // do "sai" é resolvida (só pode haver uma aberta por contato e canal) e fica na linha do tempo.
+  await c.query(
+    `update conversas_com_contatos s set situacao = 'resolvida', resolvida_em = now(), com_agente = false
+      where s.empresa_id = empresa_ativa() and s.contato_id = $2 and s.situacao <> 'resolvida'
+        and exists (select 1 from conversas_com_contatos f where f.empresa_id = s.empresa_id and f.contato_id = $1
+                      and f.canal_id = s.canal_id and f.situacao <> 'resolvida')`,
+    [fica.id, sai.id],
+  );
+  await c.query(
+    "update conversas_com_contatos set contato_id = $1 where contato_id = $2 and empresa_id = empresa_ativa()",
+    [fica.id, sai.id],
+  );
   // Os contatos já juntados no "sai" passam a levar ao "fica".
   await c.query(
     "update contatos set juntado_em_id = $1 where juntado_em_id = $2 and empresa_id = empresa_ativa()",
@@ -600,7 +615,8 @@ export async function juntarContatos(
     todos.filter((p) => p !== "outro").length > 0 ? todos.filter((p) => p !== "outro") : ["outro"];
   await c.query(
     `update contatos set papeis = $2, documento = coalesce(documento, $3), responsavel_id = coalesce(responsavel_id, $4),
-                         fuso = coalesce(fuso, $5), observacoes = $6, nome = coalesce($7, nome), atualizado_em = now()
+                         fuso = coalesce(fuso, $5), observacoes = $6, nome = coalesce($7, nome),
+                         identificado = identificado or $8 or $7 is not null, atualizado_em = now()
       where id = $1 and empresa_id = empresa_ativa()`,
     [
       fica.id,
@@ -610,6 +626,12 @@ export async function juntarContatos(
       sai.fuso,
       observacoes.slice(0, 10000) || null,
       nome?.trim() || null,
+      (
+        await c.query<{ identificado: boolean }>(
+          "select identificado from contatos where id = $1 and empresa_id = empresa_ativa()",
+          [sai.id],
+        )
+      ).rows[0]?.identificado ?? true,
     ],
   );
   await c.query(

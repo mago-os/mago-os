@@ -34,6 +34,8 @@ import { buscar as buscarNoMago } from "../busca/index.ts";
 import type { FerramentaParaModelo } from "../contas-de-ia/conversa.ts";
 import { eFerramentaDeContatos, executarFerramentaDeContatos } from "../contatos/ferramentas.ts";
 import { quemOlhaContatos, RecusaDosContatos } from "../contatos/servico.ts";
+import { eFerramentaDeConversas, executarFerramentaDeConversas } from "../conversas/ferramentas.ts";
+import { quemOlhaConversas, RecusaDasConversas } from "../conversas/servico.ts";
 import { resumoDeCustos } from "../custos/servico.ts";
 import { comEmpresa } from "../empresa.ts";
 import { idsForaDaEmpresa, NAO_ENCONTRADO_NA_EMPRESA, uuidsDe } from "../ids-da-empresa.ts";
@@ -199,6 +201,11 @@ function fontesDaFerramenta(
       return null;
     case "ver_contato":
       return typeof entrada.contatoId === "string" ? { contatos: [entrada.contatoId] } : null;
+    // Conversas (M8-01): o que o contato escreveu é sempre de fora da empresa, na lista (o começo da última
+    // mensagem) e na conversa aberta.
+    case "listar_conversas":
+    case "ver_conversa":
+      return { textoDeFora: true };
     case "buscar": {
       const rs = ((conteudo as { resultados?: unknown[] })?.resultados ?? []) as {
         tipo?: string;
@@ -533,6 +540,32 @@ async function executarSemMarca(
         return { conteudo };
       } catch (erro) {
         if (erro instanceof RecusaDosContatos) throw new RecusaDaFerramenta(erro.message);
+        throw erro;
+      }
+    }
+    // Conversas com contatos (M8-01): só leitura, com o alcance de quem pediu e o do responsável (o menor dos dois).
+    case "listar_conversas":
+    case "ver_conversa": {
+      if (!eFerramentaDeConversas(nome)) throw new RecusaDaFerramenta("Ferramenta desconhecida.");
+      try {
+        const conteudo = await executarFerramentaDeConversas(
+          {
+            poolApp: ctx.poolApp,
+            empresaId: ctx.empresaId,
+            olham: [
+              quemOlhaConversas(ctx.permissoes, pessoaId, "ver"),
+              ...(responsavel
+                ? [quemOlhaConversas(responsavel.permissoes, responsavel.pessoaId, "ver")]
+                : []),
+            ],
+            limiteDaLista: 100,
+          },
+          nome,
+          entrada,
+        );
+        return { conteudo };
+      } catch (erro) {
+        if (erro instanceof RecusaDasConversas) throw new RecusaDaFerramenta(erro.message);
         throw erro;
       }
     }

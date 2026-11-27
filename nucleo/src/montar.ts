@@ -49,6 +49,7 @@ import { modelosDeVerdade } from "./contas-de-ia/conversa.ts";
 import { provedoresDeVerdade } from "./contas-de-ia/provedores.ts";
 import { registrarRotasDasContasDeIa } from "./contas-de-ia/rotas.ts";
 import { registrarRotasDosContatos } from "./contatos/rotas.ts";
+import { registrarRotasDasConversas } from "./conversas/rotas.ts";
 import { registrarRotasDosConvites } from "./convites/rotas.ts";
 import { registrarRotasDosCustos } from "./custos/index.ts";
 import { registrarRotasDosDadosDaEmpresa } from "./dados-da-empresa/index.ts";
@@ -436,6 +437,7 @@ export async function montarApi(config: Config, deps: DependenciasDaApi): Promis
     // Agenda (M5-07): as rotas e os alertas, na verificação a cada minuto.
     registrarRotasDaAgenda(app, verificador, banco.pool);
     registrarRotasDosContatos(app, verificador, banco.pool);
+    registrarRotasDasConversas(app, verificador, banco.pool);
     trabalhos.push(async () => {
       await fila.createQueue(FILA_AGENDA);
       await fila.schedule(FILA_AGENDA, "* * * * *");

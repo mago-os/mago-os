@@ -1,6 +1,6 @@
 /**
  * Contatos (M7-01, decisão 0045): a lista (busca, filtros por tipo, papel, etiqueta e responsável, visões salvas), a
- * ficha (identificadores, organizações, pessoas ligadas, tarefas), cadastrar e editar com o aviso de repetido, juntar,
+ * ficha (identificadores, organizações, pessoas ligadas, tarefas e, desde a M8-01, as conversas), cadastrar e editar com o aviso de repetido, juntar,
  * arquivar e apagar (com o segundo fator), e os contatos ligados a uma tarefa ou a um projeto.
  */
 import {
@@ -26,6 +26,7 @@ import { Card, CardDescricao, CardTitulo } from "@/componentes/ui/card";
 import { cn } from "@/lib/utils";
 import { listarEtiquetas, pedir } from "@/tarefas";
 import { Aviso } from "./Acesso";
+import { ConversasDoContato } from "./ConversasDoContato";
 import { ConfirmarSegundoFator } from "./DoisFatores";
 import { Etiqueta as EtiquetaDeStatus, Filtro, usePessoas } from "./Tarefas";
 
@@ -1044,6 +1045,8 @@ export function PaginaDoContato({ id }: { id: string }) {
           </a>
         ))}
       </section>
+
+      <ConversasDoContato contatoId={contato.id} />
 
       {(ficha.pode.juntar || ficha.pode.apagar) && (
         <Card className="gap-3">

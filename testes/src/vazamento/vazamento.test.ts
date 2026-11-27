@@ -19,6 +19,7 @@ import { cuidarDosAnexos } from "@mago-os/nucleo/anexos/servico";
 import { enviarPushPendentes, verificarPrazos } from "@mago-os/nucleo/avisos/notificacoes";
 import { type BancoTemporario, criarBancoTemporario } from "@mago-os/nucleo/banco-temporario";
 import { type ChamadaDeFerramenta, modelosFalsos } from "@mago-os/nucleo/contas-de-ia";
+import { criarCanal, receberMensagem } from "@mago-os/nucleo/conversas";
 import { comEmpresa } from "@mago-os/nucleo/empresa";
 import { cuidarDasRotinas } from "@mago-os/nucleo/rotinas";
 import {
@@ -671,6 +672,59 @@ describe.skipIf(!bancoDisponivel)("vazamento entre empresas em todas as partes (
       })
     ).id;
     await usar(x, admin, "GET", "/contatos-visoes");
+
+    // Conversas com contatos (M8-01): um canal e duas mensagens do provedor falso (um telefone cadastrado e um novo),
+    // a caixa, a conversa, a linha do tempo do contato e trocar o contato da conversa.
+    const telefone = x.sigla === "A" ? "+5511977770001" : "+5511977770002";
+    await usar(x, admin, "POST", `/contatos/${ids.contato}`, {
+      identificadores: [
+        { tipo: "email", valor: `contato.${x.sigla.toLowerCase()}@teste.invalid`, principal: true },
+        { tipo: "telefone", valor: telefone, principal: true, whatsapp: true },
+      ],
+    });
+    ids.canal = (
+      await comEmpresa(api.poolApp, x.id, (c) =>
+        criarCanal(c, admin.id, {
+          nome: `WhatsApp ${M}`,
+          provedor: "evolution",
+          identificador: x.sigla === "A" ? "+5511966660001" : "+5511966660002",
+          area: "comercial",
+        }),
+      )
+    ).id;
+    const recebida = await comEmpresa(api.poolApp, x.id, (c) =>
+      receberMensagem(c, {
+        canalId: ids.canal as string,
+        identificador: telefone.slice(1),
+        nomeDoPerfil: `Perfil ${M}`,
+        idNoProvedor: `msg-${M}`,
+        tipo: "texto",
+        texto: `Mensagem do cliente ${M}`,
+      }),
+    );
+    ids.conversa = recebida.conversaId;
+    ids.contatoDaConversa = (
+      await comEmpresa(api.poolApp, x.id, (c) =>
+        receberMensagem(c, {
+          canalId: ids.canal as string,
+          identificador: x.sigla === "A" ? "5521955550001" : "5521955550002",
+          nomeDoPerfil: `Novo ${M}`,
+          tipo: "texto",
+          texto: `Primeira mensagem ${M}`,
+        }),
+      )
+    ).contatoId;
+    await usar(x, admin, "GET", "/canais");
+    await usar(x, func, "GET", `/conversas-com-contatos?canal=${ids.canal}&situacoes=esperando_equipe`);
+    await usar(x, gestor, "GET", `/conversas-com-contatos/${ids.conversa}`);
+    await usar(x, admin, "GET", `/contatos/${ids.contato}/conversas`);
+    await usar(x, admin, "POST", `/conversas-com-contatos/${ids.conversa}/contato`, {
+      contatoId: ids.organizacao,
+    });
+    await usar(x, admin, "POST", `/conversas-com-contatos/${ids.conversa}/contato`, {
+      contatoId: ids.contato,
+    });
+
     await usar(x, gestor, "POST", "/contatos/juntar", { ficaId: ids.contato, saiId: ids.contato2 });
 
     // API pública (M7-02): a chave da empresa, os endereços /v1 e a troca.
@@ -944,6 +998,8 @@ describe.skipIf(!bancoDisponivel)("vazamento entre empresas em todas as partes (
       ],
       ["atualizar_contato", { contatoId: ids.contato, mudancas: { etiquetas: [ids.etiqueta] } }],
       ["ligar_contato", { tarefaId: ids.tarefa, contatos: [ids.contato] }],
+      ["listar_conversas", { canalId: ids.canal, contatoId: ids.contato }],
+      ["ver_conversa", { conversaId: ids.conversa }],
       ["ligar_rotina", { rotinaId: ids.rotina }],
       ["parar_rotina", { rotinaId: ids.rotinaEvento }],
       ["criar_tarefa", { titulo: `Tarefa do agente ${M}`, projetoId: ids.projeto }],
@@ -1047,6 +1103,8 @@ describe.skipIf(!bancoDisponivel)("vazamento entre empresas em todas as partes (
     });
     await chamar("atualizar_contato", { contatoId: ids.contato, mudancas: { etiquetas: [ids.etiqueta] } });
     await chamar("ligar_contato", { tarefaId: ids.tarefa2, contatos: [ids.contato] });
+    await chamar("listar_conversas", { canalId: ids.canal, contatoId: ids.contato });
+    await chamar("ver_conversa", { conversaId: ids.conversa });
     await chamar("soltar_tarefa", { tarefaId: ids.tarefa2, motivo: `Soltei ${M}` });
   }
 

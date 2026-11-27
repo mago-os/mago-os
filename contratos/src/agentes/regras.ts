@@ -145,6 +145,22 @@ export const CATALOGO_DE_ACOES: readonly AcaoDoCatalogo[] = [
     padraoInterno: "executa",
     padraoExterno: "executa",
   },
+  // Conversas com contatos (M8-01, decisão 0051): só leitura, executa. As de ação (mandar mensagem a um contato pede
+  // aprovação por padrão para os externos) entram na M8-11.
+  {
+    acao: "listar_conversas",
+    nome: "Listar conversas com contatos",
+    mudaDados: false,
+    padraoInterno: "executa",
+    padraoExterno: "executa",
+  },
+  {
+    acao: "ver_conversa",
+    nome: "Ver uma conversa com contato",
+    mudaDados: false,
+    padraoInterno: "executa",
+    padraoExterno: "executa",
+  },
   // Agenda (M5-07): ver executa; marcar um evento pede aprovação (manda convite a outras pessoas).
   {
     acao: "ver_agenda",
