@@ -343,6 +343,7 @@ Recebe:
 - `responsaveis` (lista de id ou "sem")
 - `organizacaoId` (id): Identificador (UUID).
 - `situacao` ("ativo" | "arquivado")
+- `repetidos` (boolean)
 - `texto` (string)
 
 Devolve:

@@ -258,6 +258,8 @@ export const FiltroDeContatos = Type.Object(
     organizacaoId: Type.Optional(Id),
     /** Padrão: só os ativos. */
     situacao: Type.Optional(Type.Enum(["ativo", "arquivado"] as const)),
+    /** Só os que têm e-mail, telefone ou rede repetido em outro contato que quem olha vê (pedido do Sandro, 27/11). */
+    repetidos: Type.Optional(Type.Boolean()),
     /** No nome, nos e-mails, telefones e redes e nas observações, sem acento e aceitando erro de digitação. */
     texto: Type.Optional(Type.String({ minLength: 2, maxLength: 200 })),
   },
@@ -329,6 +331,8 @@ export const ResumoDoContato = Type.Object(
     etiquetas: Type.Array(Id),
     responsavelId: OuNulo(Id),
     situacao: SituacaoDeContato,
+    /** Tem e-mail, telefone ou rede igual ao de outro contato ativo que quem olha vê: a lista chama a atenção. */
+    repetido: Type.Boolean(),
   },
   { additionalProperties: false },
 );

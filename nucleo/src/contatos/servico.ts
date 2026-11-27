@@ -164,6 +164,20 @@ interface LinhaDoResumo {
   etiquetas: string[];
   responsavel_id: string | null;
   situacao: SituacaoDeContato;
+  repetido: boolean;
+}
+
+/**
+ * A coluna "repetido" do resumo (pedido do Sandro em 27/11/2026): o contato tem e-mail, telefone ou rede igual ao de
+ * outro contato ativo que todos os que olham veem. Só os que eles veem, para a lista não revelar o cadastro de outro.
+ */
+function colunaDeRepetido(olham: QuemOlhaContatos[], valores: unknown[]): string {
+  const ve = condicaoDosContatos(olham, valores, "k2");
+  return `exists (select 1 from identificadores_de_contato i
+      join identificadores_de_contato j on j.empresa_id = i.empresa_id and j.tipo = i.tipo
+       and lower(j.valor) = lower(i.valor) and j.contato_id <> i.contato_id
+      join contatos k2 on k2.id = j.contato_id and k2.empresa_id = j.empresa_id and k2.situacao = 'ativo'
+     where i.contato_id = k.id and i.empresa_id = k.empresa_id and coalesce(i.rede, '') <> 'site' and ${ve}) as repetido`;
 }
 
 const COLUNAS_DO_RESUMO = `k.id, k.tipo, k.nome, k.papeis, k.responsavel_id, k.situacao,
@@ -188,6 +202,7 @@ const paraResumo = (l: LinhaDoResumo): ResumoDoContato => ({
   etiquetas: l.etiquetas,
   responsavelId: l.responsavel_id,
   situacao: l.situacao,
+  repetido: l.repetido,
 });
 
 /** Só os dígitos de um texto que parece telefone (para achar "+55 11 98765" e "11987"). */
@@ -222,6 +237,8 @@ export async function listarContatos(
   if (filtro.organizacaoId)
     partes.push(`exists (select 1 from contatos_em_organizacoes o where o.pessoa_id = k.id
                   and o.empresa_id = k.empresa_id and o.organizacao_id = ${v(filtro.organizacaoId)}::uuid)`);
+  const repetido = colunaDeRepetido(olham, valores);
+  if (filtro.repetidos) partes.push(repetido.replace(/ as repetido$/, ""));
   let ordem = "lower(k.nome), k.id";
   if (filtro.texto) {
     const Q = `para_busca(${v(filtro.texto)}::text)`;
@@ -238,7 +255,7 @@ export async function listarContatos(
     ordem = `(para_busca(k.nome) like ${contem}) desc, word_similarity(${Q}, para_busca(k.nome)) desc, ${ordem}`;
   }
   const r = await c.query<LinhaDoResumo>(
-    `select ${COLUNAS_DO_RESUMO} from contatos k
+    `select ${COLUNAS_DO_RESUMO}, ${repetido} from contatos k
       where k.empresa_id = empresa_ativa() and ${partes.join(" and ")}
       order by ${ordem} limit ${Math.max(1, Math.min(limite, 500))}`,
     valores,
@@ -274,8 +291,9 @@ export async function resumosDe(
   if (ids.length === 0) return [];
   const valores: unknown[] = [ids];
   const alcance = condicaoDosContatos(olham, valores);
+  const repetido = colunaDeRepetido(olham, valores);
   const r = await c.query<LinhaDoResumo>(
-    `select ${COLUNAS_DO_RESUMO} from contatos k
+    `select ${COLUNAS_DO_RESUMO}, ${repetido} from contatos k
       where k.empresa_id = empresa_ativa() and k.id = any($1::uuid[]) and ${alcance}`,
     valores,
   );
