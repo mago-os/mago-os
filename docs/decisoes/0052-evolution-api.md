@@ -42,6 +42,7 @@ A spec do M8, aprovada pelo Sandro em 27/11/2026, põe o WhatsApp primeiro pela 
 - A Evolution não guarda as mensagens no banco dela (só a instância): o Mago OS guarda o que importa (M8-01).
 - No ensaio de desastre, a Evolution nunca sobe (as sessões restauradas tomariam os números da produção); o ensaio confere que o banco dela voltou.
 - Manual de operação: [evolution.md](../operacao/evolution.md).
+- No teste desde 27/11/2026 (ok do Sandro): imagem `evoapicloud/evolution-api:v2.3.8@sha256:b2712c06caf333c7a7ade3bbbdd25f70c32abb74537ec75f786c24c99675deb3` (de 23/11/2026), presa pelo resumo nos dois compose. Conferido no servidor: os nomes das variáveis do `evolution.env` existem na 2.3.8, a instância aceita o cabeçalho próprio nos avisos, o QR vem como imagem PNG e a conexão como `connecting`/`open`/`close`.
 
 ## O que foi descartado
 
