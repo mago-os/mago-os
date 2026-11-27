@@ -22,29 +22,15 @@ async function autenticadorVirtual(page: Page) {
 /** Chaves de API (M7-02): criar, ver a chave uma vez só, usar pela API pública e revogar. E a página /termos. */
 test.describe("chaves de API", () => {
   test.use({ permissions: ["clipboard-read", "clipboard-write"] });
-  let admin: PessoaDeTeste;
+  // Cada teste com a própria administradora (e empresa): a passkey de um não atrapalha o login do outro.
+  const admins: PessoaDeTeste[] = [];
 
-  test.beforeAll(async () => {
-    admin = await criarPessoaDeTeste(`api-${test.info().project.name}`, {
+  async function entrarComoAdmin(page: Page, rotulo: string): Promise<PessoaDeTeste> {
+    const admin = await criarPessoaDeTeste(`${rotulo}-${test.info().project.name}`, {
       nome: "Alice Api",
       perfil: "administrador",
     });
-  });
-
-  test.afterAll(async () => {
-    const c = new pg.Client({ connectionString: BANCO_DONO });
-    await c.connect();
-    await c.query("delete from tarefas where empresa_id = $1", [admin.empresaId]);
-    await c.query("delete from contadores_da_api where empresa_id = $1", [admin.empresaId]);
-    await c.query("delete from chaves_de_api where empresa_id = $1", [admin.empresaId]);
-    await c.query("delete from webhooks where empresa_id = $1", [admin.empresaId]);
-    await c.query("delete from chaves_de_agente where empresa_id = $1", [admin.empresaId]);
-    await c.query("delete from agentes where empresa_id = $1 and tipo = 'externo'", [admin.empresaId]);
-    await c.end();
-    await admin.limpar();
-  });
-
-  test("cria a chave, usa na API pública e revoga", async ({ page, request }) => {
+    admins.push(admin);
     await autenticadorVirtual(page);
     await ipProprio(page);
     await page.goto("/entrar");
@@ -53,6 +39,26 @@ test.describe("chaves de API", () => {
     await page.getByRole("button", { name: "Entrar", exact: true }).click();
     await page.getByRole("button", { name: "Usar passkey (recomendado)" }).click();
     await expect(page.getByRole("heading", { name: /, Alice!$/ })).toBeVisible();
+    return admin;
+  }
+
+  test.afterAll(async () => {
+    const c = new pg.Client({ connectionString: BANCO_DONO });
+    await c.connect();
+    for (const admin of admins) {
+      await c.query("delete from tarefas where empresa_id = $1", [admin.empresaId]);
+      await c.query("delete from contadores_da_api where empresa_id = $1", [admin.empresaId]);
+      await c.query("delete from chaves_de_api where empresa_id = $1", [admin.empresaId]);
+      await c.query("delete from webhooks where empresa_id = $1", [admin.empresaId]);
+      await c.query("delete from chaves_de_agente where empresa_id = $1", [admin.empresaId]);
+      await c.query("delete from agentes where empresa_id = $1 and tipo = 'externo'", [admin.empresaId]);
+    }
+    await c.end();
+    for (const admin of admins) await admin.limpar();
+  });
+
+  test("cria a chave, usa na API pública e revoga", async ({ page, request }) => {
+    await entrarComoAdmin(page, "api");
 
     await page.goto("/chaves-de-api");
     await page.getByRole("button", { name: "Nova chave" }).click();
@@ -89,16 +95,7 @@ test.describe("chaves de API", () => {
   });
 
   test("webhooks: cria, mostra o segredo uma vez, manda teste e apaga", async ({ page }) => {
-    await autenticadorVirtual(page);
-    await ipProprio(page);
-    await page.goto("/entrar");
-    await page.getByLabel("E-mail").fill(admin.email);
-    await page.getByLabel("Senha").fill(SENHA);
-    await page.getByRole("button", { name: "Entrar", exact: true }).click();
-    const passkey = page.getByRole("button", { name: /Usar passkey/ });
-    await expect(passkey.or(page.getByRole("heading", { name: /, Alice!$/ }))).toBeVisible();
-    if (await passkey.isVisible()) await passkey.click();
-    await expect(page.getByRole("heading", { name: /, Alice!$/ })).toBeVisible();
+    await entrarComoAdmin(page, "wh");
 
     await page.goto("/webhooks");
     await page.getByRole("button", { name: "Novo webhook" }).click();
@@ -119,16 +116,7 @@ test.describe("chaves de API", () => {
   });
 
   test("aviso imediato do agente externo: liga, mostra o segredo e manda teste", async ({ page }) => {
-    await autenticadorVirtual(page);
-    await ipProprio(page);
-    await page.goto("/entrar");
-    await page.getByLabel("E-mail").fill(admin.email);
-    await page.getByLabel("Senha").fill(SENHA);
-    await page.getByRole("button", { name: "Entrar", exact: true }).click();
-    const passkey = page.getByRole("button", { name: /Usar passkey/ });
-    await expect(passkey.or(page.getByRole("heading", { name: /, Alice!$/ }))).toBeVisible();
-    if (await passkey.isVisible()) await passkey.click();
-    await expect(page.getByRole("heading", { name: /, Alice!$/ })).toBeVisible();
+    await entrarComoAdmin(page, "ag");
     const criado = await page.request.post("/api/agentes", {
       data: {
         nome: `Hermes ${test.info().project.name}`,
