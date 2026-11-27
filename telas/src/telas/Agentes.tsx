@@ -16,6 +16,7 @@ import {
   listarAgentes,
   listarChaves,
   revogarChave,
+  tipoDoAgente,
   verAgente,
 } from "@/agentes";
 import { Button } from "@/componentes/ui/button";
@@ -158,6 +159,9 @@ export function Agentes({
               </span>
               <span className="flex flex-wrap items-center gap-2 text-xs text-texto-2">
                 <Situacao situacao={a.situacao} />
+                <span className="rounded-full border border-linha px-2 py-0.5 font-medium">
+                  {tipoDoAgente(a, agentes.find((b) => b.id === a.respondeAId)?.nome)}
+                </span>
                 <span>Responsável: {a.responsavelNome}</span>
                 <span>
                   {a.tarefasAbertas === 1 ? "1 tarefa aberta" : `${a.tarefasAbertas} tarefas abertas`}

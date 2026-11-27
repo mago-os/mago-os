@@ -54,7 +54,13 @@ test.describe("central de agentes", () => {
 
     await page.goto("/agentes");
     // A empresa já nasce com o Coordenador e o Gerente de projetos, pausados (M4-02).
-    await expect(page.getByRole("link", { name: /Coordenador/ })).toBeVisible();
+    await expect(page.getByRole("link", { name: /^Coordenador/ })).toBeVisible();
+    // Cada quadro diz o tipo do agente.
+    await expect(
+      page
+        .getByRole("link", { name: /Gerente de projetos/ })
+        .getByText("Especialista · Gerente de projetos · responde a Coordenador"),
+    ).toBeVisible();
     await page.getByRole("button", { name: "Cadastrar" }).click();
     await page.getByLabel("Nome").fill("Claude no Mac");
     await page.getByLabel("Onde roda (opcional)").fill("Mac da Alice");
@@ -71,6 +77,9 @@ test.describe("central de agentes", () => {
     await expect(page.getByLabel("Responsável")).toHaveValue(/^agente:/);
 
     await page.goto("/agentes");
+    await expect(
+      page.getByRole("link", { name: /Claude no Mac/ }).getByText("Externo", { exact: true }),
+    ).toBeVisible();
     await page.getByRole("link", { name: /Claude no Mac/ }).click();
     await expect(page.getByText("Tarefas abertas")).toBeVisible();
     // Chave: a inteira aparece uma vez; depois, só o começo na lista.
@@ -143,7 +152,7 @@ test.describe("parar todos os agentes", () => {
     await expect(page.getByRole("heading", { name: /, Alice!$/ })).toBeVisible();
 
     await page.goto("/agentes");
-    await expect(page.getByRole("link", { name: /Coordenador/ })).toBeVisible();
+    await expect(page.getByRole("link", { name: /^Coordenador/ })).toBeVisible();
     await page.getByRole("button", { name: "Cadastrar" }).click();
     await expect(page.getByLabel("Pessoa responsável")).toHaveValue(/.+/);
     await page.getByLabel("Nome").fill("Hermes");

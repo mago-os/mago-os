@@ -54,7 +54,7 @@ test.describe("regras e aprovações", () => {
 
     // A lista de agentes cria o Coordenador e o Gerente de projetos no primeiro uso.
     await page.goto("/agentes");
-    await page.getByRole("link", { name: /Coordenador/ }).click();
+    await page.getByRole("link", { name: /^Coordenador/ }).click();
     await expect(page.getByText("Regras", { exact: true })).toBeVisible();
     const atribuir = page.getByLabel("Regra de Atribuir a outra pessoa");
     await expect(atribuir).toHaveValue("pede_aprovacao");
