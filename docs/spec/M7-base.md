@@ -2,7 +2,10 @@
 
 Primeiro marco da Fase 2. Ordem dos marcos aprovada pelo Sandro em 25/11/2026 (M7 Base, M8 Conversas, M9 Vendas, M10
 Financeiro do dia a dia, M11 Atendimento, M12 Agentes mais fortes, M13 Integrações e agenda, M14 Organização, M15
-Plataforma), podendo mudar conforme o uso da 4xpert. Estado em 25/11/2026: **aprovado** pelo Sandro, com
+Plataforma), podendo mudar conforme o uso da 4xpert. **Concluído em 27/11/2026**: o Sandro fez o teste do "Pronto
+quando" em teste.osmago.com (contatos com o Juntar, API pública, webhooks, aviso imediato ao agente, seletor de empresas
+e Termos de Uso) e deu o M7 por testado. A M7-06 segue fora do código: a aprovação do app na Meta está em andamento,
+com o Sandro, e a issue #201 fica aberta até ela sair. Estado em 25/11/2026: **aprovado** pelo Sandro, com
 todas as 7 recomendações.
 
 O M7 constrói o que os marcos seguintes usam: o cadastro único de contatos (WhatsApp, CRM, atendimento e portal
