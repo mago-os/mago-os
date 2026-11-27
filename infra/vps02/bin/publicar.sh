@@ -79,6 +79,11 @@ docker network connect "$REDE_BANCO" "$PROJETO-api-$cor"
 if docker network inspect "${PROJETO}_mago_antivirus" >/dev/null 2>&1; then
   docker network connect "${PROJETO}_mago_antivirus" "$PROJETO-api-$cor"
 fi
+# WhatsApp pela Evolution API (M8-02), quando o container existir: a API entra na rede com o nome "mago-nucleo", que é o
+# endereço dos avisos da Evolution (MAGO_EVOLUTION_URL_DOS_AVISOS).
+if docker network inspect "${PROJETO}_mago_evolution" >/dev/null 2>&1; then
+  docker network connect --alias mago-nucleo "${PROJETO}_mago_evolution" "$PROJETO-api-$cor"
+fi
 
 desistir() {
   log "FALHOU: $1. A versão anterior continua no ar."

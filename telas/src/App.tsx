@@ -7,6 +7,7 @@ import {
   Webhook as IconeDeWebhook,
   KeyRound,
   Landmark,
+  MessageCircle,
   ScrollText,
   Shield,
   Users,
@@ -41,6 +42,7 @@ import { Agentes, PaginaDoAgente } from "./telas/Agentes";
 import { AvisosDeAcesso, MeusAparelhos } from "./telas/Aparelhos";
 import { ListaDeAprovacoes, PaginaDaAprovacao } from "./telas/Aprovacoes";
 import { AvisosDoMago } from "./telas/Avisos";
+import { Canais } from "./telas/Canais";
 import { ChavesDeApi } from "./telas/ChavesDeApi";
 import { ContasDeIa } from "./telas/ContasDeIa";
 import { ListaDeContatos, PaginaDoContato } from "./telas/Contatos";
@@ -266,6 +268,7 @@ export function App() {
           { caminho: "/webhooks", nome: "Webhooks", icone: IconeDeWebhook },
         ]
       : []),
+    ...(pode("canais", "ver") ? [{ caminho: "/canais", nome: "Canais", icone: MessageCircle }] : []),
     ...(pode("seguranca", "ver") || dono
       ? [{ caminho: "/seguranca", nome: "Segurança", icone: Shield }]
       : []),
@@ -387,6 +390,8 @@ export function App() {
     conteudo = <ChavesDeApi euId={sessao.pessoa.id} />;
   else if (caminho === "/webhooks" && menuExtra.some((m) => m.caminho === "/webhooks"))
     conteudo = <Webhooks />;
+  else if (caminho === "/canais" && menuExtra.some((m) => m.caminho === "/canais"))
+    conteudo = <Canais podeCriar={pode("canais", "criar")} />;
   else if (caminho === "/prioridades" && temEmpresaAtiva) conteudo = <Prioridades />;
   else if (caminho === "/dados-da-empresa" && temEmpresaAtiva && pode("empresa", "ver"))
     conteudo = <DadosDaEmpresa />;

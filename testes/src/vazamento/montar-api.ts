@@ -8,6 +8,7 @@ import { criarPoolDoLogin } from "@mago-os/nucleo/acesso";
 import type { BancoTemporario } from "@mago-os/nucleo/banco-temporario";
 import type { Config } from "@mago-os/nucleo/config";
 import { type modelosFalsos, provedoresFalsos } from "@mago-os/nucleo/contas-de-ia";
+import { type EvolutionFalsa, evolutionFalsa } from "@mago-os/nucleo/conversas";
 import { montarApi } from "@mago-os/nucleo/montar";
 import { carteiroFalsoDoTelegram } from "@mago-os/nucleo/telegram";
 import type { FastifyInstance, RouteOptions } from "fastify";
@@ -15,6 +16,7 @@ import pg from "pg";
 
 export const SITE = "https://teste.osmago.invalid";
 export const SEGREDO_DO_WEBHOOK = "segredo-do-webhook-de-teste-com-32-ou-mais";
+export const SEGREDO_DA_EVOLUTION = "segredo-dos-avisos-da-evolution-de-teste-32";
 export const CHAVE_DE_IA = "sk-ant-api03-chave-do-vazamento-Vz01";
 export const TOKEN_DO_PLANO = "sk-ant-oat01-token-do-plano-do-vazamento-Vz02";
 
@@ -33,6 +35,8 @@ export interface ApiDeTeste {
   webhooks: { url: string; cabecalhos: Record<string, string>; corpo: string }[];
   /** O código que o envio falso responde (padrão 200; nulo: sem resposta). */
   respostaDosWebhooks: { codigo: number | null };
+  /** A Evolution falsa (M8-02): os canais de WhatsApp conectam e caem quando o teste manda. */
+  evolution: EvolutionFalsa;
   fechar(): Promise<void>;
 }
 
@@ -50,6 +54,7 @@ export async function montarApiDeTeste(
   });
   carteiro.definirComandos = async () => botLigou();
   const enviados: { fila: string; dados: unknown }[] = [];
+  const evolution = evolutionFalsa();
   const rotas: { metodo: string; url: string }[] = [];
   const emails: { tipo: string; argumentos: unknown[] }[] = [];
   const webhooks: { url: string; cabecalhos: Record<string, string>; corpo: string }[] = [];
@@ -88,6 +93,12 @@ export async function montarApiDeTeste(
     anexos: { deposito: { tipo: "disco" }, clamav: null },
     cofre: { atual: { versao: 1, chave: randomBytes(32) }, anteriores: [], deTeste: true },
     telegram: { token: "123:token-falso", segredo: SEGREDO_DO_WEBHOOK },
+    evolution: {
+      url: "http://evolution.invalid:8080",
+      chave: "chave-falsa-da-evolution-de-teste",
+      segredo: SEGREDO_DA_EVOLUTION,
+      urlDosAvisos: "http://mago-nucleo.invalid:3000/interno/evolution/avisos",
+    },
   };
   const fila = {
     async send(nome: string, dados?: unknown) {
@@ -116,6 +127,7 @@ export async function montarApiDeTeste(
     modelos: opcoes.modelos,
     provedores: provedoresFalsos({ [CHAVE_DE_IA]: ["modelo-bom"], [TOKEN_DO_PLANO]: ["modelo-bom"] }),
     semRelogioDosWebhooks: true,
+    evolution,
     enviarWebhook: async (url, cabecalhos, corpo) => {
       webhooks.push({ url, cabecalhos, corpo });
       const codigo = respostaDosWebhooks.codigo;
@@ -132,6 +144,7 @@ export async function montarApiDeTeste(
   await ligado;
   if (!interno) throw new Error("A API de teste precisa do login ligado");
   return {
+    evolution,
     app,
     rotas,
     poolApp,

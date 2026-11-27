@@ -149,6 +149,8 @@ export const TIPOS_DE_AVISO = [
   "chave_de_api_vencendo",
   // M7-03: um webhook passou 3 dias sem entregar e foi desligado (vai para os administradores).
   "webhook_desligado",
+  // M8-02: um número de WhatsApp conectado caiu (vai para os administradores e a equipe do canal).
+  "canal_desconectado",
 ] as const;
 export const TipoDeAviso = Type.Enum(TIPOS_DE_AVISO);
 export type TipoDeAviso = Static<typeof TipoDeAviso>;

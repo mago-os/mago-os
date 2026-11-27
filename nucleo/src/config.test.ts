@@ -21,7 +21,32 @@ describe("configuração", () => {
       anexos: { deposito: { tipo: "disco" }, clamav: null },
       cofre: { atual: { versao: 1, chave: expect.any(Buffer) }, anteriores: [], deTeste: true },
       telegram: null,
+      evolution: null,
     });
+  });
+
+  it("evolution: as quatro variáveis juntas, com endereço, chave e segredo nos formatos certos", () => {
+    const certas = {
+      MAGO_EVOLUTION_URL: "http://evolution:8080",
+      MAGO_EVOLUTION_CHAVE: "c".repeat(32),
+      MAGO_EVOLUTION_SEGREDO: "s".repeat(40),
+      MAGO_EVOLUTION_URL_DOS_AVISOS: "http://mago-nucleo:3000/interno/evolution/avisos",
+    };
+    expect(lerConfig({ DATABASE_URL: URL, ...certas }).evolution).toEqual({
+      url: "http://evolution:8080",
+      chave: "c".repeat(32),
+      segredo: "s".repeat(40),
+      urlDosAvisos: "http://mago-nucleo:3000/interno/evolution/avisos",
+    });
+    expect(() => lerConfig({ DATABASE_URL: URL, MAGO_EVOLUTION_URL: "http://evolution:8080" })).toThrow(
+      /juntas/,
+    );
+    expect(() => lerConfig({ DATABASE_URL: URL, ...certas, MAGO_EVOLUTION_SEGREDO: "curto" })).toThrow(
+      /MAGO_EVOLUTION_SEGREDO/,
+    );
+    expect(() => lerConfig({ DATABASE_URL: URL, ...certas, MAGO_EVOLUTION_URL: "evolution" })).toThrow(
+      /MAGO_EVOLUTION_URL/,
+    );
   });
 
   it("telegram: token e segredo juntos, nos formatos certos", () => {

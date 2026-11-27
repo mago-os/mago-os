@@ -100,6 +100,13 @@ sql_ensaio() { docker compose -p "$PROJ" -f compose.yaml -f compose.ensaio.yaml 
 sql_producao() { (cd "$PRODUCAO" && docker compose exec -T db psql -U mago -d mago -tAc "$1"); }
 ultima=$(sql_ensaio "select coalesce(to_char(pg_last_xact_replay_timestamp() at time zone 'utc', 'YYYY-MM-DD\"T\"HH24:MI:SS\"Z\"'), 'sem registro')")
 log "Última alteração recuperada: $ultima (desastre em $desastre)"
+# Evolution API (M8-02): o banco dela volta junto (mesmo cluster). A Evolution do ensaio NUNCA sobe: as sessões
+# restauradas tomariam a conexão dos números de verdade da produção.
+if [ "$(sql_producao "select 1 from pg_database where datname = 'evolution'")" = 1 ]; then
+  [ "$(sql_ensaio "select 1 from pg_database where datname = 'evolution'")" = 1 ] \
+    || { log "O banco da Evolution não voltou na restauração"; exit 1; }
+  log "Banco da Evolution restaurado (a Evolution do ensaio não sobe)."
+fi
 
 passo "7. Migrações e API da produção (README, passo 7; sem internet)"
 docker image inspect "$IMAGEM_API" >/dev/null 2>&1 || DOCKER_CONFIG="$ENSAIO/.docker" docker pull "$IMAGEM_API"

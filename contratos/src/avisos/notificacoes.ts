@@ -92,6 +92,8 @@ export const AVISOS_URGENTES_NO_TELEGRAM = [
   "convite_de_evento",
   "evento_mudou",
   "alerta_de_evento",
+  // M8-02: o número de WhatsApp caiu e as mensagens dos clientes deixam de chegar.
+  "canal_desconectado",
 ] as const satisfies readonly TipoDeAviso[];
 
 /**

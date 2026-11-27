@@ -54,12 +54,39 @@ services:
     logging:
       driver: json-file
       options: { max-size: "10m", max-file: "3" }
+  # WhatsApp pela Evolution API (M8-02, decisão 0052). Versão fixa: a 2.4 pede ativação num servidor de licenças de
+  # fora, então só troca com o ok do Sandro. Sem porta para fora: só a API alcança, pela rede mago_evolution (a API
+  # entra nela com o nome "mago-nucleo", para a Evolution mandar os avisos). A rede não é interna porque a Evolution fala com
+  # os servidores do WhatsApp. O banco dela fica no PostgreSQL deste ambiente, com usuário próprio
+  # (bin/evolution-banco.sh), e entra no backup junto.
+  evolution:
+    image: evoapicloud/evolution-api:v2.3.8
+    # Só sobe de propósito: docker compose --profile evolution up -d evolution.
+    profiles: [evolution]
+    restart: unless-stopped
+    env_file: [evolution.env]
+    depends_on:
+      db: { condition: service_healthy }
+    networks: [mago_evolution, mago_db]
+    deploy:
+      resources:
+        limits: { memory: 512M, cpus: "0.5" }
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8080/ >/dev/null 2>&1 || exit 1"]
+      interval: 60s
+      timeout: 10s
+      start_period: 60s
+      retries: 3
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
 volumes:
   db-data:
   pgbackrest-log:
   clamav-db:
 networks:
   mago_antivirus: {}
+  mago_evolution: {}
   mago_db:
     internal: true
   mago_backup: {}
