@@ -411,3 +411,8 @@ O login (`mago_acesso`) não lê papéis nem as regras da plataforma direto. As 
 - Aviso novo `canal_desconectado` em `avisos` ([decisão 0052](../decisoes/0052-evolution-api.md)): o número de WhatsApp que estava conectado caiu, ou o número lido já está noutro canal. Vai para os administradores e para a equipe do canal (as pessoas da área do canal).
 - O banco da Evolution API (`evolution`, usuário `evolution`) fica no mesmo PostgreSQL de cada ambiente, separado do `mago`, sem nenhuma permissão nas tabelas do Mago OS. Não é migração do Mago OS: é criado pelo `bin/evolution-banco.sh`.
 
+## 58. Mensagens pela Evolution (27/11/2026, M8-03)
+
+- `arquivos_de_conversa` guarda a foto, o documento ou o áudio de uma mensagem ([decisão 0053](../decisoes/0053-mensagens-pela-evolution.md)), um por mensagem, com a situação (disponivel, bloqueado, grande_demais, nao_baixado ou apagado). Só o disponível tem caminho no depósito (`conversas/<empresa>/<arquivo>`, no bucket dos anexos). `apagar_em` (180 dias) é o prazo: a verificação diária apaga o arquivo e deixa o registro como "apagado"; `empresas_com_arquivos_de_conversa_vencidos()` dá a ela só os ids das empresas.
+- `mensagens_com_contatos.enviada_ao_provedor_em` e `tentativas` contam o ritmo de envio de cada número e as tentativas; `canais_de_contato.limite_por_minuto` (20) e `limite_por_hora` (300) são o ritmo, e `segurando_avisado_em` limita o aviso `canal_segurando_mensagens` a um por hora.
+

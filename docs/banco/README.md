@@ -118,6 +118,19 @@ erDiagram
     timestamp_with_time_zone enviada_em
     timestamp_with_time_zone atualizada_em
   }
+  arquivos_de_conversa {
+    uuid id PK
+    uuid empresa_id FK
+    uuid mensagem_id
+    text nome
+    text tipo
+    bigint tamanho
+    text situacao
+    text caminho
+    text achado_do_antivirus
+    timestamp_with_time_zone criado_em
+    timestamp_with_time_zone apagar_em
+  }
   arquivos_do_telegram {
     uuid id PK
     uuid empresa_id FK
@@ -182,6 +195,9 @@ erDiagram
     uuid criado_por
     timestamp_with_time_zone criado_em
     timestamp_with_time_zone atualizado_em
+    integer limite_por_minuto
+    integer limite_por_hora
+    timestamp_with_time_zone segurando_avisado_em
   }
   chaves_de_agente {
     uuid id PK
@@ -584,6 +600,8 @@ erDiagram
     boolean pelo_celular
     text entrega
     text motivo_da_falha
+    timestamp_with_time_zone enviada_ao_provedor_em
+    integer tentativas
   }
   mensagens_de_conversa {
     uuid id PK
@@ -1028,6 +1046,7 @@ erDiagram
   empresas ||--o{ anexos : "empresa_id"
   empresas ||--o{ aprovacoes : "empresa_id"
   empresas ||--o{ aprovacoes_no_telegram : "empresa_id"
+  empresas ||--o{ arquivos_de_conversa : "empresa_id"
   empresas ||--o{ arquivos_do_telegram : "empresa_id"
   empresas ||--o{ arquivos_para_apagar : "empresa_id"
   empresas ||--o{ assinaturas_de_push : "empresa_id"
@@ -1292,6 +1311,26 @@ Isolamento por empresa (Row Level Security): ligado e forçado.
 | enviada_em | timestamp with time zone | sim | `now()` | sistema | Quando foi mandada. |
 | atualizada_em | timestamp with time zone | não |  | sistema | Quando a mensagem foi editada com a decisão, sem os botões (vazio: o pedido ainda está aberto). |
 
+### arquivos_de_conversa
+
+Foto, documento ou áudio de uma mensagem com contato (M8-03), conferido pelo antivírus e apagado depois do prazo.
+
+Isolamento por empresa (Row Level Security): ligado e forçado.
+
+| Coluna | Tipo | Obrigatória | Padrão | Marca | Descrição |
+| --- | --- | --- | --- | --- | --- |
+| id | uuid | sim | `uuidv7()` | sistema | Identificador. Chave primária. |
+| empresa_id | uuid | sim |  | sistema | Empresa da conversa. Aponta para empresas.id. |
+| mensagem_id | uuid | sim |  | sistema | A mensagem do arquivo. |
+| nome | text | sim |  | pessoal | Nome do arquivo (limpo antes de gravar). |
+| tipo | text | sim |  | sistema | Tipo do arquivo (MIME). |
+| tamanho | bigint | não |  | sistema | Tamanho em bytes. |
+| situacao | text | sim |  | sistema | disponivel, bloqueado (antivírus), grande_demais (mais de 25 MB), nao_baixado ou apagado (prazo). |
+| caminho | text | não |  | sistema | Onde está no depósito (só o disponível). |
+| achado_do_antivirus | text | não |  | sistema | O que o antivírus achou. |
+| criado_em | timestamp with time zone | sim | `now()` | sistema | Quando chegou ou foi enviado. |
+| apagar_em | timestamp with time zone | sim | `(now() + '180 days'::interval)` | sistema | Quando o arquivo é apagado (o texto da mensagem fica). |
+
 ### arquivos_do_telegram
 
 Arquivos mandados pelo Telegram, esperando uma tarefa por até 24 horas (M5-03). Ao anexar, viram anexo comum.
@@ -1398,6 +1437,9 @@ Isolamento por empresa (Row Level Security): ligado e forçado.
 | criado_por | uuid | sim |  | sistema | Quem cadastrou o canal. |
 | criado_em | timestamp with time zone | sim | `now()` | sistema | Quando foi cadastrado. |
 | atualizado_em | timestamp with time zone | sim | `now()` | sistema | A última mudança. |
+| limite_por_minuto | integer | sim | `20` | empresa | Mensagens que o número manda por minuto, no máximo. |
+| limite_por_hora | integer | sim | `300` | empresa | Mensagens que o número manda por hora, no máximo. |
+| segurando_avisado_em | timestamp with time zone | não |  | sistema | A última vez que o administrador foi avisado de que o ritmo segurou mensagens (no máximo uma por hora). |
 
 ### chaves_de_agente
 
@@ -2031,6 +2073,8 @@ Isolamento por empresa (Row Level Security): ligado e forçado.
 | pelo_celular | boolean | sim | `false` | sistema | Alguém respondeu direto no celular do número (não pela caixa). |
 | entrega | text | não |  | sistema | No que sai: pendente, enviada, entregue, lida ou falhou. |
 | motivo_da_falha | text | não |  | sistema | O motivo que o provedor deu para a falha. |
+| enviada_ao_provedor_em | timestamp with time zone | não |  | sistema | No que sai: quando foi entregue à Evolution (conta para o ritmo de envio do número). |
+| tentativas | integer | sim | `0` | sistema | No que sai: quantas vezes tentou mandar. |
 
 ### mensagens_de_conversa
 

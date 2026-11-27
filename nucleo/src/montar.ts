@@ -50,6 +50,7 @@ import { provedoresDeVerdade } from "./contas-de-ia/provedores.ts";
 import { registrarRotasDasContasDeIa } from "./contas-de-ia/rotas.ts";
 import { registrarRotasDosContatos } from "./contatos/rotas.ts";
 import { registrarRotasDosCanais, tratarAvisoDaEvolution } from "./conversas/canais.ts";
+import { cuidarDoPrazoDosArquivos, enviarPendente, registrarRotasDoEnvio } from "./conversas/envio.ts";
 import { type ClienteDaEvolution, criarClienteDaEvolution } from "./conversas/evolution.ts";
 import { registrarRotasDasConversas } from "./conversas/rotas.ts";
 import { registrarRotasDosConvites } from "./convites/rotas.ts";
@@ -116,6 +117,10 @@ const LIMITE_DE_AVISO_DO_ESPACO = 5 * 1024 * 1024 * 1024;
 const FILA_TELEGRAM = "telegram";
 /** Os avisos da Evolution (M8-02): número conectou ou caiu; depois, as mensagens (M8-03). */
 const FILA_EVOLUTION = "evolution";
+/** As mensagens que saem pela Evolution (M8-03), com o ritmo do número. */
+const FILA_EVOLUTION_ENVIOS = "evolution-envios";
+/** O prazo de 180 dias dos arquivos das conversas (M8-03), uma vez por dia. */
+const FILA_PRAZO_DAS_CONVERSAS = "conversas-prazo";
 const FILA_TELEGRAM_ENTREGAS = "telegram-entregas";
 
 /** O que a API recebe pronto de quem a monta. */
@@ -463,6 +468,59 @@ export async function montarApi(config: Config, deps: DependenciasDaApi): Promis
         );
       },
     });
+    // Mandar mensagens (M8-03): a rota cria a mensagem pendente e a fila manda, respeitando o ritmo do número.
+    const enfileirarEnvio = async (empresaId: string, mensagemId: string, segundos = 0) => {
+      await fila.send(
+        FILA_EVOLUTION_ENVIOS,
+        { empresaId, mensagemId, rastreio: levarRastreio() },
+        { retryLimit: 3, retryDelay: 30, ...(segundos > 0 ? { startAfter: segundos } : {}) },
+      );
+    };
+    registrarRotasDoEnvio(app, {
+      verificador,
+      poolApp: banco.pool,
+      arquivos: servicosDosAnexos,
+      enfileirar: (empresaId, mensagemId) => enfileirarEnvio(empresaId, mensagemId),
+    });
+    if (evolution)
+      trabalhos.push(async () => {
+        await fila.createQueue(FILA_EVOLUTION_ENVIOS);
+        await fila.work<{ empresaId: string; mensagemId: string; rastreio?: RastreioLevado }>(
+          FILA_EVOLUTION_ENVIOS,
+          async (lote) => {
+            for (const t of lote) {
+              const esperar = await continuarRastreio(t.data.rastreio, FILA_EVOLUTION_ENVIOS, () =>
+                enviarPendente(
+                  {
+                    poolApp: banco.pool,
+                    evolution: evolution.cliente,
+                    arquivos: servicosDosAnexos,
+                    log: app.log,
+                  },
+                  t.data.empresaId,
+                  t.data.mensagemId,
+                ),
+              );
+              if (esperar !== null) await enfileirarEnvio(t.data.empresaId, t.data.mensagemId, esperar);
+            }
+          },
+        );
+      });
+    if (servicosDosAnexos)
+      trabalhos.push(async () => {
+        await fila.createQueue(FILA_PRAZO_DAS_CONVERSAS);
+        await fila.schedule(FILA_PRAZO_DAS_CONVERSAS, "40 4 * * *");
+        await fila.work(FILA_PRAZO_DAS_CONVERSAS, () =>
+          continuarRastreio(null, FILA_PRAZO_DAS_CONVERSAS, async () => {
+            const n = await cuidarDoPrazoDosArquivos(banco.pool, servicosDosAnexos, app.log);
+            if (n > 0)
+              app.log.info(
+                { evento: "conversas.arquivos_vencidos", n },
+                "Arquivos das conversas apagados pelo prazo",
+              );
+          }),
+        );
+      });
     if (evolution)
       trabalhos.push(async () => {
         await fila.createQueue(FILA_EVOLUTION);
@@ -472,7 +530,12 @@ export async function montarApi(config: Config, deps: DependenciasDaApi): Promis
             for (const t of lote)
               await continuarRastreio(t.data.rastreio, FILA_EVOLUTION, () =>
                 tratarAvisoDaEvolution(
-                  { poolApp: banco.pool, evolution: evolution.cliente, log: app.log },
+                  {
+                    poolApp: banco.pool,
+                    evolution: evolution.cliente,
+                    arquivos: servicosDosAnexos,
+                    log: app.log,
+                  },
                   t.data.aviso,
                 ),
               );

@@ -1,7 +1,7 @@
 # 0053 Receber e enviar mensagens pela Evolution
 
 - **Data:** 27/11/2026
-- **Situação:** proposta (esperando a aprovação do Sandro)
+- **Situação:** aceita (aprovada pelo Sandro no chat em 27/11/2026, com os três pontos como propostos)
 - **Tarefa:** M8-03
 
 ## Contexto
@@ -53,6 +53,15 @@ telefone em `remoteJidAlt`.
 7. **Testes com a Evolution falsa:** chegou (cada tipo), saiu pelo celular, repetida, fora de ordem, grupo ignorado,
    LID, arquivo limpo e com vírus, envio com entrega e falha, tentar de novo, ritmo segurando e liberando, e o
    isolamento entre empresas (aviso com a instância de uma empresa nunca grava na outra).
+
+## Ajustes ao construir (27/11/2026)
+
+- O arquivo que chega é baixado da Evolution pelo próprio trabalho da fila e conferido pelo antivírus em memória (até 25 MB), sem passar pela quarentena dos anexos: só o limpo vai para o depósito (`conversas/<empresa>/<arquivo>`). Sem o depósito configurado, ou se a Evolution não entregar, o arquivo fica "não baixado".
+- O arquivo que sai vai no próprio pedido (base64, até 25 MB), passa pelo antivírus antes de virar mensagem e fica no depósito para a fila mandar. A tela de enviar é a caixa única (M8-04).
+- Vídeo entra como "tipo de mensagem ainda não mostrado aqui", com a legenda; reação, apagar e editar não viram mensagem.
+- A falha da Evolution volta para a fila em 30 e 60 segundos; na terceira, a mensagem fica "falhou" com o motivo. Número desconectado falha na hora, com o motivo.
+- A mensagem do celular conta no ritmo do número (o WhatsApp vê o volume todo).
+- Endereços: `POST /conversas-com-contatos/:id/mensagens`, `POST .../mensagens/:mensagemId/tentar` e `GET .../arquivos/:arquivoId` (link de 5 minutos).
 
 ## O que foi descartado
 

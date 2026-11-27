@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { daInstancia, nomeDaInstancia } from "./canais.ts";
-import { CABECALHO_DO_SEGREDO, criarClienteDaEvolution, ErroDaEvolution, numeroDoJid } from "./evolution.ts";
+import {
+  CABECALHO_DO_SEGREDO,
+  criarClienteDaEvolution,
+  daInstancia,
+  ErroDaEvolution,
+  nomeDaInstancia,
+  numeroDoJid,
+} from "./evolution.ts";
 
 const E = "0193a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5b";
 const C = "0193a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5c";

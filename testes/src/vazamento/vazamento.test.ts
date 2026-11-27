@@ -704,7 +704,7 @@ describe.skipIf(!bancoDisponivel)("vazamento entre empresas em todas as partes (
         texto: `Mensagem do cliente ${M}`,
       }),
     );
-    ids.conversa = recebida.conversaId;
+    ids.conversaComContato = recebida.conversaId;
     ids.contatoDaConversa = (
       await comEmpresa(api.poolApp, x.id, (c) =>
         receberMensagem(c, {
@@ -726,14 +726,47 @@ describe.skipIf(!bancoDisponivel)("vazamento entre empresas em todas as partes (
     await usar(x, admin, "POST", `/canais/${ids.canalWhatsapp}/desconectar`);
     await usar(x, admin, "DELETE", `/canais/${ids.canalWhatsapp}`);
     await usar(x, func, "GET", `/conversas-com-contatos?canal=${ids.canal}&situacoes=esperando_equipe`);
-    await usar(x, gestor, "GET", `/conversas-com-contatos/${ids.conversa}`);
+    await usar(x, gestor, "GET", `/conversas-com-contatos/${ids.conversaComContato}`);
     await usar(x, admin, "GET", `/contatos/${ids.contato}/conversas`);
-    await usar(x, admin, "POST", `/conversas-com-contatos/${ids.conversa}/contato`, {
+    await usar(x, admin, "POST", `/conversas-com-contatos/${ids.conversaComContato}/contato`, {
       contatoId: ids.organizacao,
     });
-    await usar(x, admin, "POST", `/conversas-com-contatos/${ids.conversa}/contato`, {
+    await usar(x, admin, "POST", `/conversas-com-contatos/${ids.conversaComContato}/contato`, {
       contatoId: ids.contato,
     });
+    // Mensagens pela Evolution (M8-03): mandar texto e foto, o link do arquivo e mandar de novo a que falhou.
+    ids.mensagemQueSai = (
+      await usar(x, admin, "POST", `/conversas-com-contatos/${ids.conversaComContato}/mensagens`, {
+        texto: `Resposta ${M}`,
+      })
+    ).mensagemId;
+    await usar(x, admin, "POST", `/conversas-com-contatos/${ids.conversaComContato}/mensagens`, {
+      texto: `Foto ${M}`,
+      arquivo: {
+        nome: `foto-${m}.png`,
+        tipo: "image/png",
+        base64:
+          "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==",
+      },
+    });
+    const comFoto = await usar(x, admin, "GET", `/conversas-com-contatos/${ids.conversaComContato}`);
+    ids.arquivoDaConversa = comFoto.mensagens.find((y: { arquivo: unknown }) => y.arquivo)?.arquivo.id;
+    await usar(
+      x,
+      admin,
+      "GET",
+      `/conversas-com-contatos/${ids.conversaComContato}/arquivos/${ids.arquivoDaConversa}`,
+    );
+    await dono.query(
+      "update mensagens_com_contatos set entrega = 'falhou', motivo_da_falha = 'teste' where id = $1",
+      [ids.mensagemQueSai],
+    );
+    await usar(
+      x,
+      admin,
+      "POST",
+      `/conversas-com-contatos/${ids.conversaComContato}/mensagens/${ids.mensagemQueSai}/tentar`,
+    );
 
     await usar(x, gestor, "POST", "/contatos/juntar", { ficaId: ids.contato, saiId: ids.contato2 });
 
@@ -1009,7 +1042,7 @@ describe.skipIf(!bancoDisponivel)("vazamento entre empresas em todas as partes (
       ["atualizar_contato", { contatoId: ids.contato, mudancas: { etiquetas: [ids.etiqueta] } }],
       ["ligar_contato", { tarefaId: ids.tarefa, contatos: [ids.contato] }],
       ["listar_conversas", { canalId: ids.canal, contatoId: ids.contato }],
-      ["ver_conversa", { conversaId: ids.conversa }],
+      ["ver_conversa", { conversaId: ids.conversaComContato }],
       ["ligar_rotina", { rotinaId: ids.rotina }],
       ["parar_rotina", { rotinaId: ids.rotinaEvento }],
       ["criar_tarefa", { titulo: `Tarefa do agente ${M}`, projetoId: ids.projeto }],
@@ -1114,7 +1147,7 @@ describe.skipIf(!bancoDisponivel)("vazamento entre empresas em todas as partes (
     await chamar("atualizar_contato", { contatoId: ids.contato, mudancas: { etiquetas: [ids.etiqueta] } });
     await chamar("ligar_contato", { tarefaId: ids.tarefa2, contatos: [ids.contato] });
     await chamar("listar_conversas", { canalId: ids.canal, contatoId: ids.contato });
-    await chamar("ver_conversa", { conversaId: ids.conversa });
+    await chamar("ver_conversa", { conversaId: ids.conversaComContato });
     await chamar("soltar_tarefa", { tarefaId: ids.tarefa2, motivo: `Soltei ${M}` });
   }
 

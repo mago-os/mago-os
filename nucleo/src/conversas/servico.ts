@@ -195,6 +195,7 @@ interface LinhaDaMensagem {
   pelo_celular: boolean;
   entrega: MensagemDaConversa["entrega"];
   motivo_da_falha: string | null;
+  arquivo: MensagemDaConversa["arquivo"];
 }
 
 const paraMensagem = (l: LinhaDaMensagem): MensagemDaConversa => ({
@@ -210,6 +211,7 @@ const paraMensagem = (l: LinhaDaMensagem): MensagemDaConversa => ({
   peloCelular: l.pelo_celular,
   entrega: l.entrega,
   motivoDaFalha: l.motivo_da_falha,
+  arquivo: l.arquivo,
 });
 
 /** As últimas mensagens da conversa (já conferida), na ordem em que aconteceram. */
@@ -220,9 +222,12 @@ export async function mensagensDaConversa(
 ): Promise<MensagemDaConversa[]> {
   const r = await c.query<LinhaDaMensagem>(
     `select * from (
-       select id, conversa_id, direcao, autor, autor_pessoa_id, autor_agente_id, tipo, texto, enviada_em,
-              pelo_celular, entrega, motivo_da_falha
-         from mensagens_com_contatos where conversa_id = $1 and empresa_id = empresa_ativa()
+       select m.id, m.conversa_id, m.direcao, m.autor, m.autor_pessoa_id, m.autor_agente_id, m.tipo, m.texto,
+              m.enviada_em, m.pelo_celular, m.entrega, m.motivo_da_falha,
+              (select json_build_object('id', a.id, 'nome', a.nome, 'tipo', a.tipo, 'tamanho', a.tamanho,
+                                        'situacao', a.situacao)
+                 from arquivos_de_conversa a where a.mensagem_id = m.id and a.empresa_id = m.empresa_id) as arquivo
+         from mensagens_com_contatos m where m.conversa_id = $1 and m.empresa_id = empresa_ativa()
         order by enviada_em desc, id desc limit ${Math.max(1, Math.min(limite, 1000))}) m
       order by enviada_em, id`,
     [conversaId],
@@ -359,6 +364,8 @@ function identificadorDoContato(provedor: ProvedorDeCanal, bruto: string): strin
       throw new RecusaDasConversas("Visitante do site sem identificação válida.");
     return bruto;
   }
+  // O WhatsApp às vezes esconde o telefone atrás de um endereço LID (M8-03): sem o telefone, fica o LID.
+  if (/^lid:[0-9]{5,40}$/.test(bruto)) return bruto;
   const telefone = telefoneInternacional(bruto);
   if (!telefone) throw new RecusaDasConversas("Telefone de quem escreveu fora do formato.");
   return telefone;
@@ -380,7 +387,7 @@ export async function receberMensagem(c: pg.PoolClient, m: MensagemQueChegou): P
   ).rows[0];
   if (!canal) throw new RecusaDasConversas("Canal não encontrado.");
   const identificador = identificadorDoContato(canal.provedor, m.identificador);
-  const formas = canal.provedor === "site" ? [identificador] : formasDoTelefone(identificador);
+  const formas = identificador.startsWith("+") ? formasDoTelefone(identificador) : [identificador];
   const enviadaEm = m.enviadaEm ?? new Date().toISOString();
 
   // Duas mensagens do mesmo número ao mesmo tempo não criam dois contatos nem duas conversas.
@@ -429,7 +436,7 @@ export async function receberMensagem(c: pg.PoolClient, m: MensagemQueChegou): P
     contatoId = ultima.contato_id;
     naFolga = ultima.situacao === "resolvida";
   } else {
-    const achado = canal.provedor === "site" ? null : await acharContatoPeloTelefone(c, identificador);
+    const achado = identificador.startsWith("+") ? await acharContatoPeloTelefone(c, identificador) : null;
     if (achado) {
       contatoId = achado.contatoId;
     } else {
@@ -457,6 +464,10 @@ export async function receberMensagem(c: pg.PoolClient, m: MensagemQueChegou): P
     }
   }
 
+  if (m.doCelular) {
+    const mensagemId = await gravarDoCelular(c, conversaId, m, enviadaEm);
+    return { conversaId, contatoId, mensagemId, contatoNovo, conversaNova, naFolga };
+  }
   const gravada = await c.query<{ id: string }>(
     `insert into mensagens_com_contatos (empresa_id, conversa_id, canal_id, direcao, autor, tipo, texto,
                                          id_no_provedor, enviada_em)
@@ -482,6 +493,52 @@ export async function receberMensagem(c: pg.PoolClient, m: MensagemQueChegou): P
 }
 
 /**
+ * A mensagem que o próprio número mandou (M8-03, decisão 0053 item 4): entra como "saiu", "pelo celular". Se a caixa
+ * acabou de mandar o mesmo texto e a Evolution ainda não devolveu o número, junta-se a ela em vez de repetir.
+ */
+async function gravarDoCelular(
+  c: pg.PoolClient,
+  conversaId: string,
+  m: MensagemQueChegou,
+  enviadaEm: string,
+): Promise<string | null> {
+  const texto = m.texto?.trim() || null;
+  if (m.idNoProvedor && texto) {
+    const junta = await c.query<{ id: string }>(
+      `update mensagens_com_contatos set id_no_provedor = $3, entrega = case when entrega = 'pendente' then 'enviada' else entrega end
+        where id = (select id from mensagens_com_contatos
+                     where empresa_id = empresa_ativa() and conversa_id = $1 and direcao = 'saiu'
+                       and id_no_provedor is null and texto = $2 and not pelo_celular
+                       and recebida_em > now() - interval '2 minutes'
+                     order by recebida_em limit 1)
+        returning id`,
+      [conversaId, texto, m.idNoProvedor],
+    );
+    if (junta.rows[0]) return null;
+  }
+  const gravada = await c.query<{ id: string }>(
+    `insert into mensagens_com_contatos (empresa_id, conversa_id, canal_id, direcao, autor, tipo, texto,
+                                         id_no_provedor, enviada_em, pelo_celular, entrega, enviada_ao_provedor_em)
+     values (empresa_ativa(), $1, $2, 'saiu', 'pessoa', $3, $4, $5, $6, true, 'enviada', $6)
+     on conflict (canal_id, id_no_provedor) where id_no_provedor is not null do nothing
+     returning id`,
+    [conversaId, m.canalId, m.tipo, texto, m.idNoProvedor ?? null, enviadaEm],
+  );
+  const mensagemId = gravada.rows[0]?.id ?? null;
+  if (mensagemId)
+    await c.query(
+      `update conversas_com_contatos set
+          ultimo_a_responder = case when ultima_mensagem_em is null or ultima_mensagem_em <= $2
+                                    then 'pessoa' else ultimo_a_responder end,
+          ultima_mensagem_em = greatest(coalesce(ultima_mensagem_em, $2), $2),
+          situacao = case when situacao = 'resolvida' then situacao else 'esperando_cliente' end
+        where id = $1 and empresa_id = empresa_ativa()`,
+      [conversaId, enviadaEm],
+    );
+  return mensagemId;
+}
+
+/**
  * O contato "não identificado" (decisão 0051, item 2): pessoa, com o nome do perfil do WhatsApp (ou o telefone, ou
  * "Visitante do site"), o telefone como principal e com WhatsApp, sem responsável. Quem "cadastrou" é quem conectou
  * o canal (o contato precisa de alguém, e o canal é dele).
@@ -501,7 +558,7 @@ async function criarContatoNaoIdentificado(
     [nome, canal.criado_por, canalId],
   );
   const id = r.rows[0]?.id as string;
-  if (canal.provedor !== "site")
+  if (identificador.startsWith("+"))
     await c.query(
       `insert into identificadores_de_contato (empresa_id, contato_id, tipo, valor, principal, whatsapp)
        values (empresa_ativa(), $1, 'telefone', $2, true, true)`,

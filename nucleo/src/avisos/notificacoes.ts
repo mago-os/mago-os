@@ -47,6 +47,7 @@ export const TEXTO_DO_PUSH: Record<TipoDeAviso, string> = {
   chave_de_api_vencendo: "Uma chave de API vai vencer",
   webhook_desligado: "Um webhook foi desligado por falhas",
   canal_desconectado: "Um número de WhatsApp foi desconectado",
+  canal_segurando_mensagens: "Um número de WhatsApp está segurando mensagens",
 };
 
 /**
