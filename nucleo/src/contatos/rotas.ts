@@ -42,6 +42,7 @@ import {
   pessoasDaOrganizacao,
   quemOlhaContatos,
   RecusaDosContatos,
+  repetidosDe,
   resumosDe,
   salvarVisaoDeContatos,
 } from "./servico.ts";
@@ -115,7 +116,11 @@ export async function fichaDoContato(
   const pessoasLigadas =
     contato.tipo === "organizacao" ? await pessoasDaOrganizacao(c, olhamVer, contato.id) : [];
   const tarefas: Tarefa[] = quemTarefas ? await listarTarefas(c, quemTarefas, { contatoId: contato.id }) : [];
-  return { contato, organizacoes, pessoasLigadas, tarefas };
+  // O aviso de repetido fica na ficha enquanto houver outro contato com o mesmo e-mail, telefone ou rede (também logo
+  // depois de cadastrar, quando a tela já abre a ficha nova).
+  const repetidos =
+    contato.situacao === "ativo" ? await repetidosDe(c, olhamVer, contato.id, contato.identificadores) : [];
+  return { contato, organizacoes, pessoasLigadas, tarefas, repetidos };
 }
 
 export function registrarRotasDosContatos(
