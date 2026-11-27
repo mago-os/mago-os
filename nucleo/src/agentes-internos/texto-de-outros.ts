@@ -27,6 +27,8 @@ export interface FontesDeTexto {
    * escreveu cada mudança, então vale a dúvida).
    */
   contatos?: string[];
+  /** Texto escrito por gente de fora da empresa (as mensagens dos contatos, M8-01): marca sempre. */
+  textoDeFora?: boolean;
 }
 
 /** Se alguma das fontes tem texto de outra pessoa ou de agente externo. */
@@ -35,6 +37,7 @@ export async function haTextoDeOutros(
   pedidoPor: string,
   f: FontesDeTexto,
 ): Promise<boolean> {
+  if (f.textoDeFora) return true;
   const ids = (xs: string[] | undefined) => [...new Set((xs ?? []).filter((x) => FORMATO_UUID.test(x)))];
   const tarefas = ids([...(f.tarefas ?? []), ...(f.tarefasInteiras ?? [])]);
   const inteiras = ids(f.tarefasInteiras);

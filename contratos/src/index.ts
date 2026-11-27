@@ -27,6 +27,7 @@ export * from "./busca/busca.ts";
 export * from "./canais/telegram.ts";
 export * from "./comum.ts";
 export * from "./contatos/contatos.ts";
+export * from "./conversas/conversas.ts";
 export * from "./identidade/documento.ts";
 export * from "./identidade/empresa.ts";
 export * from "./identidade/pessoa.ts";

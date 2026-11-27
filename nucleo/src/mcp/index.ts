@@ -43,6 +43,8 @@ import { auditar } from "../auditoria/registrar.ts";
 import { avisarDepois } from "../avisos/eventos.ts";
 import { executarFerramentaDeContatos } from "../contatos/ferramentas.ts";
 import { quemOlhaContatos, RecusaDosContatos } from "../contatos/servico.ts";
+import { executarFerramentaDeConversas } from "../conversas/ferramentas.ts";
+import { quemOlhaConversas, RecusaDasConversas } from "../conversas/servico.ts";
 import { comEmpresa } from "../empresa.ts";
 import { idsForaDaEmpresa, NAO_ENCONTRADO_NA_EMPRESA, uuidsDe } from "../ids-da-empresa.ts";
 import { montarInstrucoes, skillsDoAgente } from "../instrucoes/servico.ts";
@@ -686,6 +688,41 @@ export async function executar(
         return feito;
       } catch (e) {
         if (e instanceof RecusaDosContatos) throw new RecusaDaFerramenta(e.message);
+        throw e;
+      }
+    }
+    // Conversas com contatos (M8-01): só leitura, com o alcance da pessoa responsável pelo agente.
+    case "listar_conversas":
+    case "ver_conversa": {
+      const r = await naEmpresa((c) =>
+        c.query<{ responsavel_id: string }>(
+          "select responsavel_id from agentes where id = $1 and empresa_id = empresa_ativa()",
+          [agente.agenteId],
+        ),
+      );
+      const responsavelId = r.rows[0]?.responsavel_id;
+      const permissoes = responsavelId
+        ? await permissoesNaEmpresa(o.poolApp, responsavelId, agente.empresaId, catalogoDeModulos())
+        : null;
+      if (!responsavelId || !permissoes)
+        throw new RecusaDaFerramenta("A pessoa responsável por você não está mais ativa na empresa.");
+      try {
+        const feito = await executarFerramentaDeConversas(
+          {
+            poolApp: o.poolApp,
+            empresaId: agente.empresaId,
+            olham: [quemOlhaConversas(permissoes, responsavelId, "ver")],
+            limiteDaLista: 100,
+          },
+          nome,
+          entrada as Record<string, unknown>,
+        );
+        if (nome === "listar_conversas")
+          await ler(Math.max(1, (feito.conversas as unknown[] | undefined)?.length ?? 0));
+        else await ler(1);
+        return feito;
+      } catch (e) {
+        if (e instanceof RecusaDasConversas) throw new RecusaDaFerramenta(e.message);
         throw e;
       }
     }

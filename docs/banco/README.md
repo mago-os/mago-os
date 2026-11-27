@@ -169,6 +169,20 @@ erDiagram
     integer nivel PK
     timestamp_with_time_zone mandado_em
   }
+  canais_de_contato {
+    uuid id PK
+    uuid empresa_id FK
+    text nome
+    text provedor
+    text situacao
+    text identificador
+    text area
+    uuid agente_id
+    jsonb configuracao
+    uuid criado_por
+    timestamp_with_time_zone criado_em
+    timestamp_with_time_zone atualizado_em
+  }
   chaves_de_agente {
     uuid id PK
     uuid empresa_id FK
@@ -297,6 +311,8 @@ erDiagram
     uuid criado_por_agente_id
     timestamp_with_time_zone criado_em
     timestamp_with_time_zone atualizado_em
+    boolean identificado
+    uuid origem_canal_id
   }
   contatos_de_projeto {
     uuid empresa_id FK
@@ -326,6 +342,22 @@ erDiagram
     timestamp_with_time_zone criada_em
     timestamp_with_time_zone atualizada_em
     text canal
+  }
+  conversas_com_contatos {
+    uuid id PK
+    uuid empresa_id FK
+    uuid canal_id
+    uuid contato_id
+    text identificador
+    boolean mais_de_um_contato
+    uuid dono_id
+    boolean com_agente
+    text situacao
+    text ultimo_a_responder
+    timestamp_with_time_zone ultima_mensagem_em
+    timestamp_with_time_zone aberta_em
+    timestamp_with_time_zone resolvida_em
+    uuid resolvida_por
   }
   empresas {
     uuid id PK
@@ -534,6 +566,24 @@ erDiagram
     uuid tarefa_id
     uuid pessoa_id
     uuid agente_id
+  }
+  mensagens_com_contatos {
+    uuid id PK
+    uuid empresa_id FK
+    uuid conversa_id
+    uuid canal_id
+    text direcao
+    text autor
+    uuid autor_pessoa_id
+    uuid autor_agente_id
+    text tipo
+    text texto
+    text id_no_provedor
+    timestamp_with_time_zone enviada_em
+    timestamp_with_time_zone recebida_em
+    boolean pelo_celular
+    text entrega
+    text motivo_da_falha
   }
   mensagens_de_conversa {
     uuid id PK
@@ -984,6 +1034,7 @@ erDiagram
   acesso_aparelhos ||--o{ assinaturas_de_push : "aparelho_id"
   empresas ||--o{ avisos : "empresa_id"
   empresas ||--o{ avisos_de_gasto : "empresa_id"
+  empresas ||--o{ canais_de_contato : "empresa_id"
   empresas ||--o{ chaves_de_agente : "empresa_id"
   empresas ||--o{ chaves_de_api : "empresa_id"
   empresas ||--o{ chaves_de_dados : "empresa_id"
@@ -999,6 +1050,7 @@ erDiagram
   empresas ||--o{ contatos_de_tarefa : "empresa_id"
   empresas ||--o{ contatos_em_organizacoes : "empresa_id"
   empresas ||--o{ conversas : "empresa_id"
+  empresas ||--o{ conversas_com_contatos : "empresa_id"
   empresas ||--o{ entregas_de_webhook : "empresa_id"
   empresas ||--o{ espacos : "empresa_id"
   empresas ||--o{ estados_de_prioridade : "empresa_id"
@@ -1016,6 +1068,7 @@ erDiagram
   empresas ||--o{ membros_de_projeto : "empresa_id"
   empresas ||--o{ mencoes_de_comentario : "empresa_id"
   comentarios_de_tarefa ||--o{ mencoes_de_comentario : "comentario_id"
+  empresas ||--o{ mensagens_com_contatos : "empresa_id"
   empresas ||--o{ mensagens_de_conversa : "empresa_id"
   empresas ||--o{ modelos_de_conta_de_ia : "empresa_id"
   pessoas ||--o{ papeis_plataforma : "pessoa_id"
@@ -1325,6 +1378,27 @@ Isolamento por empresa (Row Level Security): ligado e forçado.
 | nivel | integer | sim |  | sistema | 80 ou 100 (%). Chave primária. |
 | mandado_em | timestamp with time zone | sim | `now()` | sistema | Quando o aviso saiu. |
 
+### canais_de_contato
+
+Canais de conversa com quem é de fora (M8-01): um número de WhatsApp (Evolution ou oficial da Meta) ou um balão de site.
+
+Isolamento por empresa (Row Level Security): ligado e forçado.
+
+| Coluna | Tipo | Obrigatória | Padrão | Marca | Descrição |
+| --- | --- | --- | --- | --- | --- |
+| id | uuid | sim | `uuidv7()` | sistema | Identificador. Chave primária. |
+| empresa_id | uuid | sim |  | sistema | Empresa do canal. Aponta para empresas.id. |
+| nome | text | sim |  | empresa | Nome do canal (ex.: WhatsApp comercial). |
+| provedor | text | sim |  | sistema | evolution, meta (WhatsApp oficial) ou site (balão). |
+| situacao | text | sim | `'esperando_conexao'::text` | sistema | esperando_conexao, conectado, desconectado ou pausado. |
+| identificador | text | não |  | empresa | O número conectado (formato internacional). Único no banco inteiro: um número, uma empresa. |
+| area | text | não |  | empresa | A equipe que atende (a área das pessoas). Vazia: todos os funcionários veem as conversas do canal. |
+| agente_id | uuid | não |  | sistema | O agente que atende o canal (M8-05). |
+| configuracao | jsonb | sim | `'{}'::jsonb` | sistema | Configuração do provedor, sem nenhum segredo (os segredos ficam no Infisical ou cifrados). |
+| criado_por | uuid | sim |  | sistema | Quem cadastrou o canal. |
+| criado_em | timestamp with time zone | sim | `now()` | sistema | Quando foi cadastrado. |
+| atualizado_em | timestamp with time zone | sim | `now()` | sistema | A última mudança. |
+
 ### chaves_de_agente
 
 Chaves dos agentes. Só o começo e o resumo SHA-256 ficam aqui: a chave inteira aparece uma vez, na tela.
@@ -1523,6 +1597,8 @@ Isolamento por empresa (Row Level Security): ligado e forçado.
 | criado_por_agente_id | uuid | não |  | sistema | O agente que cadastrou pela ferramenta, a pedido de quem criou. |
 | criado_em | timestamp with time zone | sim | `now()` | sistema | Quando foi cadastrado. |
 | atualizado_em | timestamp with time zone | sim | `now()` | sistema | A última mudança. |
+| identificado | boolean | sim | `true` | sistema | Falso no contato criado sozinho por uma conversa, até alguém confirmar o nome (M8-01). |
+| origem_canal_id | uuid | não |  | sistema | O canal da conversa que criou o contato, se foi assim. |
 
 ### contatos_de_projeto
 
@@ -1580,6 +1656,29 @@ Isolamento por empresa (Row Level Security): ligado e forçado.
 | criada_em | timestamp with time zone | sim | `now()` | sistema | Quando a conversa começou. |
 | atualizada_em | timestamp with time zone | sim | `now()` | sistema | Última mensagem. |
 | canal | text | sim | `'app'::text` | sistema | Onde a conversa começou: app, telegram ou rotina (aberta por uma rotina em nome do dono). |
+
+### conversas_com_contatos
+
+Conversas da empresa com contatos (M8-01), num canal. Separadas das conversas da pessoa com o coordenador.
+
+Isolamento por empresa (Row Level Security): ligado e forçado.
+
+| Coluna | Tipo | Obrigatória | Padrão | Marca | Descrição |
+| --- | --- | --- | --- | --- | --- |
+| id | uuid | sim | `uuidv7()` | sistema | Identificador. Chave primária. |
+| empresa_id | uuid | sim |  | sistema | Empresa da conversa. Aponta para empresas.id. |
+| canal_id | uuid | sim |  | sistema | O canal (número ou balão). |
+| contato_id | uuid | sim |  | sistema | O contato da conversa. |
+| identificador | text | sim |  | pessoal | Por onde o contato fala: o telefone (formato internacional) ou o visitante do site. |
+| mais_de_um_contato | boolean | sim | `false` | sistema | O telefone está em mais de um contato: a conversa avisa e deixa trocar à mão. |
+| dono_id | uuid | não |  | sistema | A pessoa da equipe que cuida da conversa. |
+| com_agente | boolean | sim | `false` | sistema | A conversa está com o agente do canal. |
+| situacao | text | sim | `'aberta'::text` | sistema | aberta, esperando_cliente, esperando_equipe ou resolvida (resolvida não reabre sozinha). |
+| ultimo_a_responder | text | não |  | sistema | contato, agente ou pessoa. |
+| ultima_mensagem_em | timestamp with time zone | não |  | sistema | Hora da última mensagem. |
+| aberta_em | timestamp with time zone | sim | `now()` | sistema | Quando a conversa começou. |
+| resolvida_em | timestamp with time zone | não |  | sistema | Quando foi resolvida. |
+| resolvida_por | uuid | não |  | sistema | Quem resolveu (vazio: o sistema ou o agente). |
 
 ### empresas
 
@@ -1907,6 +2006,31 @@ Isolamento por empresa (Row Level Security): ligado e forçado.
 | tarefa_id | uuid | sim |  | sistema | Tarefa do comentário. |
 | pessoa_id | uuid | não |  | sistema | Pessoa mencionada. |
 | agente_id | uuid | não |  | sistema | Agente mencionado. |
+
+### mensagens_com_contatos
+
+Mensagens das conversas com contatos (M8-01): o que chegou, o que saiu e as notas internas da equipe.
+
+Isolamento por empresa (Row Level Security): ligado e forçado.
+
+| Coluna | Tipo | Obrigatória | Padrão | Marca | Descrição |
+| --- | --- | --- | --- | --- | --- |
+| id | uuid | sim | `uuidv7()` | sistema | Identificador. Chave primária. |
+| empresa_id | uuid | sim |  | sistema | Empresa da conversa. Aponta para empresas.id. |
+| conversa_id | uuid | sim |  | sistema | A conversa. |
+| canal_id | uuid | sim |  | sistema | O canal (para não gravar duas vezes a mesma mensagem). |
+| direcao | text | sim |  | sistema | chegou, saiu ou interna (a nota). |
+| autor | text | sim |  | sistema | Quem escreveu: contato, agente, pessoa ou sistema. |
+| autor_pessoa_id | uuid | não |  | sistema | A pessoa da equipe que escreveu. |
+| autor_agente_id | uuid | não |  | sistema | O agente que escreveu. |
+| tipo | text | sim |  | sistema | texto, foto, documento, audio, localizacao, contato, outro (ainda não mostrado aqui) ou nota. |
+| texto | text | não |  | pessoal | O texto da mensagem ou a legenda. |
+| id_no_provedor | text | não |  | sistema | O número da mensagem no provedor. |
+| enviada_em | timestamp with time zone | sim | `now()` | sistema | A hora da mensagem (a do provedor, quando há). |
+| recebida_em | timestamp with time zone | sim | `now()` | sistema | Quando o Mago OS gravou. |
+| pelo_celular | boolean | sim | `false` | sistema | Alguém respondeu direto no celular do número (não pela caixa). |
+| entrega | text | não |  | sistema | No que sai: pendente, enviada, entregue, lida ou falhou. |
+| motivo_da_falha | text | não |  | sistema | O motivo que o provedor deu para a falha. |
 
 ### mensagens_de_conversa
 

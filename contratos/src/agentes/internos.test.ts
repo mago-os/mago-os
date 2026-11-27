@@ -41,6 +41,8 @@ const ASSINATURAS: Record<string, string> = {
   criar_contato: "96e671c49f4e5d02",
   atualizar_contato: "3bc385aec01f1af3",
   ligar_contato: "3660cd46aa7a69a0",
+  listar_conversas: "52c60dc9eff3c204",
+  ver_conversa: "e048f9e87ff61f76",
   listar_rotinas: "9cf3cc76dd223a54",
   ver_rotina: "c1abcf3d68ed102a",
   criar_rotina: "06fa52f6ef87e141",

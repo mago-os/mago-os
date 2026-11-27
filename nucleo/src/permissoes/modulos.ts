@@ -94,6 +94,24 @@ export const MODULOS_DO_NUCLEO: readonly DeclaracaoDeModulo[] = [
     temDadosSensiveis: false,
     area: null,
   },
+  // Conversas com contatos (M8-01, decisão 0051): ver; criar (responder e nota interna); editar (assumir, passar,
+  // devolver, resolver, reabrir e trocar o contato); excluir (apagar, só o administrador). O administrador e o gestor
+  // veem todas; o funcionário, as dos canais da área dele, as dos canais sem equipe e as de que é dono.
+  {
+    id: "conversas",
+    nome: "Conversas com contatos",
+    acoes: ["ver", "criar", "editar", "excluir"],
+    temDadosSensiveis: false,
+    area: null,
+  },
+  // Canais (M8-01): os números de WhatsApp e os balões de site. Padrão: só o administrador conecta e configura.
+  {
+    id: "canais",
+    nome: "Canais",
+    acoes: ["ver", "criar", "editar", "excluir"],
+    temDadosSensiveis: false,
+    area: null,
+  },
   // API pública (M7-02, decisão 0047): as chaves de API da empresa. Padrão: só o administrador vê, cria, troca e revoga.
   { id: "api", nome: "API pública", acoes: ["ver", "criar", "editar"], temDadosSensiveis: false, area: null },
   // Projetos (M3-01): o administrador e o gestor veem todos; o funcionário, os que é membro. Criar e editar (e

@@ -24,6 +24,7 @@
     "./api-publica": "./src/api-publica/index.ts",
     "./webhooks": "./src/webhooks/index.ts",
     "./contatos": "./src/contatos/index.ts",
+    "./conversas": "./src/conversas/index.ts",
     "./agentes": "./src/agentes/index.ts",
     "./contas-de-ia": "./src/contas-de-ia/index.ts",
     "./agentes-internos": "./src/agentes-internos/index.ts",

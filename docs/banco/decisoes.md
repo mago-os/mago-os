@@ -397,3 +397,11 @@ O login (`mago_acesso`) não lê papéis nem as regras da plataforma direto. As 
 
 - `webhooks.agente_id` marca o webhook de aviso de um agente externo ([decisão 0049](../decisoes/0049-aviso-imediato-aos-agentes.md)), um por agente, com só os eventos `agente.*`; os webhooks da empresa nunca recebem esses eventos (e o do agente nunca recebe os da empresa).
 - `gravar_aviso_ao_agente()` grava a entrega para o webhook ligado do agente, a partir dos gatilhos em `tarefas` (o agente virou responsável), `mencoes_de_comentario` (menção num comentário, não em nota interna) e `aprovacoes` (uma ação que ele pediu foi respondida), na mesma transação da mudança, com o RLS da empresa ativa.
+
+## 56. Conversas com contatos (27/11/2026, M8-01)
+
+- `canais_de_contato` guarda os canais da empresa ([decisão 0051](../decisoes/0051-conversas-com-contatos.md)): um número de WhatsApp (Evolution ou oficial da Meta) ou um balão de site, com a equipe que atende (`area`, vazia: todos os funcionários veem) e o agente. O número tem um índice único no banco inteiro, não só na empresa: um número fica preso a uma empresa só. A configuração do provedor nunca guarda segredo.
+- `conversas_com_contatos` fica separada de `conversas` (a pessoa com o coordenador, que só a dona vê). Um índice único parcial garante uma só conversa não resolvida por contato em cada canal. O telefone (ou o visitante do site) fica na conversa, para a mensagem seguinte achar a mesma conversa mesmo depois de alguém trocar o contato à mão. Apagar o contato apaga as conversas (LGPD); apagar um canal com conversas é recusado.
+- `mensagens_com_contatos` guarda o que chegou, o que saiu e as notas internas (`direcao = 'interna'`), com as regras no próprio banco (só o contato escreve o que chega, a entrega só existe no que sai). O índice único por canal e número da mensagem no provedor impede gravar duas vezes; a ordem é a hora que o provedor informa. Os arquivos (foto, documento e áudio) entram na M8-03.
+- `contatos.identificado` (falso no contato criado sozinho pela conversa, até alguém dar o nome) e `contatos.origem_canal_id`. Juntar dois contatos leva as conversas para o que fica.
+- Quem vê o quê é decidido no núcleo, pelo alcance de "conversas.ver" (tudo; equipe: os canais da área da pessoa, os sem equipe e as conversas de que ela é dona; meus: só as dela); o banco isola as empresas.
