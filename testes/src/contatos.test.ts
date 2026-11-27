@@ -312,9 +312,12 @@ describe.skipIf(!bancoDisponivel)("contatos", () => {
     const j = await pedir("POST", "/contatos/juntar", await como("gil@teste.invalid"), {
       ficaId: ids.bia,
       saiId: ids.biaDuplicada,
+      nome: "Beatriz Lima Souza",
     });
     expect(j.statusCode, j.body).toBe(200);
     const ficou = j.json().contato as Contato;
+    // O nome escolhido ao juntar fica.
+    expect(ficou.nome).toBe("Beatriz Lima Souza");
     expect(ficou.identificadores.filter((i) => i.tipo === "email").map((i) => i.valor)).toEqual([
       "bia@acme.invalid",
       "recepcao@acme.invalid",

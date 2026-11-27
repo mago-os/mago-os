@@ -291,7 +291,12 @@ export type PedidoDeVisaoDeContatos = Static<typeof PedidoDeVisaoDeContatos>;
  * que os dois têm ficam com o valor do que fica. O "sai" vira "juntado" e leva ao que fica.
  */
 export const PedidoDeJuntar = Type.Object(
-  { ficaId: Id, saiId: Id },
+  {
+    ficaId: Id,
+    saiId: Id,
+    /** O nome que fica depois de juntar (pedido do Sandro em 27/11/2026). Sem ele, vale o nome do que fica. */
+    nome: Type.Optional(NomeDoContato),
+  },
   { additionalProperties: false, description: "Juntar dois contatos da mesma empresa." },
 );
 export type PedidoDeJuntar = Static<typeof PedidoDeJuntar>;

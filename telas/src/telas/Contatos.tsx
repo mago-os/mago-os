@@ -838,12 +838,8 @@ export function PaginaDoContato({ id }: { id: string }) {
     void carregar();
   }
 
-  async function juntar(outro: ResumoDoContato) {
-    const ok = confirm(
-      `Juntar "${outro.nome}" neste contato? Os e-mails, telefones, tarefas e observações passam para cá, e "${outro.nome}" deixa de aparecer nas listas.`,
-    );
-    if (!ok) return;
-    const r = await pedir("POST", "/contatos/juntar", { ficaId: id, saiId: outro.id });
+  async function juntar(outro: ResumoDoContato, nome: string) {
+    const r = await pedir("POST", "/contatos/juntar", { ficaId: id, saiId: outro.id, nome });
     if (!r.ok) return setMensagem({ tipo: "erro", texto: r.mensagem ?? "" });
     setJuntarCom(null);
     history.replaceState(null, "", `/contatos/${id}`);
@@ -1043,17 +1039,12 @@ export function PaginaDoContato({ id }: { id: string }) {
                 neste: tudo passa para cá e o outro some das listas.
               </CardDescricao>
               {juntarCom ? (
-                <div className="flex flex-wrap items-center gap-2 text-sm">
-                  <span>
-                    Juntar <strong>{juntarCom.nome}</strong> neste contato?
-                  </span>
-                  <Button size="pequeno" onClick={() => void juntar(juntarCom)}>
-                    Juntar
-                  </Button>
-                  <Button size="pequeno" variant="fantasma" onClick={() => setJuntarCom(null)}>
-                    Cancelar
-                  </Button>
-                </div>
+                <ConfirmarJuntar
+                  este={contato.nome}
+                  outro={juntarCom.nome}
+                  aoJuntar={(nome) => void juntar(juntarCom, nome)}
+                  aoCancelar={() => setJuntarCom(null)}
+                />
               ) : (
                 <EscolherContato
                   rotulo="Contato para juntar"
@@ -1074,6 +1065,69 @@ export function PaginaDoContato({ id }: { id: string }) {
         </Card>
       )}
     </main>
+  );
+}
+
+/**
+ * Confirmar o juntar escolhendo o nome que fica (pedido do Sandro em 27/11/2026). O resto (e-mails, telefones, tarefas,
+ * observações) passa todo para este contato.
+ */
+function ConfirmarJuntar({
+  este,
+  outro,
+  aoJuntar,
+  aoCancelar,
+}: {
+  este: string;
+  outro: string;
+  aoJuntar: (nome: string) => void;
+  aoCancelar: () => void;
+}) {
+  const opcoes = este === outro ? [este] : [este, outro];
+  const [nome, setNome] = useState(este);
+  const [outroNome, setOutroNome] = useState("");
+  const escolhido = nome === "__outro" ? outroNome.trim() : nome;
+  return (
+    <div className="grid gap-2 rounded-md border border-linha p-3 text-sm">
+      <p>
+        Juntar <strong>{outro}</strong> neste contato? Os e-mails, telefones, tarefas e observações passam
+        para cá, e <strong>{outro}</strong> deixa de aparecer nas listas.
+      </p>
+      <fieldset className="grid gap-1.5">
+        <legend className="font-medium">Qual nome fica?</legend>
+        {opcoes.map((n) => (
+          <label key={n} className="flex items-center gap-2">
+            <input type="radio" name="nome-que-fica" checked={nome === n} onChange={() => setNome(n)} />
+            {n}
+          </label>
+        ))}
+        <label className="flex items-center gap-2">
+          <input
+            type="radio"
+            name="nome-que-fica"
+            checked={nome === "__outro"}
+            onChange={() => setNome("__outro")}
+          />
+          Outro nome:
+          <input
+            aria-label="Outro nome"
+            className="h-8 min-w-0 flex-1 rounded-md border border-linha bg-cartao px-2"
+            value={outroNome}
+            maxLength={200}
+            onFocus={() => setNome("__outro")}
+            onChange={(e) => setOutroNome(e.target.value)}
+          />
+        </label>
+      </fieldset>
+      <div className="flex gap-2">
+        <Button size="pequeno" disabled={!escolhido} onClick={() => aoJuntar(escolhido)}>
+          Juntar
+        </Button>
+        <Button size="pequeno" variant="fantasma" onClick={aoCancelar}>
+          Cancelar
+        </Button>
+      </div>
+    </div>
   );
 }
 

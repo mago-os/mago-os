@@ -269,7 +269,7 @@ export function registrarRotasDosContatos(
           const fica = await buscarContato(c, q, r.valor.ficaId, true);
           const sai = await buscarContato(c, q, r.valor.saiId, true);
           if (!fica || !sai) return null;
-          return juntarContatos(c, fica, sai);
+          return juntarContatos(c, fica, sai, r.valor.nome);
         });
         if (!feito) return naoEncontrado(resposta);
         await registrar(
