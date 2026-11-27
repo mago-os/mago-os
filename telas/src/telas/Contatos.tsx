@@ -18,7 +18,7 @@ import {
   type TipoDeContato,
   type VisaoDeContatos,
 } from "@mago-os/contratos";
-import { ArrowLeft, Building2, Plus, Trash2, User, X } from "lucide-react";
+import { ArrowLeft, Building2, Plus, Trash2, TriangleAlert, User, X } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { Button } from "@/componentes/ui/button";
 import { Campo } from "@/componentes/ui/campo";
@@ -98,6 +98,7 @@ function queryDoFiltro(f: FiltroDeContatos): string {
   if (f.organizacaoId) q.set("organizacao", f.organizacaoId);
   if (f.situacao) q.set("situacao", f.situacao);
   if (f.texto && f.texto.trim().length >= 2) q.set("texto", f.texto.trim());
+  if (f.repetidos) q.set("repetidos", "1");
   const s = q.toString();
   return s ? `?${s}` : "";
 }
@@ -117,11 +118,19 @@ function ItemDaLista({ k, nomes }: { k: ResumoDoContato; nomes: Record<string, s
   return (
     <a
       href={`/contatos/${k.id}`}
-      className="grid gap-1 rounded-lg border border-linha bg-cartao p-3 hover:bg-suave"
+      className={cn(
+        "grid gap-1 rounded-lg border bg-cartao p-3 hover:bg-suave",
+        k.repetido ? "border-alerta/60" : "border-linha",
+      )}
     >
-      <span className="flex items-center gap-2 font-medium">
+      <span className="flex flex-wrap items-center gap-2 font-medium">
         <IconeDoTipo tipo={k.tipo} />
         {k.nome}
+        {k.repetido && (
+          <span className="flex items-center gap-1 rounded-full bg-alerta/15 px-2 py-0.5 text-xs font-medium text-alerta">
+            <TriangleAlert className="size-3.5" aria-hidden="true" /> Possível repetido
+          </span>
+        )}
         {k.organizacao && <span className="text-sm font-normal text-texto-2">· {k.organizacao}</span>}
       </span>
       <span className="flex flex-wrap items-center gap-2 text-sm text-texto-2">
@@ -259,6 +268,12 @@ export function ListaDeContatos({ podeCriar }: { podeCriar: boolean }) {
               {NOMES_DOS_PAPEIS[p]}
             </Filtro>
           ))}
+          <Filtro
+            ativo={filtro.repetidos ?? false}
+            aoClicar={() => mudar("repetidos", filtro.repetidos ? undefined : true)}
+          >
+            Possíveis repetidos
+          </Filtro>
           <Filtro
             ativo={filtro.situacao === "arquivado"}
             aoClicar={() => mudar("situacao", filtro.situacao === "arquivado" ? undefined : "arquivado")}
@@ -827,6 +842,7 @@ export function PaginaDoContato({ id }: { id: string }) {
           etiquetas: k.etiquetas,
           responsavelId: k.responsavelId,
           situacao: k.situacao,
+          repetido: true,
         });
     });
   }, []);

@@ -300,6 +300,12 @@ describe.skipIf(!bancoDisponivel)("contatos", () => {
       await pedir("GET", `/contatos/${ids.biaDuplicada}`, await como("ana@teste.invalid"))
     ).json();
     expect(ficha.repetidos).toMatchObject([{ contatoId: ids.bia, nome: "Beatriz Lima" }]);
+    // A lista marca os dois como possíveis repetidos, e o filtro mostra só eles.
+    const comRepetidos = await lista("ana@teste.invalid", "?repetidos=1");
+    expect(comRepetidos.map((k) => k.id).sort()).toEqual([ids.bia, ids.biaDuplicada].sort());
+    expect(comRepetidos.every((k) => k.repetido)).toBe(true);
+    // A Rita não vê a cópia da Flora: para ela, a Bia não aparece como repetida.
+    expect((await lista("rita@teste.invalid")).find((k) => k.id === ids.bia)?.repetido).toBe(false);
     // O funcionário não junta.
     expect(
       (

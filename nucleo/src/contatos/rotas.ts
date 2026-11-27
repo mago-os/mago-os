@@ -89,6 +89,7 @@ export function filtroDeContatosDaQuery(q: Record<string, unknown>): Record<stri
     ...(um("organizacao") ? { organizacaoId: um("organizacao") } : {}),
     ...(um("situacao") ? { situacao: um("situacao") } : {}),
     ...(um("texto") ? { texto: um("texto") } : {}),
+    ...(um("repetidos") === "1" || um("repetidos") === "true" ? { repetidos: true } : {}),
   };
 }
 

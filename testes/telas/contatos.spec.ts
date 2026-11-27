@@ -75,6 +75,12 @@ test.describe("contatos", () => {
     await expect(page.getByRole("heading", { name: "Recepção Acme" })).toBeVisible();
     await expect(page.getByText(/já existe em outro contato/).first()).toBeVisible();
     await expect(page.getByRole("link", { name: "Juntar" }).first()).toBeVisible();
+    // Na lista, os repetidos ficam marcados, e o filtro mostra só eles.
+    await page.goto("/contatos");
+    await expect(page.getByText("Possível repetido").first()).toBeVisible();
+    await page.getByRole("button", { name: "Possíveis repetidos" }).click();
+    await expect(page.getByRole("link", { name: /^Acme Ltda/ })).toHaveCount(0);
+    await expect(page.getByRole("link", { name: /Recepção Acme/ })).toBeVisible();
 
     // Juntar a recepção na Beatriz, a partir da ficha da Beatriz.
     page.on("dialog", (d) => void d.accept());
