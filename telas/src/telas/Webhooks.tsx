@@ -38,7 +38,7 @@ const NOMES_DAS_SITUACOES: Record<EntregaDeWebhook["situacao"], string> = {
   desistiu: "Não entregue",
 };
 
-function Segredo({ segredo, aoFechar }: { segredo: string; aoFechar: () => void }) {
+function Segredo({ nome, segredo, aoFechar }: { nome: string; segredo: string; aoFechar: () => void }) {
   const [copiado, setCopiado] = useState(false);
   async function copiar() {
     try {
@@ -51,7 +51,7 @@ function Segredo({ segredo, aoFechar }: { segredo: string; aoFechar: () => void 
   }
   return (
     <Card className="gap-2 border-alerta/40">
-      <CardTitulo>Copie o segredo agora</CardTitulo>
+      <CardTitulo>Copie agora o segredo do webhook “{nome}”</CardTitulo>
       <CardDescricao>
         Ele aparece só esta vez. Use no sistema que recebe os avisos para conferir a assinatura (veja a{" "}
         <a className="underline" href="/api/docs#webhooks" target="_blank" rel="noreferrer">
@@ -153,7 +153,7 @@ export function Webhooks() {
   const [criando, setCriando] = useState(false);
   const [editando, setEditando] = useState<string | null>(null);
   const [aberto, setAberto] = useState<string | null>(null);
-  const [segredo, setSegredo] = useState<string | null>(null);
+  const [segredo, setSegredo] = useState<{ nome: string; segredo: string } | null>(null);
   const [mensagem, setMensagem] = useState<Mensagem>(null);
 
   const carregar = useCallback(async () => {
@@ -176,7 +176,7 @@ export function Webhooks() {
       eventos,
     });
     if (!r.ok || !r.dados) return setMensagem({ tipo: "erro", texto: r.mensagem ?? "" });
-    setSegredo(r.dados.segredo);
+    setSegredo({ nome: r.dados.webhook.nome, segredo: r.dados.segredo });
     setCriando(false);
     setMensagem(null);
     void carregar();
@@ -217,7 +217,7 @@ export function Webhooks() {
                 situacao: qual === "ligar" ? "ligado" : "desligado",
               });
     if (!r.ok) return setMensagem({ tipo: "erro", texto: r.mensagem ?? "" });
-    if (qual === "segredo") setSegredo((r.dados as WebhookCriado).segredo);
+    if (qual === "segredo") setSegredo({ nome: w.nome, segredo: (r.dados as WebhookCriado).segredo });
     setMensagem({
       tipo: "ok",
       texto:
@@ -252,7 +252,7 @@ export function Webhooks() {
         )}
       </div>
 
-      {segredo && <Segredo segredo={segredo} aoFechar={() => setSegredo(null)} />}
+      {segredo && <Segredo nome={segredo.nome} segredo={segredo.segredo} aoFechar={() => setSegredo(null)} />}
 
       {criando && (
         <Card className="gap-4">

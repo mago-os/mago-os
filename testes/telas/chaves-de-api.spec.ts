@@ -103,6 +103,7 @@ test.describe("chaves de API", () => {
     await page.getByLabel("Endereço (https)").fill("https://n8n.exemplo.invalid/webhook/mago");
     await page.getByLabel("Contato cadastrado").check();
     await page.getByRole("button", { name: "Criar webhook" }).click();
+    await expect(page.getByText("Copie agora o segredo do webhook “n8n de teste”")).toBeVisible();
     await expect(page.locator("code").filter({ hasText: /^whsec_/ })).toBeVisible();
     await page.getByRole("button", { name: "Copiar" }).click();
     await expect(page.getByRole("button", { name: "Copiado!" })).toBeVisible();
