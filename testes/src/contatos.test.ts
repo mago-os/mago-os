@@ -295,6 +295,11 @@ describe.skipIf(!bancoDisponivel)("contatos", () => {
       ],
       observacoes: "Prefere ligação à tarde.",
     });
+    // A ficha mostra o aviso de repetido (também logo depois de cadastrar, sem precisar editar).
+    const ficha = (
+      await pedir("GET", `/contatos/${ids.biaDuplicada}`, await como("ana@teste.invalid"))
+    ).json();
+    expect(ficha.repetidos).toMatchObject([{ contatoId: ids.bia, nome: "Beatriz Lima" }]);
     // O funcionário não junta.
     expect(
       (

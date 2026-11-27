@@ -783,6 +783,8 @@ interface Ficha {
   organizacoes: ResumoDoContato[];
   pessoasLigadas: ResumoDoContato[];
   tarefas: Tarefa[];
+  /** Outros contatos com o mesmo e-mail, telefone ou rede (o aviso com Juntar). */
+  repetidos?: AvisoDeRepetido[];
   pode: { editar: boolean; juntar: boolean; apagar: boolean };
 }
 
@@ -973,7 +975,10 @@ export function PaginaDoContato({ id }: { id: string }) {
             <p className="whitespace-pre-wrap text-pretty text-sm">{contato.observacoes}</p>
           )}
           {mensagem && <Aviso tipo={mensagem.tipo} texto={mensagem.texto} />}
-          <AvisosDeRepetidos avisos={repetidos} contatoId={ficha.pode.juntar ? contato.id : null} />
+          <AvisosDeRepetidos
+            avisos={ficha.repetidos ?? repetidos}
+            contatoId={ficha.pode.juntar ? contato.id : null}
+          />
         </Card>
       )}
 

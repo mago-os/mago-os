@@ -65,6 +65,17 @@ test.describe("contatos", () => {
     await page.getByRole("button", { name: "Salvar", exact: true }).click();
     await expect(page.getByText(/já existe em outro contato/)).toBeVisible();
 
+    // Cadastrar pela tela uma terceira pessoa com o mesmo e-mail: a ficha nova já mostra o aviso com o Juntar.
+    await page.goto("/contatos");
+    await page.getByRole("button", { name: "Novo contato" }).click();
+    await page.getByLabel("Nome", { exact: true }).fill("Recepção Acme");
+    await page.getByLabel("E-mail, telefone ou endereço").fill("bia@acme.invalid");
+    await page.getByRole("button", { name: "Acrescentar" }).click();
+    await page.getByRole("button", { name: "Salvar", exact: true }).click();
+    await expect(page.getByRole("heading", { name: "Recepção Acme" })).toBeVisible();
+    await expect(page.getByText(/já existe em outro contato/).first()).toBeVisible();
+    await expect(page.getByRole("link", { name: "Juntar" }).first()).toBeVisible();
+
     // Juntar a recepção na Beatriz, a partir da ficha da Beatriz.
     page.on("dialog", (d) => void d.accept());
     await page.goto(`${primeiraUrl}?juntar=${outroId}`);
