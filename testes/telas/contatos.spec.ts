@@ -79,6 +79,7 @@ test.describe("contatos", () => {
     // Juntar a recepção na Beatriz, a partir da ficha da Beatriz.
     page.on("dialog", (d) => void d.accept());
     await page.goto(`${primeiraUrl}?juntar=${outroId}`);
+    await expect(page.getByText("Qual nome fica?")).toBeVisible();
     await page.getByRole("button", { name: "Juntar", exact: true }).click();
     await expect(page.getByText("Contatos juntados.")).toBeVisible();
     await page.goto(`/contatos/${outroId}`);

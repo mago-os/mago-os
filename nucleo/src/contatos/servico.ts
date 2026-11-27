@@ -526,7 +526,12 @@ export async function editarContato(
  * papéis, etiquetas, tarefas e projetos passam para o que fica; as observações são somadas; nos campos que os dois
  * têm, vale o do que fica. O "sai" vira juntado.
  */
-export async function juntarContatos(c: pg.PoolClient, fica: Contato, sai: Contato): Promise<Contato> {
+export async function juntarContatos(
+  c: pg.PoolClient,
+  fica: Contato,
+  sai: Contato,
+  nome?: string,
+): Promise<Contato> {
   if (fica.situacao === "juntado" || sai.situacao === "juntado")
     throw new RecusaDosContatos("Um dos contatos já foi juntado em outro.");
   if (fica.tipo !== sai.tipo)
@@ -577,9 +582,17 @@ export async function juntarContatos(c: pg.PoolClient, fica: Contato, sai: Conta
     todos.filter((p) => p !== "outro").length > 0 ? todos.filter((p) => p !== "outro") : ["outro"];
   await c.query(
     `update contatos set papeis = $2, documento = coalesce(documento, $3), responsavel_id = coalesce(responsavel_id, $4),
-                         fuso = coalesce(fuso, $5), observacoes = $6, atualizado_em = now()
+                         fuso = coalesce(fuso, $5), observacoes = $6, nome = coalesce($7, nome), atualizado_em = now()
       where id = $1 and empresa_id = empresa_ativa()`,
-    [fica.id, papeis, sai.documento, sai.responsavelId, sai.fuso, observacoes.slice(0, 10000) || null],
+    [
+      fica.id,
+      papeis,
+      sai.documento,
+      sai.responsavelId,
+      sai.fuso,
+      observacoes.slice(0, 10000) || null,
+      nome?.trim() || null,
+    ],
   );
   await c.query(
     `update contatos set situacao = 'juntado', juntado_em_id = $1, atualizado_em = now()
