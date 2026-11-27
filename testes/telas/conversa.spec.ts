@@ -67,7 +67,7 @@ test.describe("conversa com o mago", () => {
     ).toBeVisible();
 
     await page.goto("/agentes");
-    await page.getByRole("link", { name: /Coordenador/ }).click();
+    await page.getByRole("link", { name: /^Coordenador/ }).click();
     await expect(page.getByText("Interno: coordenador")).toBeVisible();
     await expect(page.getByText("Modelo de IA")).toBeVisible();
     await expect(page.getByText(/Nenhum modelo liberado/)).toBeVisible();

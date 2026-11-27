@@ -48,7 +48,7 @@ test.describe("custos", () => {
 
     // A lista de agentes cria o Coordenador e o Gerente; um gasto de hoje do Coordenador entra direto no banco.
     await page.goto("/agentes");
-    await expect(page.getByRole("link", { name: /Coordenador/ })).toBeVisible();
+    await expect(page.getByRole("link", { name: /^Coordenador/ })).toBeVisible();
     const c = new pg.Client({ connectionString: BANCO_DONO });
     await c.connect();
     await c.query(

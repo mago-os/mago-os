@@ -16,6 +16,26 @@ export interface AgenteNaLista extends Agente {
   tarefasAbertas: number;
 }
 
+const NOME_DA_ESPECIALIDADE: Record<NonNullable<Agente["especialidade"]>, string> = {
+  gerente_de_projetos: "Gerente de projetos",
+};
+
+/**
+ * O tipo do agente para mostrar na lista (pedido do Sandro no teste do M7, 27/11/2026): externo, coordenador ou
+ * especialista com a especialidade e, se souber, a quem responde.
+ */
+export function tipoDoAgente(
+  a: Pick<Agente, "tipo" | "papel" | "especialidade">,
+  respondeA?: string | null,
+): string {
+  if (a.tipo === "externo") return "Externo";
+  if (a.papel === "coordenador") return "Coordenador";
+  const partes = ["Especialista"];
+  if (a.especialidade) partes.push(NOME_DA_ESPECIALIDADE[a.especialidade]);
+  if (respondeA) partes.push(`responde a ${respondeA}`);
+  return partes.join(" · ");
+}
+
 export const listarAgentes = () => pedir<AgenteNaLista[]>("GET", "/agentes");
 export const verAgente = (id: string) => pedir<AgenteNaLista>("GET", `/agentes/${encodeURIComponent(id)}`);
 
