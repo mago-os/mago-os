@@ -60,7 +60,7 @@ services:
   # os servidores do WhatsApp. O banco dela fica no PostgreSQL deste ambiente, com usuário próprio
   # (bin/evolution-banco.sh), e entra no backup junto.
   evolution:
-    image: evoapicloud/evolution-api:v2.3.8
+    image: evoapicloud/evolution-api:v2.3.8@sha256:b2712c06caf333c7a7ade3bbbdd25f70c32abb74537ec75f786c24c99675deb3
     # Só sobe de propósito: docker compose --profile evolution up -d evolution.
     profiles: [evolution]
     restart: unless-stopped

@@ -9,7 +9,7 @@ WhatsApp do Mago OS é uma instância da Evolution com o nome `<empresa>_<canal>
 
 | O quê | Onde |
 | --- | --- |
-| Versão | `evoapicloud/evolution-api:v2.3.8` no `compose.yaml` (fixa; a 2.4 pede ativação num servidor de fora: só troca com o ok do Sandro) |
+| Versão | `evoapicloud/evolution-api:v2.3.8`, presa pelo resumo (`@sha256:b2712c06...`), no `compose.yaml` (fixa; a 2.4 pede ativação num servidor de fora: só troca com o ok do Sandro) |
 | Container | `mago-os-evolution-1` (teste) e `mago-os-producao-evolution-1` (produção), perfil `evolution` do compose, 512 MB e meio processador |
 | Redes | `<projeto>_mago_evolution` (a API entra com o nome `mago-nucleo`, pelo `publicar.sh`) e `<projeto>_mago_db` (o banco) |
 | Banco | banco `evolution`, usuário `evolution`, no PostgreSQL do ambiente (`bin/evolution-banco.sh`); vai no backup junto |
