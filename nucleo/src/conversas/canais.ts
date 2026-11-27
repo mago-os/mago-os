@@ -19,24 +19,23 @@ import {
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import type pg from "pg";
 import { origemDoPedido } from "../acesso/rotas.ts";
+import type { ServicosDosAnexos } from "../anexos/servico.ts";
 import { auditar } from "../auditoria/registrar.ts";
 import { criarAviso } from "../avisos/index.ts";
 import { comEmpresa, comPessoa } from "../empresa.ts";
 import { acessoDo, type Verificador } from "../permissoes/verificar.ts";
-import { CABECALHO_DO_SEGREDO, type ClienteDaEvolution, ErroDaEvolution, numeroDoJid } from "./evolution.ts";
+import { tratarEntrega, tratarMensagemNova } from "./envio.ts";
+import {
+  CABECALHO_DO_SEGREDO,
+  type ClienteDaEvolution,
+  daInstancia,
+  ErroDaEvolution,
+  nomeDaInstancia,
+  numeroDoJid,
+} from "./evolution.ts";
 import { criarCanal, listarCanais, RecusaDasConversas } from "./servico.ts";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
-/** O nome da instância na Evolution: a empresa e o canal. */
-export const nomeDaInstancia = (empresaId: string, canalId: string) => `${empresaId}_${canalId}`;
-
-/** A empresa e o canal de um nome de instância, ou nulo se não é um nome nosso. */
-export function daInstancia(nome: string): { empresaId: string; canalId: string } | null {
-  const [empresaId, canalId, ...resto] = nome.split("_");
-  if (resto.length > 0 || !empresaId || !canalId || !UUID.test(empresaId) || !UUID.test(canalId)) return null;
-  return { empresaId, canalId };
-}
 
 export async function buscarCanal(c: pg.PoolClient, id: string, paraMudar = false): Promise<Canal | null> {
   if (!UUID.test(id)) return null;
@@ -93,6 +92,8 @@ async function avisarQueCaiu(c: pg.PoolClient, canal: Canal, texto: string) {
 export interface OpcoesDosAvisosDaEvolution {
   poolApp: pg.Pool;
   evolution: ClienteDaEvolution;
+  /** O depósito e o antivírus, para os arquivos das mensagens (M8-03); sem eles, os arquivos não são baixados. */
+  arquivos?: ServicosDosAnexos | null;
   log: {
     info(o: unknown, m?: string): void;
     warn(o: unknown, m?: string): void;
@@ -115,7 +116,12 @@ export async function tratarAvisoDaEvolution(
   const quem = daInstancia(aviso.instance);
   if (!quem)
     return o.log.warn({ evento: "evolution.instancia_desconhecida" }, "Aviso de instância que não é nossa");
-  if (aviso.event !== "connection.update" && aviso.event !== "CONNECTION_UPDATE") return;
+  const evento = aviso.event.toLowerCase().replace(/_/g, ".");
+  // Mensagens (M8-03): a nova e a entrega das que saíram.
+  const mensagens = { poolApp: o.poolApp, evolution: o.evolution, arquivos: o.arquivos ?? null, log: o.log };
+  if (evento === "messages.upsert") return tratarMensagemNova(mensagens, quem, aviso.instance, aviso.data);
+  if (evento === "messages.update") return tratarEntrega(mensagens, quem, aviso.data);
+  if (evento !== "connection.update") return;
   const data = (aviso.data ?? {}) as { state?: unknown; wuid?: unknown };
   const estado = data.state;
   if (estado !== "open" && estado !== "close") return;

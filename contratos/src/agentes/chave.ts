@@ -151,6 +151,8 @@ export const TIPOS_DE_AVISO = [
   "webhook_desligado",
   // M8-02: um número de WhatsApp conectado caiu (vai para os administradores e a equipe do canal).
   "canal_desconectado",
+  // M8-03: o ritmo de envio do número segurou mensagens (vai para os administradores, no máximo uma vez por hora).
+  "canal_segurando_mensagens",
 ] as const;
 export const TipoDeAviso = Type.Enum(TIPOS_DE_AVISO);
 export type TipoDeAviso = Static<typeof TipoDeAviso>;

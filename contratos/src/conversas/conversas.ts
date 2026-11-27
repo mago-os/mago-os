@@ -126,6 +126,29 @@ export const SITUACOES_DE_ENTREGA = ["pendente", "enviada", "entregue", "lida", 
 export const SituacaoDeEntrega = Type.Enum(SITUACOES_DE_ENTREGA);
 export type SituacaoDeEntrega = Static<typeof SituacaoDeEntrega>;
 
+/**
+ * O arquivo de uma mensagem (M8-03, decisão 0053): disponivel (passou pelo antivírus), bloqueado (pelo antivírus),
+ * grande_demais (mais de 25 MB), nao_baixado (a Evolution não entregou) ou apagado (passou o prazo de 180 dias).
+ */
+export const SITUACOES_DO_ARQUIVO_DA_CONVERSA = [
+  "disponivel",
+  "bloqueado",
+  "grande_demais",
+  "nao_baixado",
+  "apagado",
+] as const;
+export const ArquivoDaMensagem = Type.Object(
+  {
+    id: Id,
+    nome: Type.String({ minLength: 1, maxLength: 200 }),
+    tipo: Type.String({ maxLength: 120 }),
+    tamanho: OuNulo(Type.Integer({ minimum: 1 })),
+    situacao: Type.Enum(SITUACOES_DO_ARQUIVO_DA_CONVERSA),
+  },
+  { additionalProperties: false },
+);
+export type ArquivoDaMensagem = Static<typeof ArquivoDaMensagem>;
+
 /** Uma mensagem da conversa: chegou do contato, saiu da empresa, ou a nota interna (só a equipe vê). */
 export const MensagemDaConversa = Type.Object(
   {
@@ -143,6 +166,8 @@ export const MensagemDaConversa = Type.Object(
     /** No que sai. */
     entrega: OuNulo(SituacaoDeEntrega),
     motivoDaFalha: OuNulo(Type.String({ maxLength: 300 })),
+    /** Foto, documento ou áudio (M8-03). */
+    arquivo: OuNulo(ArquivoDaMensagem),
   },
   { additionalProperties: false },
 );
@@ -202,6 +227,8 @@ export const MensagemQueChegou = Type.Object(
     texto: Type.Optional(OuNulo(Type.String({ maxLength: 20000 }))),
     /** A hora que o provedor informa (sem ela, agora). */
     enviadaEm: Type.Optional(DataHora),
+    /** Mandada pelo próprio número, direto no celular (M8-03): entra como "saiu", marcada "pelo celular". */
+    doCelular: Type.Optional(Type.Boolean()),
   },
   { additionalProperties: false },
 );
@@ -215,6 +242,31 @@ export function conferirMensagemQueChegou(valor: unknown) {
         : [],
   ]);
 }
+
+/** O maior arquivo de uma conversa: o mesmo dos anexos (25 MB). */
+export const TAMANHO_MAXIMO_DO_ARQUIVO_DA_CONVERSA = 25 * 1024 * 1024;
+/** Entre duas mensagens para o mesmo contato, pelo menos este tempo (ritmo de envio, decisão 0053). */
+export const SEGUNDOS_ENTRE_MENSAGENS_AO_CONTATO = 3;
+
+/** Mandar uma mensagem na conversa (M8-03): texto, ou um arquivo (foto ou documento) com a legenda opcional. */
+export const PedidoDeMensagemNaConversa = Type.Object(
+  {
+    texto: Type.Optional(Type.String({ minLength: 1, maxLength: 4096, pattern: "\\S" })),
+    arquivo: Type.Optional(
+      Type.Object(
+        {
+          nome: Texto(200, "Nome do arquivo."),
+          tipo: Type.String({ pattern: "^[a-z0-9.+-]+/[a-z0-9.+-]+$", maxLength: 120 }),
+          /** O arquivo em base64 (até 25 MB). */
+          base64: Type.String({ minLength: 4, maxLength: 35_000_000, pattern: "^[A-Za-z0-9+/]+={0,2}$" }),
+        },
+        { additionalProperties: false },
+      ),
+    ),
+  },
+  { additionalProperties: false, minProperties: 1 },
+);
+export type PedidoDeMensagemNaConversa = Static<typeof PedidoDeMensagemNaConversa>;
 
 /** Folga depois de resolver: a mensagem que chega nesse tempo cai na conversa resolvida, sem reabrir. */
 export const MINUTOS_DE_FOLGA_DEPOIS_DE_RESOLVER = 60;
@@ -233,6 +285,9 @@ export const ACOES_CONVERSAS = [
   "conversa.reabriu",
   "conversa.trocou_contato",
   "conversa.apagou",
+  // M8-03: uma pessoa mandou uma mensagem a um contato (só ids, nunca o texto) e mandou de novo a que falhou.
+  "conversa.enviou",
+  "conversa.reenviou",
 ] as const;
 export type AcaoDasConversas = (typeof ACOES_CONVERSAS)[number];
 

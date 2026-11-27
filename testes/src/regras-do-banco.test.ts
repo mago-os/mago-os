@@ -43,6 +43,8 @@ const FUNCOES_COMO_DONO: Record<string, string> = {
   "public.aprovacoes_vencidas": "pedidos de aprovação vencidos, todas as empresas",
   "public.empresas_com_agenda": "empresas com alertas de agenda a cuidar (só ids)",
   "public.empresas_com_anexos_para_cuidar": "empresas com anexos na quarentena (só ids)",
+  "public.empresas_com_arquivos_de_conversa_vencidos":
+    "empresas com arquivo de conversa vencido (M8-03, só ids)",
   "public.empresas_com_prazo_para_avisar": "empresas com prazos a avisar (só ids)",
   "public.empresas_com_push_pendente": "empresas com push a mandar (só ids)",
   "public.empresas_com_rotinas_a_cuidar": "empresas com rotinas na hora (só ids)",

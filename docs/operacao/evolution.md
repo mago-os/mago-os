@@ -60,6 +60,17 @@ Evolution sobe. Se um canal ficar "Desconectado", o administrador da empresa lê
 de desastre (`infra/producao/ensaio-remontagem.sh`), a Evolution do ensaio nunca sobe: as sessões restauradas
 tomariam a conexão dos números da produção. O ensaio só confere que o banco dela voltou.
 
+## Mensagens que não saem
+
+Cada mensagem mostra a situação. "Pendente" por muito tempo: o ritmo do número segurou (20 por minuto e 300 por
+hora; o administrador recebe o aviso) ou a fila `evolution-envios` está parada (`docker logs` da API). "Falhou": o
+motivo aparece na mensagem (número desconectado, WhatsApp recusou); "Tentar de novo" manda outra vez.
+
+## Arquivos das conversas
+
+Ficam no bucket dos anexos, na pasta `conversas/`, depois de passar pelo antivírus. A verificação diária (fila
+`conversas-prazo`, 04:40 UTC) apaga os que passaram de 180 dias; o texto da mensagem fica.
+
 ## Trocar a chave ou o segredo
 
 Gerar o novo no Infisical, `segredos.sh`, `docker compose --profile evolution up -d --force-recreate evolution` e
