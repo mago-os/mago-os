@@ -14,6 +14,7 @@ Escrita em 15/11/2026 por Sandro Nolasco e Claude. Passou para cá em 16/11/2026
 | [M5-telegram-e-rotinas.md](M5-telegram-e-rotinas.md) | M5 Telegram e rotinas | Concluído em 24/11/2026 |
 | [M6-endurecimento-e-uso-real.md](M6-endurecimento-e-uso-real.md) | M6 Endurecimento e uso real | Aprovado em 24/11/2026, concluído em 25/11/2026 (fim da Fase 1) |
 | [M7-base.md](M7-base.md) | M7 Base (Fase 2: contatos, API pública, webhooks, seletor de empresas, aprovações da Meta e do Google) | Aprovado em 25/11/2026, concluído em 27/11/2026 (a aprovação da Meta, na M7-06, segue com o Sandro) |
+| [M8-conversas.md](M8-conversas.md) | M8 Conversas (WhatsApp pela Evolution e oficial, chat no site, caixa única, agente e passagem para humano) | Aprovado em 27/11/2026 |
 
 ## Como ler esta spec
 
