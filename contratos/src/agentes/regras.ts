@@ -36,6 +36,11 @@ export interface AcaoDoCatalogo {
   padraoInterno: ModoDeAcao;
   /** Padrão para os agentes externos: as ferramentas do MCP de hoje continuam executando (decisão 7). */
   padraoExterno: ModoDeAcao | null;
+  /**
+   * Só toca a própria conversa com o cliente e o próprio contato (atendimento, M8-05, decisão 0055): o texto do
+   * cliente é sempre texto de outros, e mesmo assim a ação executa (senão o atendimento não funcionaria).
+   */
+  soNaPropriaConversa?: true;
 }
 
 /**
@@ -144,6 +149,39 @@ export const CATALOGO_DE_ACOES: readonly AcaoDoCatalogo[] = [
     mudaDados: true,
     padraoInterno: "executa",
     padraoExterno: "executa",
+  },
+  // Atendimento (M8-05, decisão 0055): o agente do canal só alcança aquela conversa e aquele contato; responder,
+  // completar o contato não identificado e criar a tarefa executam mesmo com o texto do cliente (texto de outros).
+  {
+    acao: "ver_ficha_do_cliente",
+    nome: "Ver a ficha do cliente da conversa",
+    mudaDados: false,
+    padraoInterno: "executa",
+    padraoExterno: null,
+  },
+  {
+    acao: "completar_cliente",
+    nome: "Completar o nome e o e-mail do cliente da conversa",
+    mudaDados: true,
+    padraoInterno: "executa",
+    padraoExterno: null,
+    soNaPropriaConversa: true,
+  },
+  {
+    acao: "criar_tarefa_para_a_equipe",
+    nome: "Criar tarefa para a equipe a partir da conversa",
+    mudaDados: true,
+    padraoInterno: "executa",
+    padraoExterno: null,
+    soNaPropriaConversa: true,
+  },
+  {
+    acao: "responder_ao_cliente",
+    nome: "Responder ao cliente",
+    mudaDados: true,
+    padraoInterno: "executa",
+    padraoExterno: null,
+    soNaPropriaConversa: true,
   },
   // Conversas com contatos (M8-01, decisão 0051): só leitura, executa. As de ação (mandar mensagem a um contato pede
   // aprovação por padrão para os externos) entram na M8-11.
@@ -378,7 +416,7 @@ export function padraoDaAcao(acao: string, tipo: "interno" | "externo"): ModoDeA
  */
 export function modoDepoisDeTextoDeOutros(acao: string, modo: ModoDeAcao): ModoDeAcao {
   const a = CATALOGO_DE_ACOES.find((x) => x.acao === acao);
-  if (!a?.mudaDados) return modo;
+  if (!a?.mudaDados || a.soNaPropriaConversa) return modo;
   return modo === "executa" || modo === "executa_nas_dele" ? "pede_aprovacao" : modo;
 }
 

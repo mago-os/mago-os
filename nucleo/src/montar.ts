@@ -201,9 +201,13 @@ export async function montarApi(config: Config, deps: DependenciasDaApi): Promis
     const verificador = criarVerificador(login, poolDoLogin, banco.pool, catalogoDeModulos());
     registrarRotasDePermissoes(app, verificador, banco.pool);
     // Agentes internos (M4-02): a mensagem da pessoa, a delegação e a tarefa atribuída (M4-04) viram trabalho na fila; o motor roda cada um.
-    const acordarAgente = (empresaId: string, execucaoId: string) => {
+    const acordarAgente = (empresaId: string, execucaoId: string, segundos = 0) => {
       void fila
-        .send(FILA_AGENTES_INTERNOS, { empresaId, execucaoId, rastreio: levarRastreio() })
+        .send(
+          FILA_AGENTES_INTERNOS,
+          { empresaId, execucaoId, rastreio: levarRastreio() },
+          segundos > 0 ? { startAfter: segundos } : {},
+        )
         .catch((erro) =>
           app.log.error({ erro, execucaoId }, "Fila dos agentes internos não recebeu o trabalho"),
         );
@@ -315,6 +319,8 @@ export async function montarApi(config: Config, deps: DependenciasDaApi): Promis
       modelos: deps.modelos ?? modelosDeVerdade(config.ambiente),
       claudeCode: rodarPeloClaudeCode,
       catalogo: verificador.catalogo,
+      // Atendimento (M8-05): a resposta do agente ao cliente sai pela fila de envio.
+      enviarAoContato: (empresaId, mensagemId) => enfileirarEnvio(empresaId, mensagemId),
       opcoesMcp: {
         poolApp: banco.pool,
         carteiro,
@@ -540,6 +546,11 @@ export async function montarApi(config: Config, deps: DependenciasDaApi): Promis
                     evolution: evolution.cliente,
                     arquivos: servicosDosAnexos,
                     log: app.log,
+                    atendimento: {
+                      poolApp: banco.pool,
+                      acordar: acordarAgente,
+                      enviar: (empresaId, mensagemId) => enfileirarEnvio(empresaId, mensagemId),
+                    },
                   },
                   t.data.aviso,
                 ),

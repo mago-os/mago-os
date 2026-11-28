@@ -137,6 +137,26 @@ export function registrarRotasDasConversas(
           mensagens: await mensagensDaConversa(c, id),
           anterior: await conversaAnterior(c, [olha(pedido, "ver")], conversa),
           pode: { responder: await alcanca("criar"), editar: await alcanca("editar") },
+          // As sugestões do agente esperando uma pessoa (M8-05, modo "sugere").
+          sugestoes: (
+            await c.query<{
+              id: string;
+              conversa_id: string;
+              agente_id: string | null;
+              texto: string;
+              criada_em: Date;
+            }>(
+              `select id, conversa_id, agente_id, texto, criada_em from sugestoes_de_resposta
+                where conversa_id = $1 and empresa_id = empresa_ativa() and situacao = 'pendente' order by criada_em`,
+              [id],
+            )
+          ).rows.map((s) => ({
+            id: s.id,
+            conversaId: s.conversa_id,
+            agenteId: s.agente_id,
+            texto: s.texto,
+            criadaEm: s.criada_em.toISOString(),
+          })),
           // A caixa (M8-04) só mostra "Devolver ao agente" quando o canal tem um agente.
           canalTemAgente:
             (

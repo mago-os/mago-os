@@ -798,6 +798,17 @@ describe.skipIf(!bancoDisponivel)("vazamento entre empresas em todas as partes (
     ).id;
     await usar(x, admin, "GET", "/conversas-visoes");
     await usar(x, func, "GET", `/conversas-com-contatos?texto=${encodeURIComponent(M)}`);
+    // Agente na conversa (M8-05): o agente Atendimento do canal e as sugestões dele (enviar e descartar).
+    ids.atendente = (await usar(x, admin, "POST", `/canais/${ids.canal}/atendente`)).agenteId;
+    for (const chave of ["sugestaoEnviar", "sugestaoDescartar"])
+      ids[chave] = (
+        await dono.query<{ id: string }>(
+          `insert into sugestoes_de_resposta (empresa_id, conversa_id, agente_id, texto) values ($1, $2, $3, $4) returning id`,
+          [x.id, ids.conversaComContato, ids.atendente, `Sugestão ${M}`],
+        )
+      ).rows[0]?.id as string;
+    await usar(x, admin, "POST", `${cx}/sugestoes/${ids.sugestaoEnviar}/enviar`, {});
+    await usar(x, admin, "POST", `${cx}/sugestoes/${ids.sugestaoDescartar}/descartar`);
 
     await usar(x, gestor, "POST", "/contatos/juntar", { ficaId: ids.contato, saiId: ids.contato2 });
 

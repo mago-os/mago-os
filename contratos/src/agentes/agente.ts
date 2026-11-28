@@ -93,6 +93,10 @@ export const regrasDoAgente: Regra<Agente>[] = [
           mensagem: "o especialista tem especialidade e responde a um coordenador",
         },
       ];
+    if (a.papel === "atendimento" && (a.especialidade !== null || a.respondeAId !== null))
+      return [
+        { caminho: "/papel", mensagem: "o atendimento não tem especialidade nem responde a outro agente" },
+      ];
     if (a.respondeAId === a.id)
       return [{ caminho: "/respondeAId", mensagem: "o agente não responde a si mesmo" }];
     return [];

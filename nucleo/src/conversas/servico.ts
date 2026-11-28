@@ -281,10 +281,16 @@ interface LinhaDoCanal {
   agente_id: string | null;
   criado_por: string;
   criado_em: Date;
+  modo: NonNullable<Canal["modo"]>;
+  instrucoes: string | null;
+  horario: NonNullable<Canal["horario"]>;
+  mensagem_fora_do_horario: string;
+  limite_de_autonomia: number;
+  sugestoes_sem_edicao: number;
 }
 
-const COLUNAS_DO_CANAL =
-  "id, empresa_id, nome, provedor, situacao, identificador, area, agente_id, criado_por, criado_em";
+const COLUNAS_DO_CANAL = `id, empresa_id, nome, provedor, situacao, identificador, area, agente_id, criado_por, criado_em,
+  modo, instrucoes, horario, mensagem_fora_do_horario, limite_de_autonomia, sugestoes_sem_edicao`;
 
 const paraCanal = (l: LinhaDoCanal): Canal => ({
   id: l.id,
@@ -295,6 +301,12 @@ const paraCanal = (l: LinhaDoCanal): Canal => ({
   identificador: l.identificador,
   area: l.area,
   agenteId: l.agente_id,
+  modo: l.modo,
+  instrucoes: l.instrucoes,
+  horario: l.horario,
+  mensagemForaDoHorario: l.mensagem_fora_do_horario,
+  limiteDeAutonomia: l.limite_de_autonomia,
+  sugestoesSemEdicao: l.sugestoes_sem_edicao,
   criadoEm: l.criado_em.toISOString(),
 });
 
@@ -469,9 +481,13 @@ export async function receberMensagem(c: pg.PoolClient, m: MensagemQueChegou): P
       conversaId = aberta.id;
     } else {
       const nova = await c.query<{ id: string }>(
-        `insert into conversas_com_contatos (empresa_id, canal_id, contato_id, identificador, mais_de_um_contato)
-         values (empresa_ativa(), $1, $2, $3, $4) returning id`,
-        [m.canalId, contatoId, identificador, achado?.varios ?? false],
+        // A conversa nova num canal com agente (e fora de "só pessoas") nasce com o agente (M8-05).
+        `insert into conversas_com_contatos (empresa_id, canal_id, contato_id, identificador, mais_de_um_contato, com_agente)
+         select empresa_ativa(), $1, $2, $3, $4,
+                (cn.agente_id is not null and cn.modo <> 'so_pessoas' and not coalesce($5, false))
+           from canais_de_contato cn where cn.id = $1 and cn.empresa_id = empresa_ativa()
+         returning id`,
+        [m.canalId, contatoId, identificador, achado?.varios ?? false, m.doCelular ?? false],
       );
       conversaId = nova.rows[0]?.id as string;
       conversaNova = true;

@@ -51,6 +51,7 @@ export const TEXTO_DO_PUSH: Record<TipoDeAviso, string> = {
   conversa_nova: "Nova conversa esperando a equipe",
   mensagem_na_conversa: "Nova mensagem numa conversa sua",
   mencao_em_conversa: "Você foi chamado numa conversa",
+  agente_pronto_para_responder: "Um agente de atendimento pode responder sozinho",
 };
 
 /**

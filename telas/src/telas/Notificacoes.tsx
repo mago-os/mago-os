@@ -50,6 +50,7 @@ const NOMES: Record<TipoDeAviso, string> = {
   conversa_nova: "Conversa nova esperando a equipe",
   mensagem_na_conversa: "Mensagem nova numa conversa minha",
   mencao_em_conversa: "Me chamaram numa nota de conversa",
+  agente_pronto_para_responder: "Agente de atendimento pronto para responder sozinho",
 };
 
 type Mensagem = { texto: string; tipo: "erro" | "ok" } | null;

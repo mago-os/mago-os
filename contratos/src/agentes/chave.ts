@@ -158,6 +158,9 @@ export const TIPOS_DE_AVISO = [
   "conversa_nova",
   "mensagem_na_conversa",
   "mencao_em_conversa",
+  // M8-05: o agente de um canal teve as sugestões enviadas sem edição até o número combinado (vai para os
+  // administradores, uma vez).
+  "agente_pronto_para_responder",
 ] as const;
 export const TipoDeAviso = Type.Enum(TIPOS_DE_AVISO);
 export type TipoDeAviso = Static<typeof TipoDeAviso>;

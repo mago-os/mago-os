@@ -198,6 +198,13 @@ erDiagram
     integer limite_por_minuto
     integer limite_por_hora
     timestamp_with_time_zone segurando_avisado_em
+    text modo
+    text instrucoes
+    jsonb horario
+    text mensagem_fora_do_horario
+    integer limite_de_autonomia
+    integer sugestoes_sem_edicao
+    timestamp_with_time_zone autonomia_avisada_em
   }
   chaves_de_agente {
     uuid id PK
@@ -375,6 +382,8 @@ erDiagram
     timestamp_with_time_zone resolvida_em
     uuid resolvida_por
     timestamp_with_time_zone avisado_em
+    text resumo
+    timestamp_with_time_zone fora_do_horario_avisado_em
   }
   empresas {
     uuid id PK
@@ -500,6 +509,7 @@ erDiagram
     timestamp_with_time_zone terminada_em
     boolean leu_texto_de_outros
     uuid parada_id
+    uuid conversa_com_contato_id
   }
   execucoes_de_rotina {
     uuid id PK
@@ -782,6 +792,19 @@ erDiagram
     text cor
     text tipo
     integer ordem
+  }
+  sugestoes_de_resposta {
+    uuid id PK
+    uuid empresa_id FK
+    uuid conversa_id
+    uuid agente_id
+    uuid execucao_id
+    text texto
+    text situacao
+    timestamp_with_time_zone criada_em
+    uuid decidida_por
+    timestamp_with_time_zone decidida_em
+    uuid mensagem_id
   }
   tarefas {
     uuid id PK
@@ -1123,6 +1146,7 @@ erDiagram
   empresas ||--o{ skills : "empresa_id"
   empresas ||--o{ skills_do_agente : "empresa_id"
   empresas ||--o{ status_de_projeto : "empresa_id"
+  empresas ||--o{ sugestoes_de_resposta : "empresa_id"
   empresas ||--o{ tarefas : "empresa_id"
   empresas ||--o{ tetos_de_gasto : "empresa_id"
   empresas ||--o{ versoes_de_instrucoes : "empresa_id"
@@ -1206,7 +1230,7 @@ Isolamento por empresa (Row Level Security): ligado e forçado.
 | modelo_principal | text | não |  | empresa | Modelo principal do agente. |
 | modelo_reserva_conta_id | uuid | não |  | empresa | Conta de IA do modelo reserva (entra se o principal falhar ou chegar no teto). |
 | modelo_reserva | text | não |  | empresa | Modelo reserva do agente. |
-| papel | text | não |  | empresa | Agente interno: coordenador (porta de entrada) ou especialista. |
+| papel | text | não |  | empresa | Agente interno: coordenador (porta de entrada), especialista ou atendimento (fala com clientes, M8-05). |
 | especialidade | text | não |  | empresa | Especialista: a área dele (no M4, gerente_de_projetos). |
 | responde_a_id | uuid | não |  | empresa | Especialista: o coordenador a quem responde. |
 | limite_de_rodadas | integer | não |  | empresa | Agente interno: rodadas por execução (vazio: o padrão, 30). |
@@ -1460,6 +1484,13 @@ Isolamento por empresa (Row Level Security): ligado e forçado.
 | limite_por_minuto | integer | sim | `20` | empresa | Mensagens que o número manda por minuto, no máximo. |
 | limite_por_hora | integer | sim | `300` | empresa | Mensagens que o número manda por hora, no máximo. |
 | segurando_avisado_em | timestamp with time zone | não |  | sistema | A última vez que o administrador foi avisado de que o ritmo segurou mensagens (no máximo uma por hora). |
+| modo | text | sim | `'sugere'::text` | empresa | O agente no canal: so_pessoas, sugere (a pessoa envia) ou sozinho (o agente responde). |
+| instrucoes | text | não |  | empresa | Instruções que valem só para o agente deste canal. |
+| horario | jsonb | sim | `'{"fim": "18:00", "dias": [1, 2, 3, 4, 5], "inicio": "09:00"}'::jsonb` | empresa | O horário de atendimento: dias (1 = segunda ... 7 = domingo), início e fim, no fuso da empresa. |
+| mensagem_fora_do_horario | text | sim | `'Olá! Nosso atendimento é de segunda a sexta, das 9h às 18h. Respondemos assim que voltarmos.'::text` | empresa | O texto que sai fora do horário. |
+| limite_de_autonomia | integer | sim | `20` | empresa | Sugestões enviadas sem edição até o administrador ser avisado de que o agente pode responder sozinho. |
+| sugestoes_sem_edicao | integer | sim | `0` | sistema | Sugestões do agente enviadas sem edição. |
+| autonomia_avisada_em | timestamp with time zone | não |  | sistema | Quando o administrador foi avisado da autonomia. |
 
 ### chaves_de_agente
 
@@ -1742,6 +1773,8 @@ Isolamento por empresa (Row Level Security): ligado e forçado.
 | resolvida_em | timestamp with time zone | não |  | sistema | Quando foi resolvida. |
 | resolvida_por | uuid | não |  | sistema | Quem resolveu (vazio: o sistema ou o agente). |
 | avisado_em | timestamp with time zone | não |  | sistema | O último aviso de mensagem nova ao dono (no máximo um a cada 5 minutos). |
+| resumo | text | não |  | pessoal | Resumo da conversa longa, para o agente (M8-05). |
+| fora_do_horario_avisado_em | timestamp with time zone | não |  | sistema | Quando a mensagem de fora do horário saiu nesta conversa (uma vez por período fechado). |
 
 ### empresas
 
@@ -1937,6 +1970,7 @@ Isolamento por empresa (Row Level Security): ligado e forçado.
 | terminada_em | timestamp with time zone | não |  | sistema | Quando terminou. |
 | leu_texto_de_outros | boolean | sim | `false` | sistema | Leu texto de outra pessoa ou de agente externo: o que muda dados pede aprovação (M4-04). |
 | parada_id | uuid | não |  | sistema | A parada que interrompeu a execução no meio (a tarefa volta à fila ao retomar). |
+| conversa_com_contato_id | uuid | não |  | sistema | No atendimento (M8-05): a conversa com o contato que o agente atende. |
 
 ### execucoes_de_rotina
 
@@ -2394,6 +2428,26 @@ Isolamento por empresa (Row Level Security): ligado e forçado.
 | cor | text | sim |  | empresa | Cor do status nas telas (#rrggbb). |
 | tipo | text | sim |  | sistema | Tipo fixo: a_fazer, em_andamento, precisa_de_ajuda, concluida ou cancelada. Não muda depois de criado. |
 | ordem | integer | sim | `0` | empresa | Posição na tela (e no Kanban), do menor para o maior. |
+
+### sugestoes_de_resposta
+
+O que o agente sugere responder ao contato no modo "sugere" (M8-05), até uma pessoa enviar, editar ou descartar.
+
+Isolamento por empresa (Row Level Security): ligado e forçado.
+
+| Coluna | Tipo | Obrigatória | Padrão | Marca | Descrição |
+| --- | --- | --- | --- | --- | --- |
+| id | uuid | sim | `uuidv7()` | sistema | Identificador. Chave primária. |
+| empresa_id | uuid | sim |  | sistema | Empresa da conversa. Aponta para empresas.id. |
+| conversa_id | uuid | sim |  | sistema | A conversa com o contato. |
+| agente_id | uuid | não |  | sistema | O agente que sugeriu. |
+| execucao_id | uuid | não |  | sistema | A execução que gerou a sugestão. |
+| texto | text | sim |  | pessoal | O texto sugerido. |
+| situacao | text | sim | `'pendente'::text` | sistema | pendente, enviada (sem mudar), editada ou descartada. |
+| criada_em | timestamp with time zone | sim | `now()` | sistema | Quando o agente sugeriu. |
+| decidida_por | uuid | não |  | sistema | Quem enviou ou descartou. |
+| decidida_em | timestamp with time zone | não |  | sistema | Quando. |
+| mensagem_id | uuid | não |  | sistema | A mensagem que saiu da sugestão. |
 
 ### tarefas
 

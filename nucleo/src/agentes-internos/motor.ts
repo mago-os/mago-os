@@ -37,6 +37,13 @@ import {
   modeloIndisponivel,
   modelosDoAgente,
 } from "../contas-de-ia/servico.ts";
+import {
+  atendimentoNaoTerminou,
+  conversaAindaComOAgente,
+  instrucoesDoAtendimento,
+  partesDoAtendimento,
+  terminarAtendimento,
+} from "../conversas/atendimento.ts";
 import { conferirTetos, registrarConsumo } from "../custos/servico.ts";
 import { comEmpresa, comoRotina } from "../empresa.ts";
 import { montarInstrucoes, skillsDoAgente } from "../instrucoes/servico.ts";
@@ -97,6 +104,8 @@ export interface OpcoesDoMotor {
     aoRodar(empresaId: string, conversaId: string): void;
     aoTerminar(empresaId: string): void;
   };
+  /** Atendimento (M8-05): leva a resposta do agente à fila de envio ao cliente (M8-03). */
+  enviarAoContato?: (empresaId: string, mensagemId: string) => Promise<void>;
 }
 
 const LIMITES_PADRAO = { rodadas: LIMITE_PADRAO_DE_RODADAS, tempoMs: LIMITE_PADRAO_DE_MINUTOS * 60_000 };
@@ -118,6 +127,8 @@ export function instrucoesDoPapel(
   nome: string,
   especialistas: { id: string; nome: string }[],
 ): string {
+  if (papel === "atendimento")
+    return `Você é ${nome}, quem atende os clientes desta empresa.\n\n${REGRAS_FIXAS}`;
   if (papel === "coordenador")
     return `Você é ${nome}, o coordenador dos agentes desta empresa no Mago OS. Você recebe os pedidos das pessoas.
 Para perguntas sobre as tarefas que já existem, use listar_tarefas, ver_tarefa, minhas_prioridades e buscar.
@@ -209,6 +220,7 @@ export async function rodarExecucao(o: OpcoesDoMotor, empresaId: string, execuca
     // rotina (M5-06, decisão 0040).
     if (await daRotina(o, empresaId, execucaoId)) await comoRotina(() => rodar(o, empresaId, execucaoId));
     else await rodar(o, empresaId, execucaoId);
+    await depoisDoAtendimento(o, empresaId, execucaoId);
   } catch (erro) {
     o.log.error({ erro, execucaoId }, "Agente interno: erro fora da execução");
     await comEmpresa(o.poolApp, empresaId, (c) =>
@@ -221,6 +233,16 @@ export async function rodarExecucao(o: OpcoesDoMotor, empresaId: string, execuca
       // O canal cuida dos próprios erros; a verificação a cada minuto manda o que ficou.
     }
   }
+}
+
+/** O atendimento que não terminou bem (falhou, parou no teto, agente pausado): a conversa vai para as pessoas. */
+async function depoisDoAtendimento(o: OpcoesDoMotor, empresaId: string, execucaoId: string): Promise<void> {
+  await comEmpresa(o.poolApp, empresaId, async (c) => {
+    const e = await buscarExecucao(c, execucaoId);
+    if (e?.origem !== "atendimento" || !e.conversaComContatoId) return;
+    if (e.situacao === "falhou" || e.situacao === "parada")
+      await atendimentoNaoTerminou(c, e.conversaComContatoId);
+  });
 }
 
 /**
@@ -366,6 +388,23 @@ async function rodar(o: OpcoesDoMotor, empresaId: string, execucaoId: string): P
     return;
   }
   const agente: AgenteQueRoda = { id: agenteBruto.id, nome: agenteBruto.nome, papel: agenteBruto.papel };
+  // Atendimento (M8-05): uma pessoa pode ter assumido a conversa enquanto a execução esperava na fila.
+  if (execucao.origem === "atendimento") {
+    const conversaDoCliente = execucao.conversaComContatoId;
+    if (
+      agente.papel !== "atendimento" ||
+      !conversaDoCliente ||
+      !(await naEmpresa((c) => conversaAindaComOAgente(c, conversaDoCliente)))
+    ) {
+      await naEmpresa((c) =>
+        terminarExecucao(c, execucaoId, {
+          situacao: "concluida",
+          resumo: "A conversa não está mais com o agente.",
+        }),
+      );
+      return;
+    }
+  }
   // Os limites do agente (M4-08): o ajustado pelo administrador, ou o padrão (os testes podem trocar o padrão).
   const padrao = o.limites ?? LIMITES_PADRAO;
   const limites = {
@@ -581,7 +620,13 @@ async function rodar(o: OpcoesDoMotor, empresaId: string, execucaoId: string): P
     }));
     const sistema = [
       instrucoes.texto,
-      `# Seu papel\n\n${instrucoesDoPapel(agente.papel, agente.nome, preparo.especialistas)}`,
+      `# Seu papel\n\n${
+        execucao.origem === "atendimento" && execucao.conversaComContatoId
+          ? await naEmpresa((c) =>
+              instrucoesDoAtendimento(c, execucao.conversaComContatoId as string, agente.nome),
+            )
+          : instrucoesDoPapel(agente.papel, agente.nome, preparo.especialistas)
+      }`,
       ...(skills.length > 0
         ? [
             `# Suas skills\n\nAntes de fazer um trabalho que uma delas ensina, leia o texto com pegar_skill.\n${skills
@@ -1050,6 +1095,8 @@ async function textoDeOutrosNoComeco(
   execucao: ExecucaoComInstrucoes,
 ): Promise<boolean> {
   return comEmpresa(o.poolApp, empresaId, async (c) => {
+    // Atendimento (M8-05): o texto do cliente é sempre de fora.
+    if (execucao.origem === "atendimento") return true;
     if (execucao.origem === "conversa" && execucao.conversaId) {
       const r = await c.query(
         `select 1 from (select execucao_id from mensagens_de_conversa
@@ -1136,6 +1183,9 @@ async function montarPartes(
   ctx: ContextoDaFerramenta,
 ): Promise<ParteDaConversa[]> {
   return comEmpresa(o.poolApp, empresaId, async (c) => {
+    // Atendimento (M8-05): a conversa com o cliente, toda como dado de fora.
+    if (execucao.origem === "atendimento" && execucao.conversaComContatoId)
+      return partesDoAtendimento(c, execucao.conversaComContatoId);
     if (execucao.origem === "conversa" && execucao.conversaId) {
       const partes = partesDaConversa(await listarMensagens(c, execucao.conversaId, 40));
       if (partes.length === 0) throw new ErroDoModelo("A conversa está vazia.");
@@ -1171,12 +1221,37 @@ async function finalizar(
   o: OpcoesDoMotor,
   empresaId: string,
   ctx: ContextoDaFerramenta,
-  fim: { tipo: "responder" | "perguntar"; texto: string; tarefas: string[] },
+  fim: { tipo: "responder" | "perguntar"; texto: string; tarefas: string[]; resumo?: string | null },
   avisarNaConversa: (texto: string, autor: "agente" | "sistema", tarefas?: string[]) => Promise<void>,
 ): Promise<void> {
-  void o;
-  void empresaId;
   const e = ctx.execucao;
+  // Atendimento (M8-05): a resposta vira sugestão (modo "sugere") ou sai para o cliente (modo "sozinho").
+  if (e.origem === "atendimento" && e.conversaComContatoId) {
+    const conversaDoCliente = e.conversaComContatoId;
+    const feito = await comEmpresa(o.poolApp, empresaId, (c) =>
+      terminarAtendimento(c, conversaDoCliente, ctx.agente.id, e.id, fim.texto, fim.resumo ?? null),
+    );
+    if (feito.mensagemId) await o.enviarAoContato?.(empresaId, feito.mensagemId);
+    await auditar(
+      ctx.poolApp,
+      {
+        empresaId: ctx.empresaId,
+        ator: { tipo: "agente", agenteId: ctx.agente.id },
+        acao: "agente.executou",
+        alvo: { tipo: "conversa", id: conversaDoCliente },
+        origem: ctx.opcoesMcp.origem,
+        rastreio: null,
+        detalhes: {
+          execucaoId: e.id,
+          origem: e.origem,
+          sugeriu: !!feito.sugestaoId,
+          enviou: !!feito.mensagemId,
+        },
+      },
+      ctx.log,
+    );
+    return;
+  }
   if (e.origem !== "conversa" && e.tarefaId) {
     // Depois de ler texto de outros, o resumo também passa por aprovação antes de virar comentário (M4-04): senão o
     // texto de fora voltaria como comentário de agente interno, que não marca quem lê depois.

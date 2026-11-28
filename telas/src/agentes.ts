@@ -30,6 +30,7 @@ export function tipoDoAgente(
 ): string {
   if (a.tipo === "externo") return "Externo";
   if (a.papel === "coordenador") return "Coordenador";
+  if (a.papel === "atendimento") return "Atendimento (clientes)";
   const partes = ["Especialista"];
   if (a.especialidade) partes.push(NOME_DA_ESPECIALIDADE[a.especialidade]);
   if (respondeA) partes.push(`responde a ${respondeA}`);

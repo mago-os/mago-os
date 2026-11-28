@@ -30,6 +30,25 @@ const TelefoneDoCanal = Type.String({
   description: "O número conectado, no formato internacional (ex.: +5511987654321).",
 });
 
+/** O modo do agente no canal (decisão 3 da spec do M8): começa em "sugere". */
+export const MODOS_DO_CANAL = ["so_pessoas", "sugere", "sozinho"] as const;
+export const ModoDoCanal = Type.Enum(MODOS_DO_CANAL, {
+  description: "so_pessoas (o agente não responde), sugere (a pessoa envia) ou sozinho (o agente responde).",
+});
+export type ModoDoCanal = Static<typeof ModoDoCanal>;
+
+const Hora = Type.String({ pattern: "^([01][0-9]|2[0-3]):[0-5][0-9]$", description: "HH:MM." });
+/** O horário de atendimento: os dias (1 = segunda ... 7 = domingo), o início e o fim, no fuso da empresa. */
+export const HorarioDoCanal = Type.Object(
+  {
+    dias: Type.Array(Type.Integer({ minimum: 1, maximum: 7 }), { maxItems: 7, uniqueItems: true }),
+    inicio: Hora,
+    fim: Hora,
+  },
+  { additionalProperties: false },
+);
+export type HorarioDoCanal = Static<typeof HorarioDoCanal>;
+
 /** Um canal da empresa. A configuração do provedor não sai daqui (e nunca tem segredo). */
 export const Canal = Type.Object(
   {
@@ -43,6 +62,13 @@ export const Canal = Type.Object(
     /** A equipe que atende (a área das pessoas). Nula: todos os funcionários veem as conversas do canal. */
     area: OuNulo(Area),
     agenteId: OuNulo(Id),
+    /** O agente no canal (M8-05): so_pessoas, sugere (a pessoa envia) ou sozinho. */
+    modo: Type.Optional(ModoDoCanal),
+    instrucoes: Type.Optional(OuNulo(Type.String({ maxLength: 8000 }))),
+    horario: Type.Optional(HorarioDoCanal),
+    mensagemForaDoHorario: Type.Optional(Texto(1000, "O texto que sai fora do horário.")),
+    limiteDeAutonomia: Type.Optional(Type.Integer({ minimum: 1, maximum: 1000 })),
+    sugestoesSemEdicao: Type.Optional(Type.Integer({ minimum: 0 })),
     criadoEm: DataHora,
   },
   {
@@ -264,6 +290,26 @@ export const PedidoDeNotaNaConversa = Type.Object(
 );
 export type PedidoDeNotaNaConversa = Static<typeof PedidoDeNotaNaConversa>;
 
+/** O que o agente sugere responder no modo "sugere" (M8-05): a pessoa envia, edita ou descarta. */
+export const SugestaoDeResposta = Type.Object(
+  {
+    id: Id,
+    conversaId: Id,
+    agenteId: OuNulo(Id),
+    texto: Texto(4096, "O texto sugerido."),
+    criadaEm: DataHora,
+  },
+  { additionalProperties: false },
+);
+export type SugestaoDeResposta = Static<typeof SugestaoDeResposta>;
+
+/** Enviar a sugestão: sem texto, vai como o agente escreveu; com texto diferente, conta como editada. */
+export const PedidoDeEnviarSugestao = Type.Object(
+  { texto: Type.Optional(Texto(4096, "O texto que vai, se a pessoa mudou.")) },
+  { additionalProperties: false },
+);
+export type PedidoDeEnviarSugestao = Static<typeof PedidoDeEnviarSugestao>;
+
 /** Minutos entre dois avisos de mensagem nova da mesma conversa ao dono. */
 export const MINUTOS_ENTRE_AVISOS_DA_CONVERSA = 5;
 
@@ -353,6 +399,10 @@ export const ACOES_CONVERSAS = [
   "resposta_pronta.criou",
   "resposta_pronta.editou",
   "resposta_pronta.apagou",
+  // M8-05: a sugestão do agente enviada (sem ou com edição) ou descartada, e o agente de atendimento criado no canal.
+  "sugestao.enviou",
+  "sugestao.descartou",
+  "canal.criou_atendente",
 ] as const;
 export type AcaoDasConversas = (typeof ACOES_CONVERSAS)[number];
 
@@ -367,7 +417,17 @@ export type PedidoDeCanalDeWhatsapp = Static<typeof PedidoDeCanalDeWhatsapp>;
 
 /** Mudar o nome ou a equipe do canal (só o que veio muda). */
 export const PedidoDeEditarCanal = Type.Object(
-  { nome: Type.Optional(Texto(80, "Nome do canal.")), area: Type.Optional(OuNulo(Area)) },
+  {
+    nome: Type.Optional(Texto(80, "Nome do canal.")),
+    area: Type.Optional(OuNulo(Area)),
+    // O agente no canal (M8-05, só o administrador).
+    agenteId: Type.Optional(OuNulo(Id)),
+    modo: Type.Optional(ModoDoCanal),
+    instrucoes: Type.Optional(OuNulo(Type.String({ maxLength: 8000 }))),
+    horario: Type.Optional(HorarioDoCanal),
+    mensagemForaDoHorario: Type.Optional(Texto(1000, "O texto que sai fora do horário.")),
+    limiteDeAutonomia: Type.Optional(Type.Integer({ minimum: 1, maximum: 1000 })),
+  },
   { additionalProperties: false, minProperties: 1 },
 );
 export type PedidoDeEditarCanal = Static<typeof PedidoDeEditarCanal>;
