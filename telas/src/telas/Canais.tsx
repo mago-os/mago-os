@@ -407,7 +407,9 @@ function BalaoDoSite({
       <div className="grid gap-1.5">
         <span className="font-medium">Linha de código para colar no site, antes do fim do body</span>
         <code className="block overflow-x-auto rounded-md bg-fundo p-2 text-xs" data-linha-do-balao="">
-          {linha}
+          {canal.chavePublica
+            ? linha
+            : "Este balão ainda não tem chave: toque em Trocar a chave para gerar a linha."}
         </code>
         <div className="flex flex-wrap gap-2">
           <Button

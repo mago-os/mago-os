@@ -31,6 +31,7 @@ test.describe("balão do site", () => {
     pessoa = await criarPessoaDeTeste(`balao-${test.info().project.name}`, {
       nome: "Gil Balão",
       perfil: "gestor_area",
+      area: "comercial",
     });
     chave = randomBytes(33)
       .toString("base64")

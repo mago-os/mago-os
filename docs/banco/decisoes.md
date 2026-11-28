@@ -442,7 +442,7 @@ O login (`mago_acesso`) não lê papéis nem as regras da plataforma direto. As 
 
 ## 62. Chat no site (28/11/2026, M8-07)
 
-- `canais_de_contato` guarda, no balão do site, a chave pública da linha de código (única no banco inteiro, não é o id), os domínios onde ele abre (até 10), a cor, a posição, a boas-vindas, o link da política de privacidade (sem ele o balão não abre) e o canal de WhatsApp de "continuar no WhatsApp" ([decisão 0057](../decisoes/0057-chat-no-site.md)). A regra "site tem chave" vale para os canais novos (`NOT VALID`).
+- `canais_de_contato` guarda, no balão do site, a chave pública da linha de código (única no banco inteiro, não é o id), os domínios onde ele abre (até 10), a cor, a posição, a boas-vindas, o link da política de privacidade (sem ele o balão não abre) e o canal de WhatsApp de "continuar no WhatsApp" ([decisão 0057](../decisoes/0057-chat-no-site.md)). Só o balão tem chave; o balão sem chave (de antes desta versão) não abre até o administrador trocar a chave.
 - `visitantes_do_site` guarda só o resumo (SHA-256) do código que o navegador do visitante guarda, e o da prova de trabalho usada (cada prova vale uma vez). O código vence em 30 dias sem uso.
 - `pedidos_do_balao` guarda o resumo (com sal) do endereço de internet de cada pedido, para o limite por minuto; sai depois de um dia.
 - `codigos_para_o_whatsapp` guarda o código de "continuar no WhatsApp" (30 minutos, uso único): quando chega pelo WhatsApp, as conversas do visitante passam para o contato daquele telefone.

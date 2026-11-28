@@ -22,7 +22,8 @@ ALTER TABLE public.canais_de_contato
   ADD COLUMN whatsapp_canal_id uuid,
   ADD CONSTRAINT canais_whatsapp_para_continuar FOREIGN KEY (empresa_id, whatsapp_canal_id)
     REFERENCES public.canais_de_contato (empresa_id, id) ON DELETE SET NULL (whatsapp_canal_id),
-  ADD CONSTRAINT canais_do_site_com_chave CHECK ((provedor = 'site') = (chave_publica IS NOT NULL)) NOT VALID;
+  -- Só o balão do site tem chave. O balão sem chave (criado antes desta versão) não abre até o administrador trocar a chave.
+  ADD CONSTRAINT canais_do_site_com_chave CHECK (chave_publica IS NULL OR provedor = 'site');
 CREATE UNIQUE INDEX canais_de_contato_chave_publica ON public.canais_de_contato (chave_publica)
   WHERE chave_publica IS NOT NULL;
 COMMENT ON COLUMN public.canais_de_contato.chave_publica IS
