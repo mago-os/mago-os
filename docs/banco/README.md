@@ -130,6 +130,7 @@ erDiagram
     text achado_do_antivirus
     timestamp_with_time_zone criado_em
     timestamp_with_time_zone apagar_em
+    integer segundos
   }
   arquivos_do_telegram {
     uuid id PK
@@ -301,6 +302,8 @@ erDiagram
     bigint custo_micros
     boolean sem_preco
     timestamp_with_time_zone criado_em
+    text tipo
+    integer segundos
   }
   contadores_da_api {
     uuid empresa_id FK
@@ -338,6 +341,8 @@ erDiagram
     timestamp_with_time_zone limite_do_plano_ate
     bigint limite_de_tokens
     text ao_chegar_no_limite
+    text modelo_de_transcricao
+    integer preco_da_transcricao
   }
   contatos {
     uuid id PK
@@ -643,6 +648,9 @@ erDiagram
     integer tentativas
     text pagina_url
     text pagina_titulo
+    text transcricao
+    text transcricao_situacao
+    timestamp_with_time_zone transcrita_em
   }
   mensagens_de_conversa {
     uuid id PK
@@ -1426,6 +1434,7 @@ Isolamento por empresa (Row Level Security): ligado e forçado.
 | achado_do_antivirus | text | não |  | sistema | O que o antivírus achou. |
 | criado_em | timestamp with time zone | sim | `now()` | sistema | Quando chegou ou foi enviado. |
 | apagar_em | timestamp with time zone | sim | `(now() + '180 days'::interval)` | sistema | Quando o arquivo é apagado (o texto da mensagem fica). |
+| segundos | integer | não |  | sistema | No áudio: a duração, como o WhatsApp informa. |
 
 ### arquivos_do_telegram
 
@@ -1679,7 +1688,7 @@ Isolamento por empresa (Row Level Security): ligado e forçado.
 | id | uuid | sim | `uuidv7()` | sistema | Identificador (UUID v7). Chave primária. |
 | empresa_id | uuid | sim |  | sistema | Empresa. Aponta para empresas.id. |
 | execucao_id | uuid | não |  | sistema | Execução do agente. |
-| agente_id | uuid | sim |  | sistema | Agente. |
+| agente_id | uuid | não |  | sistema | Agente. |
 | conta_id | uuid | não |  | sistema | Conta de IA usada. |
 | modelo | text | sim |  | sistema | Modelo usado. |
 | tokens_entrada | integer | sim | `0` | sistema | Tokens de entrada. |
@@ -1688,6 +1697,8 @@ Isolamento por empresa (Row Level Security): ligado e forçado.
 | custo_micros | bigint | sim | `0` | sistema | Custo em microdólares (zero na assinatura). |
 | sem_preco | boolean | sim | `false` | sistema | O modelo não tinha preço: o custo usou o maior da tabela. |
 | criado_em | timestamp with time zone | sim | `now()` | sistema | Quando a chamada terminou. |
+| tipo | text | sim | `'modelo'::text` | sistema | modelo (uma chamada de agente) ou transcricao (um áudio, M8-08). |
+| segundos | integer | não |  | sistema | Na transcrição: os segundos de áudio. |
 
 ### contadores_da_api
 
@@ -1746,6 +1757,8 @@ Isolamento por empresa (Row Level Security): ligado e forçado.
 | limite_do_plano_ate | timestamp with time zone | não |  | sistema | Assinatura: o limite do plano acabou e volta nesta hora. |
 | limite_de_tokens | bigint | não |  | empresa | Assinatura: tokens por mês a partir dos quais o administrador é avisado (ou a conta para). |
 | ao_chegar_no_limite | text | sim | `'avisar'::text` | empresa | avisar (só avisa) ou parar (para aos 100%). |
+| modelo_de_transcricao | text | não |  | empresa | O modelo que transcreve os áudios das conversas (M8-08); nulo: esta conta não transcreve. |
+| preco_da_transcricao | integer | não |  | empresa | Preço da transcrição em microdólares por minuto, ajustado pelo administrador (nulo: o de referência). |
 
 ### contatos
 
@@ -2219,6 +2232,9 @@ Isolamento por empresa (Row Level Security): ligado e forçado.
 | tentativas | integer | sim | `0` | sistema | No que sai: quantas vezes tentou mandar. |
 | pagina_url | text | não |  | pessoal | No balão do site: a página onde o visitante escreveu, sem o que vem depois do "?" e do "#". |
 | pagina_titulo | text | não |  | pessoal | No balão do site: o título da página. |
+| transcricao | text | não |  | pessoal | No áudio que chegou: o texto transcrito pela conta de IA da empresa (fica depois que o áudio é apagado). |
+| transcricao_situacao | text | não |  | sistema | transcrevendo, pronta, sem_conta, longa_demais, no_teto ou falhou. |
+| transcrita_em | timestamp with time zone | não |  | sistema | Quando a transcrição terminou. |
 
 ### mensagens_de_conversa
 

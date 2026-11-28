@@ -131,6 +131,15 @@ export const ContaDeIa = Type.Object(
     /** Só na assinatura: o limite do plano acabou e volta nesta hora (até lá, os agentes usam o reserva). */
     limiteDoPlanoAte: OuNulo(DataHora),
     testadaEm: OuNulo(DataHora),
+    /** A conta que transcreve os áudios das conversas (M8-08): o modelo e o preço por minuto (nulo: o de referência). */
+    transcricao: Type.Optional(
+      OuNulo(
+        Type.Object(
+          { modelo: Type.String({ maxLength: 120 }), precoPorMinuto: OuNulo(Type.Integer({ minimum: 0 })) },
+          { additionalProperties: false },
+        ),
+      ),
+    ),
     criadaPor: Id,
     criadaEm: DataHora,
     atualizadaEm: DataHora,
@@ -373,3 +382,38 @@ export const ACOES_CONTAS_DE_IA = [
   "ia.chegou_no_limite_do_plano",
   "agente.escolheu_modelo",
 ] as const;
+
+// Transcrição de áudio (M8-08, decisão 0058) ---------------------------------------------------------------------
+
+/**
+ * Usar esta conta para transcrever os áudios das conversas (uma por empresa; só "compatível com OpenAI", por chave de
+ * API). modelo nulo: a conta deixa de transcrever. precoPorMinuto em microdólares (nulo: o de referência).
+ */
+export const PedidoDeTranscricao = Type.Object(
+  {
+    modelo: OuNulo(NomeDoModelo),
+    precoPorMinuto: Type.Optional(OuNulo(Type.Integer({ minimum: 0, maximum: 10_000_000 }))),
+  },
+  { additionalProperties: false },
+);
+export type PedidoDeTranscricao = Static<typeof PedidoDeTranscricao>;
+
+/** Preço de referência da transcrição, em microdólares por minuto (as tabelas dos provedores em 28/11/2026). */
+const PRECOS_DA_TRANSCRICAO: { comeco: string; porMinuto: number }[] = [
+  { comeco: "gpt-4o-mini-transcribe", porMinuto: 3_000 },
+  { comeco: "gpt-4o-transcribe", porMinuto: 6_000 },
+  { comeco: "whisper-large-v3-turbo", porMinuto: 667 },
+  { comeco: "whisper-large-v3", porMinuto: 1_850 },
+  { comeco: "whisper-1", porMinuto: 6_000 },
+];
+/** Sem referência: o mais caro da tabela (o custo nunca fica para menos). */
+export const PRECO_DA_TRANSCRICAO_SEM_REFERENCIA = 6_000;
+
+export function precoDeReferenciaDaTranscricao(modelo: string): number | null {
+  const nome = modelo.toLowerCase().replace(/^.*\//, "");
+  return PRECOS_DA_TRANSCRICAO.find((p) => nome.startsWith(p.comeco))?.porMinuto ?? null;
+}
+
+/** O áudio mais longo que vai para a transcrição (10 minutos) e o maior arquivo (25 MB). */
+export const SEGUNDOS_MAXIMOS_DA_TRANSCRICAO = 600;
+export const BYTES_MAXIMOS_DA_TRANSCRICAO = 25 * 1024 * 1024;

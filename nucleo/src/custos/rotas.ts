@@ -2,7 +2,13 @@
  * Rotas dos custos e tetos (M4-06, decisão 0028). Seguem o módulo "Contas de IA": ver o painel é "ver"; mudar tetos,
  * limites e preços é "editar" (padrão: o administrador). Cada mudança vai para a auditoria.
  */
-import { conferir, PedidoDeAvisoDeTokens, PedidoDePrecoDoModelo, PedidoDeTeto } from "@mago-os/contratos";
+import {
+  conferir,
+  PedidoDeAvisoDeTokens,
+  PedidoDePrecoDoModelo,
+  PedidoDeTeto,
+  PedidoDeTranscricao,
+} from "@mago-os/contratos";
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import type pg from "pg";
 import { origemDoPedido } from "../acesso/rotas.ts";
@@ -103,6 +109,46 @@ export function registrarRotasDosCustos(
       });
     await registrar(pedido, "custos.mudou_aviso_de_tokens", { tipo: "conta_de_ia", id }, r.valor);
     return r.valor;
+  });
+
+  // A conta que transcreve os áudios das conversas (M8-08): uma por empresa, só "compatível com OpenAI" por chave.
+  app.post("/ia/contas/:id/transcricao", editar, async (pedido, resposta) => {
+    const { id } = pedido.params as { id: string };
+    const r = conferir(PedidoDeTranscricao, pedido.body);
+    if (!r.ok) return resposta.code(400).send({ code: "PEDIDO_INVALIDO", problemas: r.problemas });
+    if (!FORMATO_UUID.test(id)) return naoEncontrado(resposta, "Conta");
+    const feito = await naEmpresa(pedido, async (c) => {
+      const conta = await c.query<{ provedor: string; credencial: string }>(
+        "select provedor, credencial from contas_de_ia where id = $1 and empresa_id = empresa_ativa() for update",
+        [id],
+      );
+      const l = conta.rows[0];
+      if (!l) return null;
+      if (r.valor.modelo && (l.provedor !== "compativel_openai" || l.credencial !== "chave_de_api"))
+        return "nao_transcreve" as const;
+      // Uma conta só transcreve: escolher esta tira a escolha das outras.
+      if (r.valor.modelo)
+        await c.query(
+          `update contas_de_ia set modelo_de_transcricao = null, preco_da_transcricao = null
+            where empresa_id = empresa_ativa() and id <> $1 and modelo_de_transcricao is not null`,
+          [id],
+        );
+      await c.query(
+        `update contas_de_ia set modelo_de_transcricao = $2,
+                preco_da_transcricao = case when $2::text is null then null else $3::integer end, atualizada_em = now()
+          where id = $1 and empresa_id = empresa_ativa()`,
+        [id, r.valor.modelo, r.valor.precoPorMinuto ?? null],
+      );
+      return "ok" as const;
+    });
+    if (!feito) return naoEncontrado(resposta, "Conta");
+    if (feito === "nao_transcreve")
+      return resposta.code(400).send({
+        code: "NAO_TRANSCREVE",
+        message: "Só uma conta compatível com OpenAI, por chave de API, transcreve áudio.",
+      });
+    await registrar(pedido, "custos.mudou_transcricao", { tipo: "conta_de_ia", id }, r.valor);
+    return { modelo: r.valor.modelo, precoPorMinuto: r.valor.precoPorMinuto ?? null };
   });
 
   app.post("/ia/contas/:id/precos", editar, async (pedido, resposta) => {

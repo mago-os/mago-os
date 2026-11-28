@@ -11,7 +11,7 @@ export type MensagemLida =
       ignorar: false;
       mensagem: Omit<MensagemQueChegou, "canalId">;
       /** Foto, documento ou áudio: o núcleo baixa da Evolution pelo número da mensagem. */
-      arquivo: { nome: string; mime: string | null } | null;
+      arquivo: { nome: string; mime: string | null; segundos?: number | null } | null;
     }
   | { ignorar: true; motivo: string };
 
@@ -86,7 +86,7 @@ export function lerMensagemDaEvolution(dataBruta: unknown): MensagemLida {
   const lida = (
     tipo: MensagemQueChegou["tipo"],
     t: string | null,
-    arquivo: { nome: string; mime: string | null } | null = null,
+    arquivo: { nome: string; mime: string | null; segundos?: number | null } | null = null,
   ): MensagemLida => ({ ignorar: false, mensagem: { ...base, tipo, texto: t }, arquivo });
 
   if (typeof msg.conversation === "string") return lida("texto", texto(msg.conversation));
@@ -105,7 +105,15 @@ export function lerMensagemDaEvolution(dataBruta: unknown): MensagemLida {
     });
   const audio = objeto(msg.audioMessage);
   if (Object.keys(audio).length > 0)
-    return lida("audio", null, { nome: "audio.ogg", mime: texto(audio.mimetype, 120) });
+    return lida("audio", null, {
+      nome: "audio.ogg",
+      mime: texto(audio.mimetype, 120),
+      // A duração que o WhatsApp informa (M8-08): o limite e o custo da transcrição.
+      segundos:
+        typeof audio.seconds === "number" && audio.seconds >= 0
+          ? Math.min(86400, Math.round(audio.seconds))
+          : null,
+    });
   const local = objeto(msg.locationMessage ?? msg.liveLocationMessage);
   if (typeof local.degreesLatitude === "number" && typeof local.degreesLongitude === "number") {
     const lat = local.degreesLatitude.toFixed(6);

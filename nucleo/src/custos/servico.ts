@@ -6,9 +6,11 @@ import {
   type AoChegarNoLimite,
   custoEmMicros,
   PERCENTUAL_DE_AVISO,
+  PRECO_DA_TRANSCRICAO_SEM_REFERENCIA,
   PRECO_SEM_REFERENCIA,
   type PrecoDeModelo,
   precoDeReferencia,
+  precoDeReferenciaDaTranscricao,
   type ResumoDeCustos,
   TETO_PADRAO_DA_EMPRESA,
   TETO_PADRAO_DO_AGENTE,
@@ -98,6 +100,48 @@ export async function registrarConsumo(
     ],
   );
   return r.rows[0]?.id as string;
+}
+
+/**
+ * A transcrição de um áudio (M8-08): o custo por minuto (o do administrador ou o de referência), em nome do agente do
+ * canal (ou de nenhum). Entra no gasto do mês da empresa e da conta, como as chamadas dos agentes.
+ */
+export async function registrarTranscricao(
+  c: pg.PoolClient,
+  d: { contaId: string; modelo: string; segundos: number; agenteId: string | null },
+): Promise<void> {
+  const r = await c.query<{ preco: number | null }>(
+    "select preco_da_transcricao as preco from contas_de_ia where id = $1 and empresa_id = empresa_ativa()",
+    [d.contaId],
+  );
+  const referencia = precoDeReferenciaDaTranscricao(d.modelo);
+  const porMinuto = r.rows[0]?.preco ?? referencia ?? PRECO_DA_TRANSCRICAO_SEM_REFERENCIA;
+  const segundos = Math.max(1, Math.round(d.segundos));
+  await c.query(
+    `insert into consumo_de_ia (empresa_id, agente_id, conta_id, modelo, custo_micros, sem_preco, tipo, segundos)
+     values (empresa_ativa(), $1, $2, $3, $4, $5, 'transcricao', $6)`,
+    [
+      d.agenteId,
+      d.contaId,
+      d.modelo.slice(0, 120),
+      Math.ceil((porMinuto * segundos) / 60),
+      r.rows[0]?.preco == null && referencia === null,
+      segundos,
+    ],
+  );
+}
+
+/** A transcrição pode gastar? O teto da empresa e o da conta (nulo: pode; senão, o motivo). */
+export async function tetoDaTranscricao(c: pg.PoolClient, contaId: string): Promise<string | null> {
+  const { inicio } = await periodo(c);
+  const tetoEmpresa = await tetoDe(c, null);
+  if (tetoEmpresa !== null) {
+    const gasto = (await somar(c, inicio)).custo;
+    if (tetoEmpresa === 0 || gasto >= micros(tetoEmpresa))
+      return "a empresa chegou ao teto de gasto com IA do mês";
+  }
+  const conta = await situacaoDaConta(c, contaId, inicio);
+  return conta.parada ? conta.motivo : null;
 }
 
 /** O teto da empresa (agenteId null) ou de um agente: o ajustado, ou o padrão; null = sem teto. */
@@ -373,6 +417,11 @@ export async function resumoDeCustos(c: pg.PoolClient, mes: string | null): Prom
     )
   ).rows.filter((l) => precoDeReferencia(l.modelo) === null);
   const n = (x: string | undefined) => Number(x ?? 0);
+  const transcricao = await c.query<{ custo: string }>(
+    `select coalesce(sum(custo_micros), 0) as custo from consumo_de_ia
+      where empresa_id = empresa_ativa() and tipo = 'transcricao' and criado_em >= $1 and criado_em < $2`,
+    [p.inicio, p.fim],
+  );
   const total = porAgente.rows.reduce(
     (t, l) => ({ custo: t.custo + n(l.custo), tokens: t.tokens + n(l.tokens) }),
     { custo: 0, tokens: 0 },
@@ -387,6 +436,7 @@ export async function resumoDeCustos(c: pg.PoolClient, mes: string | null): Prom
     total,
     hoje: ehMesAtual ? hoje : vazio,
     tetoDaEmpresa: tetoDoAlvo("empresa", TETO_PADRAO_DA_EMPRESA),
+    transcricao: { custo: n(transcricao.rows[0]?.custo), tokens: 0 },
     porAgente: agentes.rows.map((a) => {
       const l = doAgente.get(a.id);
       return {

@@ -529,6 +529,9 @@ function DetalheDaConta({
           </div>
         </form>
       )}
+      {conta.provedor === "compativel_openai" && conta.credencial === "chave_de_api" && (
+        <Transcricao conta={conta} podeEditar={podeEditar} aoMudar={aoMudar} />
+      )}
       <div className="grid gap-1.5">
         <p className="text-sm font-medium">Modelos</p>
         {modelos.length === 0 && <p className="text-sm text-texto-2">O provedor não listou modelos.</p>}
@@ -560,5 +563,97 @@ function DetalheDaConta({
         </ul>
       </div>
     </Card>
+  );
+}
+
+/**
+ * Transcrever os áudios das conversas (M8-08, decisão 0058): uma conta compatível com OpenAI por empresa, com o modelo
+ * de transcrição (ex.: gpt-4o-mini-transcribe, whisper-1 ou whisper-large-v3). O custo é por minuto de áudio e entra
+ * no gasto do mês.
+ */
+function Transcricao({
+  conta,
+  podeEditar,
+  aoMudar,
+}: {
+  conta: ContaDeIa;
+  podeEditar: boolean;
+  aoMudar: () => void;
+}) {
+  const [modelo, setModelo] = useState(conta.transcricao?.modelo ?? "");
+  const [preco, setPreco] = useState(
+    conta.transcricao?.precoPorMinuto != null ? String(conta.transcricao.precoPorMinuto / 1_000_000) : "",
+  );
+  const [mensagem, setMensagem] = useState<{ tipo: "erro" | "ok"; texto: string } | null>(null);
+  async function salvar(usar: boolean) {
+    const valor = Number(preco.replace(",", "."));
+    const r = await pedir("POST", `/ia/contas/${conta.id}/transcricao`, {
+      modelo: usar ? modelo.trim() : null,
+      ...(usar && preco.trim() && Number.isFinite(valor)
+        ? { precoPorMinuto: Math.round(valor * 1_000_000) }
+        : {}),
+    });
+    setMensagem(
+      r.ok
+        ? {
+            tipo: "ok",
+            texto: usar
+              ? "Esta conta transcreve os áudios das conversas."
+              : "Esta conta não transcreve mais.",
+          }
+        : { tipo: "erro", texto: r.mensagem ?? "" },
+    );
+    if (r.ok) aoMudar();
+  }
+  return (
+    <div className="grid gap-2 rounded-md border border-linha p-3 text-sm">
+      <p className="font-medium">Transcrever áudio das conversas</p>
+      <p className="text-texto-2">
+        {conta.transcricao
+          ? `Esta conta transcreve os áudios dos clientes com ${conta.transcricao.modelo}.`
+          : "Os áudios dos clientes só são transcritos pela conta escolhida aqui (uma por empresa). Sem ela, a conversa com áudio vai para uma pessoa."}{" "}
+        O custo é por minuto de áudio e entra no gasto do mês.
+      </p>
+      {mensagem && <Aviso {...mensagem} />}
+      {podeEditar && (
+        <form
+          className="flex flex-wrap items-end gap-2"
+          onSubmit={(e) => {
+            e.preventDefault();
+            void salvar(true);
+          }}
+        >
+          <label className="grid gap-1">
+            <span className="text-xs">Modelo de transcrição</span>
+            <input
+              className="h-9 rounded-md border border-linha bg-cartao px-2"
+              placeholder="gpt-4o-mini-transcribe"
+              value={modelo}
+              onChange={(e) => setModelo(e.target.value)}
+              required
+              maxLength={120}
+            />
+          </label>
+          <label className="grid gap-1">
+            <span className="text-xs">US$ por minuto (vazio: o de referência)</span>
+            <input
+              className="h-9 w-32 rounded-md border border-linha bg-cartao px-2"
+              inputMode="decimal"
+              placeholder="0,003"
+              value={preco}
+              onChange={(e) => setPreco(e.target.value)}
+            />
+          </label>
+          <Button type="submit" size="pequeno">
+            Usar para transcrever
+          </Button>
+          {conta.transcricao && (
+            <Button type="button" size="pequeno" variant="fantasma" onClick={() => void salvar(false)}>
+              Parar de transcrever
+            </Button>
+          )}
+        </form>
+      )}
+    </div>
   );
 }

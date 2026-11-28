@@ -10,3 +10,4 @@ export * from "./passagem.ts";
 export * from "./rotas.ts";
 export * from "./servico.ts";
 export * from "./telefone.ts";
+export * from "./transcricao.ts";

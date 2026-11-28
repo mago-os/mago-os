@@ -98,6 +98,8 @@ export interface OpcoesDosAvisosDaEvolution {
   arquivos?: ServicosDosAnexos | null;
   /** O agente do canal (M8-05): sem ele, as mensagens só chegam (nos testes de canais, por exemplo). */
   atendimento?: OpcoesDoAtendimento;
+  /** O áudio que chega vai para a fila de transcrição (M8-08). */
+  transcrever?: (empresaId: string, mensagemId: string) => Promise<void>;
   log: {
     info(o: unknown, m?: string): void;
     warn(o: unknown, m?: string): void;
@@ -128,6 +130,7 @@ export async function tratarAvisoDaEvolution(
     arquivos: o.arquivos ?? null,
     log: o.log,
     ...(o.atendimento ? { atendimento: o.atendimento } : {}),
+    ...(o.transcrever ? { transcrever: o.transcrever } : {}),
   };
   if (evento === "messages.upsert") return tratarMensagemNova(mensagens, quem, aviso.instance, aviso.data);
   if (evento === "messages.update") return tratarEntrega(mensagens, quem, aviso.data);

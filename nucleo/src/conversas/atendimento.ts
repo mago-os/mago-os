@@ -81,7 +81,7 @@ export interface OpcoesDoAtendimento {
 }
 
 /** A equipe do canal (a área; sem área, administradores e gestores) recebe "conversa nova" quando o agente não atende. */
-async function voltarParaAsPessoas(c: pg.PoolClient, conversaId: string, motivo: string) {
+export async function voltarParaAsPessoas(c: pg.PoolClient, conversaId: string, motivo: string) {
   const r = await c.query<{ area: string | null; canal: string; contato: string }>(
     `update conversas_com_contatos cv set com_agente = false
        from canais_de_contato cn, contatos k
@@ -314,7 +314,13 @@ export async function partesDoAtendimento(
               ? "mensagem automática"
               : "equipe",
     tipo: m.tipo,
-    texto: m.texto,
+    // O áudio (M8-08): o agente lê a transcrição, sempre como dado de fora.
+    texto:
+      m.tipo === "audio" && m.direcao === "chegou"
+        ? m.transcricao?.texto
+          ? `(áudio do cliente, transcrito) ${m.transcricao.texto}`
+          : "(áudio do cliente, sem transcrição)"
+        : m.texto,
     quando: m.enviadaEm,
   }));
   const contexto = {

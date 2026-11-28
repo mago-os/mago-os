@@ -48,6 +48,7 @@ import { criarCofre } from "./contas-de-ia/cofre.ts";
 import { modelosDeVerdade } from "./contas-de-ia/conversa.ts";
 import { provedoresDeVerdade } from "./contas-de-ia/provedores.ts";
 import { registrarRotasDasContasDeIa } from "./contas-de-ia/rotas.ts";
+import { type Transcritor, transcritorDeVerdade } from "./contas-de-ia/transcricao.ts";
 import { registrarRotasDosContatos } from "./contatos/rotas.ts";
 import { cuidarDosVisitantesVencidos, registrarRotasDoBalao } from "./conversas/balao.ts";
 import { registrarRotasDaCaixa } from "./conversas/caixa.ts";
@@ -56,6 +57,7 @@ import { cuidarDoPrazoDosArquivos, enviarPendente, registrarRotasDoEnvio } from 
 import { type ClienteDaEvolution, criarClienteDaEvolution } from "./conversas/evolution.ts";
 import { cuidarDasPassagensVencidas } from "./conversas/passagem.ts";
 import { registrarRotasDasConversas } from "./conversas/rotas.ts";
+import { transcreverMensagem } from "./conversas/transcricao.ts";
 import { registrarRotasDosConvites } from "./convites/rotas.ts";
 import { registrarRotasDosCustos } from "./custos/index.ts";
 import { registrarRotasDosDadosDaEmpresa } from "./dados-da-empresa/index.ts";
@@ -128,6 +130,8 @@ const FILA_PRAZO_DAS_CONVERSAS = "conversas-prazo";
 const FILA_PASSAGENS_DAS_CONVERSAS = "conversas-passagens";
 /** O balão do site (M8-07): os visitantes vencidos, os pedidos antigos e as conversas sem contato de 90 dias. */
 const FILA_VISITANTES_DO_SITE = "balao-visitantes";
+/** A transcrição dos áudios das conversas (M8-08): na chegada e no "transcrever de novo". */
+const FILA_TRANSCRICAO = "conversas-transcricao";
 const FILA_TELEGRAM_ENTREGAS = "telegram-entregas";
 
 /** O que a API recebe pronto de quem a monta. */
@@ -151,6 +155,8 @@ export interface DependenciasDaApi {
   semRelogioDosWebhooks?: boolean;
   /** Nos testes: a Evolution falsa (M8-02). Padrão: a de verdade, quando configurada. */
   evolution?: ClienteDaEvolution;
+  /** Nos testes: o transcritor falso (M8-08). Padrão: o de verdade (o endereço da conta de IA da empresa). */
+  transcritor?: Transcritor;
 }
 
 /** As peças de dentro, para os testes rodarem os trabalhos da fila com a mesma montagem (M6-01). */
@@ -490,11 +496,51 @@ export async function montarApi(config: Config, deps: DependenciasDaApi): Promis
         { retryLimit: 3, retryDelay: 30, ...(segundos > 0 ? { startAfter: segundos } : {}) },
       );
     };
+    // A transcrição dos áudios (M8-08): pela fila, com novas tentativas só para erro do sistema.
+    const enfileirarTranscricao = async (empresaId: string, mensagemId: string, automatica: boolean) => {
+      await fila.send(
+        FILA_TRANSCRICAO,
+        { empresaId, mensagemId, automatica, rastreio: levarRastreio() },
+        { retryLimit: 2, retryDelay: 30 },
+      );
+    };
+    const transcritor = deps.transcritor ?? transcritorDeVerdade(config.ambiente);
+    trabalhos.push(async () => {
+      await fila.createQueue(FILA_TRANSCRICAO);
+      await fila.work<{
+        empresaId: string;
+        mensagemId: string;
+        automatica: boolean;
+        rastreio?: RastreioLevado;
+      }>(FILA_TRANSCRICAO, async (lote) => {
+        for (const t of lote)
+          await continuarRastreio(t.data.rastreio, FILA_TRANSCRICAO, () =>
+            transcreverMensagem(
+              {
+                poolApp: banco.pool,
+                arquivos: servicosDosAnexos,
+                cofre,
+                transcritor,
+                atendimento: {
+                  poolApp: banco.pool,
+                  acordar: acordarAgente,
+                  enviar: (empresaId, mensagemId) => enfileirarEnvio(empresaId, mensagemId),
+                },
+                log: app.log,
+              },
+              t.data.empresaId,
+              t.data.mensagemId,
+              t.data.automatica,
+            ),
+          );
+      });
+    });
     registrarRotasDoEnvio(app, {
       verificador,
       poolApp: banco.pool,
       arquivos: servicosDosAnexos,
       enfileirar: (empresaId, mensagemId) => enfileirarEnvio(empresaId, mensagemId),
+      transcreverDeNovo: (empresaId, mensagemId) => enfileirarTranscricao(empresaId, mensagemId, false),
     });
     // A fila de envio existe sempre (a mensagem pode ser criada antes de a Evolution ser ligada); quem manda, só com ela.
     trabalhos.push(async () => {
@@ -598,6 +644,8 @@ export async function montarApi(config: Config, deps: DependenciasDaApi): Promis
                       acordar: acordarAgente,
                       enviar: (empresaId, mensagemId) => enfileirarEnvio(empresaId, mensagemId),
                     },
+                    transcrever: (empresaId, mensagemId) =>
+                      enfileirarTranscricao(empresaId, mensagemId, true),
                   },
                   t.data.aviso,
                 ),

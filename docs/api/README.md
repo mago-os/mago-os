@@ -563,6 +563,7 @@ Todas com o prefixo `/api` no site, menos `/mcp`, que fica em `https://teste.osm
 | POST | `/custos/tetos/agente/:id` | contas_de_ia.editar | Muda o teto de gasto de um agente interno por mês (null: sem teto). |
 | POST | `/ia/contas/:id/limite-de-tokens` | contas_de_ia.editar | Conta por assinatura: o limite em tokens do mês e se só avisa ou para aos 100%. |
 | POST | `/ia/contas/:id/precos` | contas_de_ia.editar | O preço que o administrador dá a um modelo da conta (null: volta para o preço de referência). |
+| POST | `/ia/contas/:id/transcricao` | contas_de_ia.editar | Usar esta conta (compatível com OpenAI, por chave de API) para transcrever os áudios das conversas, com o modelo e o preço por minuto; modelo null: para de transcrever. Uma conta por empresa (M8-08). |
 | GET | `/ia/contas` | contas_de_ia.ver | As contas de IA da empresa (sem a chave, só os 4 últimos caracteres) e se o cofre está ligado. |
 | POST | `/ia/contas` | contas_de_ia.criar | Conecta uma conta: testa a chave no provedor antes de gravar. Pede o segundo fator recente. |
 | POST | `/ia/contas/:id` | contas_de_ia.editar | Muda o nome, o teto ou troca a chave (testada antes; pede o segundo fator recente). |
@@ -931,6 +932,13 @@ Recebe:
 
 - `modelo` (string, obrigatório): O modelo.
 - `preco` (objeto ou null, obrigatório)
+
+### POST `/ia/contas/:id/transcricao`
+
+Recebe:
+
+- `modelo` (string ou null, obrigatório)
+- `precoPorMinuto` (integer ou null)
 
 ### POST `/ia/contas`
 

@@ -48,6 +48,7 @@ import {
   PedidoDeStatusDoProjeto,
   PedidoDeTarefa,
   PedidoDeTeto,
+  PedidoDeTranscricao,
   PedidoDeTrocarResponsavel,
   PedidoDeVisaoSalva,
   PedidoDeVoltarVersao,
@@ -812,6 +813,14 @@ export const ROTAS: Rota[] = [
     permissao: "contas_de_ia.editar",
     oQueFaz: "O preço que o administrador dá a um modelo da conta (null: volta para o preço de referência).",
     recebe: PedidoDePrecoDoModelo,
+  },
+  {
+    metodo: "POST",
+    caminho: "/ia/contas/:id/transcricao",
+    permissao: "contas_de_ia.editar",
+    oQueFaz:
+      "Usar esta conta (compatível com OpenAI, por chave de API) para transcrever os áudios das conversas, com o modelo e o preço por minuto; modelo null: para de transcrever. Uma conta por empresa (M8-08).",
+    recebe: PedidoDeTranscricao,
   },
   {
     metodo: "GET",
