@@ -73,7 +73,7 @@ test.describe("caixa de conversas", () => {
     await expect(aberta.getByText("Vocês têm a peça 42?")).toBeVisible();
 
     await aberta.getByRole("button", { name: "Assumir" }).click();
-    await expect(aberta.getByText(/com você/)).toBeVisible();
+    await expect(aberta.getByText("Conversa com você.")).toBeVisible();
 
     await aberta.getByRole("tab", { name: /Nota interna/ }).click();
     await aberta.getByLabel("Nota interna (só a equipe vê)").fill("Cliente pediu a peça na semana passada");
