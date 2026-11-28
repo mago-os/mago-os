@@ -459,7 +459,7 @@ describe.skipIf(!bancoDisponivel)("WhatsApp da plataforma", () => {
     );
     expect(ev.rows[0]?.canal).toBe("whatsapp");
 
-    // Fora da janela: um pedido novo vai pelo modelo aviso_do_mago_os, sem os botões.
+    // Fora da janela: um pedido novo vai pelo modelo aprovacao_pedida (com o nome do agente), sem os botões.
     await dono.query(
       "update vinculos_do_whatsapp set ultima_mensagem_em = now() - interval '25 hours' where pessoa_id = $1",
       [ids.ana],
@@ -481,7 +481,7 @@ describe.skipIf(!bancoDisponivel)("WhatsApp da plataforma", () => {
     expect(carteiro.enviados).toEqual([
       expect.objectContaining({
         para: ANA,
-        modelo: { nome: "aviso_do_mago_os", valores: ["Ana", expect.stringMatching(/pede a sua aprovação/)] },
+        modelo: { nome: "aprovacao_pedida", valores: ["Ana", expect.any(String)] },
       }),
     ]);
   });
@@ -507,31 +507,36 @@ describe.skipIf(!bancoDisponivel)("WhatsApp da plataforma", () => {
       "update vinculos_do_whatsapp set ultima_mensagem_em = now() - interval '25 hours' where pessoa_id = $1",
       [ids.flora],
     );
-    for (let i = 0; i < 12; i++) await criar(`Menção ${i}`);
+    // A menção numa tarefa vai pelo mencao_na_tarefa (com o título); o aviso sem modelo (agentes parados) fica no app.
+    for (let i = 0; i < 12; i++)
+      await dono.query(
+        "insert into avisos (empresa_id, pessoa_id, tipo, texto, link, tarefa_id) values ($1, $2, 'mencao', $3, '/tarefas', $4)",
+        [empresaId, ids.flora, `Menção ${i}`, ids.tarefa],
+      );
+    await criar("Os agentes foram parados", "agentes_parados" as "mencao");
     await avisarNoWhatsapp(opcoes, empresaId);
     const modelos = carteiro.enviados.filter((e) => e.modelo && e.para === FLORA);
     expect(modelos).toHaveLength(10);
-    expect(modelos[0]?.modelo).toEqual({
-      nome: "aviso_do_mago_os",
-      valores: ["Flora", expect.stringMatching(/^Menção \d+$/)],
-    });
+    expect(new Set(modelos.map((m) => JSON.stringify(m.modelo)))).toEqual(
+      new Set([JSON.stringify({ nome: "mencao_na_tarefa", valores: ["Flora", "Revisar o contrato"] })]),
+    );
   });
 
-  it("fora da janela, a tarefa nova e o prazo vão pelos modelos próprios, com o nome e o título", () => {
-    expect(
-      modeloDoAviso({ tipo: "tarefa_atribuida", texto: "x", titulo: "Revisar o contrato" }, "Bruno"),
-    ).toEqual({
+  it("fora da janela, a tarefa nova, o prazo e a menção vão pelos modelos próprios; o resto não tem modelo", () => {
+    expect(modeloDoAviso({ tipo: "tarefa_atribuida", titulo: "Revisar o contrato" }, "Bruno")).toEqual({
       nome: "tarefa_atribuida_v2",
       valores: ["Bruno", "Revisar o contrato"],
     });
-    expect(modeloDoAviso({ tipo: "prazo_vencido", texto: "x", titulo: "Enviar a proposta" }, "Ana")).toEqual({
+    expect(modeloDoAviso({ tipo: "prazo_vencido", titulo: "Enviar a proposta" }, "Ana")).toEqual({
       nome: "lembrete_de_tarefa_v2",
       valores: ["Ana", "Enviar a proposta"],
     });
-    expect(modeloDoAviso({ tipo: "mencao", texto: "Chamaram você", titulo: null }, "Ana")).toEqual({
-      nome: "aviso_do_mago_os",
-      valores: ["Ana", "Chamaram você"],
+    expect(modeloDoAviso({ tipo: "mencao", titulo: "Proposta da Loja X" }, "Ana")).toEqual({
+      nome: "mencao_na_tarefa",
+      valores: ["Ana", "Proposta da Loja X"],
     });
+    expect(modeloDoAviso({ tipo: "mencao", titulo: null }, "Ana")).toBeNull();
+    expect(modeloDoAviso({ tipo: "agentes_parados", titulo: "x" }, "Ana")).toBeNull();
   });
 
   it("o resumo do dia vai só dentro da janela", async () => {

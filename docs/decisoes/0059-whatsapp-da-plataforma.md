@@ -83,7 +83,7 @@ seu olho estão marcados com **pede o seu olho**.
    - Para os outros urgentes (menção, precisa de ajuda, agentes parados, conversa de cliente), proponho **um modelo
      novo**, `aviso_do_mago_os`, de Utilidade em pt_BR: "Olá, {{1}}. Há um aviso no Mago OS: {{2}}. Responda aqui
      para ver os detalhes."
-     - Só mando esse modelo para a Meta com o seu ok.
+     - Só mando esse modelo para a Meta com o seu ok. (Trocado em 28/11/2026 por um modelo por tipo: ver os ajustes.)
      - Enquanto a Meta não aprovar, esses avisos ficam só no app e no Telegram.
    - O resumo do dia fora da janela não vai, para não gastar modelo todo dia.
    - Teto de custo: no máximo **10 modelos por pessoa por dia**. Passou disso, o resto fica no app.
@@ -112,7 +112,12 @@ seu olho estão marcados com **pede o seu olho**.
 - **As palavras** valem sem barra: nova, tarefas, empresa (e "empresa 2", ou o botão com as empresas, até 3), sair e ajuda. A mensagem que é só um código de 8 letras sempre tenta vincular (assim o link do wa.me serve também para trocar a empresa por um código novo).
 - **O código do autenticador fica no chat:** a Meta não deixa apagar a mensagem da pessoa. Ele vale uma vez e por 30 segundos, como no Telegram.
 - **A decisão de um pedido** que terminou por outro caminho (o app, o Telegram, venceu) vai como texto, só dentro da janela: a Meta não deixa editar a mensagem nem tirar os botões, e tocar num pedido decidido responde a situação.
-- **Fora da janela,** a tarefa nova vai pelo modelo `tarefa_atribuida_v2` e o prazo (de hoje ou vencido) pelo `lembrete_de_tarefa_v2`, os dois com o primeiro nome e o título da tarefa ({{1}} e {{2}}); os outros avisos urgentes e o pedido de aprovação vão pelo `aviso_do_mago_os`, com o primeiro nome e o texto do aviso. Sem o modelo aprovado na Meta, o envio falha e o aviso fica no app (sem tentar de novo). Os `_v2` substituem os de 27/11/2026, que ficaram com os exemplos dentro do corpo (e o lembrete como Marketing) e não podiam ser editados durante a análise.
+- **Fora da janela, um modelo por tipo de aviso (escolha do Sandro em 28/11/2026, corrigindo o item 7):** a Meta avisou que recusaria o `aviso_do_mago_os` como Utilidade, porque o aviso inteiro ia numa variável. Ele saiu, e no lugar entraram modelos com o texto fixo, todos de Utilidade, pt_BR, com {{1}} = o primeiro nome:
+  - `tarefa_atribuida_v2` (a tarefa nova, {{2}} = o título);
+  - `lembrete_de_tarefa_v2` (o prazo de hoje ou vencido, {{2}} = o título);
+  - `mencao_na_tarefa` (a menção numa tarefa, {{2}} = o título);
+  - `aprovacao_pedida` (o pedido de aprovação, {{2}} = o nome do agente).
+  Os outros avisos urgentes (agentes parados, conversa de cliente esperando, número desconectado), fora da janela, ficam no app e no Telegram. Sem o modelo aprovado na Meta, o envio falha e o aviso fica no app (sem tentar de novo). Os `_v2` substituem os de 27/11/2026, que ficaram com os exemplos dentro do corpo (e o lembrete como Marketing) e não podiam ser editados durante a análise.
 - **O número do Mago OS** para o link do wa.me vem da própria Meta ao subir a API (`display_phone_number` do id do número); até ela responder, Meu perfil não gera código.
 - **Filas:** `whatsapp` (os avisos da Meta) e `whatsapp-entregas` (a verificação a cada minuto). As respostas e os pedidos de aprovação também saem ao fim de cada execução, como no Telegram.
 - **Endereços:** `GET` e `POST /whatsapp/webhook` (só com a Meta ligada), `GET /conta/whatsapp`, `POST /conta/whatsapp/codigo` e `DELETE /conta/whatsapp`.

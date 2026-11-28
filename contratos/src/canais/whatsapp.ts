@@ -18,12 +18,18 @@ export const MODELOS_POR_DIA_NO_WHATSAPP = 10;
 /** A Meta aceita até 4096 letras numa mensagem de texto. */
 export const MAXIMO_DA_MENSAGEM_DO_WHATSAPP = 4096;
 
-/** Os modelos aprovados na Meta (Utilidade, pt_BR). aviso_do_mago_os só vale depois de a Meta aprovar. */
+/**
+ * Os modelos na Meta (Utilidade, pt_BR), um por tipo de aviso: {{1}} é o primeiro nome da pessoa e {{2}} o título da
+ * tarefa (ou o nome do agente, no pedido de aprovação). O modelo geral (aviso_do_mago_os) ficou de fora: a Meta não
+ * aceita como Utilidade um modelo com o aviso inteiro numa variável (escolha do Sandro em 28/11/2026). Os outros
+ * avisos urgentes, fora da janela de 24 horas, ficam no app e no Telegram.
+ */
 export const MODELOS_DO_WHATSAPP = {
   // Os _v2 substituem os de 27/11/2026, que ficaram com os exemplos dentro do corpo.
   tarefaAtribuida: "tarefa_atribuida_v2",
   lembreteDeTarefa: "lembrete_de_tarefa_v2",
-  aviso: "aviso_do_mago_os",
+  mencao: "mencao_na_tarefa",
+  aprovacao: "aprovacao_pedida",
 } as const;
 
 /** O que Meu perfil recebe ao gerar o código: o link do wa.me já com o código. */

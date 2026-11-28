@@ -3,8 +3,9 @@
  * as respostas do coordenador, os pedidos de aprovação (com os botões), os avisos e o resumo do dia.
  *
  * A janela de 24 horas da Meta conta da última mensagem da pessoa. Dentro dela, tudo vai como texto (sem custo de
- * modelo). Fora dela, só por modelo aprovado, que a Nolask paga: o aviso urgente e o pedido de aprovação vão pelo
- * aviso_do_mago_os, no máximo 10 por pessoa por dia; o resumo do dia e a decisão de um pedido não vão.
+ * modelo). Fora dela, só por modelo aprovado, que a Nolask paga, um por tipo (a tarefa nova, o prazo, a menção e o
+ * pedido de aprovação), no máximo 10 por pessoa por dia; os outros avisos, o resumo do dia e a decisão de um pedido
+ * não vão (ficam no app e no Telegram).
  */
 import {
   type Aprovacao,
@@ -214,9 +215,9 @@ export async function cuidarDasAprovacoesNoWhatsapp(
           { id: `ap:r:${n.aprovacao.id}`, titulo: "Recusar" },
         ]);
       } else if (n.modelo) {
-        mensagemId = await o.carteiro.enviarModelo(n.numero, MODELOS_DO_WHATSAPP.aviso, [
+        mensagemId = await o.carteiro.enviarModelo(n.numero, MODELOS_DO_WHATSAPP.aprovacao, [
           primeiroNome(n.nome),
-          `${n.agente} pede a sua aprovação: ${n.aprovacao.resumo}`.slice(0, 200),
+          n.agente.slice(0, 200),
         ]);
       } else mensagemId = "sem-envio";
     } catch (erro) {
@@ -287,24 +288,28 @@ export async function cuidarDasAprovacoesNoWhatsapp(
 }
 
 /**
- * O modelo de um aviso fora da janela: a tarefa nova vai pelo tarefa_atribuida_v2 e o prazo (de hoje ou vencido) pelo
- * lembrete_de_tarefa_v2, com o primeiro nome e o título da tarefa; o resto, pelo aviso_do_mago_os, com o texto do aviso.
+ * O modelo de um aviso fora da janela, com o primeiro nome e o título da tarefa: a tarefa nova vai pelo
+ * tarefa_atribuida_v2, o prazo (de hoje ou vencido) pelo lembrete_de_tarefa_v2 e a menção pelo mencao_na_tarefa. Os
+ * outros avisos não têm modelo (nulo): fora da janela, ficam no app e no Telegram.
  */
 export function modeloDoAviso(
-  a: { tipo: TipoDeAviso; texto: string; titulo: string | null },
+  a: { tipo: TipoDeAviso; titulo: string | null },
   nome: string,
-): { nome: string; valores: string[] } {
-  if (a.titulo && a.tipo === "tarefa_atribuida")
-    return { nome: MODELOS_DO_WHATSAPP.tarefaAtribuida, valores: [nome, a.titulo.slice(0, 200)] };
-  if (a.titulo && (a.tipo === "prazo_hoje" || a.tipo === "prazo_vencido"))
-    return { nome: MODELOS_DO_WHATSAPP.lembreteDeTarefa, valores: [nome, a.titulo.slice(0, 200)] };
-  return { nome: MODELOS_DO_WHATSAPP.aviso, valores: [nome, a.texto.slice(0, 200)] };
+): { nome: string; valores: string[] } | null {
+  if (!a.titulo) return null;
+  const titulo = a.titulo.slice(0, 200);
+  if (a.tipo === "tarefa_atribuida")
+    return { nome: MODELOS_DO_WHATSAPP.tarefaAtribuida, valores: [nome, titulo] };
+  if (a.tipo === "prazo_hoje" || a.tipo === "prazo_vencido")
+    return { nome: MODELOS_DO_WHATSAPP.lembreteDeTarefa, valores: [nome, titulo] };
+  if (a.tipo === "mencao") return { nome: MODELOS_DO_WHATSAPP.mencao, valores: [nome, titulo] };
+  return null;
 }
 
 /**
  * Os avisos marcados de uma empresa, a quem tem o WhatsApp nela e o tipo ligado no WhatsApp (o padrão é o urgente,
  * como no Telegram). No silêncio, espera; depois de 12 horas, desiste. Dentro da janela, como texto; fora, pelo modelo
- * aviso_do_mago_os, até 10 por pessoa por dia. A marca sai antes de mandar: nada vai duas vezes.
+ * do tipo (modeloDoAviso), até 10 por pessoa por dia, e o tipo sem modelo fica no app. A marca sai antes de mandar.
  */
 export async function avisarNoWhatsapp(o: Opcoes, empresaId: string, agora = new Date()): Promise<number> {
   const urlPublica = o.conversa?.urlPublica ?? "";
@@ -354,12 +359,11 @@ export async function avisarNoWhatsapp(o: Opcoes, empresaId: string, agora = new
             texto: textoDoAvisoNoTelegram(a.texto, `${urlPublica}${a.link}`),
             modelo: null,
           });
-        else if (await reservarModelo(c, pessoa.pessoa_id, pessoa.fuso, agora))
-          saida.push({
-            numero: pessoa.numero,
-            texto: "",
-            modelo: modeloDoAviso(a, primeiroNome(pessoa.nome)),
-          });
+        else {
+          const modelo = modeloDoAviso(a, primeiroNome(pessoa.nome));
+          if (modelo && (await reservarModelo(c, pessoa.pessoa_id, pessoa.fuso, agora)))
+            saida.push({ numero: pessoa.numero, texto: "", modelo });
+        }
       }
     }
     return saida;
