@@ -250,6 +250,21 @@ export const ArquivoDaMensagem = Type.Object(
 );
 export type ArquivoDaMensagem = Static<typeof ArquivoDaMensagem>;
 
+/**
+ * A transcrição do áudio que chegou (M8-08, decisão 0058): transcrevendo, pronta, sem_conta (a empresa não escolheu
+ * quem transcreve), longa_demais (mais de 10 minutos ou 25 MB), no_teto (o gasto do mês chegou ao teto) ou falhou.
+ */
+export const SITUACOES_DA_TRANSCRICAO = [
+  "transcrevendo",
+  "pronta",
+  "sem_conta",
+  "longa_demais",
+  "no_teto",
+  "falhou",
+] as const;
+export const SituacaoDaTranscricao = Type.Enum(SITUACOES_DA_TRANSCRICAO);
+export type SituacaoDaTranscricao = Static<typeof SituacaoDaTranscricao>;
+
 /** No balão do site (M8-07): a página onde o visitante escreveu, sem o que vem depois do "?" e do "#". */
 export const PaginaDoSite = Type.Object(
   {
@@ -281,6 +296,15 @@ export const MensagemDaConversa = Type.Object(
     arquivo: OuNulo(ArquivoDaMensagem),
     /** No balão do site (M8-07): a página onde o visitante escreveu. */
     pagina: Type.Optional(OuNulo(PaginaDoSite)),
+    /** No áudio que chegou (M8-08): a transcrição e a situação dela. */
+    transcricao: Type.Optional(
+      OuNulo(
+        Type.Object(
+          { situacao: SituacaoDaTranscricao, texto: OuNulo(Type.String({ maxLength: 20000 })) },
+          { additionalProperties: false },
+        ),
+      ),
+    ),
   },
   { additionalProperties: false },
 );
@@ -458,6 +482,8 @@ export const PedidoDeMensagemNaConversa = Type.Object(
         { additionalProperties: false },
       ),
     ),
+    /** O arquivo é um áudio gravado na caixa (M8-08): sai como mensagem de voz do WhatsApp (até 5 minutos). */
+    voz: Type.Optional(Type.Boolean()),
   },
   { additionalProperties: false, minProperties: 1 },
 );
@@ -492,6 +518,8 @@ export const ACOES_CONVERSAS = [
   "sugestao.enviou",
   "sugestao.descartou",
   "canal.criou_atendente",
+  // M8-08: alguém pediu para transcrever de novo um áudio.
+  "conversa.transcreveu",
 ] as const;
 export type AcaoDasConversas = (typeof ACOES_CONVERSAS)[number];
 

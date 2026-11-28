@@ -46,6 +46,8 @@ export interface OpcoesDasMensagens {
   log: Log;
   /** O agente do canal (M8-05): a mensagem do cliente pode virar trabalho para ele. */
   atendimento?: OpcoesDoAtendimento;
+  /** O áudio que chega vai para a fila de transcrição (M8-08); o agente atende depois dela. */
+  transcrever?: (empresaId: string, mensagemId: string) => Promise<void>;
 }
 
 /** Até quantas vezes a fila tenta mandar uma mensagem antes de marcar "falhou". */
@@ -63,7 +65,7 @@ async function gravarArquivo(
   o: Pick<OpcoesDasMensagens, "poolApp" | "arquivos">,
   empresaId: string,
   mensagemId: string,
-  a: { nome: string; mime: string | null; dados: Buffer | null },
+  a: { nome: string; mime: string | null; dados: Buffer | null; segundos?: number | null },
 ) {
   // O id é sorteado antes, para o caminho no depósito ser o do registro.
   const idDoArquivo = crypto.randomUUID();
@@ -75,8 +77,9 @@ async function gravarArquivo(
   const registrar = (situacao: string, extra: { tamanho?: number; caminho?: string; achado?: string } = {}) =>
     comEmpresa(o.poolApp, empresaId, (c) =>
       c.query<{ id: string }>(
-        `insert into arquivos_de_conversa (id, empresa_id, mensagem_id, nome, tipo, tamanho, situacao, caminho, achado_do_antivirus)
-         values (coalesce($7::uuid, uuidv7()), empresa_ativa(), $1, $2, $3, $4, $5, $6, $8)
+        `insert into arquivos_de_conversa (id, empresa_id, mensagem_id, nome, tipo, tamanho, situacao, caminho,
+                                           achado_do_antivirus, segundos)
+         values (coalesce($7::uuid, uuidv7()), empresa_ativa(), $1, $2, $3, $4, $5, $6, $8, $9)
          on conflict (mensagem_id) do nothing returning id`,
         [
           mensagemId,
@@ -87,6 +90,7 @@ async function gravarArquivo(
           extra.caminho ?? null,
           idDoArquivo,
           extra.achado ?? null,
+          a.segundos ?? null,
         ],
       ),
     );
@@ -150,6 +154,17 @@ export async function tratarMensagemNova(
     }
   }
   await gravarArquivo(o, quem.empresaId, r.mensagemId, { ...lida.arquivo, dados });
+  // O áudio do cliente (M8-08): primeiro a transcrição; o agente atende quando ela chegar.
+  if (lida.mensagem.tipo === "audio" && !lida.mensagem.doCelular && o.transcrever) {
+    const mensagemId = r.mensagemId;
+    await comEmpresa(o.poolApp, quem.empresaId, (c) =>
+      c.query(
+        "update mensagens_com_contatos set transcricao_situacao = 'transcrevendo' where id = $1 and empresa_id = empresa_ativa()",
+        [mensagemId],
+      ),
+    );
+    return o.transcrever(quem.empresaId, mensagemId);
+  }
   await atender();
 }
 
@@ -195,6 +210,8 @@ export async function tratarEntrega(
 
 /** O tipo de arquivo que vai como foto (o resto vai como documento). */
 const ehFoto = (tipo: string) => /^image\/(png|jpeg|webp)$/.test(tipo);
+/** A voz gravada na caixa (M8-08): até 5 MB, cerca de 5 minutos no formato do navegador. */
+const BYTES_MAXIMOS_DA_VOZ = 5 * 1024 * 1024;
 
 /**
  * Cria a mensagem que sai ("pendente"), com o arquivo já passado pelo antivírus. Quem manda pela fila é
@@ -206,12 +223,25 @@ export async function criarMensagemQueSai(
   empresaId: string,
   conversa: ConversaComContato,
   autor: { pessoaId: string } | { agenteId: string },
-  pedido: { texto?: string; arquivo?: { nome: string; tipo: string; base64: string } },
+  pedido: { texto?: string; arquivo?: { nome: string; tipo: string; base64: string }; voz?: boolean },
 ): Promise<string> {
   // O balão do site (M8-07) recebe só texto: o visitante busca a mensagem pelo próprio balão.
   if (conversa.canal.provedor === "site" && pedido.arquivo)
     throw new RecusaDasConversas("Pelo balão do site, por enquanto, só texto.");
   if (conversa.situacao === "resolvida") throw new RecusaDasConversas("Reabra a conversa para responder.");
+  // A voz gravada na caixa (M8-08): só no WhatsApp, só áudio, até 5 MB (cerca de 5 minutos).
+  const voz = !!pedido.voz;
+  if (voz) {
+    if (conversa.canal.provedor !== "evolution")
+      throw new RecusaDasConversas("A mensagem de voz sai só pelo WhatsApp.");
+    if (
+      !pedido.arquivo ||
+      !/^audio\/(webm|ogg|mp4|mpeg|aac|x-m4a)$/.test(pedido.arquivo.tipo.split(";")[0] ?? "")
+    )
+      throw new RecusaDasConversas("A mensagem de voz precisa ser um áudio.");
+    if (Buffer.byteLength(pedido.arquivo.base64, "base64") > BYTES_MAXIMOS_DA_VOZ)
+      throw new RecusaDasConversas("A mensagem de voz pode ter até 5 minutos.");
+  }
   let dados: Buffer | null = null;
   if (pedido.arquivo) {
     if (!o.arquivos) throw new RecusaDasConversas("Os arquivos ainda não estão ligados neste ambiente.");
@@ -221,7 +251,13 @@ export async function criarMensagemQueSai(
     const r = await o.arquivos.antivirus.conferir(dados);
     if (!r.limpo) throw new RecusaDasConversas("O antivírus bloqueou o arquivo e ele não foi enviado.");
   }
-  const tipo = pedido.arquivo ? (ehFoto(pedido.arquivo.tipo) ? "foto" : "documento") : "texto";
+  const tipo = voz
+    ? "audio"
+    : pedido.arquivo
+      ? ehFoto(pedido.arquivo.tipo)
+        ? "foto"
+        : "documento"
+      : "texto";
   const m = await c.query<{ id: string }>(
     `insert into mensagens_com_contatos (empresa_id, conversa_id, canal_id, direcao, autor, autor_pessoa_id,
                                          autor_agente_id, tipo, texto, entrega)
@@ -384,7 +420,11 @@ export async function enviarPendente(
   const instancia = nomeDaInstancia(empresaId, l.canal_id);
   try {
     let id: string;
-    if (l.arquivo_caminho && l.arquivo_tipo && o.arquivos) {
+    if (l.tipo === "audio" && l.arquivo_caminho && o.arquivos) {
+      // A voz gravada na caixa (M8-08): a Evolution converte para a mensagem de voz do WhatsApp.
+      const dados = await o.arquivos.deposito.ler(l.arquivo_caminho);
+      id = (await o.evolution.enviarVoz(instancia, destino, dados.toString("base64"))).id;
+    } else if (l.arquivo_caminho && l.arquivo_tipo && o.arquivos) {
       const dados = await o.arquivos.deposito.ler(l.arquivo_caminho);
       id = (
         await o.evolution.enviarArquivo(instancia, destino, {
@@ -484,6 +524,8 @@ export interface OpcoesDasRotasDoEnvio {
   arquivos: ServicosDosAnexos | null;
   /** Leva a mensagem à fila de envio (na API) ou manda na hora (nos testes). */
   enfileirar: (empresaId: string, mensagemId: string) => Promise<void>;
+  /** "Transcrever de novo" (M8-08): leva o áudio à fila de transcrição; sem ela, a rota não existe. */
+  transcreverDeNovo?: (empresaId: string, mensagemId: string) => Promise<void>;
 }
 
 /** Os minutos do link de baixar o arquivo de uma conversa. */
@@ -526,6 +568,37 @@ export function registrarRotasDoEnvio(app: FastifyInstance, o: OpcoesDasRotasDoE
       return resposta.code(400).send({ code: "MENSAGEM_RECUSADA", message: erro.message });
     throw erro;
   };
+
+  // "Transcrever de novo" (M8-08): o áudio que chegou e não foi transcrito (ou a transcrição falhou).
+  const transcreverDeNovo = o.transcreverDeNovo;
+  if (transcreverDeNovo)
+    app.post(
+      "/conversas-com-contatos/:id/mensagens/:mensagemId/transcrever",
+      { preHandler: o.verificador.exigir("conversas", "criar") },
+      async (pedido, resposta) => {
+        const { id, mensagemId } = pedido.params as { id: string; mensagemId: string };
+        const { sessao } = acessoDo(pedido);
+        const feito = await naEmpresa(pedido, async (c) => {
+          if (!(await buscarConversa(c, [olha(pedido, "criar")], id))) return null;
+          const m = await c.query(
+            `update mensagens_com_contatos set transcricao_situacao = 'transcrevendo'
+              where id = $1 and conversa_id = $2 and empresa_id = empresa_ativa() and tipo = 'audio'
+                and direcao = 'chegou' and coalesce(transcricao_situacao, '') <> 'transcrevendo' returning id`,
+            [/^[0-9a-f-]{36}$/i.test(mensagemId) ? mensagemId : null, id],
+          );
+          return (m.rowCount ?? 0) > 0;
+        });
+        if (feito === null) return naoEncontrada(resposta);
+        if (!feito)
+          return resposta.code(400).send({
+            code: "MENSAGEM_RECUSADA",
+            message: "Esse áudio já está sendo transcrito, ou não é um áudio.",
+          });
+        await transcreverDeNovo(sessao.empresaId, mensagemId);
+        await registrar(pedido, "conversa.transcreveu", id, { mensagemId });
+        return resposta.code(202).send({ situacao: "transcrevendo" });
+      },
+    );
 
   app.post(
     "/conversas-com-contatos/:id/mensagens",

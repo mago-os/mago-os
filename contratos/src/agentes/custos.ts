@@ -128,6 +128,8 @@ export const ResumoDeCustos = Type.Object(
     total: Gasto,
     hoje: Gasto,
     tetoDaEmpresa: OuNulo(TetoMensal),
+    /** A transcrição dos áudios das conversas no mês (M8-08). */
+    transcricao: Type.Optional(Gasto),
     porAgente: Type.Array(
       Type.Object(
         {
@@ -172,5 +174,7 @@ export const ACOES_CUSTOS = [
   "custos.mudou_teto",
   "custos.mudou_aviso_de_tokens",
   "custos.mudou_preco",
+  // M8-08: a conta e o modelo que transcrevem os áudios das conversas.
+  "custos.mudou_transcricao",
   "agente.parou_no_teto",
 ] as const;

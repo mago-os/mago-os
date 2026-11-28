@@ -35,6 +35,8 @@ export interface ClienteDaEvolution {
       legenda?: string;
     },
   ): Promise<{ id: string }>;
+  /** Manda uma mensagem de voz (M8-08): a Evolution converte o áudio do navegador para o formato do WhatsApp. */
+  enviarVoz(nome: string, para: string, base64: string): Promise<{ id: string }>;
   /** O arquivo de uma mensagem que chegou (base64), ou nulo se a Evolution não tem. */
   baixarArquivo(nome: string, idDaMensagem: string): Promise<{ base64: string; mime: string | null } | null>;
 }
@@ -170,6 +172,18 @@ export function criarClienteDaEvolution(
       });
       return { id: idDaResposta(r) };
     },
+    async enviarVoz(nome, para, base64) {
+      const r = await pedir<{ key?: { id?: unknown } }>(
+        "POST",
+        `/message/sendWhatsAppAudio/${nomeNaUrl(nome)}`,
+        {
+          number: para,
+          audio: base64,
+          encoding: true,
+        },
+      );
+      return { id: idDaResposta(r) };
+    },
     async baixarArquivo(nome, idDaMensagem) {
       const r = await pedir<{ base64?: unknown; mimetype?: unknown }>(
         "POST",
@@ -208,6 +222,7 @@ export interface EvolutionFalsa extends ClienteDaEvolution {
     id: string;
     texto?: string;
     arquivo?: { mime: string; nomeDoArquivo: string };
+    voz?: boolean;
   }[];
   /** Os arquivos que a Evolution tem, pelo número da mensagem (o teste põe). */
   arquivos: Map<string, { base64: string; mime: string }>;
@@ -247,6 +262,15 @@ export function evolutionFalsa(): EvolutionFalsa {
         ...(a.legenda ? { texto: a.legenda } : {}),
         arquivo: { mime: a.mime, nomeDoArquivo: a.nomeDoArquivo },
       });
+      return { id };
+    },
+    async enviarVoz(nome, para, _base64) {
+      if (falsa.foraDoAr) throw new ErroDaEvolution("A Evolution não respondeu (falsa).");
+      if (instancias.get(nome)?.estado !== "open")
+        throw new ErroDaEvolution("A Evolution respondeu 400 em POST message.");
+      numero += 1;
+      const id = `FALSA${numero}`;
+      falsa.enviadas.push({ instancia: nome, para, id, voz: true });
       return { id };
     },
     async baixarArquivo(_nome, idDaMensagem) {

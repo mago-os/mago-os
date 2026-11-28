@@ -31,7 +31,7 @@ teste.osmago.com {
 		# Os mesmos de telas/cabecalhos-de-seguranca.ts (M6-04); um teste confere que são iguais.
 		Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data:; connect-src 'self' https://*.backblazeb2.com; media-src 'self' blob: https://*.backblazeb2.com; worker-src 'self'; manifest-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'"
 		X-Frame-Options DENY
-		Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=(), usb=()"
+		Permissions-Policy "camera=(), microphone=(self), geolocation=(), payment=(), usb=()"
 	}
 
 	# Campainha do GitHub: só avisa a VPS para conferir se há versão nova (assinada; não dá acesso a nada).

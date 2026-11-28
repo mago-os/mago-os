@@ -88,6 +88,8 @@ const FORA: Record<string, string> = {
     "pública, pela chave e o código do visitante: só a conversa dele, com os limites (balao.test)",
   "GET /balao/:chave/mensagens":
     "pública, pela chave e o código do visitante: só a conversa dele, sem as notas internas (balao.test)",
+  "POST /conversas-com-contatos/:id/mensagens/:mensagemId/transcrever":
+    "a transcrição de novo de um áudio que chegou: só existe com a fila da transcrição (audio.test confere a outra empresa)",
   "POST /balao/:chave/whatsapp": "pública, pela chave e o código do visitante: o código dele (balao.test)",
   "GET /openapi.json": "pública, sem nenhum dado (a documentação da API, M7-02)",
   "GET /docs": "pública, sem nenhum dado (a documentação da API, M7-02)",
@@ -749,6 +751,8 @@ describe.skipIf(!bancoDisponivel)("vazamento entre empresas em todas as partes (
       })
     ).canal.id;
     await usar(x, admin, "POST", `/canais/${ids.canalDoSite}/chave`);
+    // O áudio (M8-08): a conta que transcreve (sem conta compatível com OpenAI no roteiro, a recusa também conta).
+    await usar(x, admin, "POST", `/ia/contas/${ids.conta}/transcricao`, { modelo: null });
     await usar(x, func, "GET", `/conversas-com-contatos?canal=${ids.canal}&situacoes=esperando_equipe`);
     await usar(x, gestor, "GET", `/conversas-com-contatos/${ids.conversaComContato}`);
     await usar(x, admin, "GET", `/contatos/${ids.contato}/conversas`);

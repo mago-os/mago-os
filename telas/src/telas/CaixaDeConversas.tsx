@@ -21,10 +21,12 @@ import {
   ArrowLeft,
   Globe,
   MessageCircle,
+  Mic,
   Paperclip,
   Search,
   Send,
   Smile,
+  Square,
   StickyNote,
   UserRound,
 } from "lucide-react";
@@ -135,7 +137,109 @@ function query(f: FiltroDeConversas): string {
 }
 
 /** O arquivo escolhido em base64, sem o prefixo data:. */
-function emBase64(arquivo: File): Promise<string> {
+/** A situação da transcrição do áudio (M8-08), como a equipe lê embaixo do áudio. */
+const TRANSCRICAO: Record<NonNullable<MensagemDaConversa["transcricao"]>["situacao"], string> = {
+  transcrevendo: "Transcrevendo...",
+  pronta: "",
+  sem_conta: "Sem transcrição: a empresa ainda não escolheu quem transcreve (Contas de IA).",
+  longa_demais: "Sem transcrição: o áudio é longo demais (até 10 minutos).",
+  no_teto: "Sem transcrição: o gasto com IA chegou ao teto do mês.",
+  falhou: "A transcrição falhou.",
+};
+
+/** O mais longo que a caixa grava (M8-08): 5 minutos. */
+const SEGUNDOS_DA_VOZ = 300;
+
+/**
+ * Gravar a mensagem de voz (M8-08): o microfone do navegador (o Mago OS libera só para si mesmo), até 5 minutos; a
+ * pessoa ouve antes de mandar ou descarta. Sai como mensagem de voz do WhatsApp (a Evolution converte o formato).
+ */
+function GravarVoz({ aoMandar, desligado }: { aoMandar: (voz: Blob) => Promise<void>; desligado: boolean }) {
+  const [gravando, setGravando] = useState(false);
+  const [segundos, setSegundos] = useState(0);
+  const [pronto, setPronto] = useState<{ blob: Blob; url: string } | null>(null);
+  const [erro, setErro] = useState<string | null>(null);
+  const gravador = useRef<MediaRecorder | null>(null);
+  const relogio = useRef<number | null>(null);
+
+  const parar = useCallback(() => {
+    gravador.current?.stop();
+    if (relogio.current) window.clearInterval(relogio.current);
+    setGravando(false);
+  }, []);
+  useEffect(() => () => parar(), [parar]);
+
+  async function comecar() {
+    setErro(null);
+    try {
+      const fluxo = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const r = new MediaRecorder(fluxo);
+      const pedacos: Blob[] = [];
+      r.ondataavailable = (e) => pedacos.push(e.data);
+      r.onstop = () => {
+        for (const t of fluxo.getTracks()) t.stop();
+        const blob = new Blob(pedacos, { type: (r.mimeType || "audio/webm").split(";")[0] ?? "audio/webm" });
+        setPronto({ blob, url: URL.createObjectURL(blob) });
+      };
+      gravador.current = r;
+      r.start();
+      setSegundos(0);
+      setGravando(true);
+      relogio.current = window.setInterval(() => {
+        setSegundos((s) => {
+          if (s + 1 >= SEGUNDOS_DA_VOZ) parar();
+          return s + 1;
+        });
+      }, 1000);
+    } catch {
+      setErro("O navegador não deixou usar o microfone.");
+    }
+  }
+
+  const tempo = `${Math.floor(segundos / 60)}:${String(segundos % 60).padStart(2, "0")}`;
+  if (pronto)
+    return (
+      <span className="flex flex-wrap items-center gap-2">
+        {/* biome-ignore lint/a11y/useMediaCaption: é a voz que a própria pessoa acabou de gravar. */}
+        <audio controls src={pronto.url} aria-label="Ouvir a gravação" className="h-9 max-w-56" />
+        <Button
+          type="button"
+          size="pequeno"
+          disabled={desligado}
+          onClick={() => void aoMandar(pronto.blob).then(() => setPronto(null))}
+        >
+          Mandar a voz
+        </Button>
+        <Button type="button" size="pequeno" variant="fantasma" onClick={() => setPronto(null)}>
+          Descartar
+        </Button>
+      </span>
+    );
+  return (
+    <span className="flex items-center gap-1 text-sm text-texto-2">
+      {gravando ? (
+        <Button type="button" variant="fantasma" size="icone" aria-label="Parar a gravação" onClick={parar}>
+          <Square className="text-perigo" />
+        </Button>
+      ) : (
+        <Button
+          type="button"
+          variant="fantasma"
+          size="icone"
+          aria-label="Gravar mensagem de voz"
+          disabled={desligado || typeof MediaRecorder === "undefined"}
+          onClick={() => void comecar()}
+        >
+          <Mic />
+        </Button>
+      )}
+      {gravando && <span aria-live="polite">Gravando {tempo}</span>}
+      {erro && <span className="text-perigo">{erro}</span>}
+    </span>
+  );
+}
+
+function emBase64(arquivo: File | Blob): Promise<string> {
   return new Promise((ok, erro) => {
     const leitor = new FileReader();
     leitor.onload = () => ok(String(leitor.result).replace(/^data:[^,]*,/, ""));
@@ -421,11 +525,13 @@ function Bolha({
   conversaId,
   nomes,
   aoTentar,
+  aoTranscrever,
 }: {
   m: MensagemDaConversa;
   conversaId: string;
   nomes: Record<string, string>;
   aoTentar: (id: string) => void;
+  aoTranscrever: (id: string) => void;
 }) {
   const [link, setLink] = useState<string | null>(null);
   const disponivel = m.arquivo?.situacao === "disponivel";
@@ -462,16 +568,38 @@ function Bolha({
         {m.direcao === "interna" ? " · Só a equipe vê" : ""}
       </span>
       {m.tipo === "foto" && link && <img src={link} alt="Foto da mensagem" className="max-h-64 rounded" />}
-      {m.arquivo && m.tipo !== "foto" && disponivel && link && (
+      {m.tipo === "audio" && disponivel && link && (
+        // biome-ignore lint/a11y/useMediaCaption: o áudio do WhatsApp não tem legenda; a transcrição vem logo abaixo.
+        <audio controls src={link} className="max-w-full" aria-label="Áudio da mensagem" />
+      )}
+      {m.arquivo && m.tipo !== "foto" && m.tipo !== "audio" && disponivel && link && (
         <a className="underline" href={link} target="_blank" rel="noreferrer">
           {m.arquivo.nome}
         </a>
+      )}
+      {m.transcricao && (
+        <span className="grid gap-0.5 border-l-2 border-linha pl-2 text-sm">
+          <span className="text-xs opacity-75">Transcrição automática</span>
+          {m.transcricao.texto && (
+            <span className="whitespace-pre-wrap break-words">{m.transcricao.texto}</span>
+          )}
+          {m.transcricao.situacao !== "pronta" && (
+            <span className="text-xs italic">
+              {TRANSCRICAO[m.transcricao.situacao]}
+              {m.transcricao.situacao !== "transcrevendo" && (
+                <button type="button" className="ml-2 underline" onClick={() => aoTranscrever(m.id)}>
+                  Transcrever de novo
+                </button>
+              )}
+            </span>
+          )}
+        </span>
       )}
       {m.arquivo && !disponivel && (
         <span className="text-xs italic">{ARQUIVO[m.arquivo.situacao] ?? ""}</span>
       )}
       {/* O texto do contato é só texto: nunca vira HTML. */}
-      {(m.texto || !m.arquivo) && (
+      {(m.texto || (!m.arquivo && !m.transcricao)) && (
         <span className="whitespace-pre-wrap break-words">{m.texto ?? SEM_TEXTO[m.tipo]}</span>
       )}
       {m.entrega && (
@@ -721,6 +849,24 @@ function Escrever({
             >
               <Smile />
             </Button>
+            {dados.conversa.canal.provedor === "evolution" && (
+              <GravarVoz
+                desligado={enviando}
+                aoMandar={async (voz) => {
+                  setEnviando(true);
+                  const r = await pedir("POST", `/conversas-com-contatos/${id}/mensagens`, {
+                    voz: true,
+                    arquivo: {
+                      nome: "voz.webm",
+                      tipo: voz.type || "audio/webm",
+                      base64: await emBase64(voz),
+                    },
+                  });
+                  setEnviando(false);
+                  aoMandar(r.ok ? undefined : { tipo: "erro", texto: r.mensagem ?? "" });
+                }}
+              />
+            )}
             <label className="inline-flex cursor-pointer items-center gap-1 text-sm text-texto-2">
               <Paperclip className="size-4" />
               <span>{arquivo ? arquivo.name : "Foto ou documento"}</span>
@@ -1015,6 +1161,9 @@ function ConversaAberta({
                 conversaId={id}
                 nomes={nomes}
                 aoTentar={(mid) => void agir(`mensagens/${mid}/tentar`, undefined, "Mandando de novo.")}
+                aoTranscrever={(mid) =>
+                  void agir(`mensagens/${mid}/transcrever`, undefined, "Transcrevendo de novo.")
+                }
               />
             ))}
             <li ref={fim} aria-hidden="true" />

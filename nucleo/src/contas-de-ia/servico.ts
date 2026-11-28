@@ -15,7 +15,7 @@ import { FORMATO_UUID } from "../comum.ts";
 
 const COLUNAS = `id, empresa_id, nome, provedor, credencial, endereco, final_da_chave, situacao, ultimo_erro,
   teto_mensal, termos_aceitos_por, termos_aceitos_em, limite_do_plano_ate, testada_em, criada_por, criada_em,
-  atualizada_em`;
+  atualizada_em, modelo_de_transcricao, preco_da_transcricao`;
 
 interface LinhaDaConta {
   id: string;
@@ -35,6 +35,8 @@ interface LinhaDaConta {
   criada_por: string;
   criada_em: Date;
   atualizada_em: Date;
+  modelo_de_transcricao: string | null;
+  preco_da_transcricao: number | null;
 }
 
 function paraConta(l: LinhaDaConta): ContaDeIa {
@@ -53,6 +55,9 @@ function paraConta(l: LinhaDaConta): ContaDeIa {
     ultimoErro: l.ultimo_erro,
     tetoMensal: l.teto_mensal,
     testadaEm: l.testada_em?.toISOString() ?? null,
+    transcricao: l.modelo_de_transcricao
+      ? { modelo: l.modelo_de_transcricao, precoPorMinuto: l.preco_da_transcricao }
+      : null,
     criadaPor: l.criada_por,
     criadaEm: l.criada_em.toISOString(),
     atualizadaEm: l.atualizada_em.toISOString(),

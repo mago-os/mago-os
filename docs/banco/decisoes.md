@@ -448,3 +448,9 @@ O login (`mago_acesso`) não lê papéis nem as regras da plataforma direto. As 
 - `codigos_para_o_whatsapp` guarda o código de "continuar no WhatsApp" (30 minutos, uso único): quando chega pelo WhatsApp, as conversas do visitante passam para o contato daquele telefone.
 - `mensagens_com_contatos.pagina_url` e `pagina_titulo` guardam a página do site sem o que vem depois do "?" e do "#". `conversas_com_contatos.pode_ser_contato_id` marca o contato que já tem o e-mail ou o telefone que o cliente deixou: a equipe confere e troca (nunca junta sozinho).
 - `canal_do_balao(chave)` (definer, só ids) dá a empresa e o canal às rotas públicas do balão; `empresas_com_visitantes_vencidos()` alimenta a verificação diária, que apaga os visitantes vencidos, os pedidos antigos e as conversas de visitante sem contato de 90 dias (decisão 9 da spec do M8).
+
+## 63. Áudio nas conversas (28/11/2026, M8-08)
+
+- `contas_de_ia.modelo_de_transcricao` diz qual conta transcreve os áudios das conversas ([decisão 0058](../decisoes/0058-audio-nas-conversas.md)): uma por empresa (índice único parcial), só "compatível com OpenAI" por chave de API (o núcleo confere). `preco_da_transcricao` é o preço por minuto, em microdólares, ajustado pelo administrador (nulo: o de referência).
+- `mensagens_com_contatos.transcricao` (`[pessoal]`) guarda o texto transcrito do áudio que chegou e fica depois que o arquivo é apagado (180 dias); `transcricao_situacao` diz se está transcrevendo, pronta, sem conta, longa demais (mais de 10 minutos ou 25 MB), no teto ou se falhou. `arquivos_de_conversa.segundos` guarda a duração que o WhatsApp informa.
+- `consumo_de_ia` ganha o tipo (`modelo` ou `transcricao`) e os segundos: a transcrição entra no gasto do mês e no teto da empresa e da conta. Ela pode não ter agente (o canal sem agente), por isso `agente_id` só é obrigatório nas chamadas de modelo.

@@ -49,6 +49,13 @@ test.describe("caixa de conversas", () => {
        values ($1, $2, $3, 'chegou', 'contato', 'texto', 'Vocês têm a peça 42?')`,
       [pessoa.empresaId, conversaId, canal.rows[0]?.id],
     );
+    // Um áudio do cliente já transcrito (M8-08).
+    await c.query(
+      `insert into mensagens_com_contatos (empresa_id, conversa_id, canal_id, direcao, autor, tipo, transcricao,
+                                           transcricao_situacao, transcrita_em)
+       values ($1, $2, $3, 'chegou', 'contato', 'audio', 'É para a moto de 2019.', 'pronta', now())`,
+      [pessoa.empresaId, conversaId, canal.rows[0]?.id],
+    );
     await c.query(
       "insert into respostas_prontas (empresa_id, nome, texto, criada_por) values ($1, 'horario', 'Atendemos das 9h às 18h.', $2)",
       [pessoa.empresaId, quem],
@@ -74,6 +81,8 @@ test.describe("caixa de conversas", () => {
     await expect(page).toHaveURL(new RegExp(`/conversas/${conversaId}$`));
     const aberta = page.getByRole("region", { name: "Conversa aberta" });
     await expect(aberta.getByText("Vocês têm a peça 42?")).toBeVisible();
+    await expect(aberta.getByText("Transcrição automática")).toBeVisible();
+    await expect(aberta.getByText("É para a moto de 2019.")).toBeVisible();
     // A passagem para uma pessoa (M8-06): o motivo e o resumo do agente no alto.
     await expect(aberta.getByText(/O agente passou para a equipe: o cliente pediu uma pessoa/)).toBeVisible();
     await expect(aberta.getByText("A Carla quer saber se tem a peça 42.")).toBeVisible();

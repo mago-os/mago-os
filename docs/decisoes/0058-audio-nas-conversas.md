@@ -1,7 +1,7 @@
 # 0058 Áudio nas conversas
 
 - **Data:** 28/11/2026
-- **Situação:** proposta (esperando o ok do Sandro)
+- **Situação:** aceita (aprovada pelo Sandro no chat em 28/11/2026, com os 6 pontos como propostos)
 - **Tarefa:** M8-08
 
 ## Contexto
@@ -68,6 +68,14 @@ fora e num cabeçalho de segurança. Esses pontos pedem o olho do Sandro e estã
    - gravar e mandar como voz, com a Evolution falsa recebendo áudio;
    - o cabeçalho com o microfone só no próprio Mago OS;
    - o isolamento entre empresas.
+
+## Ajustes ao construir (28/11/2026)
+
+- A escolha fica na própria conta (`POST /ia/contas/:id/transcricao`, com o modelo e o preço por minuto opcional): escolher uma conta tira a escolha das outras.
+- A duração vem do WhatsApp (o campo `seconds` do áudio); sem ela, é estimada pelo tamanho (cerca de 16 kbit/s).
+- O custo fica no nome do agente do canal quando há um; sem agente, só no gasto da empresa e da conta. A tela de custos mostra a linha "Transcrição de áudio das conversas" no mês.
+- Fila `conversas-transcricao`: na chegada (depois o agente atende, ou a conversa vai para as pessoas) e no "transcrever de novo" (`POST /conversas-com-contatos/:id/mensagens/:mensagemId/transcrever`, só a transcrição muda).
+- A voz sai pelo `sendWhatsAppAudio` da Evolution, com a conversão ligada; até 5 MB (cerca de 5 minutos). Formatos aceitos do navegador: webm, ogg, mp4, mpeg, aac e m4a.
 
 ## O que foi descartado
 

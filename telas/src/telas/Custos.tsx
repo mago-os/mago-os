@@ -244,6 +244,11 @@ export function Custos({ podeEditar }: { podeEditar: boolean }) {
         <Card className="gap-2">
           <CardDescricao>No mês ({r.mes})</CardDescricao>
           <p className="text-2xl font-bold">{dolares(r.total.custo)}</p>
+          {(r.transcricao?.custo ?? 0) > 0 && (
+            <p className="text-xs text-texto-2">
+              Transcrição de áudio das conversas: {dolares(r.transcricao?.custo ?? 0)}
+            </p>
+          )}
           <Barra usado={r.total.custo} limite={r.tetoDaEmpresa === null ? null : r.tetoDaEmpresa * 10_000} />
           <CampoDeTeto
             rotulo="Teto da empresa"
