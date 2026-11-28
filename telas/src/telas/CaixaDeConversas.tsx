@@ -12,6 +12,7 @@ import type {
   RespostaPronta,
   ResumoDaConversa,
   SituacaoDeConversa,
+  SugestaoDeResposta,
   Tarefa,
   VisaoDeConversas,
 } from "@mago-os/contratos";
@@ -344,6 +345,64 @@ interface ConversaCompleta {
   anterior: ConversaComContato | null;
   pode: { responder: boolean; editar: boolean };
   canalTemAgente: boolean;
+  /** As sugestões do agente esperando uma pessoa (M8-05, modo "sugere"). */
+  sugestoes: SugestaoDeResposta[];
+}
+
+/** A sugestão do agente: enviar como está, editar e enviar, ou descartar. */
+function Sugestao({
+  s,
+  conversaId,
+  aoMudar,
+}: {
+  s: SugestaoDeResposta;
+  conversaId: string;
+  aoMudar: (m?: Mensagem) => void;
+}) {
+  const [texto, setTexto] = useState(s.texto);
+  const [enviando, setEnviando] = useState(false);
+  async function enviar() {
+    setEnviando(true);
+    const mudou = texto.trim() !== s.texto;
+    const r = await pedir(
+      "POST",
+      `/conversas-com-contatos/${conversaId}/sugestoes/${s.id}/enviar`,
+      mudou ? { texto: texto.trim() } : {},
+    );
+    setEnviando(false);
+    aoMudar(r.ok ? undefined : { tipo: "erro", texto: r.mensagem ?? "" });
+  }
+  async function descartar() {
+    const r = await pedir("POST", `/conversas-com-contatos/${conversaId}/sugestoes/${s.id}/descartar`);
+    aoMudar(r.ok ? undefined : { tipo: "erro", texto: r.mensagem ?? "" });
+  }
+  return (
+    <section
+      className="grid gap-2 rounded-lg border border-tinta/30 bg-suave p-3 text-sm"
+      aria-label="Sugestão do agente"
+    >
+      <span className="text-xs font-medium text-texto-2">Sugestão do agente (o cliente ainda não viu)</span>
+      <label className="sr-only" htmlFor={`sugestao-${s.id}`}>
+        Texto da sugestão
+      </label>
+      <textarea
+        id={`sugestao-${s.id}`}
+        className="w-full rounded-md border border-linha bg-cartao p-2"
+        rows={3}
+        value={texto}
+        onChange={(e) => setTexto(e.target.value)}
+        maxLength={4096}
+      />
+      <div className="flex gap-2">
+        <Button size="pequeno" disabled={enviando || !texto.trim()} onClick={() => void enviar()}>
+          {texto.trim() === s.texto ? "Enviar" : "Enviar editada"}
+        </Button>
+        <Button size="pequeno" variant="fantasma" onClick={() => void descartar()}>
+          Descartar
+        </Button>
+      </div>
+    </section>
+  );
 }
 
 function Bolha({
@@ -899,6 +958,18 @@ function ConversaAberta({
               {quemDigita.join(", ")} {quemDigita.length > 1 ? "estão" : "está"} respondendo...
             </p>
           )}
+          {dados.pode.responder &&
+            dados.sugestoes.map((s) => (
+              <Sugestao
+                key={s.id}
+                s={s}
+                conversaId={id}
+                aoMudar={(m) => {
+                  setMensagem(m ?? null);
+                  void carregar();
+                }}
+              />
+            ))}
           {dados.pode.responder && (
             <Escrever
               dados={dados}

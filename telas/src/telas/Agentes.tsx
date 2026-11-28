@@ -400,7 +400,13 @@ export function PaginaDoAgente({
           ) : (
             <Linha
               rotulo="Tipo"
-              valor={agente.papel === "coordenador" ? "Interno: coordenador" : "Interno: Gerente de projetos"}
+              valor={
+                agente.papel === "coordenador"
+                  ? "Interno: coordenador"
+                  : agente.papel === "atendimento"
+                    ? "Interno: atendimento dos clientes"
+                    : "Interno: Gerente de projetos"
+              }
             />
           )}
           <Linha

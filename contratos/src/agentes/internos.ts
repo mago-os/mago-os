@@ -17,9 +17,10 @@ import { Responsavel, StatusTarefa } from "../tarefas/tarefa.ts";
 import { ModeloEscolhido } from "./contas-de-ia.ts";
 
 /** Papel do agente interno na hierarquia: o coordenador recebe os pedidos e passa ao especialista. */
-export const PAPEIS_DE_AGENTE = ["coordenador", "especialista"] as const;
+export const PAPEIS_DE_AGENTE = ["coordenador", "especialista", "atendimento"] as const;
 export const PapelDeAgente = Type.Enum(PAPEIS_DE_AGENTE, {
-  description: "coordenador (porta de entrada) ou especialista (faz o trabalho de uma área).",
+  description:
+    "coordenador (porta de entrada), especialista (faz o trabalho de uma área) ou atendimento (fala com os clientes num canal, M8-05).",
 });
 export type PapelDeAgente = Static<typeof PapelDeAgente>;
 
@@ -112,7 +113,7 @@ export type PedidoDeMensagem = Static<typeof PedidoDeMensagem>;
 // delegação). O custo e os tokens entram na M4-06; o passo a passo, na M4-07.
 
 /** De onde veio o trabalho. */
-export const ORIGENS_DA_EXECUCAO = ["conversa", "tarefa", "delegacao"] as const;
+export const ORIGENS_DA_EXECUCAO = ["conversa", "tarefa", "delegacao", "atendimento"] as const;
 export const OrigemDaExecucao = Type.Enum(ORIGENS_DA_EXECUCAO);
 export type OrigemDaExecucao = Static<typeof OrigemDaExecucao>;
 
@@ -136,6 +137,8 @@ export const ExecucaoDeAgente = Type.Object(
     tarefaId: OuNulo(Id),
     /** A execução que delegou esta (o coordenador que passou ao especialista). */
     execucaoMaeId: OuNulo(Id),
+    /** No atendimento (M8-05): a conversa com o contato. */
+    conversaComContatoId: Type.Optional(OuNulo(Id)),
     situacao: SituacaoDaExecucao,
     /**
      * Leu texto de outra pessoa (que não quem pediu) ou de um agente externo: daí em diante, o que muda dados pede
@@ -163,6 +166,8 @@ export const regrasDaExecucao: Regra<ExecucaoDeAgente>[] = [
       return [{ caminho: "/tarefaId", mensagem: "execução de tarefa diz qual tarefa" }];
     if (e.origem === "delegacao" && (e.execucaoMaeId === null || e.tarefaId === null))
       return [{ caminho: "/execucaoMaeId", mensagem: "delegação diz quem delegou e qual tarefa" }];
+    if (e.origem === "atendimento" && !e.conversaComContatoId)
+      return [{ caminho: "/conversaComContatoId", mensagem: "atendimento diz qual conversa com o contato" }];
     return [];
   },
   (e): Problema[] => {
@@ -486,6 +491,58 @@ export const FERRAMENTAS_INTERNAS = [
       { additionalProperties: false },
     ),
     papeis: ["coordenador", "especialista"],
+  },
+  // Atendimento (M8-05, decisão 0055): o agente que fala com o cliente só alcança aquela conversa e aquele contato.
+  {
+    nome: "ver_ficha_do_cliente",
+    descricao:
+      "Mostra a ficha do cliente desta conversa: o nome, os papéis, os e-mails e telefones, se já foi identificado e as tarefas abertas ligadas a ele. Só este cliente; você não alcança outros cadastros.",
+    entrada: Type.Object({}, { additionalProperties: false }),
+    papeis: ["atendimento"],
+  },
+  {
+    nome: "completar_cliente",
+    descricao:
+      "Completa o nome e o e-mail do cliente desta conversa quando ele ainda não foi identificado, com o que ele mesmo disse. Nunca invente. Se o e-mail já estiver noutro cadastro, a equipe confere; você não junta cadastros.",
+    entrada: Type.Object(
+      {
+        nome: Type.Optional(Texto(200, "O nome que o cliente disse.")),
+        email: Type.Optional(Type.String({ format: "email", maxLength: 254 })),
+      },
+      { additionalProperties: false, minProperties: 1 },
+    ),
+    papeis: ["atendimento"],
+  },
+  {
+    nome: "criar_tarefa_para_a_equipe",
+    descricao:
+      "Cria uma tarefa para a equipe deste canal, ligada a este cliente, quando ele pede algo que você não resolve na conversa (um orçamento, uma visita, um retorno). Diga ao cliente que a equipe vai cuidar.",
+    entrada: Type.Object(
+      {
+        titulo: Texto(200, "O que a equipe precisa fazer, numa linha."),
+        descricao: Type.Optional(Texto(4000, "O que o cliente pediu, com os detalhes que ele deu.")),
+      },
+      { additionalProperties: false },
+    ),
+    papeis: ["atendimento"],
+  },
+  {
+    nome: "responder_ao_cliente",
+    descricao:
+      "Responde ao cliente nesta conversa e encerra a execução. Texto curto, educado e em português do Brasil, sem prometer o que não está nas instruções (preço, prazo, desconto).",
+    entrada: Type.Object(
+      {
+        texto: Texto(4096, "A resposta ao cliente."),
+        resumo: Type.Optional(
+          Texto(
+            2000,
+            "Quando a conversa passar de 30 mensagens: um resumo curto de tudo até aqui, para a próxima vez.",
+          ),
+        ),
+      },
+      { additionalProperties: false },
+    ),
+    papeis: ["atendimento"],
   },
   {
     nome: "responder",

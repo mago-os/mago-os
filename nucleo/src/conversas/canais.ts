@@ -24,6 +24,7 @@ import { auditar } from "../auditoria/registrar.ts";
 import { criarAviso } from "../avisos/index.ts";
 import { comEmpresa, comPessoa } from "../empresa.ts";
 import { acessoDo, type Verificador } from "../permissoes/verificar.ts";
+import type { OpcoesDoAtendimento } from "./atendimento.ts";
 import { tratarEntrega, tratarMensagemNova } from "./envio.ts";
 import {
   CABECALHO_DO_SEGREDO,
@@ -94,6 +95,8 @@ export interface OpcoesDosAvisosDaEvolution {
   evolution: ClienteDaEvolution;
   /** O depósito e o antivírus, para os arquivos das mensagens (M8-03); sem eles, os arquivos não são baixados. */
   arquivos?: ServicosDosAnexos | null;
+  /** O agente do canal (M8-05): sem ele, as mensagens só chegam (nos testes de canais, por exemplo). */
+  atendimento?: OpcoesDoAtendimento;
   log: {
     info(o: unknown, m?: string): void;
     warn(o: unknown, m?: string): void;
@@ -118,7 +121,13 @@ export async function tratarAvisoDaEvolution(
     return o.log.warn({ evento: "evolution.instancia_desconhecida" }, "Aviso de instância que não é nossa");
   const evento = aviso.event.toLowerCase().replace(/_/g, ".");
   // Mensagens (M8-03): a nova e a entrega das que saíram.
-  const mensagens = { poolApp: o.poolApp, evolution: o.evolution, arquivos: o.arquivos ?? null, log: o.log };
+  const mensagens = {
+    poolApp: o.poolApp,
+    evolution: o.evolution,
+    arquivos: o.arquivos ?? null,
+    log: o.log,
+    ...(o.atendimento ? { atendimento: o.atendimento } : {}),
+  };
   if (evento === "messages.upsert") return tratarMensagemNova(mensagens, quem, aviso.instance, aviso.data);
   if (evento === "messages.update") return tratarEntrega(mensagens, quem, aviso.data);
   if (evento !== "connection.update") return;
@@ -298,21 +307,109 @@ export function registrarRotasDosCanais(app: FastifyInstance, o: OpcoesDasRotasD
       const { id } = pedido.params as { id: string };
       const r = conferir(PedidoDeEditarCanal, pedido.body);
       if (!r.ok) return invalido(resposta, r.problemas);
-      const feito = await naEmpresa(pedido, async (c) => {
-        const antes = await buscarCanal(c, id, true);
-        if (!antes) return null;
-        await c.query(
-          `update canais_de_contato set nome = coalesce($2, nome),
-                area = case when $3::boolean then $4 else area end, atualizado_em = now()
+      return tratar(resposta, async () => {
+        const feito = await naEmpresa(pedido, async (c) => {
+          const antes = await buscarCanal(c, id, true);
+          if (!antes) return null;
+          const v = r.valor;
+          // O agente do canal (M8-05) só pode ser um agente de atendimento desta empresa.
+          if (v.agenteId) {
+            const a = await c.query(
+              "select 1 from agentes where id = $1 and empresa_id = empresa_ativa() and papel = 'atendimento' and situacao <> 'desligado'",
+              [v.agenteId],
+            );
+            if ((a.rowCount ?? 0) === 0)
+              throw new RecusaDasConversas("Escolha um agente de atendimento desta empresa.");
+          }
+          if (v.horario && v.horario.inicio >= v.horario.fim)
+            throw new RecusaDasConversas("O horário de atendimento precisa começar antes de terminar.");
+          await c.query(
+            `update canais_de_contato set nome = coalesce($2, nome),
+                area = case when $3::boolean then $4 else area end,
+                agente_id = case when $5::boolean then $6 else agente_id end,
+                modo = coalesce($7, modo),
+                instrucoes = case when $8::boolean then $9 else instrucoes end,
+                horario = coalesce($10::jsonb, horario),
+                mensagem_fora_do_horario = coalesce($11, mensagem_fora_do_horario),
+                limite_de_autonomia = coalesce($12, limite_de_autonomia),
+                -- Mudar o modo recomeça a contagem da autonomia.
+                sugestoes_sem_edicao = case when $7 is not null and $7 <> modo then 0 else sugestoes_sem_edicao end,
+                autonomia_avisada_em = case when $7 is not null and $7 <> modo then null else autonomia_avisada_em end,
+                atualizado_em = now()
           where id = $1 and empresa_id = empresa_ativa()`,
-          [id, r.valor.nome?.trim() ?? null, r.valor.area !== undefined, r.valor.area ?? null],
+            [
+              id,
+              v.nome?.trim() ?? null,
+              v.area !== undefined,
+              v.area ?? null,
+              v.agenteId !== undefined,
+              v.agenteId ?? null,
+              v.modo ?? null,
+              v.instrucoes !== undefined,
+              v.instrucoes?.trim() || null,
+              v.horario ? JSON.stringify(v.horario) : null,
+              v.mensagemForaDoHorario?.trim() ?? null,
+              v.limiteDeAutonomia ?? null,
+            ],
+          );
+          return { antes, depois: (await buscarCanal(c, id)) as Canal };
+        });
+        if (!feito) return naoEncontrado(resposta);
+        const campos = (
+          [
+            "nome",
+            "area",
+            "agenteId",
+            "modo",
+            "instrucoes",
+            "horario",
+            "mensagemForaDoHorario",
+            "limiteDeAutonomia",
+          ] as const
+        ).filter((k) => JSON.stringify(feito.antes[k]) !== JSON.stringify(feito.depois[k]));
+        if (campos.length > 0) await registrar(pedido, "canal.editou", id, { campos });
+        return { canal: feito.depois };
+      });
+    },
+  );
+
+  // O agente "Atendimento" do canal (M8-05): reaproveita o da empresa ou cria um, pausado (o administrador escolhe o
+  // modelo de IA e liga em Agentes, como os outros agentes internos).
+  app.post(
+    "/canais/:id/atendente",
+    { preHandler: verificador.exigir("canais", "editar") },
+    async (pedido, resposta) => {
+      const { id } = pedido.params as { id: string };
+      const { sessao } = acessoDo(pedido);
+      const feito = await naEmpresa(pedido, async (c) => {
+        const canal = await buscarCanal(c, id, true);
+        if (!canal) return null;
+        const existente = await c.query<{ id: string }>(
+          `select id from agentes where empresa_id = empresa_ativa() and papel = 'atendimento' and situacao <> 'desligado'
+            order by criado_em limit 1`,
         );
-        return { antes, depois: (await buscarCanal(c, id)) as Canal };
+        let agenteId = existente.rows[0]?.id ?? null;
+        let criou = false;
+        if (!agenteId) {
+          const novo = await c.query<{ id: string }>(
+            `insert into agentes (empresa_id, nome, descricao, tipo, responsavel_id, situacao, papel)
+             values (empresa_ativa(), 'Atendimento', 'Atende os clientes nos canais de WhatsApp e no chat do site.', 'interno',
+                     $1, 'pausado', 'atendimento')
+             returning id`,
+            [sessao.pessoa.id],
+          );
+          agenteId = novo.rows[0]?.id as string;
+          criou = true;
+        }
+        await c.query(
+          "update canais_de_contato set agente_id = $2, atualizado_em = now() where id = $1 and empresa_id = empresa_ativa()",
+          [id, agenteId],
+        );
+        return { agenteId, criou, canal: (await buscarCanal(c, id)) as Canal };
       });
       if (!feito) return naoEncontrado(resposta);
-      const campos = (["nome", "area"] as const).filter((k) => feito.antes[k] !== feito.depois[k]);
-      if (campos.length > 0) await registrar(pedido, "canal.editou", id, { campos });
-      return { canal: feito.depois };
+      await registrar(pedido, "canal.criou_atendente", id, { agenteId: feito.agenteId, criou: feito.criou });
+      return resposta.code(feito.criou ? 201 : 200).send(feito);
     },
   );
 

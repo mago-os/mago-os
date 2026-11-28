@@ -6,6 +6,7 @@
 import {
   type ConversaComContato,
   conferir,
+  PedidoDeEnviarSugestao,
   PedidoDeMensagemNaConversa,
   type Problema,
   SEGUNDOS_ENTRE_MENSAGENS_AO_CONTATO,
@@ -20,6 +21,7 @@ import { auditar } from "../auditoria/registrar.ts";
 import { criarAviso } from "../avisos/index.ts";
 import { comEmpresa, comPessoa } from "../empresa.ts";
 import { acessoDo, type Verificador } from "../permissoes/verificar.ts";
+import { contarSugestaoSemEdicao, type OpcoesDoAtendimento, pedirAoAtendente } from "./atendimento.ts";
 import { type ClienteDaEvolution, ErroDaEvolution, nomeDaInstancia } from "./evolution.ts";
 import {
   destinoDoIdentificador,
@@ -41,6 +43,8 @@ export interface OpcoesDasMensagens {
   /** O depósito e o antivírus dos anexos; nulo: os arquivos não são baixados (ficam "não baixados"). */
   arquivos: ServicosDosAnexos | null;
   log: Log;
+  /** O agente do canal (M8-05): a mensagem do cliente pode virar trabalho para ele. */
+  atendimento?: OpcoesDoAtendimento;
 }
 
 /** Até quantas vezes a fila tenta mandar uma mensagem antes de marcar "falhou". */
@@ -118,7 +122,15 @@ export async function tratarMensagemNova(
     if ((canal.rowCount ?? 0) === 0) return null;
     return receberMensagem(c, { ...lida.mensagem, canalId: quem.canalId });
   });
-  if (!r?.mensagemId || !lida.arquivo) return;
+  if (!r?.mensagemId) return;
+  // O agente do canal atende (M8-05). O arquivo, se houver, é gravado antes, para ele ver a mensagem inteira.
+  const atender = async () => {
+    if (o.atendimento && !lida.mensagem.doCelular)
+      await pedirAoAtendente(o.atendimento, quem.empresaId, r.conversaId).catch((erro: unknown) =>
+        o.log.error({ erro: (erro as Error).message }, "Atendimento: não pediu ao agente"),
+      );
+  };
+  if (!lida.arquivo) return atender();
   let dados: Buffer | null = null;
   if (o.arquivos && lida.mensagem.idNoProvedor) {
     const baixado = await o.evolution
@@ -133,6 +145,7 @@ export async function tratarMensagemNova(
     }
   }
   await gravarArquivo(o, quem.empresaId, r.mensagemId, { ...lida.arquivo, dados });
+  await atender();
 }
 
 const ORDEM_DA_ENTREGA: Record<SituacaoDeEntrega, number> = {
@@ -236,10 +249,10 @@ export async function criarMensagemQueSai(
     );
   }
   await c.query(
-    `update conversas_com_contatos set ultimo_a_responder = 'pessoa', ultima_mensagem_em = now(),
+    `update conversas_com_contatos set ultimo_a_responder = $2, ultima_mensagem_em = now(),
             situacao = 'esperando_cliente'
       where id = $1 and empresa_id = empresa_ativa()`,
-    [conversa.id],
+    [conversa.id, "pessoaId" in autor ? "pessoa" : "agente"],
   );
   return mensagemId;
 }
@@ -560,6 +573,86 @@ export function registrarRotasDoEnvio(app: FastifyInstance, o: OpcoesDasRotasDoE
           .send({ code: "NAO_FALHOU", message: "Só dá para mandar de novo a mensagem que falhou." });
       await o.enfileirar(sessao.empresaId, mensagemId);
       await registrar(pedido, "conversa.reenviou", id, { mensagemId });
+      return { ok: true };
+    },
+  );
+
+  // As sugestões do agente (M8-05): enviar como está (conta para a autonomia), enviar editada, ou descartar.
+  app.post(
+    "/conversas-com-contatos/:id/sugestoes/:sugestaoId/enviar",
+    { preHandler: o.verificador.exigir("conversas", "criar") },
+    async (pedido, resposta) => {
+      const { id, sugestaoId } = pedido.params as { id: string; sugestaoId: string };
+      const r = conferir(PedidoDeEnviarSugestao, pedido.body ?? {});
+      if (!r.ok) return invalido(resposta, r.problemas);
+      const { sessao } = acessoDo(pedido);
+      try {
+        const feito = await naEmpresa(pedido, async (c) => {
+          const conversa = await buscarConversa(c, [olha(pedido, "criar")], id, true);
+          if (!conversa) return null;
+          const s = await c.query<{ texto: string; agente_id: string | null }>(
+            `select texto, agente_id from sugestoes_de_resposta
+              where id = $1 and conversa_id = $2 and empresa_id = empresa_ativa() and situacao = 'pendente' for update`,
+            [/^[0-9a-f-]{36}$/i.test(sugestaoId) ? sugestaoId : null, id],
+          );
+          const sugestao = s.rows[0];
+          if (!sugestao) throw new RecusaDasConversas("Essa sugestão já foi usada ou descartada.");
+          const texto = r.valor.texto?.trim() || sugestao.texto;
+          const editada = texto !== sugestao.texto;
+          // Sem edição, vai como o agente escreveu (autor: o agente); editada, a pessoa é a autora.
+          const mensagemId = await criarMensagemQueSai(
+            o,
+            c,
+            sessao.empresaId,
+            conversa,
+            !editada && sugestao.agente_id
+              ? { agenteId: sugestao.agente_id }
+              : { pessoaId: sessao.pessoa.id },
+            { texto },
+          );
+          await c.query(
+            `update sugestoes_de_resposta set situacao = $2, decidida_por = $3, decidida_em = now(), mensagem_id = $4
+              where id = $1 and empresa_id = empresa_ativa()`,
+            [sugestaoId, editada ? "editada" : "enviada", sessao.pessoa.id, mensagemId],
+          );
+          if (!editada) await contarSugestaoSemEdicao(c, conversa.canal.id);
+          return { mensagemId, editada };
+        });
+        if (!feito) return naoEncontrada(resposta);
+        await o.enfileirar(sessao.empresaId, feito.mensagemId);
+        await registrar(pedido, "sugestao.enviou", id, {
+          sugestaoId,
+          mensagemId: feito.mensagemId,
+          editada: feito.editada,
+        });
+        return resposta.code(201).send(feito);
+      } catch (erro) {
+        return recusa(resposta, erro);
+      }
+    },
+  );
+
+  app.post(
+    "/conversas-com-contatos/:id/sugestoes/:sugestaoId/descartar",
+    { preHandler: o.verificador.exigir("conversas", "criar") },
+    async (pedido, resposta) => {
+      const { id, sugestaoId } = pedido.params as { id: string; sugestaoId: string };
+      const { sessao } = acessoDo(pedido);
+      const feito = await naEmpresa(pedido, async (c) => {
+        if (!(await buscarConversa(c, [olha(pedido, "criar")], id))) return null;
+        const s = await c.query(
+          `update sugestoes_de_resposta set situacao = 'descartada', decidida_por = $3, decidida_em = now()
+            where id = $1 and conversa_id = $2 and empresa_id = empresa_ativa() and situacao = 'pendente' returning id`,
+          [/^[0-9a-f-]{36}$/i.test(sugestaoId) ? sugestaoId : null, id, sessao.pessoa.id],
+        );
+        return (s.rowCount ?? 0) > 0;
+      });
+      if (feito === null) return naoEncontrada(resposta);
+      if (!feito)
+        return resposta
+          .code(400)
+          .send({ code: "SUGESTAO_USADA", message: "Essa sugestão já foi usada ou descartada." });
+      await registrar(pedido, "sugestao.descartou", id, { sugestaoId });
       return { ok: true };
     },
   );

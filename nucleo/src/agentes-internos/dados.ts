@@ -165,6 +165,7 @@ interface LinhaDaExecucao {
   conversa_id: string | null;
   tarefa_id: string | null;
   execucao_mae_id: string | null;
+  conversa_com_contato_id: string | null;
   instrucoes: string | null;
   situacao: SituacaoDaExecucao;
   modelo_conta_id: string | null;
@@ -188,6 +189,7 @@ const paraExecucao = (l: LinhaDaExecucao): ExecucaoComInstrucoes => ({
   conversaId: l.conversa_id,
   tarefaId: l.tarefa_id,
   execucaoMaeId: l.execucao_mae_id,
+  conversaComContatoId: l.conversa_com_contato_id,
   situacao: l.situacao,
   leuTextoDeOutros: l.leu_texto_de_outros,
   modeloUsado: l.modelo_conta_id && l.modelo ? { contaId: l.modelo_conta_id, modelo: l.modelo } : null,

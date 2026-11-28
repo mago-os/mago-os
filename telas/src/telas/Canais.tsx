@@ -7,6 +7,7 @@ import {
   AVISO_DE_RISCO_DA_EVOLUTION,
   AVISO_DE_USO_DA_EVOLUTION,
   type Canal,
+  type ModoDoCanal,
   type QrDoCanal,
   type SituacaoDeCanal,
 } from "@mago-os/contratos";
@@ -110,6 +111,177 @@ function LerQr({ canal, aoConectar }: { canal: Canal; aoConectar: () => void }) 
         <li>Toque em Aparelhos conectados e depois em Conectar um aparelho.</li>
         <li>Aponte a câmera para este QR code. Ele se atualiza sozinho.</li>
       </ol>
+    </div>
+  );
+}
+
+const NOMES_DOS_MODOS: Record<ModoDoCanal, string> = {
+  so_pessoas: "Só pessoas (o agente não responde)",
+  sugere: "O agente sugere e a pessoa envia",
+  sozinho: "O agente responde sozinho",
+};
+const NOMES_DOS_DIAS = ["", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"];
+
+/** O agente de atendimento do canal (M8-05): o modo, o horário, a mensagem de fora do horário e as instruções. */
+function AgenteDoCanal({ canal, aoMudar }: { canal: Canal; aoMudar: (m?: Mensagem) => void }) {
+  const [aberto, setAberto] = useState(false);
+  const [modo, setModo] = useState<ModoDoCanal>(canal.modo ?? "sugere");
+  const [dias, setDias] = useState<number[]>(canal.horario?.dias ?? [1, 2, 3, 4, 5]);
+  const [inicio, setInicio] = useState(canal.horario?.inicio ?? "09:00");
+  const [fim, setFim] = useState(canal.horario?.fim ?? "18:00");
+  const [fora, setFora] = useState(canal.mensagemForaDoHorario ?? "");
+  const [instrucoes, setInstrucoes] = useState(canal.instrucoes ?? "");
+  const [limite, setLimite] = useState(canal.limiteDeAutonomia ?? 20);
+
+  async function usarAtendente() {
+    const r = await pedir("POST", `/canais/${canal.id}/atendente`);
+    aoMudar(
+      r.ok
+        ? {
+            tipo: "ok",
+            texto: "Agente Atendimento ligado ao canal. Escolha o modelo de IA e ligue o agente em Agentes.",
+          }
+        : { tipo: "erro", texto: r.mensagem ?? "" },
+    );
+  }
+  async function salvar() {
+    const r = await pedir("POST", `/canais/${canal.id}`, {
+      modo,
+      horario: { dias: [...dias].sort(), inicio, fim },
+      ...(fora.trim() ? { mensagemForaDoHorario: fora.trim() } : {}),
+      instrucoes: instrucoes.trim() || null,
+      limiteDeAutonomia: limite,
+    });
+    aoMudar(
+      r.ok ? { tipo: "ok", texto: "Agente do canal salvo." } : { tipo: "erro", texto: r.mensagem ?? "" },
+    );
+  }
+
+  if (!canal.agenteId)
+    return (
+      <div className="flex flex-wrap items-center gap-2 border-t border-linha pt-3 text-sm">
+        <span className="text-texto-2">Sem agente: só pessoas respondem.</span>
+        <Button size="pequeno" variant="contorno" onClick={() => void usarAtendente()}>
+          Usar o agente Atendimento
+        </Button>
+      </div>
+    );
+  return (
+    <div className="grid gap-3 border-t border-linha pt-3 text-sm">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <span>
+          Agente:{" "}
+          <a className="underline" href={`/agentes/${canal.agenteId}`}>
+            Atendimento
+          </a>{" "}
+          · {NOMES_DOS_MODOS[canal.modo ?? "sugere"]}
+          {canal.modo === "sugere"
+            ? ` · ${canal.sugestoesSemEdicao ?? 0} de ${canal.limiteDeAutonomia ?? 20} enviadas sem mudar`
+            : ""}
+        </span>
+        <Button size="pequeno" variant="fantasma" onClick={() => setAberto(!aberto)}>
+          {aberto ? "Fechar" : "Configurar o agente"}
+        </Button>
+      </div>
+      {aberto && (
+        <form
+          className="grid gap-3"
+          onSubmit={(e) => {
+            e.preventDefault();
+            void salvar();
+          }}
+        >
+          <label className="grid gap-1.5">
+            <span className="font-medium">Modo</span>
+            <select
+              className="h-10 rounded-md border border-linha bg-cartao px-3"
+              value={modo}
+              onChange={(e) => setModo(e.target.value as ModoDoCanal)}
+            >
+              {(Object.keys(NOMES_DOS_MODOS) as ModoDoCanal[]).map((m) => (
+                <option key={m} value={m}>
+                  {NOMES_DOS_MODOS[m]}
+                </option>
+              ))}
+            </select>
+          </label>
+          <fieldset className="grid gap-1.5">
+            <legend className="font-medium">Horário de atendimento</legend>
+            <div className="flex flex-wrap gap-2">
+              {[1, 2, 3, 4, 5, 6, 7].map((d) => (
+                <label key={d} className="inline-flex items-center gap-1">
+                  <input
+                    type="checkbox"
+                    checked={dias.includes(d)}
+                    onChange={(e) =>
+                      setDias((l) => (e.target.checked ? [...l, d] : l.filter((x) => x !== d)))
+                    }
+                  />
+                  {NOMES_DOS_DIAS[d]}
+                </label>
+              ))}
+            </div>
+            <div className="flex items-center gap-2">
+              <label className="inline-flex items-center gap-1">
+                Das{" "}
+                <input
+                  type="time"
+                  className="h-9 rounded-md border border-linha bg-cartao px-2"
+                  value={inicio}
+                  onChange={(e) => setInicio(e.target.value)}
+                />
+              </label>
+              <label className="inline-flex items-center gap-1">
+                às{" "}
+                <input
+                  type="time"
+                  className="h-9 rounded-md border border-linha bg-cartao px-2"
+                  value={fim}
+                  onChange={(e) => setFim(e.target.value)}
+                />
+              </label>
+            </div>
+          </fieldset>
+          <label className="grid gap-1.5">
+            <span className="font-medium">Mensagem de fora do horário</span>
+            <textarea
+              className="rounded-md border border-linha bg-cartao p-2"
+              rows={2}
+              maxLength={1000}
+              value={fora}
+              onChange={(e) => setFora(e.target.value)}
+            />
+          </label>
+          <label className="grid gap-1.5">
+            <span className="font-medium">Instruções deste canal (produtos, tom, o que não prometer)</span>
+            <textarea
+              className="rounded-md border border-linha bg-cartao p-2"
+              rows={4}
+              maxLength={8000}
+              value={instrucoes}
+              onChange={(e) => setInstrucoes(e.target.value)}
+            />
+          </label>
+          <label className="grid gap-1.5">
+            <span className="font-medium">
+              Avisar quando o agente tiver quantas sugestões enviadas sem mudar
+            </span>
+            <input
+              type="number"
+              min={1}
+              max={1000}
+              className="h-10 w-32 rounded-md border border-linha bg-cartao px-3"
+              value={limite}
+              onChange={(e) => setLimite(Number(e.target.value) || 20)}
+            />
+          </label>
+          <div>
+            <Button type="submit" size="pequeno">
+              Salvar o agente do canal
+            </Button>
+          </div>
+        </form>
+      )}
     </div>
   );
 }
@@ -219,6 +391,7 @@ function CartaoDoCanal({
         </form>
       )}
       {lendo && canal.provedor === "evolution" && <LerQr canal={canal} aoConectar={conectou} />}
+      <AgenteDoCanal canal={canal} aoMudar={aoMudar} />
     </Card>
   );
 }

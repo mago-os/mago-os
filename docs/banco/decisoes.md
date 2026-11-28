@@ -424,3 +424,10 @@ O login (`mago_acesso`) não lê papéis nem as regras da plataforma direto. As 
 - `conversas_com_contatos.avisado_em` limita o aviso de mensagem nova ao dono a um a cada 5 minutos por conversa.
 - O gatilho `avisar_mudanca_de_conversa()` avisa o tempo real quando a conversa muda ou ganha mensagem, só com o tipo e o id, como os das tarefas. Avisos novos: `conversa_nova`, `mensagem_na_conversa` e `mencao_em_conversa`.
 
+## 60. Agente na conversa (28/11/2026, M8-05)
+
+- `agentes.papel` ganha "atendimento" ([decisão 0055](../decisoes/0055-agente-na-conversa.md)): agente interno sem especialidade e sem hierarquia, que fala com os clientes. `execucoes_de_agente` ganha a origem "atendimento", ligada a `conversa_com_contato_id`; um índice único deixa no máximo uma execução na fila por conversa (as mensagens seguidas viram uma só).
+- `canais_de_contato` guarda o modo do agente (so_pessoas, sugere, sozinho), as instruções do canal, o horário (dias, início e fim, no fuso da empresa), a mensagem de fora do horário e a autonomia gradual (o limite, a contagem e quando o administrador foi avisado).
+- `conversas_com_contatos.resumo` guarda o resumo da conversa longa (escrito pelo agente) e `fora_do_horario_avisado_em` limita a mensagem de fora do horário a uma por período.
+- `sugestoes_de_resposta` guarda o que o agente sugere no modo "sugere", até uma pessoa enviar (sem ou com edição) ou descartar, com o gatilho do tempo real das conversas. Aviso novo: `agente_pronto_para_responder`.
+

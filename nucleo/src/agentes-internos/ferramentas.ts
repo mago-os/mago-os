@@ -34,6 +34,7 @@ import { buscar as buscarNoMago } from "../busca/index.ts";
 import type { FerramentaParaModelo } from "../contas-de-ia/conversa.ts";
 import { eFerramentaDeContatos, executarFerramentaDeContatos } from "../contatos/ferramentas.ts";
 import { quemOlhaContatos, RecusaDosContatos } from "../contatos/servico.ts";
+import { completarCliente, criarTarefaParaAEquipe, verFichaDoCliente } from "../conversas/atendimento.ts";
 import { eFerramentaDeConversas, executarFerramentaDeConversas } from "../conversas/ferramentas.ts";
 import { quemOlhaConversas, RecusaDasConversas } from "../conversas/servico.ts";
 import { resumoDeCustos } from "../custos/servico.ts";
@@ -123,7 +124,7 @@ export interface ResponsavelDoAgente {
 /** O que a ferramenta devolveu ao modelo e, se for o fim, o que dizer à pessoa. */
 export interface ResultadoDaFerramenta {
   conteudo: unknown;
-  fim?: { tipo: "responder" | "perguntar"; texto: string; tarefas: string[] };
+  fim?: { tipo: "responder" | "perguntar"; texto: string; tarefas: string[]; resumo?: string | null };
 }
 
 /** As ferramentas de cada papel, no formato que vai para o modelo. */
@@ -206,6 +207,12 @@ function fontesDaFerramenta(
     case "listar_conversas":
     case "ver_conversa":
       return { textoDeFora: true };
+    // Atendimento (M8-05): a execução já começa marcada (o texto do cliente é de fora).
+    case "ver_ficha_do_cliente":
+    case "completar_cliente":
+    case "criar_tarefa_para_a_equipe":
+    case "responder_ao_cliente":
+      return null;
     case "buscar": {
       const rs = ((conteudo as { resultados?: unknown[] })?.resultados ?? []) as {
         tipo?: string;
@@ -540,6 +547,47 @@ async function executarSemMarca(
         return { conteudo };
       } catch (erro) {
         if (erro instanceof RecusaDosContatos) throw new RecusaDaFerramenta(erro.message);
+        throw erro;
+      }
+    }
+    // Atendimento (M8-05, decisão 0055): só a conversa da execução e o contato dela.
+    case "ver_ficha_do_cliente":
+    case "completar_cliente":
+    case "criar_tarefa_para_a_equipe":
+    case "responder_ao_cliente": {
+      const conversaId = ctx.execucao.conversaComContatoId;
+      if (!conversaId || ctx.agente.papel !== "atendimento")
+        throw new RecusaDaFerramenta("Esta ferramenta é só do atendimento, numa conversa com cliente.");
+      try {
+        if (nome === "responder_ao_cliente")
+          return {
+            conteudo: null,
+            fim: {
+              tipo: "responder",
+              texto: entrada.texto as string,
+              tarefas: [],
+              resumo: (entrada.resumo as string) ?? null,
+            },
+          };
+        if (nome === "ver_ficha_do_cliente")
+          return { conteudo: await naEmpresa((c) => verFichaDoCliente(c, conversaId)) };
+        if (nome === "completar_cliente")
+          return {
+            conteudo: await naEmpresa((c) =>
+              completarCliente(c, conversaId, entrada as { nome?: string; email?: string }),
+            ),
+          };
+        const feito = await naEmpresa((c) =>
+          criarTarefaParaAEquipe(
+            c,
+            conversaId,
+            ctx.agente.id,
+            entrada as { titulo: string; descricao?: string },
+          ),
+        );
+        return { conteudo: { ...feito, mensagem: "Tarefa criada para a equipe." } };
+      } catch (erro) {
+        if (erro instanceof RecusaDasConversas) throw new RecusaDaFerramenta(erro.message);
         throw erro;
       }
     }
