@@ -49,6 +49,7 @@ import { modelosDeVerdade } from "./contas-de-ia/conversa.ts";
 import { provedoresDeVerdade } from "./contas-de-ia/provedores.ts";
 import { registrarRotasDasContasDeIa } from "./contas-de-ia/rotas.ts";
 import { registrarRotasDosContatos } from "./contatos/rotas.ts";
+import { registrarRotasDaCaixa } from "./conversas/caixa.ts";
 import { registrarRotasDosCanais, tratarAvisoDaEvolution } from "./conversas/canais.ts";
 import { cuidarDoPrazoDosArquivos, enviarPendente, registrarRotasDoEnvio } from "./conversas/envio.ts";
 import { type ClienteDaEvolution, criarClienteDaEvolution } from "./conversas/evolution.ts";
@@ -449,6 +450,7 @@ export async function montarApi(config: Config, deps: DependenciasDaApi): Promis
     registrarRotasDaAgenda(app, verificador, banco.pool);
     registrarRotasDosContatos(app, verificador, banco.pool);
     registrarRotasDasConversas(app, verificador, banco.pool);
+    registrarRotasDaCaixa(app, { verificador, poolApp: banco.pool });
     // Canais de WhatsApp pela Evolution API (M8-02): os avisos dela vão para a fila, com novas tentativas.
     const evolution = config.evolution
       ? {
@@ -482,9 +484,12 @@ export async function montarApi(config: Config, deps: DependenciasDaApi): Promis
       arquivos: servicosDosAnexos,
       enfileirar: (empresaId, mensagemId) => enfileirarEnvio(empresaId, mensagemId),
     });
+    // A fila de envio existe sempre (a mensagem pode ser criada antes de a Evolution ser ligada); quem manda, só com ela.
+    trabalhos.push(async () => {
+      await fila.createQueue(FILA_EVOLUTION_ENVIOS);
+    });
     if (evolution)
       trabalhos.push(async () => {
-        await fila.createQueue(FILA_EVOLUTION_ENVIOS);
         await fila.work<{ empresaId: string; mensagemId: string; rastreio?: RastreioLevado }>(
           FILA_EVOLUTION_ENVIOS,
           async (lote) => {

@@ -27,7 +27,7 @@ const ASSINATURAS: Record<string, string> = {
   criar_contato: "464682cd2677d4cf",
   atualizar_contato: "6deb10eb2e47fba9",
   ligar_contato: "be8ebcd543a4477e",
-  listar_conversas: "88f93313a7810dc7",
+  listar_conversas: "779341756ed7bcfb",
   ver_conversa: "f543f479759c05db",
 };
 

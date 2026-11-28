@@ -20,7 +20,13 @@ export const CANAL = "mago_mudancas";
 
 /** O que a tela recebe. "reconectou": avisos podem ter se perdido, busque tudo de novo. */
 export type AvisoDeMudanca =
-  | { tipo: "tarefa" | "agente" | "projeto" | "aviso"; id: string; operacao: "insert" | "update" | "delete" }
+  | {
+      tipo: "tarefa" | "agente" | "projeto" | "aviso" | "conversa";
+      id: string;
+      operacao: "insert" | "update" | "delete";
+    }
+  // M8-04: alguém está respondendo a conversa (só os ids, sem texto); a tela mostra por alguns segundos.
+  | { tipo: "digitando"; id: string; pessoaId: string }
   | { tipo: "reconectou" };
 
 interface Conexao {
@@ -111,16 +117,28 @@ export async function registrarTempoReal(app: FastifyInstance, o: OpcoesDoTempoR
     o.bancoUrl,
     app.log,
     (texto) => {
-      let aviso: { empresaId?: string; tipo?: string; id?: string; operacao?: string };
+      let aviso: { empresaId?: string; tipo?: string; id?: string; operacao?: string; pessoaId?: string };
       try {
         aviso = JSON.parse(texto);
       } catch {
         return;
       }
       const tipo = aviso.tipo;
+      if (tipo === "digitando") {
+        const { empresaId, id, pessoaId } = aviso;
+        if (!empresaId || !id || !pessoaId) return;
+        // Quem digita não recebe o próprio aviso.
+        for (const c of porEmpresa.get(empresaId) ?? [])
+          if (c.pessoaId !== pessoaId) c.enviar({ tipo: "digitando", id, pessoaId });
+        return;
+      }
       if (
         !aviso.empresaId ||
-        (tipo !== "tarefa" && tipo !== "agente" && tipo !== "projeto" && tipo !== "aviso") ||
+        (tipo !== "tarefa" &&
+          tipo !== "agente" &&
+          tipo !== "projeto" &&
+          tipo !== "aviso" &&
+          tipo !== "conversa") ||
         !aviso.id
       )
         return;

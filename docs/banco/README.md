@@ -374,6 +374,7 @@ erDiagram
     timestamp_with_time_zone aberta_em
     timestamp_with_time_zone resolvida_em
     uuid resolvida_por
+    timestamp_with_time_zone avisado_em
   }
   empresas {
     uuid id PK
@@ -725,6 +726,15 @@ erDiagram
     uuid mudada_por
     timestamp_with_time_zone mudada_em
   }
+  respostas_prontas {
+    uuid id PK
+    uuid empresa_id FK
+    text nome
+    text texto
+    uuid criada_por
+    timestamp_with_time_zone criada_em
+    timestamp_with_time_zone atualizada_em
+  }
   rotinas {
     uuid id PK
     uuid empresa_id FK
@@ -862,6 +872,14 @@ erDiagram
     date resumo_do_dia_em
   }
   visoes_de_contatos {
+    uuid id PK
+    uuid empresa_id FK
+    uuid pessoa_id
+    text nome
+    jsonb filtro
+    timestamp_with_time_zone criada_em
+  }
+  visoes_de_conversas {
     uuid id PK
     uuid empresa_id FK
     uuid pessoa_id
@@ -1099,6 +1117,7 @@ erDiagram
   empresas ||--o{ preferencias_de_notificacao : "empresa_id"
   empresas ||--o{ projetos : "empresa_id"
   empresas ||--o{ regras_de_agente : "empresa_id"
+  empresas ||--o{ respostas_prontas : "empresa_id"
   empresas ||--o{ rotinas : "empresa_id"
   empresas ||--o{ seguidores_de_tarefa : "empresa_id"
   empresas ||--o{ skills : "empresa_id"
@@ -1113,6 +1132,7 @@ erDiagram
   empresas ||--o{ vinculos_do_telegram : "empresa_id"
   pessoas ||--o{ vinculos_do_telegram : "pessoa_id"
   empresas ||--o{ visoes_de_contatos : "empresa_id"
+  empresas ||--o{ visoes_de_conversas : "empresa_id"
   empresas ||--o{ visoes_salvas : "empresa_id"
   empresas ||--o{ webhooks : "empresa_id"
   empresas ||--o{ auditoria_eventos : "empresa_id"
@@ -1721,6 +1741,7 @@ Isolamento por empresa (Row Level Security): ligado e forçado.
 | aberta_em | timestamp with time zone | sim | `now()` | sistema | Quando a conversa começou. |
 | resolvida_em | timestamp with time zone | não |  | sistema | Quando foi resolvida. |
 | resolvida_por | uuid | não |  | sistema | Quem resolveu (vazio: o sistema ou o agente). |
+| avisado_em | timestamp with time zone | não |  | sistema | O último aviso de mensagem nova ao dono (no máximo um a cada 5 minutos). |
 
 ### empresas
 
@@ -2275,6 +2296,22 @@ Isolamento por empresa (Row Level Security): ligado e forçado.
 | mudada_por | uuid | não |  | sistema | Quem mudou o modo por último. |
 | mudada_em | timestamp with time zone | não |  | sistema | Quando o modo mudou. |
 
+### respostas_prontas
+
+Respostas prontas da empresa (M8-04): na caixa, "/" e o nome trazem o texto.
+
+Isolamento por empresa (Row Level Security): ligado e forçado.
+
+| Coluna | Tipo | Obrigatória | Padrão | Marca | Descrição |
+| --- | --- | --- | --- | --- | --- |
+| id | uuid | sim | `uuidv7()` | sistema | Identificador. Chave primária. |
+| empresa_id | uuid | sim |  | sistema | Empresa. Aponta para empresas.id. |
+| nome | text | sim |  | empresa | O atalho (minúsculas, números, _ ou -), sem a barra. |
+| texto | text | sim |  | empresa | O texto que entra na resposta. |
+| criada_por | uuid | sim |  | sistema | Quem criou. |
+| criada_em | timestamp with time zone | sim | `now()` | sistema | Quando foi criada. |
+| atualizada_em | timestamp with time zone | sim | `now()` | sistema | A última mudança. |
+
 ### rotinas
 
 Rotinas (M5-05): no horário, criam uma tarefa, pedem algo a um agente interno ou mandam um aviso, em nome do dono.
@@ -2501,6 +2538,21 @@ Isolamento por empresa (Row Level Security): ligado e forçado.
 | pessoa_id | uuid | sim |  | sistema | Dona da visão. |
 | nome | text | sim |  | empresa | Nome da visão. |
 | filtro | jsonb | sim |  | empresa | Os filtros (FiltroDeContatos do contrato). |
+| criada_em | timestamp with time zone | sim | `now()` | sistema | Quando foi salva. |
+
+### visoes_de_conversas
+
+Visões da caixa de conversas salvas por cada pessoa (só dela).
+
+Isolamento por empresa (Row Level Security): ligado e forçado.
+
+| Coluna | Tipo | Obrigatória | Padrão | Marca | Descrição |
+| --- | --- | --- | --- | --- | --- |
+| id | uuid | sim | `uuidv7()` | sistema | Identificador. Chave primária. |
+| empresa_id | uuid | sim |  | sistema | Empresa. Aponta para empresas.id. |
+| pessoa_id | uuid | sim |  | sistema | Dona da visão. |
+| nome | text | sim |  | empresa | Nome da visão. |
+| filtro | jsonb | sim |  | empresa | Os filtros (FiltroDeConversas do contrato). |
 | criada_em | timestamp with time zone | sim | `now()` | sistema | Quando foi salva. |
 
 ### visoes_salvas

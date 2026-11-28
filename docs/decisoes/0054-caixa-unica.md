@@ -1,7 +1,7 @@
 # 0054 Caixa única das conversas
 
 - **Data:** 27/11/2026
-- **Situação:** proposta (esperando a aprovação do Sandro)
+- **Situação:** aceita (aprovada pelo Sandro no chat em 27/11/2026, com os 6 pontos como propostos)
 - **Tarefa:** M8-04
 
 ## Contexto
@@ -57,6 +57,15 @@ código (marcados com **pede o seu olho**).
 10. **Testes:** de tela (a caixa no celular e no computador), de permissão (o funcionário não vê nem age fora do seu
     alcance; passar só para quem vê o canal), de isolamento (o teste de vazamento cobre as rotas novas) e dos avisos
     (o limite de 5 minutos).
+
+## Ajustes ao construir (27/11/2026)
+
+- Endereços: as ações em `/conversas-com-contatos/:id/{assumir,passar,devolver,resolver,reabrir,notas,digitando}`, o número do menu em `/conversas-com-contatos-contador`, as respostas prontas em `/respostas-prontas` e as visões em `/conversas-visoes`.
+- Passar a conversa para alguém avisa essa pessoa com o mesmo aviso de "mensagem nova numa conversa minha" (não precisou de um tipo a mais).
+- Criar tarefa da conversa usa as rotas das tarefas que já existem (criar e ligar o contato), com o link da conversa na descrição; a permissão é a das tarefas da pessoa.
+- A fila de envio existe sempre; sem a Evolution, a mensagem fica "pendente" até ela ser ligada.
+- O tempo real tem um gatilho próprio para as conversas e as mensagens (`avisar_mudanca_de_conversa`), com o mesmo formato dos outros avisos.
+- A ficha da conversa na tela do contato ganhou o link "Abrir na caixa de conversas".
 
 ## O que foi descartado
 

@@ -47,6 +47,9 @@ const NOMES: Record<TipoDeAviso, string> = {
   webhook_desligado: "Webhook desligado por falhas",
   canal_desconectado: "Número de WhatsApp desconectado",
   canal_segurando_mensagens: "Número de WhatsApp segurando mensagens pelo ritmo de envio",
+  conversa_nova: "Conversa nova esperando a equipe",
+  mensagem_na_conversa: "Mensagem nova numa conversa minha",
+  mencao_em_conversa: "Me chamaram numa nota de conversa",
 };
 
 type Mensagem = { texto: string; tipo: "erro" | "ok" } | null;

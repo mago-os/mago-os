@@ -425,6 +425,7 @@ Recebe:
 - `contatoId` (id): Identificador (UUID).
 - `donoId` (id ou "sem")
 - `comAgente` (boolean)
+- `texto` (string)
 
 Devolve:
 

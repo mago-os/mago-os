@@ -29,6 +29,21 @@ export interface ItemDoMenu {
   caminho: string;
   nome: string;
   icone: React.ComponentType<{ className?: string }>;
+  /** Um número ao lado (ex.: as conversas esperando a equipe, M8-04); zero ou ausente não aparece. */
+  contador?: number;
+}
+
+/** O número ao lado do item do menu (até 99+). */
+function Contador({ n }: { n?: number | undefined }) {
+  if (!n) return null;
+  return (
+    <span
+      className="ml-auto rounded-full bg-alerta px-1.5 text-xs font-semibold text-white"
+      title={`${n} esperando`}
+    >
+      {n > 99 ? "99+" : n}
+    </span>
+  );
 }
 
 export const MENU_DA_PESSOA: ItemDoMenu[] = [
@@ -143,6 +158,7 @@ export function Casca(props: PropsDaCasca) {
               >
                 <Icone className="size-4" />
                 {item.nome}
+                <Contador n={item.contador} />
               </a>
             );
           })}
@@ -227,6 +243,7 @@ export function Casca(props: PropsDaCasca) {
                 )}
               >
                 {item.nome}
+                {item.contador ? ` (${item.contador > 99 ? "99+" : item.contador})` : ""}
               </a>
             ))}
           </nav>

@@ -8,6 +8,7 @@ import {
   KeyRound,
   Landmark,
   MessageCircle,
+  MessagesSquare,
   ScrollText,
   Shield,
   Users,
@@ -42,6 +43,7 @@ import { Agentes, PaginaDoAgente } from "./telas/Agentes";
 import { AvisosDeAcesso, MeusAparelhos } from "./telas/Aparelhos";
 import { ListaDeAprovacoes, PaginaDaAprovacao } from "./telas/Aprovacoes";
 import { AvisosDoMago } from "./telas/Avisos";
+import { CaixaDeConversas, ContarConversas } from "./telas/CaixaDeConversas";
 import { Canais } from "./telas/Canais";
 import { ChavesDeApi } from "./telas/ChavesDeApi";
 import { ContasDeIa } from "./telas/ContasDeIa";
@@ -139,6 +141,9 @@ export function App() {
   const [permissoes, setPermissoes] = useState<MinhasPermissoes | null>(null);
   const [dono, setDono] = useState(false);
   const [nomes, setNomes] = useState<Map<string, string>>(new Map());
+  // M8-04: o número de conversas esperando a equipe, no menu (atualiza com o tempo real).
+  const [esperandoAEquipe, setEsperandoAEquipe] = useState(0);
+  const veConversas = (permissoes?.modulos.conversas?.acoes.ver ?? "nada") !== "nada";
 
   useEffect(() => aplicarTema(tema), [tema]);
 
@@ -256,6 +261,9 @@ export function App() {
       ? [{ caminho: "/pessoas", nome: "Pessoas", icone: Users }]
       : []),
     ...(pode("agentes", "ver") ? [{ caminho: "/agentes", nome: "Agentes", icone: Bot }] : []),
+    ...(pode("conversas", "ver")
+      ? [{ caminho: "/conversas", nome: "Conversas", icone: MessagesSquare, contador: esperandoAEquipe }]
+      : []),
     ...(pode("contatos", "ver") ? [{ caminho: "/contatos", nome: "Contatos", icone: Contact }] : []),
     ...(pode("agenda", "ver") ? [{ caminho: "/agenda", nome: "Agenda", icone: CalendarDays }] : []),
     ...(pode("rotinas", "ver") ? [{ caminho: "/rotinas", nome: "Rotinas", icone: CalendarClock }] : []),
@@ -390,6 +398,16 @@ export function App() {
     conteudo = <ChavesDeApi euId={sessao.pessoa.id} />;
   else if (caminho === "/webhooks" && menuExtra.some((m) => m.caminho === "/webhooks"))
     conteudo = <Webhooks />;
+  else if (
+    /^\/conversas(\/[0-9a-f-]{36})?$/i.test(caminho) &&
+    menuExtra.some((m) => m.caminho === "/conversas")
+  )
+    conteudo = (
+      <CaixaDeConversas
+        euId={sessao.pessoa.id}
+        conversaInicial={/^\/conversas\/([0-9a-f-]{36})$/i.exec(caminho)?.[1] ?? null}
+      />
+    );
   else if (caminho === "/canais" && menuExtra.some((m) => m.caminho === "/canais"))
     conteudo = <Canais podeCriar={pode("canais", "criar")} />;
   else if (caminho === "/prioridades" && temEmpresaAtiva) conteudo = <Prioridades />;
@@ -453,6 +471,7 @@ export function App() {
     >
       <AvisosDeAcesso avisos={avisos} aoResponder={() => void carregarAvisos()} />
       {temEmpresaAtiva && <AvisosDoMago />}
+      {temEmpresaAtiva && veConversas && <ContarConversas aoContar={setEsperandoAEquipe} />}
       {temEmpresaAtiva && pode("agentes", "excluir") && <AvisoDaParada />}
       {conteudo}
     </Casca>

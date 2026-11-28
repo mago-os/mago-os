@@ -12,10 +12,12 @@ import {
   type MensagemDaConversa,
   type MensagemQueChegou,
   MINUTOS_DE_FOLGA_DEPOIS_DE_RESOLVER,
+  MINUTOS_ENTRE_AVISOS_DA_CONVERSA,
   type ProvedorDeCanal,
   type ResumoDaConversa,
 } from "@mago-os/contratos";
 import type pg from "pg";
+import { criarAviso } from "../avisos/index.ts";
 import type { PermissoesNaEmpresa } from "../permissoes/verificar.ts";
 import { formasDoTelefone, telefoneInternacional } from "./telefone.ts";
 
@@ -138,6 +140,18 @@ export async function listarConversas(
   if (filtro.donoId === "sem") partes.push("cv.dono_id is null");
   else if (filtro.donoId) partes.push(`cv.dono_id = ${v(filtro.donoId)}::uuid`);
   if (filtro.comAgente !== undefined) partes.push(`cv.com_agente = ${v(filtro.comAgente)}`);
+  // Busca (M8-04): o nome do contato (com erro de digitação), o telefone e o texto das mensagens, sem acento.
+  if (filtro.texto) {
+    const Q = `para_busca(${v(filtro.texto)}::text)`;
+    const contem = `('%' || replace(replace(replace(${Q}, '\\', '\\\\'), '%', '\\%'), '_', '\\_') || '%')`;
+    const digitos = filtro.texto.replace(/[\s().+-]/g, "");
+    const noTelefone = /^[0-9]{4,15}$/.test(digitos)
+      ? ` or cv.identificador like '%' || ${v(digitos)} || '%'`
+      : "";
+    partes.push(`(para_busca(k.nome) like ${contem} or ${Q} <% para_busca(k.nome)${noTelefone}
+       or exists (select 1 from mensagens_com_contatos mt where mt.conversa_id = cv.id and mt.empresa_id = cv.empresa_id
+                    and para_busca(coalesce(mt.texto, '')) like ${contem}))`);
+  }
   const r = await c.query<
     LinhaDaConversa & { ultima_autor: string | null; ultima_tipo: string | null; ultima_texto: string | null }
   >(
@@ -488,8 +502,63 @@ export async function receberMensagem(c: pg.PoolClient, m: MensagemQueChegou): P
         where id = $1 and empresa_id = empresa_ativa()`,
       [conversaId, enviadaEm],
     );
+    await avisarDaMensagemNova(c, conversaId, conversaNova);
   }
   return { conversaId, contatoId, mensagemId, contatoNovo, conversaNova, naFolga };
+}
+
+/**
+ * Os avisos da caixa (M8-04, decisão 0054): a conversa nova sem dono vai para a equipe do canal (sem equipe, os
+ * administradores e os gestores); a mensagem nova numa conversa com dono vai para o dono, no máximo uma vez a cada 5
+ * minutos por conversa. O texto do aviso nunca leva o que o cliente escreveu.
+ */
+async function avisarDaMensagemNova(c: pg.PoolClient, conversaId: string, conversaNova: boolean) {
+  const r = await c.query<{
+    dono_id: string | null;
+    com_agente: boolean;
+    area: string | null;
+    canal: string;
+    contato: string;
+  }>(
+    `select cv.dono_id, cv.com_agente, cn.area, cn.nome as canal, k.nome as contato
+       from conversas_com_contatos cv
+       join canais_de_contato cn on cn.id = cv.canal_id and cn.empresa_id = cv.empresa_id
+       join contatos k on k.id = cv.contato_id and k.empresa_id = cv.empresa_id
+      where cv.id = $1 and cv.empresa_id = empresa_ativa()`,
+    [conversaId],
+  );
+  const cv = r.rows[0];
+  if (!cv) return;
+  const link = `/conversas/${conversaId}`;
+  if (conversaNova && !cv.dono_id && !cv.com_agente) {
+    const equipe = await c.query<{ pessoa_id: string }>(
+      `select pessoa_id from vinculos where empresa_id = empresa_ativa() and situacao = 'ativo'
+          and (case when $1::text is null then perfil in ('administrador', 'gestor_area') else area = $1 end)`,
+      [cv.area],
+    );
+    for (const p of equipe.rows)
+      await criarAviso(c, {
+        pessoaId: p.pessoa_id,
+        tipo: "conversa_nova",
+        texto: `Conversa nova de "${cv.contato}" no canal "${cv.canal}", esperando a equipe.`,
+        link,
+      });
+    return;
+  }
+  if (!cv.dono_id) return;
+  const pode = await c.query(
+    `update conversas_com_contatos set avisado_em = now()
+      where id = $1 and empresa_id = empresa_ativa()
+        and (avisado_em is null or avisado_em < now() - make_interval(mins => $2)) returning id`,
+    [conversaId, MINUTOS_ENTRE_AVISOS_DA_CONVERSA],
+  );
+  if ((pode.rowCount ?? 0) > 0)
+    await criarAviso(c, {
+      pessoaId: cv.dono_id,
+      tipo: "mensagem_na_conversa",
+      texto: `"${cv.contato}" mandou mensagem nova na conversa do canal "${cv.canal}".`,
+      link,
+    });
 }
 
 /**

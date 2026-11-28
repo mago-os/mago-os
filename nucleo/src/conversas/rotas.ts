@@ -60,6 +60,7 @@ export function filtroDeConversasDaQuery(q: Record<string, unknown>): Record<str
     ...(um("canal") ? { canalId: um("canal") } : {}),
     ...(um("contato") ? { contatoId: um("contato") } : {}),
     ...(um("dono") ? { donoId: um("dono") } : {}),
+    ...(um("texto") ? { texto: um("texto") } : {}),
     ...(comAgente === "1" || comAgente === "true" ? { comAgente: true } : {}),
     ...(comAgente === "0" || comAgente === "false" ? { comAgente: false } : {}),
   };
@@ -136,6 +137,14 @@ export function registrarRotasDasConversas(
           mensagens: await mensagensDaConversa(c, id),
           anterior: await conversaAnterior(c, [olha(pedido, "ver")], conversa),
           pode: { responder: await alcanca("criar"), editar: await alcanca("editar") },
+          // A caixa (M8-04) só mostra "Devolver ao agente" quando o canal tem um agente.
+          canalTemAgente:
+            (
+              await c.query<{ agente_id: string | null }>(
+                "select agente_id from canais_de_contato where id = $1 and empresa_id = empresa_ativa()",
+                [conversa.canal.id],
+              )
+            ).rows[0]?.agente_id != null,
         };
       });
       if (!feito) return naoEncontrada(resposta);

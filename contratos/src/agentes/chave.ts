@@ -153,6 +153,11 @@ export const TIPOS_DE_AVISO = [
   "canal_desconectado",
   // M8-03: o ritmo de envio do número segurou mensagens (vai para os administradores, no máximo uma vez por hora).
   "canal_segurando_mensagens",
+  // M8-04: conversa nova sem dono (vai para a equipe do canal), mensagem nova numa conversa minha (no máximo uma a
+  // cada 5 minutos por conversa) e o @ numa nota interna.
+  "conversa_nova",
+  "mensagem_na_conversa",
+  "mencao_em_conversa",
 ] as const;
 export const TipoDeAviso = Type.Enum(TIPOS_DE_AVISO);
 export type TipoDeAviso = Static<typeof TipoDeAviso>;
