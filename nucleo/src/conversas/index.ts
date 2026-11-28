@@ -1,3 +1,4 @@
+export * from "./caixa.ts";
 export * from "./canais.ts";
 export * from "./envio.ts";
 export * from "./evolution.ts";

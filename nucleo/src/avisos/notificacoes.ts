@@ -48,6 +48,9 @@ export const TEXTO_DO_PUSH: Record<TipoDeAviso, string> = {
   webhook_desligado: "Um webhook foi desligado por falhas",
   canal_desconectado: "Um número de WhatsApp foi desconectado",
   canal_segurando_mensagens: "Um número de WhatsApp está segurando mensagens",
+  conversa_nova: "Nova conversa esperando a equipe",
+  mensagem_na_conversa: "Nova mensagem numa conversa sua",
+  mencao_em_conversa: "Você foi chamado numa conversa",
 };
 
 /**

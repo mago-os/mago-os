@@ -767,6 +767,37 @@ describe.skipIf(!bancoDisponivel)("vazamento entre empresas em todas as partes (
       "POST",
       `/conversas-com-contatos/${ids.conversaComContato}/mensagens/${ids.mensagemQueSai}/tentar`,
     );
+    // Caixa única (M8-04): o número no menu, assumir, passar, devolver, nota com @, "está respondendo", resolver,
+    // reabrir, as respostas prontas e as visões.
+    const cx = `/conversas-com-contatos/${ids.conversaComContato}`;
+    await usar(x, func, "GET", "/conversas-com-contatos-contador");
+    await usar(x, func, "POST", `${cx}/assumir`);
+    await usar(x, func, "POST", `${cx}/passar`, { pessoaId: gestor.id });
+    await dono.query("update canais_de_contato set agente_id = $2 where id = $1", [
+      ids.canal,
+      ids.especialista,
+    ]);
+    await usar(x, admin, "POST", `${cx}/devolver`);
+    await usar(x, admin, "POST", `${cx}/notas`, { texto: `Nota ${M}`, mencoes: [func.id] });
+    await usar(x, admin, "POST", `${cx}/digitando`);
+    await usar(x, admin, "POST", `${cx}/resolver`);
+    await usar(x, admin, "POST", `${cx}/reabrir`);
+    ids.respostaPronta = (
+      await usar(x, admin, "POST", "/respostas-prontas", { nome: `ola-${m}`, texto: `Olá ${M}` })
+    ).resposta.id;
+    await usar(x, func, "GET", "/respostas-prontas");
+    await usar(x, gestor, "POST", `/respostas-prontas/${ids.respostaPronta}`, {
+      nome: `ola-${m}`,
+      texto: `Olá de novo ${M}`,
+    });
+    ids.visaoDeConversas = (
+      await usar(x, admin, "POST", "/conversas-visoes", {
+        nome: `Visão ${M}`,
+        filtro: { canalId: ids.canal, donoId: "sem" },
+      })
+    ).id;
+    await usar(x, admin, "GET", "/conversas-visoes");
+    await usar(x, func, "GET", `/conversas-com-contatos?texto=${encodeURIComponent(M)}`);
 
     await usar(x, gestor, "POST", "/contatos/juntar", { ficaId: ids.contato, saiId: ids.contato2 });
 
@@ -966,6 +997,8 @@ describe.skipIf(!bancoDisponivel)("vazamento entre empresas em todas as partes (
     await usar(x, admin, "POST", `/agenda/eventos/${ids.evento}/cancelar`, {}, d);
     await usar(x, admin, "DELETE", `/rotinas/${ids.rotina}`, undefined, d);
     await usar(x, admin, "DELETE", `/contatos-visoes/${ids.visaoDeContatos}`, undefined, d);
+    await usar(x, admin, "DELETE", `/conversas-visoes/${ids.visaoDeConversas}`, undefined, d);
+    await usar(x, admin, "DELETE", `/respostas-prontas/${ids.respostaPronta}`, undefined, d);
     await usar(x, admin, "DELETE", `/contatos/${ids.contato2}`, undefined, d);
     await usar(x, admin, "POST", `/empresa/chaves-de-api/${ids.chaveDeApi2}/revogar`, {}, d);
     await usar(x, admin, "POST", `/empresa/chaves-de-api/${ids.chaveDeApi2}/remover`, {}, d);

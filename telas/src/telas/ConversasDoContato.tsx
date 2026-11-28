@@ -152,7 +152,10 @@ export function ConversasDoContato({ contatoId }: { contatoId: string }) {
                 )}
               </button>
               {expandida && (
-                <div className="border-t border-linha p-3">
+                <div className="grid gap-2 border-t border-linha p-3">
+                  <a className="text-sm underline" href={`/conversas/${c.id}`}>
+                    Abrir na caixa de conversas
+                  </a>
                   <Mensagens conversaId={c.id} />
                 </div>
               )}

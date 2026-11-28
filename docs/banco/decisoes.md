@@ -416,3 +416,11 @@ O login (`mago_acesso`) não lê papéis nem as regras da plataforma direto. As 
 - `arquivos_de_conversa` guarda a foto, o documento ou o áudio de uma mensagem ([decisão 0053](../decisoes/0053-mensagens-pela-evolution.md)), um por mensagem, com a situação (disponivel, bloqueado, grande_demais, nao_baixado ou apagado). Só o disponível tem caminho no depósito (`conversas/<empresa>/<arquivo>`, no bucket dos anexos). `apagar_em` (180 dias) é o prazo: a verificação diária apaga o arquivo e deixa o registro como "apagado"; `empresas_com_arquivos_de_conversa_vencidos()` dá a ela só os ids das empresas.
 - `mensagens_com_contatos.enviada_ao_provedor_em` e `tentativas` contam o ritmo de envio de cada número e as tentativas; `canais_de_contato.limite_por_minuto` (20) e `limite_por_hora` (300) são o ritmo, e `segurando_avisado_em` limita o aviso `canal_segurando_mensagens` a um por hora.
 
+## 59. Caixa única (27/11/2026, M8-04)
+
+- `visoes_de_conversas` guarda os filtros da caixa de cada pessoa ([decisão 0054](../decisoes/0054-caixa-unica.md)), como `visoes_de_contatos`: a política deixa cada pessoa ver só as dela.
+- `respostas_prontas` guarda os textos da empresa usados com "/" na caixa, com o atalho único por empresa. Quem cria, muda e apaga é decidido no núcleo (administrador e gestor).
+- `mensagens_com_contatos_busca` (trigramas sobre `para_busca(texto)`) deixa a busca no texto das mensagens rápida e sem acento.
+- `conversas_com_contatos.avisado_em` limita o aviso de mensagem nova ao dono a um a cada 5 minutos por conversa.
+- O gatilho `avisar_mudanca_de_conversa()` avisa o tempo real quando a conversa muda ou ganha mensagem, só com o tipo e o id, como os das tarefas. Avisos novos: `conversa_nova`, `mensagem_na_conversa` e `mencao_em_conversa`.
+

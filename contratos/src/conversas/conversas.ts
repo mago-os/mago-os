@@ -202,10 +202,70 @@ export const FiltroDeConversas = Type.Object(
     /** A pessoa dona; "sem" para as conversas sem dono. */
     donoId: Type.Optional(Type.Union([Id, Type.Literal("sem")])),
     comAgente: Type.Optional(Type.Boolean()),
+    /** No nome e no telefone do contato e no texto das mensagens, sem acento e aceitando erro de digitação (M8-04). */
+    texto: Type.Optional(Type.String({ minLength: 2, maxLength: 200 })),
   },
   { additionalProperties: false },
 );
 export type FiltroDeConversas = Static<typeof FiltroDeConversas>;
+
+// Caixa única (M8-04, decisão 0054) ---------------------------------------------------------------------------------
+
+/** Visão da caixa salva por uma pessoa, só dela (como as dos contatos). */
+export const VisaoDeConversas = Type.Object(
+  {
+    id: Id,
+    empresaId: Id,
+    pessoaId: Id,
+    nome: Texto(80, "Nome da visão (ex.: Comercial sem dono)."),
+    filtro: FiltroDeConversas,
+    criadaEm: DataHora,
+  },
+  { additionalProperties: false },
+);
+export type VisaoDeConversas = Static<typeof VisaoDeConversas>;
+
+export const PedidoDeVisaoDeConversas = Type.Object(
+  { nome: Texto(80, "Nome da visão."), filtro: FiltroDeConversas },
+  { additionalProperties: false },
+);
+export type PedidoDeVisaoDeConversas = Static<typeof PedidoDeVisaoDeConversas>;
+
+/** O atalho da resposta pronta (depois da barra): minúsculas, números, _ ou -. */
+const NomeDaRespostaPronta = Type.String({
+  pattern: "^[a-z0-9][a-z0-9_-]{0,39}$",
+  description: "O atalho, sem a barra (ex.: horario).",
+});
+
+/** Resposta pronta da empresa: na caixa, "/" e o atalho trazem o texto. */
+export const RespostaPronta = Type.Object(
+  { id: Id, nome: NomeDaRespostaPronta, texto: Texto(4096, "O texto da resposta.") },
+  { additionalProperties: false },
+);
+export type RespostaPronta = Static<typeof RespostaPronta>;
+
+export const PedidoDeRespostaPronta = Type.Object(
+  { nome: NomeDaRespostaPronta, texto: Texto(4096, "O texto da resposta.") },
+  { additionalProperties: false },
+);
+export type PedidoDeRespostaPronta = Static<typeof PedidoDeRespostaPronta>;
+
+/** Passar a conversa para outra pessoa da empresa (que veja as conversas do canal). */
+export const PedidoDePassarConversa = Type.Object({ pessoaId: Id }, { additionalProperties: false });
+export type PedidoDePassarConversa = Static<typeof PedidoDePassarConversa>;
+
+/** Nota interna: só a equipe vê; as pessoas chamadas com @ recebem um aviso. */
+export const PedidoDeNotaNaConversa = Type.Object(
+  {
+    texto: Type.String({ minLength: 1, maxLength: 4096, pattern: "\\S" }),
+    mencoes: Type.Optional(Type.Array(Id, { maxItems: 10, uniqueItems: true })),
+  },
+  { additionalProperties: false },
+);
+export type PedidoDeNotaNaConversa = Static<typeof PedidoDeNotaNaConversa>;
+
+/** Minutos entre dois avisos de mensagem nova da mesma conversa ao dono. */
+export const MINUTOS_ENTRE_AVISOS_DA_CONVERSA = 5;
 
 /** Ligar a conversa a outro contato (o telefone está em mais de um contato, decisão 0051 item 2). */
 export const PedidoDeTrocarContato = Type.Object({ contatoId: Id }, { additionalProperties: false });
@@ -288,6 +348,11 @@ export const ACOES_CONVERSAS = [
   // M8-03: uma pessoa mandou uma mensagem a um contato (só ids, nunca o texto) e mandou de novo a que falhou.
   "conversa.enviou",
   "conversa.reenviou",
+  // M8-04: a nota interna (só ids) e as respostas prontas.
+  "conversa.anotou",
+  "resposta_pronta.criou",
+  "resposta_pronta.editou",
+  "resposta_pronta.apagou",
 ] as const;
 export type AcaoDasConversas = (typeof ACOES_CONVERSAS)[number];
 

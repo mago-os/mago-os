@@ -7,7 +7,13 @@
 import { useEffect, useRef } from "react";
 
 export type AvisoDeMudanca =
-  | { tipo: "tarefa" | "agente" | "projeto" | "aviso"; id: string; operacao: "insert" | "update" | "delete" }
+  | {
+      tipo: "tarefa" | "agente" | "projeto" | "aviso" | "conversa";
+      id: string;
+      operacao: "insert" | "update" | "delete";
+    }
+  // M8-04: alguém está respondendo a conversa (só os ids).
+  | { tipo: "digitando"; id: string; pessoaId: string }
   | { tipo: "reconectou" };
 
 type Ouvinte = (aviso: AvisoDeMudanca) => void;
