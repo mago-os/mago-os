@@ -523,7 +523,8 @@ export const PedidoDeMudarRegras = Type.Object(
         { acao: Texto(60, "O nome da ferramenta."), modo: OuNulo(ModoDeAcao) },
         { additionalProperties: false },
       ),
-      { minItems: 1, maxItems: 50 },
+      // "Aplicar a todas" manda todas as ações do agente (o coordenador passou de 50 com as conversas, M8-11).
+      { minItems: 1, maxItems: 100 },
     ),
   },
   { additionalProperties: false },
