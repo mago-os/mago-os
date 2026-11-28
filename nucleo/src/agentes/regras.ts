@@ -228,6 +228,28 @@ export async function resumoDaAcao(
         )
       : null;
     frase = `${acao === "ligar_rotina" ? "Ligar" : "Desligar"} a rotina “${(r?.rows[0]?.nome ?? "?").slice(0, 120)}”`;
+  } else if (
+    acao === "mandar_mensagem_ao_contato" ||
+    acao === "escrever_nota_na_conversa" ||
+    acao === "atribuir_conversa" ||
+    acao === "resolver_conversa"
+  ) {
+    // Conversas (M8-11): o contato da conversa e, no que tem texto, o texto exato que a pessoa vai aprovar.
+    const id = typeof p.conversaId === "string" && FORMATO_UUID.test(p.conversaId) ? p.conversaId : null;
+    const cv = id
+      ? await c.query<{ nome: string }>(
+          `select ct.nome from conversas_com_contatos cv join contatos ct on ct.id = cv.contato_id
+            and ct.empresa_id = cv.empresa_id where cv.id = $1 and cv.empresa_id = empresa_ativa()`,
+          [id],
+        )
+      : null;
+    const contato = `“${(cv?.rows[0]?.nome ?? "?").slice(0, 80)}”`;
+    const texto = typeof p.texto === "string" ? `: “${p.texto.slice(0, 160)}”` : "";
+    if (acao === "mandar_mensagem_ao_contato") frase = `Mandar a ${contato}${texto}`;
+    else if (acao === "escrever_nota_na_conversa") frase = `Nota na conversa com ${contato}${texto}`;
+    else if (acao === "atribuir_conversa")
+      frase = `Passar a conversa com ${contato} para ${await nome({ tipo: "pessoa", pessoaId: p.pessoaId })}`;
+    else frase = `Resolver a conversa com ${contato}`;
   } else if (acao === "criar_tarefa" || acao === "criar_subtarefa")
     frase = `${nomeDaAcao}: “${String(p.titulo).slice(0, 120)}”`;
   else frase = `${nomeDaAcao}${naTarefa}`;

@@ -28,7 +28,12 @@ const ASSINATURAS: Record<string, string> = {
   atualizar_contato: "6deb10eb2e47fba9",
   ligar_contato: "be8ebcd543a4477e",
   listar_conversas: "8522ebb7752dd41b",
-  ver_conversa: "5c13a8b468c7e610",
+  // M8-11: a mensagem ganhou "pelaApi" (decisão 0060).
+  ver_conversa: "668e44d9ba549c74",
+  mandar_mensagem_ao_contato: "f0a56f23652e693c",
+  escrever_nota_na_conversa: "86e28a058c9d4a02",
+  atribuir_conversa: "758d67699a7bd6bc",
+  resolver_conversa: "497bc7c9d7f16164",
 };
 
 function assinatura(f: (typeof FERRAMENTAS_MCP)[number]): string {
@@ -37,7 +42,7 @@ function assinatura(f: (typeof FERRAMENTAS_MCP)[number]): string {
 }
 
 describe("ferramentas do MCP", () => {
-  it("são as vinte e uma da spec (oito do M2, duas da M3-02, uma da M3-08, três da M4-05, cinco da M7-01 e duas da M8-01), com nomes únicos e descrição", () => {
+  it("são as vinte e cinco da spec (oito do M2, duas da M3-02, uma da M3-08, três da M4-05, cinco da M7-01, duas da M8-01 e quatro da M8-11), com nomes únicos e descrição", () => {
     expect(FERRAMENTAS_MCP.map((f) => f.nome)).toEqual([
       "minhas_tarefas",
       "ver_tarefa",
@@ -60,6 +65,10 @@ describe("ferramentas do MCP", () => {
       "ligar_contato",
       "listar_conversas",
       "ver_conversa",
+      "mandar_mensagem_ao_contato",
+      "escrever_nota_na_conversa",
+      "atribuir_conversa",
+      "resolver_conversa",
     ]);
     for (const f of FERRAMENTAS_MCP) expect(f.descricao.length).toBeGreaterThan(20);
   });

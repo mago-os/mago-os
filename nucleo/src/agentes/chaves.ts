@@ -137,6 +137,8 @@ export interface OpcoesDaChave {
    * antivírus. Nulo quando o bot está desligado.
    */
   telegram?: { baixar(idNoTelegram: string): Promise<Buffer>; acordarAnexos(): void } | null;
+  /** Conversas (M8-11): põe a mensagem do agente ao contato na fila de envio. Sem ela, mandar mensagem recusa. */
+  enviarAoContato?: (empresaId: string, mensagemId: string) => Promise<void>;
 }
 
 /** Pausa o agente que passou do limite, avisa o responsável e registra. Roda na transação da empresa. */

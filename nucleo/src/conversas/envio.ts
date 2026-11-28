@@ -6,6 +6,7 @@
 import {
   type ConversaComContato,
   conferir,
+  LIMITES_DA_API,
   PedidoDeEnviarSugestao,
   PedidoDeMensagemNaConversa,
   type Problema,
@@ -17,6 +18,7 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import type pg from "pg";
 import { origemDoPedido } from "../acesso/rotas.ts";
 import type { ServicosDosAnexos } from "../anexos/servico.ts";
+import { identidadeDaPonte } from "../api-publica/ponte.ts";
 import { auditar } from "../auditoria/registrar.ts";
 import { criarAviso } from "../avisos/index.ts";
 import { comEmpresa, comPessoa } from "../empresa.ts";
@@ -224,6 +226,8 @@ export async function criarMensagemQueSai(
   conversa: ConversaComContato,
   autor: { pessoaId: string } | { agenteId: string },
   pedido: { texto?: string; arquivo?: { nome: string; tipo: string; base64: string }; voz?: boolean },
+  /** A chave de API que mandou pela API pública (M8-11): fica marcada na mensagem. */
+  chaveDeApiId: string | null = null,
 ): Promise<string> {
   // O balão do site (M8-07) recebe só texto: o visitante busca a mensagem pelo próprio balão.
   if (conversa.canal.provedor === "site" && pedido.arquivo)
@@ -260,8 +264,8 @@ export async function criarMensagemQueSai(
       : "texto";
   const m = await c.query<{ id: string }>(
     `insert into mensagens_com_contatos (empresa_id, conversa_id, canal_id, direcao, autor, autor_pessoa_id,
-                                         autor_agente_id, tipo, texto, entrega)
-     values (empresa_ativa(), $1, $2, 'saiu', $3, $4, $5, $6, $7, 'pendente') returning id`,
+                                         autor_agente_id, tipo, texto, entrega, chave_de_api_id)
+     values (empresa_ativa(), $1, $2, 'saiu', $3, $4, $5, $6, $7, 'pendente', $8) returning id`,
     [
       conversa.id,
       conversa.canal.id,
@@ -270,6 +274,7 @@ export async function criarMensagemQueSai(
       "agenteId" in autor ? autor.agenteId : null,
       tipo,
       pedido.texto?.trim() || null,
+      chaveDeApiId,
     ],
   );
   const mensagemId = m.rows[0]?.id as string;
@@ -608,10 +613,25 @@ export function registrarRotasDoEnvio(app: FastifyInstance, o: OpcoesDasRotasDoE
       const r = conferir(PedidoDeMensagemNaConversa, pedido.body);
       if (!r.ok) return invalido(resposta, r.problemas);
       const { sessao } = acessoDo(pedido);
+      // Pela API pública (M8-11, decisão 0060): só texto, só em conversa aberta, até 60 por hora por chave.
+      const chaveDeApiId = identidadeDaPonte(pedido)?.chaveId || null;
       try {
+        if (chaveDeApiId && (r.valor.arquivo || r.valor.voz || !r.valor.texto))
+          throw new RecusaDasConversas("Pela API, por enquanto, só texto.");
         const feito = await naEmpresa(pedido, async (c) => {
           const conversa = await buscarConversa(c, [olha(pedido, "criar")], id, true);
           if (!conversa) return null;
+          if (chaveDeApiId) {
+            const n = await c.query<{ n: number }>(
+              `select count(*)::int as n from mensagens_com_contatos
+                where empresa_id = empresa_ativa() and chave_de_api_id = $1 and recebida_em > now() - interval '1 hour'`,
+              [chaveDeApiId],
+            );
+            if ((n.rows[0]?.n ?? 0) >= LIMITES_DA_API.mensagensPorHoraPorChave)
+              throw new RecusaDasConversas(
+                `Esta chave já mandou ${LIMITES_DA_API.mensagensPorHoraPorChave} mensagens na última hora. Espere um pouco.`,
+              );
+          }
           return criarMensagemQueSai(
             o,
             c,
@@ -619,11 +639,16 @@ export function registrarRotasDoEnvio(app: FastifyInstance, o: OpcoesDasRotasDoE
             conversa,
             { pessoaId: sessao.pessoa.id },
             r.valor,
+            chaveDeApiId,
           );
         });
         if (!feito) return naoEncontrada(resposta);
         await o.enfileirar(sessao.empresaId, feito);
-        await registrar(pedido, "conversa.enviou", id, { mensagemId: feito, comArquivo: !!r.valor.arquivo });
+        await registrar(pedido, "conversa.enviou", id, {
+          mensagemId: feito,
+          comArquivo: !!r.valor.arquivo,
+          ...(chaveDeApiId ? { chaveDeApiId } : {}),
+        });
         return resposta.code(201).send({ mensagemId: feito });
       } catch (erro) {
         return recusa(resposta, erro);

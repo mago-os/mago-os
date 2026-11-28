@@ -296,6 +296,8 @@ export const MensagemDaConversa = Type.Object(
     arquivo: OuNulo(ArquivoDaMensagem),
     /** No balão do site (M8-07): a página onde o visitante escreveu. */
     pagina: Type.Optional(OuNulo(PaginaDoSite)),
+    /** Mandada pela API pública, por uma chave da empresa (M8-11, decisão 0060). Só vem quando é verdade. */
+    pelaApi: Type.Optional(Type.Literal(true)),
     /** No áudio que chegou (M8-08): a transcrição e a situação dela. */
     transcricao: Type.Optional(
       OuNulo(
@@ -390,6 +392,36 @@ export type PedidoDeRespostaPronta = Static<typeof PedidoDeRespostaPronta>;
 /** Passar a conversa para outra pessoa da empresa (que veja as conversas do canal). */
 export const PedidoDePassarConversa = Type.Object({ pessoaId: Id }, { additionalProperties: false });
 export type PedidoDePassarConversa = Static<typeof PedidoDePassarConversa>;
+
+/**
+ * As ações dos agentes numa conversa (M8-11, decisão 0060), internos e pelo MCP. Mandar mensagem sai da empresa e pede
+ * aprovação por padrão; só texto, numa conversa que já existe e não está resolvida.
+ */
+const TextoDaConversa = (descricao: string) =>
+  Type.String({ minLength: 1, maxLength: 4096, pattern: "\\S", description: descricao });
+export const EntradaDeMandarMensagem = Type.Object(
+  { conversaId: Id, texto: TextoDaConversa("O texto que vai para o contato, como a empresa escreveria.") },
+  { additionalProperties: false },
+);
+export const EntradaDeNotaNaConversa = Type.Object(
+  { conversaId: Id, texto: TextoDaConversa("A nota, que só a equipe vê.") },
+  { additionalProperties: false },
+);
+export const EntradaDeAtribuirConversa = Type.Object(
+  { conversaId: Id, pessoaId: Id },
+  { additionalProperties: false },
+);
+export const EntradaDeResolverConversa = Type.Object({ conversaId: Id }, { additionalProperties: false });
+export const MensagemCriadaNaConversa = Type.Object(
+  { conversaId: Id, mensagemId: Id },
+  { additionalProperties: false },
+);
+/** Mandar mensagem ou escrever nota pela API pública (M8-11): só o texto. */
+export const PedidoDeTextoNaConversa = Type.Object(
+  { texto: TextoDaConversa("O texto (até 4.096 letras).") },
+  { additionalProperties: false },
+);
+export type PedidoDeTextoNaConversa = Static<typeof PedidoDeTextoNaConversa>;
 
 /** Nota interna: só a equipe vê; as pessoas chamadas com @ recebem um aviso. */
 export const PedidoDeNotaNaConversa = Type.Object(

@@ -10,6 +10,7 @@
 import {
   ACESSOS_DA_API,
   type AcaoDaApi,
+  conferir,
   conferirPedidoDeChaveDeApi,
   FORMATO_DA_CHAVE,
   FORMATO_DA_CHAVE_DE_API,
@@ -104,6 +105,9 @@ const RENOMEAR_TAREFAS = {
   deAgente: "agente",
 };
 const RENOMEAR_CONTATOS = { organizacaoId: "organizacao" };
+const RENOMEAR_CONVERSAS = { canalId: "canal", contatoId: "contato", donoId: "dono" };
+/** Quantas mensagens "ver conversa" devolve pela API (as últimas), como a ferramenta dos agentes. */
+const MENSAGENS_NA_API = 50;
 
 interface Traducao {
   metodo: "GET" | "POST";
@@ -165,6 +169,40 @@ function paraTela(rota: RotaDaApiPublica, id: string, q: Record<string, unknown>
       return { metodo: "POST", url: `/contatos/${id}`, corpo };
     case "listarAgentes":
       return { metodo: "GET", url: "/agentes", saida: (b) => ({ agentes: b }) };
+    // Conversas com contatos (M8-11, decisão 0060).
+    case "listarConversas":
+      return {
+        metodo: "GET",
+        url: `/conversas-com-contatos${queryInterna(q, RENOMEAR_CONVERSAS)}`,
+        saida: (b) => ({ conversas: ((b.conversas as unknown[] | undefined) ?? []).slice(0, 100) }),
+      };
+    case "verConversa":
+      return {
+        metodo: "GET",
+        url: `/conversas-com-contatos/${id}`,
+        saida: (b) => ({
+          conversa: b.conversa,
+          mensagens: ((b.mensagens as unknown[] | undefined) ?? []).slice(-MENSAGENS_NA_API),
+        }),
+      };
+    case "mandarMensagem":
+      return {
+        metodo: "POST",
+        url: `/conversas-com-contatos/${id}/mensagens`,
+        corpo,
+        saida: (b) => ({ mensagemId: b.mensagemId }),
+      };
+    case "escreverNota":
+      return {
+        metodo: "POST",
+        url: `/conversas-com-contatos/${id}/notas`,
+        corpo,
+        saida: (b) => ({ mensagemId: b.mensagemId }),
+      };
+    case "atribuirConversa":
+      return { metodo: "POST", url: `/conversas-com-contatos/${id}/passar`, corpo };
+    case "resolverConversa":
+      return { metodo: "POST", url: `/conversas-com-contatos/${id}/resolver`, corpo: {} };
     default:
       throw new Error(`Rota da API sem tradução: ${rota.id}`);
   }
@@ -226,6 +264,34 @@ function paraMcp(
       return { ferramenta: "criar_contato", args: corpo };
     case "editarContato":
       return { ferramenta: "atualizar_contato", args: { contatoId: id, mudancas: corpo } };
+    // Conversas (M8-11): as mesmas ferramentas do MCP, com as mesmas regras (mandar mensagem pede aprovação).
+    case "listarConversas": {
+      const filtro: Record<string, unknown> = {};
+      for (const k of ["canalId", "contatoId", "donoId", "texto"])
+        if (typeof q[k] === "string" && q[k]) filtro[k] = q[k];
+      if (lista(q.situacoes).length > 0) filtro.situacoes = lista(q.situacoes);
+      if (q.comAgente === "true" || q.comAgente === "1") filtro.comAgente = true;
+      if (q.comAgente === "false" || q.comAgente === "0") filtro.comAgente = false;
+      return { ferramenta: "listar_conversas", args: filtro, saida: (r) => ({ conversas: r.conversas }) };
+    }
+    case "verConversa":
+      return { ferramenta: "ver_conversa", args: { conversaId: id } };
+    case "mandarMensagem":
+      return {
+        ferramenta: "mandar_mensagem_ao_contato",
+        args: { conversaId: id, texto: corpo.texto },
+        saida: (r) => ({ mensagemId: r.mensagemId }),
+      };
+    case "escreverNota":
+      return {
+        ferramenta: "escrever_nota_na_conversa",
+        args: { conversaId: id, texto: corpo.texto },
+        saida: (r) => ({ mensagemId: r.mensagemId }),
+      };
+    case "atribuirConversa":
+      return { ferramenta: "atribuir_conversa", args: { conversaId: id, pessoaId: corpo.pessoaId } };
+    case "resolverConversa":
+      return { ferramenta: "resolver_conversa", args: { conversaId: id } };
     default:
       return null;
   }
@@ -341,6 +407,11 @@ export function registrarApiPublica(app: FastifyInstance, o: OpcoesDaApiPublica)
             },
           );
           return recusar(resposta, "fora_do_escopo", 403);
+        }
+        // As conversas (M8-11) conferem o corpo pelo contrato da API: a rota da tela aceita mais (arquivo, menções).
+        if (rota.modulo === "conversas" && rota.metodo === "POST" && rota.entrada) {
+          const v = conferir(rota.entrada, corpo);
+          if (!v.ok) return invalido(resposta, v.problemas);
         }
         const traducao = paraTela(rota, id, q, corpo);
         const feito = await comBilhete(

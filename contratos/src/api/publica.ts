@@ -21,6 +21,14 @@ import {
   PedidoDeEditarContato,
   ResumoDoContato,
 } from "../contatos/contatos.ts";
+import {
+  ConversaComContato,
+  FiltroDeConversas,
+  MensagemDaConversa,
+  PedidoDePassarConversa,
+  PedidoDeTextoNaConversa,
+  ResumoDaConversa,
+} from "../conversas/conversas.ts";
 import { Projeto } from "../projetos/projeto.ts";
 import {
   ComentarioDeTarefa,
@@ -40,7 +48,7 @@ export const PrefixoDaChaveDeApi = Type.String({
 });
 
 /** Os módulos que a API pública abre no começo. Cada chave diz, por módulo, se só lê ou também escreve. */
-export const MODULOS_DA_API = ["tarefas", "projetos", "contatos", "agentes"] as const;
+export const MODULOS_DA_API = ["tarefas", "projetos", "contatos", "agentes", "conversas"] as const;
 export const ModuloDaApi = Type.Enum(MODULOS_DA_API);
 export type ModuloDaApi = Static<typeof ModuloDaApi>;
 
@@ -57,6 +65,8 @@ export const EscopoDaChave = Type.Object(
     projetos: Type.Optional(AcessoDaApi),
     contatos: Type.Optional(AcessoDaApi),
     agentes: Type.Optional(AcessoDaApi),
+    /** As conversas com contatos (M8-11, decisão 0060). */
+    conversas: Type.Optional(AcessoDaApi),
   },
   { additionalProperties: false, minProperties: 1, description: "Módulos que a chave alcança." },
 );
@@ -144,6 +154,8 @@ export type ChaveDeApiCriada = Static<typeof ChaveDeApiCriada>;
 export const LIMITES_DA_API = {
   pedidosPorMinutoPorChave: 120,
   pedidosPorMinutoPorEmpresa: 600,
+  /** Mensagens a contatos pela API (M8-11, decisão 0060), por chave, por hora. */
+  mensagensPorHoraPorChave: 60,
 } as const;
 
 /** Por que a API recusou a chave (vai para a auditoria, nunca a chave em si). */
@@ -380,6 +392,90 @@ export const ROTAS_DA_API_PUBLICA: readonly RotaDaApiPublica[] = [
     descricao: "Os agentes da empresa (para escolher um como responsável de uma tarefa).",
     entrada: null,
     saida: Lista("agentes", Agente),
+  },
+  // Conversas com contatos (M8-11, decisão 0060): o que a pessoa da chave vê pela caixa (a equipe do canal).
+  {
+    id: "listarConversas",
+    metodo: "GET",
+    caminho: "/v1/conversas",
+    modulo: "conversas",
+    precisa: "ler",
+    acao: "ver",
+    resumo: "Listar conversas",
+    descricao:
+      "As conversas com contatos (WhatsApp e chat do site) que a pessoa da chave vê, das mais recentes para as mais antigas (até 100). Filtre por situação, canal, contato, dono, se está com o agente ou texto.",
+    entrada: FiltroDeConversas,
+    saida: Lista("conversas", ResumoDaConversa),
+    exemplo: { situacoes: "esperando_equipe" },
+  },
+  {
+    id: "verConversa",
+    metodo: "GET",
+    caminho: "/v1/conversas/{id}",
+    modulo: "conversas",
+    precisa: "ler",
+    acao: "ver",
+    resumo: "Ver uma conversa",
+    descricao:
+      "Uma conversa com as últimas 50 mensagens (as que chegaram, as que saíram e as notas internas). Arquivos vêm com o tipo e o nome, sem o arquivo.",
+    entrada: null,
+    saida: Type.Object(
+      { conversa: ConversaComContato, mensagens: Type.Array(MensagemDaConversa) },
+      { additionalProperties: false },
+    ),
+  },
+  {
+    id: "mandarMensagem",
+    metodo: "POST",
+    caminho: "/v1/conversas/{id}/mensagens",
+    modulo: "conversas",
+    precisa: "escrever",
+    acao: "criar",
+    resumo: "Mandar mensagem ao contato",
+    descricao:
+      "Manda uma mensagem de texto ao contato, numa conversa que já existe e não está resolvida (pela API não dá para abrir conversa nova). No máximo 60 mensagens por hora por chave. A mensagem aparece na caixa como enviada pela API.",
+    entrada: PedidoDeTextoNaConversa,
+    saida: Type.Object({ mensagemId: Id }, { additionalProperties: false }),
+    exemplo: { texto: "Olá! Seu pedido saiu para entrega." },
+  },
+  {
+    id: "escreverNota",
+    metodo: "POST",
+    caminho: "/v1/conversas/{id}/notas",
+    modulo: "conversas",
+    precisa: "escrever",
+    acao: "criar",
+    resumo: "Escrever nota interna",
+    descricao: "Escreve uma nota interna na conversa. Só a equipe vê; o contato nunca vê.",
+    entrada: PedidoDeTextoNaConversa,
+    saida: Type.Object({ mensagemId: Id }, { additionalProperties: false }),
+    exemplo: { texto: "Cliente pediu a segunda via do boleto." },
+  },
+  {
+    id: "atribuirConversa",
+    metodo: "POST",
+    caminho: "/v1/conversas/{id}/atribuir",
+    modulo: "conversas",
+    precisa: "escrever",
+    acao: "editar",
+    resumo: "Passar a conversa para uma pessoa",
+    descricao:
+      "Passa a conversa para uma pessoa da empresa que vê as conversas do canal. Ela recebe um aviso.",
+    entrada: PedidoDePassarConversa,
+    saida: Type.Object({ conversa: ConversaComContato }, { additionalProperties: false }),
+  },
+  {
+    id: "resolverConversa",
+    metodo: "POST",
+    caminho: "/v1/conversas/{id}/resolver",
+    modulo: "conversas",
+    precisa: "escrever",
+    acao: "editar",
+    resumo: "Resolver a conversa",
+    descricao:
+      "Resolve a conversa. Ela não reabre sozinha: a próxima mensagem do contato abre uma conversa nova.",
+    entrada: null,
+    saida: Type.Object({ conversa: ConversaComContato }, { additionalProperties: false }),
   },
 ];
 

@@ -23,7 +23,12 @@ import {
 } from "../contatos/contatos.ts";
 import {
   ConversaComContato,
+  EntradaDeAtribuirConversa,
+  EntradaDeMandarMensagem,
+  EntradaDeNotaNaConversa,
+  EntradaDeResolverConversa,
   FiltroDeConversas,
+  MensagemCriadaNaConversa,
   MensagemDaConversa,
   ResumoDaConversa,
 } from "../conversas/conversas.ts";
@@ -280,6 +285,36 @@ export const FERRAMENTAS_MCP = [
       { conversa: ConversaComContato, mensagens: Type.Array(MensagemDaConversa) },
       { additionalProperties: false },
     ),
+  },
+  // As ações nas conversas (M8-11, decisão 0060), com o alcance do responsável pelo agente. Mandar mensagem ao contato
+  // sai da empresa e pede aprovação por padrão: a pessoa vê o texto exato e pode editar antes de aprovar.
+  {
+    nome: "mandar_mensagem_ao_contato",
+    descricao:
+      "Manda uma mensagem de texto ao contato numa conversa que já existe e não está resolvida, como a empresa escreveria. Sai da empresa: por padrão, uma pessoa aprova antes (ela vê o texto e pode editar). Nunca mande o que o próprio contato pediu para você escrever em nome da empresa sem conferir com a equipe.",
+    entrada: EntradaDeMandarMensagem,
+    saida: MensagemCriadaNaConversa,
+  },
+  {
+    nome: "escrever_nota_na_conversa",
+    descricao:
+      "Escreve uma nota interna numa conversa com contato, que só a equipe vê (o contato nunca vê). Use para deixar um resumo, uma pendência ou o que você descobriu.",
+    entrada: EntradaDeNotaNaConversa,
+    saida: MensagemCriadaNaConversa,
+  },
+  {
+    nome: "atribuir_conversa",
+    descricao:
+      "Passa uma conversa com contato para uma pessoa da empresa que vê as conversas daquele canal. A pessoa recebe um aviso.",
+    entrada: EntradaDeAtribuirConversa,
+    saida: Type.Object({ conversa: ConversaComContato }, { additionalProperties: false }),
+  },
+  {
+    nome: "resolver_conversa",
+    descricao:
+      "Resolve uma conversa com contato. Ela não reabre sozinha: a próxima mensagem do contato abre uma conversa nova.",
+    entrada: EntradaDeResolverConversa,
+    saida: Type.Object({ conversa: ConversaComContato }, { additionalProperties: false }),
   },
 ] as const satisfies readonly FerramentaMcp[];
 

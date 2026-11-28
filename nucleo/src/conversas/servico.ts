@@ -234,6 +234,7 @@ interface LinhaDaMensagem {
   pagina_titulo: string | null;
   transcricao: string | null;
   transcricao_situacao: SituacaoDaTranscricao | null;
+  chave_de_api_id: string | null;
 }
 
 const paraMensagem = (l: LinhaDaMensagem): MensagemDaConversa => ({
@@ -252,6 +253,7 @@ const paraMensagem = (l: LinhaDaMensagem): MensagemDaConversa => ({
   arquivo: l.arquivo,
   pagina: l.pagina_url ? { url: l.pagina_url, titulo: l.pagina_titulo } : null,
   transcricao: l.transcricao_situacao ? { situacao: l.transcricao_situacao, texto: l.transcricao } : null,
+  ...(l.chave_de_api_id ? { pelaApi: true as const } : {}),
 });
 
 /** As últimas mensagens da conversa (já conferida), na ordem em que aconteceram. */
@@ -264,7 +266,7 @@ export async function mensagensDaConversa(
     `select * from (
        select m.id, m.conversa_id, m.direcao, m.autor, m.autor_pessoa_id, m.autor_agente_id, m.tipo, m.texto,
               m.enviada_em, m.pelo_celular, m.entrega, m.motivo_da_falha, m.pagina_url, m.pagina_titulo,
-              m.transcricao, m.transcricao_situacao,
+              m.transcricao, m.transcricao_situacao, m.chave_de_api_id,
               (select json_build_object('id', a.id, 'nome', a.nome, 'tipo', a.tipo, 'tamanho', a.tamanho,
                                         'situacao', a.situacao)
                  from arquivos_de_conversa a where a.mensagem_id = m.id and a.empresa_id = m.empresa_id) as arquivo
