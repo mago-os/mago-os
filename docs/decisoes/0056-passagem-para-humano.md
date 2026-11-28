@@ -1,7 +1,7 @@
 # 0056 Passagem da conversa para uma pessoa
 
 - **Data:** 28/11/2026
-- **Situação:** proposta (esperando o ok do Sandro)
+- **Situação:** aceita (aprovada pelo Sandro no chat em 28/11/2026, com os 6 pontos como propostos)
 - **Tarefa:** M8-06
 
 ## Contexto
@@ -64,6 +64,15 @@ falha ou com a parada. Os pontos que pedem o olho do Sandro estão marcados com 
    respostas e a ferramenta do agente), a mensagem de passagem uma vez só, o aviso ao responsável ou à equipe sem o
    resumo, o prazo e o escalonamento (uma vez, e esperando a abertura fora do horário), o silêncio (nada sai para o
    contato, só a sugestão), o botão de desligar as sugestões, a devolução e o isolamento entre empresas.
+
+## Ajustes ao construir (28/11/2026)
+
+- A ferramenta nova `passar_para_uma_pessoa` (motivo, resumo e sugestão), com a descrição congelada por teste e a marca `soNaPropriaConversa`. Cada execução do atendimento tem um tipo (atender, sugerir ou resumir), e só recebe as ferramentas dele: ao sugerir, ver a ficha e responder (que vira sugestão); ao resumir, ver a ficha e passar. A ferramenta de outro tipo é recusada.
+- A execução que esperava na fila vira a da passagem ou a da sugestão (assim o resumo não se perde quando o contato escreve duas vezes seguidas).
+- O prazo é conferido a cada minuto (fila `conversas-passagens`); a conversa em que uma pessoa já respondeu também não escala.
+- A passagem fica na conversa até alguém devolver ao agente (a faixa no alto da caixa continua depois de assumir).
+- Os avisos novos entram na central de prioridades, como os avisos de agentes.
+- As assinaturas das ferramentas do MCP `listar_conversas` e `ver_conversa` mudaram porque a conversa ganhou a passagem.
 
 ## O que foi descartado
 

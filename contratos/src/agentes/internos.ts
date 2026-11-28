@@ -10,7 +10,7 @@ import { type Static, type TSchema, Type } from "typebox";
 import { PedidoDeEvento } from "../agenda/eventos.ts";
 import { conferir, DataHora, Dia, Id, OuNulo, type Problema, type Regra, Texto } from "../comum.ts";
 import { FiltroDeContatos, PedidoDeContato, PedidoDeEditarContato } from "../contatos/contatos.ts";
-import { FiltroDeConversas } from "../conversas/conversas.ts";
+import { FiltroDeConversas, MotivoDaPassagem } from "../conversas/conversas.ts";
 import { PedidoDeRotina } from "../rotinas/rotinas.ts";
 import { PedidoDePrazo, Prioridade } from "../tarefas/prazos.ts";
 import { Responsavel, StatusTarefa } from "../tarefas/tarefa.ts";
@@ -539,6 +539,20 @@ export const FERRAMENTAS_INTERNAS = [
             "Quando a conversa passar de 30 mensagens: um resumo curto de tudo até aqui, para a próxima vez.",
           ),
         ),
+      },
+      { additionalProperties: false },
+    ),
+    papeis: ["atendimento"],
+  },
+  {
+    nome: "passar_para_uma_pessoa",
+    descricao:
+      "Passa a conversa para uma pessoa da equipe e encerra a execução, sem responder ao cliente (o sistema avisa o cliente e a equipe). Use quando o cliente pede uma pessoa, está irritado, repete a pergunta, a conversa não anda, você não sabe responder ou o assunto é um dos que sempre vão para uma pessoa.",
+    entrada: Type.Object(
+      {
+        motivo: MotivoDaPassagem,
+        resumo: Texto(2000, "Para a equipe: o que o cliente quer e o que já foi dito, em poucas frases."),
+        sugestao: Type.Optional(Texto(4096, "Uma sugestão do que a pessoa pode responder ao cliente.")),
       },
       { additionalProperties: false },
     ),

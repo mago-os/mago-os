@@ -27,8 +27,8 @@ const ASSINATURAS: Record<string, string> = {
   criar_contato: "464682cd2677d4cf",
   atualizar_contato: "6deb10eb2e47fba9",
   ligar_contato: "be8ebcd543a4477e",
-  listar_conversas: "779341756ed7bcfb",
-  ver_conversa: "f543f479759c05db",
+  listar_conversas: "1f92a068ba89fd98",
+  ver_conversa: "456a076616225b7f",
 };
 
 function assinatura(f: (typeof FERRAMENTAS_MCP)[number]): string {

@@ -13,6 +13,7 @@ import {
   type MensagemQueChegou,
   MINUTOS_DE_FOLGA_DEPOIS_DE_RESOLVER,
   MINUTOS_ENTRE_AVISOS_DA_CONVERSA,
+  type MotivoDaPassagem,
   type ProvedorDeCanal,
   type ResumoDaConversa,
 } from "@mago-os/contratos";
@@ -87,12 +88,17 @@ interface LinhaDaConversa {
   aberta_em: Date;
   resolvida_em: Date | null;
   resolvida_por: string | null;
+  passada_em: Date | null;
+  motivo_da_passagem: MotivoDaPassagem | null;
+  resumo_da_passagem: string | null;
+  escalada_em: Date | null;
 }
 
 const COLUNAS = `cv.id, cv.empresa_id, cv.canal_id, cn.nome as canal_nome, cn.provedor as canal_provedor,
   cn.situacao as canal_situacao, cv.contato_id, k.nome as contato_nome, k.identificado as contato_identificado,
   cv.identificador, cv.mais_de_um_contato, cv.dono_id, cv.com_agente, cv.situacao, cv.ultimo_a_responder,
-  cv.ultima_mensagem_em, cv.aberta_em, cv.resolvida_em, cv.resolvida_por`;
+  cv.ultima_mensagem_em, cv.aberta_em, cv.resolvida_em, cv.resolvida_por, cv.passada_em, cv.motivo_da_passagem,
+  cv.resumo_da_passagem, cv.escalada_em`;
 
 const DE = `conversas_com_contatos cv
   join canais_de_contato cn on cn.id = cv.canal_id and cn.empresa_id = cv.empresa_id
@@ -118,6 +124,15 @@ function paraConversa(l: LinhaDaConversa): ConversaComContato {
     abertaEm: l.aberta_em.toISOString(),
     resolvidaEm: iso(l.resolvida_em),
     resolvidaPor: l.resolvida_por,
+    passagem:
+      l.passada_em && l.motivo_da_passagem
+        ? {
+            em: l.passada_em.toISOString(),
+            motivo: l.motivo_da_passagem,
+            resumo: l.resumo_da_passagem,
+            escaladaEm: iso(l.escalada_em),
+          }
+        : null,
   };
 }
 
@@ -287,10 +302,15 @@ interface LinhaDoCanal {
   mensagem_fora_do_horario: string;
   limite_de_autonomia: number;
   sugestoes_sem_edicao: number;
+  assuntos_para_pessoas: string[];
+  prazo_para_assumir: number;
+  mensagem_de_passagem: string;
+  sugerir_com_pessoa: boolean;
 }
 
 const COLUNAS_DO_CANAL = `id, empresa_id, nome, provedor, situacao, identificador, area, agente_id, criado_por, criado_em,
-  modo, instrucoes, horario, mensagem_fora_do_horario, limite_de_autonomia, sugestoes_sem_edicao`;
+  modo, instrucoes, horario, mensagem_fora_do_horario, limite_de_autonomia, sugestoes_sem_edicao,
+  assuntos_para_pessoas, prazo_para_assumir, mensagem_de_passagem, sugerir_com_pessoa`;
 
 const paraCanal = (l: LinhaDoCanal): Canal => ({
   id: l.id,
@@ -307,6 +327,10 @@ const paraCanal = (l: LinhaDoCanal): Canal => ({
   mensagemForaDoHorario: l.mensagem_fora_do_horario,
   limiteDeAutonomia: l.limite_de_autonomia,
   sugestoesSemEdicao: l.sugestoes_sem_edicao,
+  assuntosParaPessoas: l.assuntos_para_pessoas,
+  prazoParaAssumir: l.prazo_para_assumir,
+  mensagemDePassagem: l.mensagem_de_passagem,
+  sugerirComPessoa: l.sugerir_com_pessoa,
   criadoEm: l.criado_em.toISOString(),
 });
 

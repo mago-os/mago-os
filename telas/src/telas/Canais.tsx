@@ -132,6 +132,11 @@ function AgenteDoCanal({ canal, aoMudar }: { canal: Canal; aoMudar: (m?: Mensage
   const [fora, setFora] = useState(canal.mensagemForaDoHorario ?? "");
   const [instrucoes, setInstrucoes] = useState(canal.instrucoes ?? "");
   const [limite, setLimite] = useState(canal.limiteDeAutonomia ?? 20);
+  // A passagem para uma pessoa (M8-06).
+  const [assuntos, setAssuntos] = useState((canal.assuntosParaPessoas ?? []).join(", "));
+  const [prazo, setPrazo] = useState(canal.prazoParaAssumir ?? 10);
+  const [passagem, setPassagem] = useState(canal.mensagemDePassagem ?? "");
+  const [sugerir, setSugerir] = useState(canal.sugerirComPessoa ?? true);
 
   async function usarAtendente() {
     const r = await pedir("POST", `/canais/${canal.id}/atendente`);
@@ -151,6 +156,17 @@ function AgenteDoCanal({ canal, aoMudar }: { canal: Canal; aoMudar: (m?: Mensage
       ...(fora.trim() ? { mensagemForaDoHorario: fora.trim() } : {}),
       instrucoes: instrucoes.trim() || null,
       limiteDeAutonomia: limite,
+      assuntosParaPessoas: [
+        ...new Set(
+          assuntos
+            .split(",")
+            .map((a) => a.trim().slice(0, 60))
+            .filter((a) => a.length > 0),
+        ),
+      ].slice(0, 20),
+      prazoParaAssumir: prazo,
+      ...(passagem.trim() ? { mensagemDePassagem: passagem.trim() } : {}),
+      sugerirComPessoa: sugerir,
     });
     aoMudar(
       r.ok ? { tipo: "ok", texto: "Agente do canal salvo." } : { tipo: "erro", texto: r.mensagem ?? "" },
@@ -275,6 +291,47 @@ function AgenteDoCanal({ canal, aoMudar }: { canal: Canal; aoMudar: (m?: Mensage
               onChange={(e) => setLimite(Number(e.target.value) || 20)}
             />
           </label>
+          <fieldset className="grid gap-3 rounded-md border border-linha p-3">
+            <legend className="px-1 font-medium">Passar para uma pessoa</legend>
+            <p className="text-texto-2">
+              O agente passa a conversa quando o cliente pede uma pessoa, está irritado, repete a pergunta, a
+              conversa não anda ou ele não sabe responder.
+            </p>
+            <label className="grid gap-1.5">
+              <span>Assuntos que sempre vão para uma pessoa (separados por vírgula)</span>
+              <input
+                className="h-10 rounded-md border border-linha bg-cartao px-3"
+                placeholder="desconto, reclamação, jurídico"
+                value={assuntos}
+                onChange={(e) => setAssuntos(e.target.value)}
+              />
+            </label>
+            <label className="grid gap-1.5">
+              <span>Mensagem ao cliente quando o agente passa a conversa</span>
+              <textarea
+                className="rounded-md border border-linha bg-cartao p-2"
+                rows={2}
+                maxLength={1000}
+                value={passagem}
+                onChange={(e) => setPassagem(e.target.value)}
+              />
+            </label>
+            <label className="grid gap-1.5">
+              <span>Minutos para alguém assumir antes de avisar o gestor</span>
+              <input
+                type="number"
+                min={1}
+                max={240}
+                className="h-10 w-32 rounded-md border border-linha bg-cartao px-3"
+                value={prazo}
+                onChange={(e) => setPrazo(Math.min(240, Math.max(1, Number(e.target.value) || 10)))}
+              />
+            </label>
+            <label className="inline-flex items-center gap-2">
+              <input type="checkbox" checked={sugerir} onChange={(e) => setSugerir(e.target.checked)} />
+              Sugerir respostas quando uma pessoa atende (usa a conta de IA a cada mensagem)
+            </label>
+          </fieldset>
           <div>
             <Button type="submit" size="pequeno">
               Salvar o agente do canal

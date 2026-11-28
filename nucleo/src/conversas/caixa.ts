@@ -24,6 +24,7 @@ import { comPessoa } from "../empresa.ts";
 import { idsForaDaEmpresa, uuidsDe } from "../ids-da-empresa.ts";
 import { catalogoDeModulos } from "../permissoes/modulos.ts";
 import { acessoDo, permissoesNaEmpresa, type Verificador } from "../permissoes/verificar.ts";
+import { limparPassagem } from "./passagem.ts";
 import {
   type AcaoNasConversas,
   buscarConversa,
@@ -184,6 +185,8 @@ export function registrarRotasDaCaixa(
       "update conversas_com_contatos set dono_id = null, com_agente = true where id = $1 and empresa_id = empresa_ativa()",
       [conversa.id],
     );
+    // A passagem acaba (M8-06): o prazo, a sugestão pendente e a contagem das respostas seguidas recomeçam.
+    await limparPassagem(c, conversa.id);
   });
 
   acao("resolver", "conversa.resolveu", async (c, conversa, pedido) => {
@@ -191,7 +194,7 @@ export function registrarRotasDaCaixa(
     await resolverConversa(c, conversa.id, acessoDo(pedido).sessao.pessoa.id);
   });
 
-  acao("reabrir", "conversa.reabriu", async (c, conversa) => {
+  acao("reabrir", "conversa.reabriu", async (c, conversa, pedido) => {
     if (conversa.situacao !== "resolvida") throw new RecusaDasConversas("A conversa não está resolvida.");
     const nova = await c.query(
       `select 1 from conversas_com_contatos where empresa_id = empresa_ativa() and canal_id = $1 and contato_id = $2
@@ -200,10 +203,12 @@ export function registrarRotasDaCaixa(
     );
     if ((nova.rowCount ?? 0) > 0)
       throw new RecusaDasConversas("Já existe uma conversa mais nova com este contato neste canal.");
+    // A conversa que a equipe reabre fica com quem reabriu (M8-06).
     await c.query(
-      `update conversas_com_contatos set situacao = 'aberta', resolvida_em = null, resolvida_por = null
+      `update conversas_com_contatos set situacao = 'aberta', resolvida_em = null, resolvida_por = null, dono_id = $2,
+              com_agente = false
         where id = $1 and empresa_id = empresa_ativa()`,
-      [conversa.id],
+      [conversa.id, acessoDo(pedido).sessao.pessoa.id],
     );
   });
 

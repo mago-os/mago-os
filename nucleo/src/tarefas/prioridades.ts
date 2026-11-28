@@ -170,10 +170,11 @@ export async function listarPrioridades(
     });
   }
 
-  // Avisos de agentes não lidos, e as rotinas da pessoa que falharam (M5-05).
+  // Avisos de agentes não lidos, as rotinas da pessoa que falharam (M5-05) e os clientes que o agente passou para a
+  // equipe ou que esperam além do prazo (M8-06).
   const avisos = await c.query<{ id: string; texto: string; link: string; criado_em: Date }>(
     `select id, texto, link, criado_em from avisos
-      where empresa_id = empresa_ativa() and pessoa_id = $1 and (tipo like 'agente\\_%' or tipo = 'rotina_falhou')
+      where empresa_id = empresa_ativa() and pessoa_id = $1 and (tipo like 'agente\\_%' or tipo in ('rotina_falhou', 'conversa_precisa_de_pessoa', 'conversa_passou_do_prazo'))
         and lido_em is null
       order by criado_em limit 100`,
     [eu],

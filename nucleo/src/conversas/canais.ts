@@ -332,6 +332,10 @@ export function registrarRotasDosCanais(app: FastifyInstance, o: OpcoesDasRotasD
                 horario = coalesce($10::jsonb, horario),
                 mensagem_fora_do_horario = coalesce($11, mensagem_fora_do_horario),
                 limite_de_autonomia = coalesce($12, limite_de_autonomia),
+                assuntos_para_pessoas = coalesce($13::text[], assuntos_para_pessoas),
+                prazo_para_assumir = coalesce($14, prazo_para_assumir),
+                mensagem_de_passagem = coalesce($15, mensagem_de_passagem),
+                sugerir_com_pessoa = coalesce($16, sugerir_com_pessoa),
                 -- Mudar o modo recomeça a contagem da autonomia.
                 sugestoes_sem_edicao = case when $7 is not null and $7 <> modo then 0 else sugestoes_sem_edicao end,
                 autonomia_avisada_em = case when $7 is not null and $7 <> modo then null else autonomia_avisada_em end,
@@ -350,6 +354,12 @@ export function registrarRotasDosCanais(app: FastifyInstance, o: OpcoesDasRotasD
               v.horario ? JSON.stringify(v.horario) : null,
               v.mensagemForaDoHorario?.trim() ?? null,
               v.limiteDeAutonomia ?? null,
+              v.assuntosParaPessoas
+                ? [...new Set(v.assuntosParaPessoas.map((a) => a.trim()).filter((a) => a.length > 0))]
+                : null,
+              v.prazoParaAssumir ?? null,
+              v.mensagemDePassagem?.trim() ?? null,
+              v.sugerirComPessoa ?? null,
             ],
           );
           return { antes, depois: (await buscarCanal(c, id)) as Canal };
@@ -365,6 +375,10 @@ export function registrarRotasDosCanais(app: FastifyInstance, o: OpcoesDasRotasD
             "horario",
             "mensagemForaDoHorario",
             "limiteDeAutonomia",
+            "assuntosParaPessoas",
+            "prazoParaAssumir",
+            "mensagemDePassagem",
+            "sugerirComPessoa",
           ] as const
         ).filter((k) => JSON.stringify(feito.antes[k]) !== JSON.stringify(feito.depois[k]));
         if (campos.length > 0) await registrar(pedido, "canal.editou", id, { campos });
