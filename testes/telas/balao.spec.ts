@@ -66,7 +66,7 @@ test.describe("balão do site", () => {
 
   const site = (endereco: string) => (rota: import("@playwright/test").Route) =>
     rota.fulfill({
-      contentType: "text/html",
+      contentType: "text/html; charset=utf-8",
       body: `<!doctype html><html><head><title>Peça 42</title></head><body><h1>Loja</h1>
 <script src="http://localhost:4173/balao.js" data-canal="${chave}" async></script>
 <iframe id="direto" title="direto" src="http://localhost:4173/balao/${chave}" style="display:none"></iframe>
@@ -114,7 +114,10 @@ test.describe("balão do site", () => {
     await page.waitForTimeout(1500);
     await expect(page.getByRole("button", { name: /Abrir a conversa/ })).toHaveCount(0);
     // O quadro posto à mão, direto: o navegador recusa (frame-ancestors só com o domínio da loja).
-    const direto = page.frames().find((f) => f.name() === "" && f.url().startsWith("chrome-error://"));
-    expect(direto, "o quadro direto foi recusado").toBeTruthy();
+    const direto = page.frameLocator("#direto");
+    await expect(direto.locator("main#balao")).toHaveCount(0);
+    // No site da lista, o mesmo quadro abre (o teste de cima): aqui, a página do balão nem chega a rodar.
+    const quadros = page.frames().filter((f) => f !== page.mainFrame());
+    for (const f of quadros) expect(await f.locator("main#balao").count()).toBe(0);
   });
 });
