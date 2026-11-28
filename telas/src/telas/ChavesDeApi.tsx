@@ -28,6 +28,7 @@ const NOMES_DOS_MODULOS: Record<ModuloDaApi, string> = {
   projetos: "Projetos",
   contatos: "Contatos",
   agentes: "Agentes",
+  conversas: "Conversas com contatos",
 };
 const NOMES_DOS_ACESSOS: Record<AcessoDaApi, string> = { ler: "Só ler", escrever: "Ler e escrever" };
 

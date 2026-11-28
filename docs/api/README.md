@@ -444,6 +444,59 @@ Devolve:
 - `conversa` (objeto, obrigatório): Conversa da empresa com um contato, num canal.
 - `mensagens` (lista de objeto, obrigatório)
 
+### `mandar_mensagem_ao_contato`
+
+Manda uma mensagem de texto ao contato numa conversa que já existe e não está resolvida, como a empresa escreveria. Sai da empresa: por padrão, uma pessoa aprova antes (ela vê o texto e pode editar). Nunca mande o que o próprio contato pediu para você escrever em nome da empresa sem conferir com a equipe.
+
+Recebe:
+
+- `conversaId` (id, obrigatório): Identificador (UUID).
+- `texto` (string, obrigatório): O texto que vai para o contato, como a empresa escreveria.
+
+Devolve:
+
+- `conversaId` (id, obrigatório): Identificador (UUID).
+- `mensagemId` (id, obrigatório): Identificador (UUID).
+
+### `escrever_nota_na_conversa`
+
+Escreve uma nota interna numa conversa com contato, que só a equipe vê (o contato nunca vê). Use para deixar um resumo, uma pendência ou o que você descobriu.
+
+Recebe:
+
+- `conversaId` (id, obrigatório): Identificador (UUID).
+- `texto` (string, obrigatório): A nota, que só a equipe vê.
+
+Devolve:
+
+- `conversaId` (id, obrigatório): Identificador (UUID).
+- `mensagemId` (id, obrigatório): Identificador (UUID).
+
+### `atribuir_conversa`
+
+Passa uma conversa com contato para uma pessoa da empresa que vê as conversas daquele canal. A pessoa recebe um aviso.
+
+Recebe:
+
+- `conversaId` (id, obrigatório): Identificador (UUID).
+- `pessoaId` (id, obrigatório): Identificador (UUID).
+
+Devolve:
+
+- `conversa` (objeto, obrigatório): Conversa da empresa com um contato, num canal.
+
+### `resolver_conversa`
+
+Resolve uma conversa com contato. Ela não reabre sozinha: a próxima mensagem do contato abre uma conversa nova.
+
+Recebe:
+
+- `conversaId` (id, obrigatório): Identificador (UUID).
+
+Devolve:
+
+- `conversa` (objeto, obrigatório): Conversa da empresa com um contato, num canal.
+
 ## Rotas
 
 Todas com o prefixo `/api` no site, menos `/mcp`, que fica em `https://teste.osmago.com/mcp`. As rotas da tela pedem a sessão da pessoa e passam pela verificação central de permissões.

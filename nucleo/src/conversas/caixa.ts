@@ -24,6 +24,7 @@ import { comPessoa } from "../empresa.ts";
 import { idsForaDaEmpresa, uuidsDe } from "../ids-da-empresa.ts";
 import { catalogoDeModulos } from "../permissoes/modulos.ts";
 import { acessoDo, permissoesNaEmpresa, type Verificador } from "../permissoes/verificar.ts";
+import { passarConversaPara } from "./acoes.ts";
 import { limparPassagem } from "./passagem.ts";
 import {
   type AcaoNasConversas,
@@ -47,21 +48,6 @@ function invalido(resposta: FastifyReply, problemas: Problema[]) {
 
 const naoEncontrada = (resposta: FastifyReply) =>
   resposta.code(404).send({ code: "NAO_ENCONTRADA", message: "Conversa não encontrada." });
-
-/**
- * A pessoa vê as conversas do canal pelo alcance dela (sem contar as de que é dona): tudo; ou equipe, com o canal
- * sem equipe ou da área dela. Quem só vê as suas ("meus") não recebe conversa de canal que não vê.
- */
-async function vePeloCanal(c: pg.PoolClient, q: QuemOlhaConversas, canalId: string): Promise<boolean> {
-  if (q.alcance === "tudo") return true;
-  if (q.alcance !== "equipe") return false;
-  const r = await c.query<{ area: string | null }>(
-    "select area from canais_de_contato where id = $1 and empresa_id = empresa_ativa()",
-    [canalId],
-  );
-  const area = r.rows[0]?.area;
-  return area === null || (area !== undefined && area === q.area);
-}
 
 export function registrarRotasDaCaixa(
   app: FastifyInstance,
@@ -154,21 +140,10 @@ export function registrarRotasDaCaixa(
     async (c, conversa, pedido) => {
       const { pessoaId } = pedido.body as { pessoaId: string };
       const { sessao } = acessoDo(pedido);
-      const permissoes = await permissoesNaEmpresa(poolApp, pessoaId, sessao.empresaId, catalogoDeModulos());
-      if (!permissoes) throw new RecusaDasConversas("Escolha uma pessoa ativa da empresa.");
-      if (!(await vePeloCanal(c, quemOlhaConversas(permissoes, pessoaId, "ver"), conversa.canal.id)))
-        throw new RecusaDasConversas("Essa pessoa não vê as conversas deste canal.");
-      await c.query(
-        "update conversas_com_contatos set dono_id = $2, com_agente = false where id = $1 and empresa_id = empresa_ativa()",
-        [conversa.id, pessoaId],
-      );
-      if (pessoaId !== sessao.pessoa.id)
-        await criarAviso(c, {
-          pessoaId,
-          tipo: "mensagem_na_conversa",
-          texto: `${sessao.pessoa.nome} passou para você a conversa de "${conversa.contatoNome}".`,
-          link: `/conversas/${conversa.id}`,
-        });
+      await passarConversaPara(c, poolApp, sessao.empresaId, conversa, pessoaId, {
+        pessoaId: sessao.pessoa.id,
+        nome: sessao.pessoa.nome,
+      });
       return { para: pessoaId };
     },
     (corpo) => conferir(PedidoDePassarConversa, corpo),

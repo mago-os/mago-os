@@ -378,6 +378,8 @@ export async function montarApi(config: Config, deps: DependenciasDaApi): Promis
         log: app.log,
         origem: { canal: "sistema", ip: null, aparelho: null },
         anexos: servicosDosAnexos,
+        // As ações nas conversas (M8-11), pelos agentes internos e pelas aprovações dos externos.
+        enviarAoContato: (empresaId: string, mensagemId: string) => enfileirarEnvio(empresaId, mensagemId),
         // Arquivos mandados pelo Telegram (M5-03): a ferramenta anexar_arquivo baixa e acorda o antivírus.
         telegram: bot
           ? {
@@ -500,7 +502,12 @@ export async function montarApi(config: Config, deps: DependenciasDaApi): Promis
       );
     });
     registrarRotasDoAgente(app, opcoesDosAgentes);
-    registrarServidorMcp(app, { ...opcoesDosAgentes, anexos: servicosDosAnexos });
+    registrarServidorMcp(app, {
+      ...opcoesDosAgentes,
+      anexos: servicosDosAnexos,
+      // As ações nas conversas (M8-11): a mensagem do agente ao contato sai pela fila de envio.
+      enviarAoContato: (empresaId, mensagemId) => enfileirarEnvio(empresaId, mensagemId),
+    });
     // API pública (M7-02): /v1, a documentação e as chaves de API da empresa.
     registrarApiPublica(app, { verificador, poolApp: banco.pool, urlPublica: opcoesDosAgentes.urlPublica });
     registrarRotasDosAnexos(app, {

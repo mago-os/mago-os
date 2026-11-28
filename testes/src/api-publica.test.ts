@@ -290,7 +290,7 @@ describe.skipIf(!bancoDisponivel)("API pública", () => {
     expect(o.statusCode).toBe(200);
     const doc = o.json() as { paths: Record<string, Record<string, unknown>> };
     const operacoes = Object.values(doc.paths).flatMap((p) => Object.keys(p));
-    expect(operacoes).toHaveLength(14);
+    expect(operacoes).toHaveLength(20);
     const pagina = await api.app.inject({ method: "GET", url: "/docs" });
     expect(pagina.statusCode).toBe(200);
     expect(pagina.body).toContain("POST /v1/contatos");

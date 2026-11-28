@@ -48,6 +48,11 @@ const ASSINATURAS: Record<string, string> = {
   responder_ao_cliente: "f2e572ed02376369",
   passar_para_uma_pessoa: "287101a075b9c870",
   ver_conversa: "e048f9e87ff61f76",
+  // M8-11 (decisão 0060): as ações nas conversas.
+  mandar_mensagem_ao_contato: "bf631a48cc293055",
+  escrever_nota_na_conversa: "fc14a1cb1cf2ddeb",
+  atribuir_conversa: "efc8825dbcbcb3cc",
+  resolver_conversa: "d2fcc6d29549658f",
   listar_rotinas: "9cf3cc76dd223a54",
   ver_rotina: "c1abcf3d68ed102a",
   criar_rotina: "06fa52f6ef87e141",

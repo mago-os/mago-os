@@ -221,6 +221,12 @@ function fontesDaFerramenta(
     case "listar_conversas":
     case "ver_conversa":
       return { textoDeFora: true };
+    // As ações (M8-11) só devolvem ids e a própria conversa (sem mensagens).
+    case "mandar_mensagem_ao_contato":
+    case "escrever_nota_na_conversa":
+    case "atribuir_conversa":
+    case "resolver_conversa":
+      return null;
     // Atendimento (M8-05): a execução já começa marcada (o texto do cliente é de fora).
     case "ver_ficha_do_cliente":
     case "completar_cliente":
@@ -631,22 +637,31 @@ async function executarSemMarca(
         throw erro;
       }
     }
-    // Conversas com contatos (M8-01): só leitura, com o alcance de quem pediu e o do responsável (o menor dos dois).
+    // Conversas com contatos (M8-01 e M8-11): com o alcance de quem pediu e o do responsável (o menor dos dois).
+    // Mandar mensagem ao contato pede aprovação por padrão (a regra já foi conferida antes de chegar aqui).
     case "listar_conversas":
-    case "ver_conversa": {
+    case "ver_conversa":
+    case "mandar_mensagem_ao_contato":
+    case "escrever_nota_na_conversa":
+    case "atribuir_conversa":
+    case "resolver_conversa": {
       if (!eFerramentaDeConversas(nome)) throw new RecusaDaFerramenta("Ferramenta desconhecida.");
       try {
         const conteudo = await executarFerramentaDeConversas(
           {
             poolApp: ctx.poolApp,
             empresaId: ctx.empresaId,
-            olham: [
-              quemOlhaConversas(ctx.permissoes, pessoaId, "ver"),
-              ...(responsavel
-                ? [quemOlhaConversas(responsavel.permissoes, responsavel.pessoaId, "ver")]
-                : []),
+            olham: (acao) => [
+              quemOlhaConversas(ctx.permissoes, pessoaId, acao),
+              ...(responsavel ? [quemOlhaConversas(responsavel.permissoes, responsavel.pessoaId, acao)] : []),
             ],
             limiteDaLista: 100,
+            agente: { id: ctx.agente.id, nome: ctx.agente.nome },
+            enviarAoContato: ctx.opcoesMcp.enviarAoContato,
+            origem: ctx.opcoesMcp.origem,
+            rastreio: null,
+            log: ctx.log,
+            detalhes: { pedidoPor: pessoaId, ...(ctx.semExecucao ? {} : { execucaoId: ctx.execucao.id }) },
           },
           nome,
           entrada,

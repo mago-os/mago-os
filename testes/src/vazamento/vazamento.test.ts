@@ -845,7 +845,13 @@ describe.skipIf(!bancoDisponivel)("vazamento entre empresas em todas as partes (
     // API pública (M7-02): a chave da empresa, os endereços /v1 e a troca.
     const criada = await usar(x, admin, "POST", "/empresa/chaves-de-api", {
       nome: `Chave ${M}`,
-      escopo: { tarefas: "escrever", projetos: "ler", contatos: "escrever", agentes: "ler" },
+      escopo: {
+        tarefas: "escrever",
+        projetos: "ler",
+        contatos: "escrever",
+        agentes: "ler",
+        conversas: "escrever",
+      },
       pessoaId: admin.id,
     });
     ids.chaveDeApi = criada.chave.id;
@@ -872,6 +878,21 @@ describe.skipIf(!bancoDisponivel)("vazamento entre empresas em todas as partes (
       organizacoes: [{ organizacaoId: ids.organizacao }],
     });
     await usar(x, k, "GET", "/v1/agentes");
+    // Conversas pela API (M8-11): listar, ver, mandar, nota, passar e resolver (e a caixa reabre, para o resto).
+    await usar(
+      x,
+      k,
+      "GET",
+      `/v1/conversas?canalId=${ids.canal}&situacoes=aberta,esperando_equipe,esperando_cliente`,
+    );
+    await usar(x, k, "GET", `/v1/conversas/${ids.conversaComContato}`);
+    await usar(x, k, "POST", `/v1/conversas/${ids.conversaComContato}/mensagens`, { texto: `Pela API ${M}` });
+    await usar(x, k, "POST", `/v1/conversas/${ids.conversaComContato}/notas`, {
+      texto: `Nota pela API ${M}`,
+    });
+    await usar(x, k, "POST", `/v1/conversas/${ids.conversaComContato}/atribuir`, { pessoaId: x.admin.id });
+    await usar(x, k, "POST", `/v1/conversas/${ids.conversaComContato}/resolver`, {});
+    await usar(x, admin, "POST", `/conversas-com-contatos/${ids.conversaComContato}/reabrir`);
     ids.chaveDeApi2 = (
       await usar(x, admin, "POST", `/empresa/chaves-de-api/${ids.chaveDeApi}/trocar`, {})
     ).chave.id;
@@ -1120,6 +1141,9 @@ describe.skipIf(!bancoDisponivel)("vazamento entre empresas em todas as partes (
       ["ligar_contato", { tarefaId: ids.tarefa, contatos: [ids.contato] }],
       ["listar_conversas", { canalId: ids.canal, contatoId: ids.contato }],
       ["ver_conversa", { conversaId: ids.conversaComContato }],
+      ["escrever_nota_na_conversa", { conversaId: ids.conversaComContato, texto: `Nota do agente ${M}` }],
+      ["mandar_mensagem_ao_contato", { conversaId: ids.conversaComContato, texto: `Do agente ${M}` }],
+      ["atribuir_conversa", { conversaId: ids.conversaComContato, pessoaId: x.admin.id }],
       ["ligar_rotina", { rotinaId: ids.rotina }],
       ["parar_rotina", { rotinaId: ids.rotinaEvento }],
       ["criar_tarefa", { titulo: `Tarefa do agente ${M}`, projetoId: ids.projeto }],
@@ -1225,6 +1249,15 @@ describe.skipIf(!bancoDisponivel)("vazamento entre empresas em todas as partes (
     await chamar("ligar_contato", { tarefaId: ids.tarefa2, contatos: [ids.contato] });
     await chamar("listar_conversas", { canalId: ids.canal, contatoId: ids.contato });
     await chamar("ver_conversa", { conversaId: ids.conversaComContato });
+    await chamar("escrever_nota_na_conversa", {
+      conversaId: ids.conversaComContato,
+      texto: `Nota pelo MCP ${M}`,
+    });
+    await chamar("mandar_mensagem_ao_contato", {
+      conversaId: ids.conversaComContato,
+      texto: `Pelo MCP ${M}`,
+    });
+    await chamar("atribuir_conversa", { conversaId: ids.conversaComContato, pessoaId: x.admin.id });
     await chamar("soltar_tarefa", { tarefaId: ids.tarefa2, motivo: `Soltei ${M}` });
   }
 

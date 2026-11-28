@@ -191,8 +191,9 @@ export const CATALOGO_DE_ACOES: readonly AcaoDoCatalogo[] = [
     padraoExterno: null,
     soNaPropriaConversa: true,
   },
-  // Conversas com contatos (M8-01, decisão 0051): só leitura, executa. As de ação (mandar mensagem a um contato pede
-  // aprovação por padrão para os externos) entram na M8-11.
+  // Conversas com contatos (M8-01, decisão 0051): ler executa. As de ação (M8-11, decisão 0060): mandar mensagem ao
+  // contato sai da empresa e pede aprovação por padrão, para internos e externos; nota, atribuir e resolver executam
+  // (e pedem aprovação depois de o agente ler o texto do cliente, pela regra do texto de outros).
   {
     acao: "listar_conversas",
     nome: "Listar conversas com contatos",
@@ -204,6 +205,34 @@ export const CATALOGO_DE_ACOES: readonly AcaoDoCatalogo[] = [
     acao: "ver_conversa",
     nome: "Ver uma conversa com contato",
     mudaDados: false,
+    padraoInterno: "executa",
+    padraoExterno: "executa",
+  },
+  {
+    acao: "mandar_mensagem_ao_contato",
+    nome: "Mandar mensagem a um contato numa conversa",
+    mudaDados: true,
+    padraoInterno: "pede_aprovacao",
+    padraoExterno: "pede_aprovacao",
+  },
+  {
+    acao: "escrever_nota_na_conversa",
+    nome: "Escrever nota interna numa conversa",
+    mudaDados: true,
+    padraoInterno: "executa",
+    padraoExterno: "executa",
+  },
+  {
+    acao: "atribuir_conversa",
+    nome: "Passar uma conversa para uma pessoa",
+    mudaDados: true,
+    padraoInterno: "executa",
+    padraoExterno: "executa",
+  },
+  {
+    acao: "resolver_conversa",
+    nome: "Resolver uma conversa",
+    mudaDados: true,
     padraoInterno: "executa",
     padraoExterno: "executa",
   },

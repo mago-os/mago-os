@@ -461,3 +461,9 @@ O login (`mago_acesso`) não lê papéis nem as regras da plataforma direto. As 
 - O esquema `whatsapp` guarda, sem dado de negócio, as mensagens da Meta já tratadas (7 dias), os códigos errados e as mensagens por minuto de cada número.
 - As conversas e as mensagens com o coordenador ganham o canal `whatsapp`; `mensagens_de_conversa.whatsapp_pendente` marca a resposta que vai por lá, e `avisos.whatsapp_pendente` o aviso (só os criados daqui em diante). `aprovacoes_no_whatsapp` e `pedidos_de_codigo_no_whatsapp` seguem os do Telegram; as travas dos códigos errados das aprovações são as do Telegram, por pessoa (errar num trava os dois).
 - Aviso novo: `whatsapp_desvinculado`.
+
+## 65. Conversas na API pública e nos webhooks (28/11/2026, M8-11)
+
+- `mensagens_com_contatos.chave_de_api_id` (`[sistema]`) marca a mensagem que saiu pela API pública ([decisão 0060](../decisoes/0060-conversas-na-api.md)): a caixa mostra "pela API" e a rota conta as da última hora por chave (até 60), pelo índice parcial `mensagens_com_contatos_pela_api`. Sem chave estrangeira: a chave removida da lista não apaga a marca.
+- Os webhooks da empresa podem escolher os 4 eventos das conversas. Os gatilhos `avisos_de_webhook_da_conversa` (aberta, passada para uma pessoa, resolvida) e `avisos_de_webhook_da_mensagem_com_contato` (só a que chegou) gravam a entrega na mesma transação, como os do M7 (seção 54), só com os ids e o motivo da passagem (código fixo). O texto do cliente e o resumo da passagem nunca vão no aviso.
+- "Passada para uma pessoa" vale quando o agente ou o sistema passa (`passada_em` deixa de ser nula, com o motivo) e quando alguém da equipe ou um agente põe um dono (motivo `atribuida`).

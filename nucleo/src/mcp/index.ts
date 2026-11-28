@@ -83,6 +83,8 @@ export interface OpcoesDoMcp {
   urlPublica: string;
   limites?: { pedidosPorMinuto: number; leiturasPorHora: number };
   anexos?: ServicosDosAnexos | null;
+  /** Conversas (M8-11): a fila de envio das mensagens do agente ao contato. */
+  enviarAoContato?: (empresaId: string, mensagemId: string) => Promise<void>;
 }
 
 /** Recusa que o agente lê (vira isError na resposta da ferramenta). Os agentes internos usam a mesma (M4-02). */
@@ -110,6 +112,7 @@ export function registrarServidorMcp(app: FastifyInstance, o: OpcoesDoMcp): void
       rastreio: pedido.id,
       ...(o.limites ? { limites: o.limites } : {}),
       anexos: o.anexos ?? null,
+      ...(o.enviarAoContato ? { enviarAoContato: o.enviarAoContato } : {}),
     };
     const r = await autenticarAgente(pedido.headers.authorization, opcoesDaChave, viaApi ? "api" : "mcp");
     if (!r.ok) {
@@ -691,9 +694,14 @@ export async function executar(
         throw e;
       }
     }
-    // Conversas com contatos (M8-01): só leitura, com o alcance da pessoa responsável pelo agente.
+    // Conversas com contatos (M8-01 e M8-11): com o alcance da pessoa responsável pelo agente. Mandar mensagem ao
+    // contato pede aprovação por padrão (a regra já foi conferida antes de chegar aqui).
     case "listar_conversas":
-    case "ver_conversa": {
+    case "ver_conversa":
+    case "mandar_mensagem_ao_contato":
+    case "escrever_nota_na_conversa":
+    case "atribuir_conversa":
+    case "resolver_conversa": {
       const r = await naEmpresa((c) =>
         c.query<{ responsavel_id: string }>(
           "select responsavel_id from agentes where id = $1 and empresa_id = empresa_ativa()",
@@ -707,19 +715,32 @@ export async function executar(
       if (!responsavelId || !permissoes)
         throw new RecusaDaFerramenta("A pessoa responsável por você não está mais ativa na empresa.");
       try {
+        const nomeDoAgente = await naEmpresa(async (c) => {
+          const n = await c.query<{ nome: string }>(
+            "select nome from agentes where id = $1 and empresa_id = empresa_ativa()",
+            [agente.agenteId],
+          );
+          return n.rows[0]?.nome ?? "Agente";
+        });
         const feito = await executarFerramentaDeConversas(
           {
             poolApp: o.poolApp,
             empresaId: agente.empresaId,
-            olham: [quemOlhaConversas(permissoes, responsavelId, "ver")],
+            olham: (acao) => [quemOlhaConversas(permissoes, responsavelId, acao)],
             limiteDaLista: 100,
+            agente: { id: agente.agenteId, nome: nomeDoAgente },
+            enviarAoContato: o.enviarAoContato,
+            origem: o.origem,
+            rastreio: o.rastreio ?? null,
+            log: o.log,
+            detalhes: { pedidoPor: responsavelId },
           },
           nome,
           entrada as Record<string, unknown>,
         );
         if (nome === "listar_conversas")
           await ler(Math.max(1, (feito.conversas as unknown[] | undefined)?.length ?? 0));
-        else await ler(1);
+        else if (nome === "ver_conversa") await ler(1);
         return feito;
       } catch (e) {
         if (e instanceof RecusaDasConversas) throw new RecusaDaFerramenta(e.message);

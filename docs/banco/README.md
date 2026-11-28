@@ -670,6 +670,7 @@ erDiagram
     text transcricao
     text transcricao_situacao
     timestamp_with_time_zone transcrita_em
+    uuid chave_de_api_id
   }
   mensagens_de_conversa {
     uuid id PK
@@ -2318,6 +2319,7 @@ Isolamento por empresa (Row Level Security): ligado e forçado.
 | transcricao | text | não |  | pessoal | No áudio que chegou: o texto transcrito pela conta de IA da empresa (fica depois que o áudio é apagado). |
 | transcricao_situacao | text | não |  | sistema | transcrevendo, pronta, sem_conta, longa_demais, no_teto ou falhou. |
 | transcrita_em | timestamp with time zone | não |  | sistema | Quando a transcrição terminou. |
+| chave_de_api_id | uuid | não |  | sistema | A chave de API que mandou a mensagem pela API pública (M8-11). Nula: pela caixa, pelo agente ou pelo celular. |
 
 ### mensagens_de_conversa
 

@@ -543,7 +543,9 @@ function Bolha({
   }, [disponivel, m.arquivo, conversaId]);
   const quem =
     m.direcao === "interna"
-      ? `Nota de ${m.autorPessoaId ? (nomes[m.autorPessoaId] ?? "alguém da equipe") : "alguém da equipe"}`
+      ? m.autor === "agente"
+        ? "Nota do agente"
+        : `Nota de ${m.autorPessoaId ? (nomes[m.autorPessoaId] ?? "alguém da equipe") : "alguém da equipe"}`
       : m.autor === "contato"
         ? "Contato"
         : m.autor === "agente"
@@ -565,6 +567,7 @@ function Bolha({
     >
       <span className="text-xs opacity-75">
         {quem} · {quando(m.enviadaEm)}
+        {m.pelaApi ? " · pela API" : ""}
         {m.direcao === "interna" ? " · Só a equipe vê" : ""}
       </span>
       {m.tipo === "foto" && link && <img src={link} alt="Foto da mensagem" className="max-h-64 rounded" />}

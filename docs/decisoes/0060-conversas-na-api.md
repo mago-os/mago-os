@@ -1,7 +1,7 @@
 # 0060 Conversas na API pública, no MCP e nos webhooks
 
 - **Data:** 28/11/2026
-- **Situação:** proposta (esperando o ok do Sandro)
+- **Situação:** aceita (aprovada pelo Sandro no chat em 28/11/2026, com os 5 pontos como propostos)
 - **Tarefa:** M8-11
 
 ## Contexto
@@ -105,6 +105,14 @@ automação, que é o motivo de existir a API.
 - Apagar conversa pela API ou pelo agente: não entra. Apagar continua só no app (é dado de cliente, LGPD).
 - O WhatsApp oficial das empresas (janela de 24 horas e modelos) é da M8-10. Quando ela entrar, mandar pela API fora
   da janela devolve um erro claro, em vez de tentar.
+
+## Ajustes ao construir (28/11/2026)
+
+- **Atribuir é só para uma pessoa.** A caixa não tem "devolver para a equipe" (só "devolver ao agente", que continua no app), então `POST /v1/conversas/{id}/atribuir` e `atribuir_conversa` pedem a pessoa, que precisa ver as conversas do canal.
+- **A API confere o corpo pelo próprio contrato** nas conversas: a rota da caixa aceita arquivo, voz e menções, que pela API ficam de fora (400).
+- **Quem age pelo agente:** a mensagem e a nota ficam com o agente como autor, e a auditoria leva o agente como ator e quem pediu nos detalhes. A aprovação mostra "Mandar a “contato”: “texto”", e o texto editado na aprovação é o que sai.
+- **O evento "passada para uma pessoa"** também sai quando alguém assume ou reabre (a conversa ganha um dono), com o motivo `atribuida`; a passagem pelo agente ou pelo sistema leva o motivo dela (ex.: `pediu_pessoa`).
+- **Mensagem na mesma hora depois de resolver** cai na conversa resolvida (a folga de 1 hora do M8-04), sem gerar "conversa aberta" de novo.
 
 ## O que foi descartado
 

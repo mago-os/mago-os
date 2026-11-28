@@ -19,6 +19,11 @@ export const EVENTOS_DE_WEBHOOK = [
   "contato.atualizado",
   "aprovacao.pedida",
   "aprovacao.respondida",
+  // Conversas com contatos (M8-11, decisão 0060): só os ids, nunca o texto do cliente.
+  "conversa.aberta",
+  "conversa.mensagem_recebida",
+  "conversa.passada_para_pessoa",
+  "conversa.resolvida",
 ] as const;
 export const EventoDeWebhook = Type.Enum(EVENTOS_DE_WEBHOOK);
 export type EventoDeWebhook = Static<typeof EventoDeWebhook>;
@@ -45,6 +50,10 @@ export const NOMES_DOS_EVENTOS_DE_WEBHOOK: Record<EventoDeWebhook, string> = {
   "contato.atualizado": "Contato mudou",
   "aprovacao.pedida": "Um agente pediu aprovação",
   "aprovacao.respondida": "Uma aprovação foi respondida",
+  "conversa.aberta": "Conversa nova com um contato",
+  "conversa.mensagem_recebida": "Mensagem recebida de um contato (só os ids, sem o texto)",
+  "conversa.passada_para_pessoa": "Conversa passada para uma pessoa da equipe",
+  "conversa.resolvida": "Conversa resolvida",
 };
 
 /** Só https, sem usuário e senha no endereço, até 500 caracteres. O núcleo também recusa IP de rede interna. */
