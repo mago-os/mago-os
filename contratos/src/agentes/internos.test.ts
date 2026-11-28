@@ -43,7 +43,7 @@ const ASSINATURAS: Record<string, string> = {
   ligar_contato: "3660cd46aa7a69a0",
   listar_conversas: "7aefabfa5a5f22a7",
   ver_ficha_do_cliente: "86ab10a5ea80c4ac",
-  completar_cliente: "f2d2aa55bceb0351",
+  completar_cliente: "0209be05422281d1",
   criar_tarefa_para_a_equipe: "d9fc43003ddd69f5",
   responder_ao_cliente: "f2e572ed02376369",
   passar_para_uma_pessoa: "287101a075b9c870",

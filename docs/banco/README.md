@@ -209,6 +209,13 @@ erDiagram
     integer prazo_para_assumir
     text mensagem_de_passagem
     boolean sugerir_com_pessoa
+    text chave_publica
+    text[] dominios
+    text cor
+    text posicao
+    text boas_vindas
+    text politica_url
+    uuid whatsapp_canal_id
   }
   chaves_de_agente {
     uuid id PK
@@ -255,6 +262,16 @@ erDiagram
     uuid empresa_id FK
     uuid pessoa_id FK
     text resumo
+    timestamp_with_time_zone criado_em
+    timestamp_with_time_zone vence_em
+    timestamp_with_time_zone usado_em
+  }
+  codigos_para_o_whatsapp {
+    uuid id PK
+    uuid empresa_id FK
+    uuid visitante_id
+    uuid whatsapp_canal_id
+    text codigo
     timestamp_with_time_zone criado_em
     timestamp_with_time_zone vence_em
     timestamp_with_time_zone usado_em
@@ -393,6 +410,7 @@ erDiagram
     text resumo_da_passagem
     timestamp_with_time_zone escalada_em
     timestamp_with_time_zone com_agente_desde
+    uuid pode_ser_contato_id
   }
   empresas {
     uuid id PK
@@ -623,6 +641,8 @@ erDiagram
     text motivo_da_falha
     timestamp_with_time_zone enviada_ao_provedor_em
     integer tentativas
+    text pagina_url
+    text pagina_titulo
   }
   mensagens_de_conversa {
     uuid id PK
@@ -700,6 +720,13 @@ erDiagram
     text conferencia
     timestamp_with_time_zone aberto_em
     timestamp_with_time_zone vale_ate
+  }
+  pedidos_do_balao {
+    uuid id PK
+    uuid empresa_id FK
+    uuid canal_id
+    text ip_hash
+    timestamp_with_time_zone criado_em
   }
   pessoas {
     uuid id PK
@@ -904,6 +931,17 @@ erDiagram
     timestamp_with_time_zone vinculado_em
     uuid conversa_id
     date resumo_do_dia_em
+  }
+  visitantes_do_site {
+    uuid id PK
+    uuid empresa_id FK
+    uuid canal_id
+    text codigo_hash
+    text prova_hash
+    uuid contato_id
+    timestamp_with_time_zone criado_em
+    timestamp_with_time_zone visto_em
+    timestamp_with_time_zone vence_em
   }
   visoes_de_contatos {
     uuid id PK
@@ -1111,6 +1149,7 @@ erDiagram
   empresas ||--o{ chaves_de_dados : "empresa_id"
   empresas ||--o{ codigos_do_telegram : "empresa_id"
   pessoas ||--o{ codigos_do_telegram : "pessoa_id"
+  empresas ||--o{ codigos_para_o_whatsapp : "empresa_id"
   empresas ||--o{ comentarios_de_tarefa : "empresa_id"
   empresas ||--o{ consumo_de_ia : "empresa_id"
   empresas ||--o{ contadores_da_api : "empresa_id"
@@ -1148,6 +1187,7 @@ erDiagram
   empresas ||--o{ passos_de_execucao : "empresa_id"
   consumo_de_ia ||--o{ passos_de_execucao : "consumo_id"
   empresas ||--o{ pedidos_de_codigo_no_telegram : "empresa_id"
+  empresas ||--o{ pedidos_do_balao : "empresa_id"
   empresas ||--o{ preferencias_de_notificacao : "empresa_id"
   empresas ||--o{ projetos : "empresa_id"
   empresas ||--o{ regras_de_agente : "empresa_id"
@@ -1166,6 +1206,7 @@ erDiagram
   pessoas ||--o{ vinculos : "pessoa_id"
   empresas ||--o{ vinculos_do_telegram : "empresa_id"
   pessoas ||--o{ vinculos_do_telegram : "pessoa_id"
+  empresas ||--o{ visitantes_do_site : "empresa_id"
   empresas ||--o{ visoes_de_contatos : "empresa_id"
   empresas ||--o{ visoes_de_conversas : "empresa_id"
   empresas ||--o{ visoes_salvas : "empresa_id"
@@ -1506,6 +1547,13 @@ Isolamento por empresa (Row Level Security): ligado e forçado.
 | prazo_para_assumir | integer | sim | `10` | empresa | Minutos para alguém assumir a conversa passada pelo agente antes de o gestor ser avisado. |
 | mensagem_de_passagem | text | sim | `'Vou chamar uma pessoa da nossa equipe para continuar com você. Só um instante.'::text` | empresa | O texto que sai ao contato quando o agente passa a conversa para uma pessoa. |
 | sugerir_com_pessoa | boolean | sim | `true` | empresa | Com uma pessoa na conversa, o agente escreve sugestões de resposta na caixa. |
+| chave_publica | text | não |  | sistema | No balão do site: a chave da linha de código (não dá acesso a nada além de abrir o balão). |
+| dominios | text[] | sim | `'{}'::text[]` | empresa | No balão do site: os endereços (https, exatos) onde ele pode abrir, até 10. |
+| cor | text | sim | `'#4f46e5'::text` | empresa | No balão do site: a cor do botão. |
+| posicao | text | sim | `'direita'::text` | empresa | No balão do site: direita ou esquerda. |
+| boas_vindas | text | sim | `'Olá! Como podemos ajudar?'::text` | empresa | No balão do site: a mensagem de boas-vindas. |
+| politica_url | text | não |  | empresa | No balão do site: o link da política de privacidade da empresa (obrigatório para o balão abrir). |
+| whatsapp_canal_id | uuid | não |  | empresa | No balão do site: o canal de WhatsApp de "continuar no WhatsApp" (nulo: sem o botão). |
 
 ### chaves_de_agente
 
@@ -1583,6 +1631,23 @@ Isolamento por empresa (Row Level Security): ligado e forçado.
 | criado_em | timestamp with time zone | sim | `now()` | sistema | Quando foi gerado. |
 | vence_em | timestamp with time zone | sim |  | sistema | Até quando vale. |
 | usado_em | timestamp with time zone | não |  | sistema | Quando foi usado ou anulado (vazio: ainda vale). |
+
+### codigos_para_o_whatsapp
+
+O código de "continuar no WhatsApp" (M8-07): liga o visitante ao telefone que mandar o código (30 minutos, uso único).
+
+Isolamento por empresa (Row Level Security): ligado e forçado.
+
+| Coluna | Tipo | Obrigatória | Padrão | Marca | Descrição |
+| --- | --- | --- | --- | --- | --- |
+| id | uuid | sim | `uuidv7()` | sistema | Identificador. Chave primária. |
+| empresa_id | uuid | sim |  | sistema | Empresa. Aponta para empresas.id. |
+| visitante_id | uuid | sim |  | sistema | O visitante que pediu. |
+| whatsapp_canal_id | uuid | sim |  | sistema | O canal de WhatsApp que recebe o código. |
+| codigo | text | sim |  | sistema | O código (6 letras e números, sem os parecidos). |
+| criado_em | timestamp with time zone | sim | `now()` | sistema | Quando. |
+| vence_em | timestamp with time zone | sim | `(now() + '00:30:00'::interval)` | sistema | Até quando vale. |
+| usado_em | timestamp with time zone | não |  | sistema | Quando chegou pelo WhatsApp. |
 
 ### comentarios_de_tarefa
 
@@ -1795,6 +1860,7 @@ Isolamento por empresa (Row Level Security): ligado e forçado.
 | resumo_da_passagem | text | não |  | pessoal | O resumo do agente para a equipe: o que o contato quer e o que já foi dito. |
 | escalada_em | timestamp with time zone | não |  | sistema | Quando o gestor foi avisado de que ninguém assumiu no prazo. |
 | com_agente_desde | timestamp with time zone | sim | `now()` | sistema | Desde quando a conversa está com o agente (conta as respostas seguidas dele). |
+| pode_ser_contato_id | uuid | não |  | sistema | O contato que já tem o e-mail ou o telefone que o cliente deixou: a equipe confere e troca (nunca junta sozinho). |
 
 ### empresas
 
@@ -2151,6 +2217,8 @@ Isolamento por empresa (Row Level Security): ligado e forçado.
 | motivo_da_falha | text | não |  | sistema | O motivo que o provedor deu para a falha. |
 | enviada_ao_provedor_em | timestamp with time zone | não |  | sistema | No que sai: quando foi entregue à Evolution (conta para o ritmo de envio do número). |
 | tentativas | integer | sim | `0` | sistema | No que sai: quantas vezes tentou mandar. |
+| pagina_url | text | não |  | pessoal | No balão do site: a página onde o visitante escreveu, sem o que vem depois do "?" e do "#". |
+| pagina_titulo | text | não |  | pessoal | No balão do site: o título da página. |
 
 ### mensagens_de_conversa
 
@@ -2277,6 +2345,20 @@ Isolamento por empresa (Row Level Security): ligado e forçado.
 | conferencia | text | sim |  | sistema | A conferência que a pessoa viu na mensagem do pedido. |
 | aberto_em | timestamp with time zone | sim | `now()` | sistema | Quando tocou no botão. |
 | vale_ate | timestamp with time zone | sim |  | sistema | Até quando espera o código ou o motivo. |
+
+### pedidos_do_balao
+
+Mensagens mandadas pelo balão, por endereço de internet (M8-07): para o limite por minuto. Apagadas depois de um dia.
+
+Isolamento por empresa (Row Level Security): ligado e forçado.
+
+| Coluna | Tipo | Obrigatória | Padrão | Marca | Descrição |
+| --- | --- | --- | --- | --- | --- |
+| id | uuid | sim | `uuidv7()` | sistema | Identificador. Chave primária. |
+| empresa_id | uuid | sim |  | sistema | Empresa do canal. Aponta para empresas.id. |
+| canal_id | uuid | sim |  | sistema | O balão. |
+| ip_hash | text | sim |  | sensivel | Resumo (SHA-256, com sal) do endereço de internet. |
+| criado_em | timestamp with time zone | sim | `now()` | sistema | Quando. |
 
 ### pessoas
 
@@ -2600,6 +2682,24 @@ Isolamento por empresa (Row Level Security): ligado e forçado.
 | vinculado_em | timestamp with time zone | sim | `now()` | sistema | Quando a conta foi vinculada. |
 | conversa_id | uuid | não |  | sistema | A conversa atual pelo Telegram (vazio: a próxima mensagem começa uma nova). |
 | resumo_do_dia_em | date | não |  | sistema | O último dia, no fuso da pessoa, em que o resumo do dia foi pelo Telegram (ou foi pulado). |
+
+### visitantes_do_site
+
+Visitantes do balão do site (M8-07): o navegador guarda o código; aqui fica só o resumo dele, por 30 dias.
+
+Isolamento por empresa (Row Level Security): ligado e forçado.
+
+| Coluna | Tipo | Obrigatória | Padrão | Marca | Descrição |
+| --- | --- | --- | --- | --- | --- |
+| id | uuid | sim | `uuidv7()` | sistema | Identificador (vai na conversa como "visitante:<id>"). Chave primária. |
+| empresa_id | uuid | sim |  | sistema | Empresa do canal. Aponta para empresas.id. |
+| canal_id | uuid | sim |  | sistema | O balão onde o visitante entrou. |
+| codigo_hash | text | sim |  | sensivel | Resumo (SHA-256) do código do visitante. |
+| prova_hash | text | sim |  | sistema | Resumo da prova de trabalho usada ao entrar (cada prova vale uma vez). |
+| contato_id | uuid | não |  | sistema | O contato do visitante, depois da primeira mensagem. |
+| criado_em | timestamp with time zone | sim | `now()` | sistema | Quando entrou. |
+| visto_em | timestamp with time zone | sim | `now()` | sistema | A última vez que o balão dele falou com o Mago OS. |
+| vence_em | timestamp with time zone | sim | `(now() + '30 days'::interval)` | sistema | Até quando o código vale (30 dias, renovado a cada uso). |
 
 ### visoes_de_contatos
 

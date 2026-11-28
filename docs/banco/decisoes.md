@@ -439,3 +439,12 @@ O login (`mago_acesso`) não lê papéis nem as regras da plataforma direto. As 
 - `execucoes_de_agente.tipo_de_atendimento` diz o que a execução faz: atender (nulo nas antigas), sugerir (uma pessoa atende) ou resumir (o sistema já passou a conversa). A que esperava na fila vira o tipo novo, menos quando é para atender.
 - `sugestoes_de_resposta.com_pessoa` marca a sugestão feita com uma pessoa na conversa: sai pela pessoa e não conta para a autonomia.
 - `empresas_com_passagens_vencidas()` (definer, só ids) alimenta a verificação a cada minuto do prazo. Avisos novos: `conversa_precisa_de_pessoa` e `conversa_passou_do_prazo`.
+
+## 62. Chat no site (28/11/2026, M8-07)
+
+- `canais_de_contato` guarda, no balão do site, a chave pública da linha de código (única no banco inteiro, não é o id), os domínios onde ele abre (até 10), a cor, a posição, a boas-vindas, o link da política de privacidade (sem ele o balão não abre) e o canal de WhatsApp de "continuar no WhatsApp" ([decisão 0057](../decisoes/0057-chat-no-site.md)). Só o balão tem chave; o balão sem chave (de antes desta versão) não abre até o administrador trocar a chave.
+- `visitantes_do_site` guarda só o resumo (SHA-256) do código que o navegador do visitante guarda, e o da prova de trabalho usada (cada prova vale uma vez). O código vence em 30 dias sem uso.
+- `pedidos_do_balao` guarda o resumo (com sal) do endereço de internet de cada pedido, para o limite por minuto; sai depois de um dia.
+- `codigos_para_o_whatsapp` guarda o código de "continuar no WhatsApp" (30 minutos, uso único): quando chega pelo WhatsApp, as conversas do visitante passam para o contato daquele telefone.
+- `mensagens_com_contatos.pagina_url` e `pagina_titulo` guardam a página do site sem o que vem depois do "?" e do "#". `conversas_com_contatos.pode_ser_contato_id` marca o contato que já tem o e-mail ou o telefone que o cliente deixou: a equipe confere e troca (nunca junta sozinho).
+- `canal_do_balao(chave)` (definer, só ids) dá a empresa e o canal às rotas públicas do balão; `empresas_com_visitantes_vencidos()` alimenta a verificação diária, que apaga os visitantes vencidos, os pedidos antigos e as conversas de visitante sem contato de 90 dias (decisão 9 da spec do M8).

@@ -21,12 +21,17 @@ teste.osmago.com {
 	header {
 		Strict-Transport-Security "max-age=31536000"
 		X-Content-Type-Options nosniff
+		-Server
+	}
+	# O balão do site (M8-07, decisão 0057) abre dentro do site dos clientes: a política de conteúdo dele vem da API,
+	# com os domínios do canal (frame-ancestors). O resto do Mago OS nunca abre dentro de outro site.
+	@nao_e_o_balao not path /balao.js /balao/*
+	header @nao_e_o_balao {
 		Referrer-Policy strict-origin-when-cross-origin
 		# Os mesmos de telas/cabecalhos-de-seguranca.ts (M6-04); um teste confere que são iguais.
 		Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data:; connect-src 'self' https://*.backblazeb2.com; media-src 'self' blob: https://*.backblazeb2.com; worker-src 'self'; manifest-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'"
 		X-Frame-Options DENY
 		Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=(), usb=()"
-		-Server
 	}
 
 	# Campainha do GitHub: só avisa a VPS para conferir se há versão nova (assinada; não dá acesso a nada).
@@ -46,6 +51,14 @@ teste.osmago.com {
 
 	# Servidor MCP dos agentes (M2-05): /mcp vai para a rota /mcp da API, com a mesma regra de IP.
 	handle /mcp {
+		import mago_os_api
+	}
+
+	# O balão do site (M8-07): o script da linha de código, a página do quadro e as rotas públicas dele.
+	handle /balao.js {
+		import mago_os_api
+	}
+	handle /balao/* {
 		import mago_os_api
 	}
 

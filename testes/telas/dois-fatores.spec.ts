@@ -89,6 +89,8 @@ test.describe("2FA nas telas", () => {
 
     // Sai e entra de novo: agora o código é pedido.
     await page.getByRole("button", { name: "Sair" }).click();
+    // Espera a saída terminar (a tela navega sozinha): senão a ida a /entrar é cortada no meio.
+    await expect(page.getByRole("button", { name: "Sair" })).toHaveCount(0);
     await page.goto("/entrar");
     await page.getByLabel("E-mail").fill(email);
     await page.getByLabel("Senha").fill(SENHA);
@@ -165,6 +167,8 @@ test.describe("passkey nas telas", () => {
     await expect(page.getByRole("heading", { name: /, Pass!$/ })).toBeVisible();
 
     await page.getByRole("button", { name: "Sair" }).click();
+    // Espera a saída terminar (a tela navega sozinha): senão a ida a /entrar é cortada no meio.
+    await expect(page.getByRole("button", { name: "Sair" })).toHaveCount(0);
     await page.goto("/entrar");
     await page.getByRole("button", { name: "Entrar com passkey" }).click();
     await expect(page.getByRole("heading", { name: /, Pass!$/ })).toBeVisible();

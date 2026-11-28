@@ -49,6 +49,7 @@ import { modelosDeVerdade } from "./contas-de-ia/conversa.ts";
 import { provedoresDeVerdade } from "./contas-de-ia/provedores.ts";
 import { registrarRotasDasContasDeIa } from "./contas-de-ia/rotas.ts";
 import { registrarRotasDosContatos } from "./contatos/rotas.ts";
+import { cuidarDosVisitantesVencidos, registrarRotasDoBalao } from "./conversas/balao.ts";
 import { registrarRotasDaCaixa } from "./conversas/caixa.ts";
 import { registrarRotasDosCanais, tratarAvisoDaEvolution } from "./conversas/canais.ts";
 import { cuidarDoPrazoDosArquivos, enviarPendente, registrarRotasDoEnvio } from "./conversas/envio.ts";
@@ -125,6 +126,8 @@ const FILA_EVOLUTION_ENVIOS = "evolution-envios";
 const FILA_PRAZO_DAS_CONVERSAS = "conversas-prazo";
 /** O prazo para assumir a conversa que o agente passou para a equipe (M8-06), a cada minuto. */
 const FILA_PASSAGENS_DAS_CONVERSAS = "conversas-passagens";
+/** O balão do site (M8-07): os visitantes vencidos, os pedidos antigos e as conversas sem contato de 90 dias. */
+const FILA_VISITANTES_DO_SITE = "balao-visitantes";
 const FILA_TELEGRAM_ENTREGAS = "telegram-entregas";
 
 /** O que a API recebe pronto de quem a monta. */
@@ -520,6 +523,32 @@ export async function montarApi(config: Config, deps: DependenciasDaApi): Promis
           },
         );
       });
+    // O balão do site (M8-07, decisão 0057): as rotas públicas, sem login, separadas em /balao/*.
+    registrarRotasDoBalao(app, {
+      poolApp: banco.pool,
+      segredo: config.acesso.segredo,
+      urlPublica: config.acesso.urlPublica,
+      atendimento: {
+        poolApp: banco.pool,
+        acordar: acordarAgente,
+        enviar: (empresaId, mensagemId) => enfileirarEnvio(empresaId, mensagemId),
+      },
+      log: app.log,
+    });
+    trabalhos.push(async () => {
+      await fila.createQueue(FILA_VISITANTES_DO_SITE);
+      await fila.schedule(FILA_VISITANTES_DO_SITE, "50 4 * * *");
+      await fila.work(FILA_VISITANTES_DO_SITE, () =>
+        continuarRastreio(null, FILA_VISITANTES_DO_SITE, async () => {
+          const n = await cuidarDosVisitantesVencidos(banco.pool);
+          if (n > 0)
+            app.log.info(
+              { evento: "balao.conversas_vencidas", n },
+              "Conversas de visitantes sem contato apagadas",
+            );
+        }),
+      );
+    });
     // O prazo da passagem para uma pessoa (M8-06): sem ninguém assumir, o gestor é avisado.
     trabalhos.push(async () => {
       await fila.createQueue(FILA_PASSAGENS_DAS_CONVERSAS);

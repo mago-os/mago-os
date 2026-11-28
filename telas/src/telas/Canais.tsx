@@ -343,13 +343,192 @@ function AgenteDoCanal({ canal, aoMudar }: { canal: Canal; aoMudar: (m?: Mensage
   );
 }
 
+/** Os domínios escritos um por linha (ou por vírgula), como o balão guarda: https e sem barra no fim. */
+function lerDominios(texto: string): string[] {
+  return [
+    ...new Set(
+      texto
+        .split(/[\s,]+/)
+        .map((d) => d.trim().toLowerCase().replace(/\/+$/, ""))
+        .filter((d) => d.length > 0)
+        .map((d) => (d.startsWith("http") ? d : `https://${d}`)),
+    ),
+  ].slice(0, 10);
+}
+
+/**
+ * O balão do site (M8-07, decisão 0057): a linha de código para colar no site, os domínios onde ele abre, a
+ * aparência, o link da política de privacidade e o WhatsApp para continuar.
+ */
+function BalaoDoSite({
+  canal,
+  whatsapps,
+  aoMudar,
+}: {
+  canal: Canal;
+  whatsapps: Canal[];
+  aoMudar: (m?: Mensagem) => void;
+}) {
+  const [aberto, setAberto] = useState(false);
+  const [dominios, setDominios] = useState((canal.dominios ?? []).join("\n"));
+  const [cor, setCor] = useState(canal.cor ?? "#4f46e5");
+  const [posicao, setPosicao] = useState<"direita" | "esquerda">(canal.posicao ?? "direita");
+  const [boasVindas, setBoasVindas] = useState(canal.boasVindas ?? "");
+  const [politica, setPolitica] = useState(canal.politicaUrl ?? "");
+  const [whatsapp, setWhatsapp] = useState(canal.whatsappCanalId ?? "");
+  const linha = `<script src="${window.location.origin}/balao.js" data-canal="${canal.chavePublica ?? ""}" async></script>`;
+
+  async function salvar() {
+    const r = await pedir("POST", `/canais/${canal.id}`, {
+      dominios: lerDominios(dominios),
+      cor,
+      posicao,
+      ...(boasVindas.trim() ? { boasVindas: boasVindas.trim() } : {}),
+      ...(politica.trim() ? { politicaUrl: politica.trim() } : {}),
+      whatsappCanalId: whatsapp || null,
+    });
+    aoMudar(r.ok ? { tipo: "ok", texto: "Balão salvo." } : { tipo: "erro", texto: r.mensagem ?? "" });
+  }
+  async function trocarChave() {
+    if (
+      !confirm("Trocar a chave? A linha de código que está no site para de funcionar até você colar a nova.")
+    )
+      return;
+    const r = await pedir("POST", `/canais/${canal.id}/chave`);
+    aoMudar(
+      r.ok
+        ? { tipo: "ok", texto: "Chave trocada. Cole a linha nova no site." }
+        : { tipo: "erro", texto: r.mensagem ?? "" },
+    );
+  }
+
+  return (
+    <div className="grid gap-3 border-t border-linha pt-3 text-sm">
+      <div className="grid gap-1.5">
+        <span className="font-medium">Linha de código para colar no site, antes do fim do body</span>
+        <code className="block overflow-x-auto rounded-md bg-fundo p-2 text-xs" data-linha-do-balao="">
+          {canal.chavePublica
+            ? linha
+            : "Este balão ainda não tem chave: toque em Trocar a chave para gerar a linha."}
+        </code>
+        <div className="flex flex-wrap gap-2">
+          <Button
+            size="pequeno"
+            variant="contorno"
+            onClick={() =>
+              void navigator.clipboard
+                ?.writeText(linha)
+                .then(() => aoMudar({ tipo: "ok", texto: "Linha de código copiada." }))
+            }
+          >
+            Copiar
+          </Button>
+          <Button size="pequeno" variant="fantasma" onClick={() => void trocarChave()}>
+            Trocar a chave
+          </Button>
+          <Button size="pequeno" variant="fantasma" onClick={() => setAberto(!aberto)}>
+            {aberto ? "Fechar" : "Configurar o balão"}
+          </Button>
+        </div>
+      </div>
+      {aberto && (
+        <form
+          className="grid gap-3"
+          onSubmit={(e) => {
+            e.preventDefault();
+            void salvar();
+          }}
+        >
+          <label className="grid gap-1.5">
+            <span className="font-medium">Sites onde o balão pode abrir (um por linha, até 10)</span>
+            <textarea
+              className="rounded-md border border-linha bg-cartao p-2"
+              rows={3}
+              placeholder="https://www.minhaloja.com.br"
+              value={dominios}
+              onChange={(e) => setDominios(e.target.value)}
+            />
+            <span className="text-xs text-texto-2">
+              Escreva o endereço exato, com o subdomínio (www é diferente de sem www). Em outro site, o balão
+              não abre.
+            </span>
+          </label>
+          <Campo
+            rotulo="Link da política de privacidade da empresa (obrigatório)"
+            id={`politica-${canal.id}`}
+            type="url"
+            placeholder="https://www.minhaloja.com.br/privacidade"
+            value={politica}
+            onChange={(e) => setPolitica(e.target.value)}
+          />
+          <label className="grid gap-1.5">
+            <span className="font-medium">Mensagem de boas-vindas</span>
+            <textarea
+              className="rounded-md border border-linha bg-cartao p-2"
+              rows={2}
+              maxLength={500}
+              value={boasVindas}
+              onChange={(e) => setBoasVindas(e.target.value)}
+            />
+          </label>
+          <div className="flex flex-wrap items-end gap-4">
+            <label className="grid gap-1.5">
+              <span className="font-medium">Cor</span>
+              <input
+                type="color"
+                className="h-10 w-16 rounded-md border border-linha bg-cartao"
+                value={cor}
+                onChange={(e) => setCor(e.target.value)}
+              />
+            </label>
+            <label className="grid gap-1.5">
+              <span className="font-medium">Posição</span>
+              <select
+                className="h-10 rounded-md border border-linha bg-cartao px-3"
+                value={posicao}
+                onChange={(e) => setPosicao(e.target.value as "direita" | "esquerda")}
+              >
+                <option value="direita">Direita</option>
+                <option value="esquerda">Esquerda</option>
+              </select>
+            </label>
+          </div>
+          <label className="grid gap-1.5">
+            <span className="font-medium">Continuar no WhatsApp</span>
+            <select
+              className="h-10 rounded-md border border-linha bg-cartao px-3"
+              value={whatsapp}
+              onChange={(e) => setWhatsapp(e.target.value)}
+            >
+              <option value="">Não mostrar</option>
+              {whatsapps.map((w) => (
+                <option key={w.id} value={w.id}>
+                  {w.nome}
+                  {w.identificador ? ` (${numeroParaLer(w.identificador)})` : ""}
+                </option>
+              ))}
+            </select>
+          </label>
+          <div>
+            <Button type="submit" size="pequeno">
+              Salvar o balão
+            </Button>
+          </div>
+        </form>
+      )}
+    </div>
+  );
+}
+
 function CartaoDoCanal({
   canal,
   equipes,
+  whatsapps,
   aoMudar,
 }: {
   canal: Canal;
   equipes: string[];
+  whatsapps: Canal[];
   aoMudar: (m?: Mensagem) => void;
 }) {
   const [lendo, setLendo] = useState(canal.situacao === "esperando_conexao");
@@ -448,6 +627,7 @@ function CartaoDoCanal({
         </form>
       )}
       {lendo && canal.provedor === "evolution" && <LerQr canal={canal} aoConectar={conectou} />}
+      {canal.provedor === "site" && <BalaoDoSite canal={canal} whatsapps={whatsapps} aoMudar={aoMudar} />}
       <AgenteDoCanal canal={canal} aoMudar={aoMudar} />
     </Card>
   );
@@ -460,6 +640,9 @@ export function Canais({ podeCriar }: { podeCriar: boolean }) {
   const [area, setArea] = useState<string | null>(null);
   const [mensagem, setMensagem] = useState<Mensagem>(null);
   const [enviando, setEnviando] = useState(false);
+  const [novoBalao, setNovoBalao] = useState(false);
+  const [dominiosNovos, setDominiosNovos] = useState("");
+  const [politicaNova, setPoliticaNova] = useState("");
   const equipes = useEquipes();
 
   const carregar = useCallback(async () => {
@@ -489,16 +672,42 @@ export function Canais({ podeCriar }: { podeCriar: boolean }) {
     void carregar();
   }
 
+  async function criarBalao() {
+    setEnviando(true);
+    const r = await pedir("POST", "/canais/site", {
+      nome: nome.trim(),
+      area,
+      dominios: lerDominios(dominiosNovos),
+      politicaUrl: politicaNova.trim(),
+    });
+    setEnviando(false);
+    if (!r.ok) return setMensagem({ tipo: "erro", texto: r.mensagem ?? "" });
+    setNovoBalao(false);
+    setNome("");
+    setArea(null);
+    setDominiosNovos("");
+    setPoliticaNova("");
+    setMensagem({ tipo: "ok", texto: "Balão criado. Copie a linha de código e cole no site." });
+    void carregar();
+  }
+
   if (!dados) return null;
   return (
     <main className="mx-auto grid w-full max-w-3xl gap-4 px-4 py-5 md:py-8">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h1 className="text-2xl font-bold tracking-tight">Canais</h1>
-        {podeCriar && dados.whatsappLigado && !novo && (
-          <Button onClick={() => setNovo(true)}>
-            <Plus /> Conectar WhatsApp
-          </Button>
-        )}
+        <div className="flex flex-wrap gap-2">
+          {podeCriar && !novo && !novoBalao && (
+            <Button variant="contorno" onClick={() => setNovoBalao(true)}>
+              <Globe /> Chat no site
+            </Button>
+          )}
+          {podeCriar && dados.whatsappLigado && !novo && !novoBalao && (
+            <Button onClick={() => setNovo(true)}>
+              <Plus /> Conectar WhatsApp
+            </Button>
+          )}
+        </div>
       </div>
       <Card className="gap-2 border-alerta/40">
         <p className="flex gap-2 text-sm">
@@ -542,9 +751,72 @@ export function Canais({ podeCriar }: { podeCriar: boolean }) {
           </form>
         </Card>
       )}
+      {novoBalao && (
+        <Card className="gap-3">
+          <CardTitulo>Chat no site</CardTitulo>
+          <CardDescricao>
+            Um balão de conversa no site da empresa. O agente e a equipe respondem pela caixa de conversas.
+          </CardDescricao>
+          <form
+            className="grid gap-3"
+            onSubmit={(e) => {
+              e.preventDefault();
+              void criarBalao();
+            }}
+          >
+            <Campo
+              rotulo="Nome do canal"
+              id="nome-do-balao"
+              placeholder="Chat do site"
+              value={nome}
+              onChange={(e) => setNome(e.target.value)}
+              required
+              maxLength={80}
+            />
+            <EscolherEquipe id="equipe-do-balao" valor={area} aoMudar={setArea} equipes={equipes} />
+            <label className="grid gap-1.5 text-sm">
+              <span className="font-medium">Sites onde o balão pode abrir (um por linha)</span>
+              <textarea
+                className="rounded-md border border-linha bg-cartao p-2"
+                rows={2}
+                placeholder="https://www.minhaloja.com.br"
+                value={dominiosNovos}
+                onChange={(e) => setDominiosNovos(e.target.value)}
+                required
+              />
+            </label>
+            <Campo
+              rotulo="Link da política de privacidade da empresa"
+              id="politica-do-balao"
+              type="url"
+              placeholder="https://www.minhaloja.com.br/privacidade"
+              value={politicaNova}
+              onChange={(e) => setPoliticaNova(e.target.value)}
+              required
+            />
+            <div className="flex gap-2">
+              <Button
+                type="submit"
+                disabled={enviando || !nome.trim() || !dominiosNovos.trim() || !politicaNova.trim()}
+              >
+                Criar o balão
+              </Button>
+              <Button type="button" variant="fantasma" onClick={() => setNovoBalao(false)}>
+                Cancelar
+              </Button>
+            </div>
+          </form>
+        </Card>
+      )}
       {dados.canais.length === 0 && !novo && <p className="text-sm text-texto-2">Nenhum canal ainda.</p>}
       {dados.canais.map((c) => (
-        <CartaoDoCanal key={`${c.id}-${c.situacao}`} canal={c} equipes={equipes} aoMudar={aoMudar} />
+        <CartaoDoCanal
+          key={`${c.id}-${c.situacao}-${c.chavePublica ?? ""}`}
+          canal={c}
+          equipes={equipes}
+          whatsapps={dados.canais.filter((w) => w.provedor === "evolution")}
+          aoMudar={aoMudar}
+        />
       ))}
     </main>
   );
