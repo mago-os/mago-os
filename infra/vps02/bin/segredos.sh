@@ -74,6 +74,9 @@ arquivos = {
         **{k: s[k] for k in ("MAGO_COFRE_CHAVE_MESTRA", "MAGO_COFRE_VERSAO", "MAGO_COFRE_CHAVE_ANTERIOR") if s.get(k)},
         # Telegram (M5-01), opcional: sem o token e o segredo do webhook, o bot fica desligado.
         **{k: s[k] for k in ("MAGO_TELEGRAM_TOKEN", "MAGO_TELEGRAM_SEGREDO") if s.get(k)},
+        # O WhatsApp oficial da plataforma (M8-09), opcional: os quatro juntos (a API recusa só uma parte).
+        **{k: s[k] for k in ("MAGO_META_TOKEN", "MAGO_META_NUMERO", "MAGO_META_SEGREDO_DO_APP",
+                             "MAGO_META_VERIFICACAO") if s.get(k)},
         **({
             "MAGO_EVOLUTION_URL": "http://evolution:8080", "MAGO_EVOLUTION_CHAVE": s["MAGO_EVOLUTION_CHAVE"],
             "MAGO_EVOLUTION_SEGREDO": s["MAGO_EVOLUTION_SEGREDO"],

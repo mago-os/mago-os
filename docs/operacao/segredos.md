@@ -29,6 +29,10 @@ Todos os segredos do Mago OS ficam no Infisical Cloud (região EUA, https://app.
 | `MAGO_RESEND_CHAVE` | Chave do Resend só de envio (domínio `osmago.com`), começa com `re_`. Opcional fora da produção: sem ela, os links de senha e de convite vão para o log | API, e-mails de convite e de senha (M1-07) |
 | `MAGO_TELEGRAM_TOKEN` | Token do bot de teste do Telegram, criado pelo Sandro no @BotFather e colado por ele na web do Infisical. Opcional: sem ele, o Telegram fica desligado. Trocar: /revoke no BotFather e gravar o novo | API, bot do Telegram (M5-01) |
 | `MAGO_TELEGRAM_SEGREDO` | Segredo que o Telegram manda em cada chamada do webhook (48 caracteres, gerado com `openssl rand -hex 24`). Trocar: gravar o novo e reiniciar a API, que registra o webhook de novo | API, webhook do Telegram (M5-01) |
+| `MAGO_META_TOKEN` | Token permanente do usuário do sistema `magoos-teste` (Funcionário) na Meta, colado pelo Sandro na web do Infisical. Opcional, junto com os outros três: sem eles, o WhatsApp da equipe fica desligado. Trocar: ver [whatsapp-da-plataforma.md](whatsapp-da-plataforma.md) | API, WhatsApp da plataforma (M8-09) |
+| `MAGO_META_NUMERO` | O id do número de teste na Meta | API, WhatsApp da plataforma (M8-09) |
+| `MAGO_META_SEGREDO_DO_APP` | A chave secreta do app Mago OS na Meta: confere a assinatura de cada aviso do webhook | API, webhook do WhatsApp (M8-09) |
+| `MAGO_META_VERIFICACAO` | O texto do desafio do webhook (`openssl rand -hex 32`), o mesmo no painel da Meta | API, webhook do WhatsApp (M8-09) |
 | `GRAFANA_OTLP_ENDPOINT` | Endereço OTLP do Grafana Cloud (Grafana Cloud › a stack › OpenTelemetry › Configure), colado pelo Sandro na web do Infisical. Opcional: sem os três do Grafana, nada sai do servidor | API, rastreio e registros (M6-02) |
 | `GRAFANA_OTLP_INSTANCIA` | Número da instância (Instance ID) da mesma tela | API, rastreio e registros (M6-02) |
 | `GRAFANA_OTLP_TOKEN` | Token do Grafana Cloud só de escrita (Access Policy com `traces:write`, `logs:write` e `metrics:write`). Trocar: criar outro token, gravar, rodar o `segredos.sh` e `publicar.sh forcar`, e só então apagar o antigo | API, rastreio e registros (M6-02) |

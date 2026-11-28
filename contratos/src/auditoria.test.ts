@@ -48,7 +48,7 @@ describe("evento de auditoria", () => {
   it("recusa ação fora do padrão assunto.verbo e canal desconhecido", async () => {
     const [evento] = await montarCorrente(1);
     expect(conferirEventoAuditoria({ ...evento, acao: "Entrou" }).ok).toBe(false);
-    expect(conferirEventoAuditoria({ ...evento, origem: { ...evento?.origem, canal: "whatsapp" } }).ok).toBe(
+    expect(conferirEventoAuditoria({ ...evento, origem: { ...evento?.origem, canal: "carta" } }).ok).toBe(
       false,
     );
   });

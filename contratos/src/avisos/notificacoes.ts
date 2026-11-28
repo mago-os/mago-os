@@ -40,7 +40,13 @@ export type AssinaturaDePush = Static<typeof AssinaturaDePush>;
  * (quando a pessoa tem o Telegram vinculado nesta empresa). Sem o campo telegram, vale o padrão do tipo.
  */
 export const CanaisDoAviso = Type.Object(
-  { tela: Type.Boolean(), push: Type.Boolean(), telegram: Type.Optional(Type.Boolean()) },
+  {
+    tela: Type.Boolean(),
+    push: Type.Boolean(),
+    telegram: Type.Optional(Type.Boolean()),
+    /** O WhatsApp oficial do Mago OS (M8-09): o mesmo padrão do Telegram. */
+    whatsapp: Type.Optional(Type.Boolean()),
+  },
   { additionalProperties: false },
 );
 export type CanaisDoAviso = Static<typeof CanaisDoAviso>;
@@ -111,6 +117,7 @@ export const AVISOS_FORA_DO_TELEGRAM = [
   "aprovacao_pedida",
   "telegram_desvinculado",
   "telegram_aprovacoes_travadas",
+  "whatsapp_desvinculado",
 ] as const satisfies readonly TipoDeAviso[];
 
 /** A hora do resumo do dia quando a pessoa não escolheu. */
@@ -127,6 +134,7 @@ export function canaisDoTipo(p: PreferenciasDeNotificacao, tipo: TipoDeAviso): R
     tela: escolhido?.tela ?? true,
     push: escolhido?.push ?? true,
     telegram: !foraDoTelegram && (escolhido?.telegram ?? (urgente && !desligouTudo)),
+    whatsapp: !foraDoTelegram && (escolhido?.whatsapp ?? (urgente && !desligouTudo)),
   };
 }
 

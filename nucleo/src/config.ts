@@ -42,6 +42,13 @@ export interface Config {
    * Sem elas, a conexão de WhatsApp fica desligada (a tela avisa).
    */
   evolution: { url: string; chave: string; segredo: string; urlDosAvisos: string } | null;
+  /**
+   * WhatsApp oficial da plataforma (M8-09, decisão 0059). Variáveis MAGO_META_TOKEN (o token permanente do usuário
+   * do sistema), MAGO_META_NUMERO (o id do número na Meta), MAGO_META_SEGREDO_DO_APP (a chave secreta do app, que
+   * confere a assinatura dos avisos) e MAGO_META_VERIFICACAO (o texto do desafio do webhook), as quatro ou nenhuma.
+   * Sem elas, o WhatsApp da equipe fica desligado.
+   */
+  meta?: { token: string; numeroId: string; segredoDoApp: string; verificacao: string } | null;
 }
 
 export interface ConfigDoCofre {
@@ -124,6 +131,7 @@ export function lerConfig(env: Record<string, string | undefined> = process.env)
   const cofre = lerCofre(env, ambiente, problemas);
   const telegram = lerTelegram(env, problemas);
   const evolution = lerEvolution(env, problemas);
+  const meta = lerMeta(env, problemas);
 
   if (problemas.length > 0) {
     throw new ErroDeConfig(`Configuração inválida:\n- ${problemas.join("\n- ")}`);
@@ -141,7 +149,34 @@ export function lerConfig(env: Record<string, string | undefined> = process.env)
     cofre,
     telegram,
     evolution,
+    meta,
   };
+}
+
+function lerMeta(
+  env: Record<string, string | undefined>,
+  problemas: string[],
+): NonNullable<Config["meta"]> | null {
+  const token = env.MAGO_META_TOKEN?.trim() ?? "";
+  const numeroId = env.MAGO_META_NUMERO?.trim() ?? "";
+  const segredoDoApp = env.MAGO_META_SEGREDO_DO_APP?.trim() ?? "";
+  const verificacao = env.MAGO_META_VERIFICACAO?.trim() ?? "";
+  const todas = [token, numeroId, segredoDoApp, verificacao];
+  if (todas.every((v) => v === "")) return null;
+  if (todas.some((v) => v === "")) {
+    problemas.push(
+      "WhatsApp da plataforma: informe MAGO_META_TOKEN, MAGO_META_NUMERO, MAGO_META_SEGREDO_DO_APP e MAGO_META_VERIFICACAO juntas",
+    );
+    return null;
+  }
+  if (!/^[0-9]{5,30}$/.test(numeroId))
+    problemas.push("MAGO_META_NUMERO precisa ser o id do número (só dígitos)");
+  if (!/^[A-Za-z0-9]{20,500}$/.test(token)) problemas.push("MAGO_META_TOKEN não parece um token da Meta");
+  if (!/^[0-9a-f]{32}$/i.test(segredoDoApp))
+    problemas.push("MAGO_META_SEGREDO_DO_APP não parece a chave secreta do app");
+  if (!/^[A-Za-z0-9_-]{16,256}$/.test(verificacao))
+    problemas.push("MAGO_META_VERIFICACAO precisa ter de 16 a 256 letras, números, _ ou -");
+  return { token, numeroId, segredoDoApp, verificacao };
 }
 
 function lerEvolution(env: Record<string, string | undefined>, problemas: string[]): Config["evolution"] {

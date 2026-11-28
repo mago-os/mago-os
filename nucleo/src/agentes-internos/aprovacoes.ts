@@ -372,7 +372,8 @@ export async function decidirAprovacao(o: OpcoesDeDecidir, d: PedidoDeDecidir): 
     const p = await c.query<{ nome: string }>("select nome from pessoas where id = $1", [d.pessoaId]);
     return p.rows[0]?.nome ?? "Alguém";
   });
-  const peloTelegram = d.origem.canal === "telegram" ? " pelo Telegram" : "";
+  const peloTelegram =
+    d.origem.canal === "telegram" ? " pelo Telegram" : d.origem.canal === "whatsapp" ? " pelo WhatsApp" : "";
 
   // 1. Confere o pedido e, ao aprovar, os parâmetros editados; depois troca "pendente" pela decisão numa
   // operação só, para dois cliques ao mesmo tempo não fazerem a ação duas vezes.
@@ -493,7 +494,7 @@ async function avisarDecisao(o: OpcoesDeDecidir, aprovacao: Aprovacao, d: Pedido
     );
     const pessoas = new Set([aprovacao.pedidoPor, r.rows[0]?.responsavel_id]);
     pessoas.delete(d.pessoaId);
-    if (d.origem.canal === "telegram") {
+    if (d.origem.canal === "telegram" || d.origem.canal === "whatsapp") {
       pessoas.add(d.pessoaId);
       const adms = await c.query<{ pessoa_id: string }>(
         "select pessoa_id from vinculos where empresa_id = empresa_ativa() and situacao = 'ativo' and perfil = 'administrador'",

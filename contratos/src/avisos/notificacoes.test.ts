@@ -36,8 +36,13 @@ describe("notificações", () => {
 describe("avisos pelo Telegram (M5-08)", () => {
   const sem = { porTipo: {}, silencio: null };
   it("por padrão, só o urgente vai pelo Telegram; o pedido de aprovação nunca (já vai com os botões)", () => {
-    expect(canaisDoTipo(sem, "mencao")).toEqual({ tela: true, push: true, telegram: true });
-    expect(canaisDoTipo(sem, "comentario")).toEqual({ tela: true, push: true, telegram: false });
+    expect(canaisDoTipo(sem, "mencao")).toEqual({ tela: true, push: true, telegram: true, whatsapp: true });
+    expect(canaisDoTipo(sem, "comentario")).toEqual({
+      tela: true,
+      push: true,
+      telegram: false,
+      whatsapp: false,
+    });
     expect(canaisDoTipo(sem, "aprovacao_pedida").telegram).toBe(false);
     expect(canaisDoTipo(sem, "rotina_rodou").telegram).toBe(true);
     expect(canaisDoTipo(sem, "tarefa_atribuida").telegram).toBe(false);
@@ -52,7 +57,7 @@ describe("avisos pelo Telegram (M5-08)", () => {
         { porTipo: { comentario: { tela: true, push: false, telegram: true } }, silencio: null },
         "comentario",
       ),
-    ).toEqual({ tela: true, push: false, telegram: true });
+    ).toEqual({ tela: true, push: false, telegram: true, whatsapp: false });
   });
 
   it("quem desligou o sino e o push de um tipo antes do Telegram não recebe por ele", () => {

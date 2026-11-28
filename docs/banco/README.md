@@ -118,6 +118,15 @@ erDiagram
     timestamp_with_time_zone enviada_em
     timestamp_with_time_zone atualizada_em
   }
+  aprovacoes_no_whatsapp {
+    uuid empresa_id PK
+    uuid aprovacao_id PK
+    uuid pessoa_id PK
+    text mensagem_id
+    text conferencia
+    timestamp_with_time_zone enviada_em
+    timestamp_with_time_zone atualizada_em
+  }
   arquivos_de_conversa {
     uuid id PK
     uuid empresa_id FK
@@ -175,6 +184,7 @@ erDiagram
     uuid tarefa_id
     boolean push_pendente
     boolean telegram_pendente
+    boolean whatsapp_pendente
   }
   avisos_de_gasto {
     uuid empresa_id PK
@@ -259,6 +269,15 @@ erDiagram
     timestamp_with_time_zone atualizada_em
   }
   codigos_do_telegram {
+    uuid id PK
+    uuid empresa_id FK
+    uuid pessoa_id FK
+    text resumo
+    timestamp_with_time_zone criado_em
+    timestamp_with_time_zone vence_em
+    timestamp_with_time_zone usado_em
+  }
+  codigos_do_whatsapp {
     uuid id PK
     uuid empresa_id FK
     uuid pessoa_id FK
@@ -667,6 +686,9 @@ erDiagram
     boolean telegram_pendente
     timestamp_with_time_zone telegram_enviada_em
     integer telegram_partes_enviadas
+    boolean whatsapp_pendente
+    timestamp_with_time_zone whatsapp_enviada_em
+    integer whatsapp_partes_enviadas
   }
   modelos_de_conta_de_ia {
     uuid empresa_id FK
@@ -721,6 +743,15 @@ erDiagram
     timestamp_with_time_zone criado_em
   }
   pedidos_de_codigo_no_telegram {
+    uuid empresa_id FK
+    uuid pessoa_id PK
+    uuid aprovacao_id
+    text acao
+    text conferencia
+    timestamp_with_time_zone aberto_em
+    timestamp_with_time_zone vale_ate
+  }
+  pedidos_de_codigo_no_whatsapp {
     uuid empresa_id FK
     uuid pessoa_id PK
     uuid aprovacao_id
@@ -940,6 +971,19 @@ erDiagram
     uuid conversa_id
     date resumo_do_dia_em
   }
+  vinculos_do_whatsapp {
+    uuid id PK
+    uuid empresa_id FK
+    uuid pessoa_id FK
+    text numero
+    text nome
+    uuid conversa_id
+    timestamp_with_time_zone ultima_mensagem_em
+    date resumo_do_dia_em
+    date dia_dos_modelos
+    integer modelos_no_dia
+    timestamp_with_time_zone vinculado_em
+  }
   visitantes_do_site {
     uuid id PK
     uuid empresa_id FK
@@ -1144,6 +1188,7 @@ erDiagram
   empresas ||--o{ anexos : "empresa_id"
   empresas ||--o{ aprovacoes : "empresa_id"
   empresas ||--o{ aprovacoes_no_telegram : "empresa_id"
+  empresas ||--o{ aprovacoes_no_whatsapp : "empresa_id"
   empresas ||--o{ arquivos_de_conversa : "empresa_id"
   empresas ||--o{ arquivos_do_telegram : "empresa_id"
   empresas ||--o{ arquivos_para_apagar : "empresa_id"
@@ -1157,6 +1202,8 @@ erDiagram
   empresas ||--o{ chaves_de_dados : "empresa_id"
   empresas ||--o{ codigos_do_telegram : "empresa_id"
   pessoas ||--o{ codigos_do_telegram : "pessoa_id"
+  empresas ||--o{ codigos_do_whatsapp : "empresa_id"
+  pessoas ||--o{ codigos_do_whatsapp : "pessoa_id"
   empresas ||--o{ codigos_para_o_whatsapp : "empresa_id"
   empresas ||--o{ comentarios_de_tarefa : "empresa_id"
   empresas ||--o{ consumo_de_ia : "empresa_id"
@@ -1195,6 +1242,7 @@ erDiagram
   empresas ||--o{ passos_de_execucao : "empresa_id"
   consumo_de_ia ||--o{ passos_de_execucao : "consumo_id"
   empresas ||--o{ pedidos_de_codigo_no_telegram : "empresa_id"
+  empresas ||--o{ pedidos_de_codigo_no_whatsapp : "empresa_id"
   empresas ||--o{ pedidos_do_balao : "empresa_id"
   empresas ||--o{ preferencias_de_notificacao : "empresa_id"
   empresas ||--o{ projetos : "empresa_id"
@@ -1214,6 +1262,8 @@ erDiagram
   pessoas ||--o{ vinculos : "pessoa_id"
   empresas ||--o{ vinculos_do_telegram : "empresa_id"
   pessoas ||--o{ vinculos_do_telegram : "pessoa_id"
+  empresas ||--o{ vinculos_do_whatsapp : "empresa_id"
+  pessoas ||--o{ vinculos_do_whatsapp : "pessoa_id"
   empresas ||--o{ visitantes_do_site : "empresa_id"
   empresas ||--o{ visoes_de_contatos : "empresa_id"
   empresas ||--o{ visoes_de_conversas : "empresa_id"
@@ -1415,6 +1465,22 @@ Isolamento por empresa (Row Level Security): ligado e forçado.
 | enviada_em | timestamp with time zone | sim | `now()` | sistema | Quando foi mandada. |
 | atualizada_em | timestamp with time zone | não |  | sistema | Quando a mensagem foi editada com a decisão, sem os botões (vazio: o pedido ainda está aberto). |
 
+### aprovacoes_no_whatsapp
+
+Os pedidos de aprovação mandados pelo WhatsApp (M8-09), com a conferência mostrada a cada pessoa.
+
+Isolamento por empresa (Row Level Security): ligado e forçado.
+
+| Coluna | Tipo | Obrigatória | Padrão | Marca | Descrição |
+| --- | --- | --- | --- | --- | --- |
+| empresa_id | uuid | sim |  | sistema | Empresa do pedido. Chave primária. |
+| aprovacao_id | uuid | sim |  | sistema | O pedido de aprovação. Chave primária. |
+| pessoa_id | uuid | sim |  | sistema | A quem foi. Chave primária. |
+| mensagem_id | text | não |  | sistema | O id da mensagem na Meta. |
+| conferencia | text | sim |  | sistema | A conferência do pedido que a pessoa viu. |
+| enviada_em | timestamp with time zone | sim | `now()` | sistema | Quando foi. |
+| atualizada_em | timestamp with time zone | não |  | sistema | Quando a decisão foi avisada por lá. |
+
 ### arquivos_de_conversa
 
 Foto, documento ou áudio de uma mensagem com contato (M8-03), conferido pelo antivírus e apagado depois do prazo.
@@ -1507,6 +1573,7 @@ Isolamento por empresa (Row Level Security): ligado e forçado.
 | tarefa_id | uuid | não |  | sistema | Tarefa do aviso, quando é de uma tarefa (o aviso some junto com ela). |
 | push_pendente | boolean | sim | `false` | sistema | O push deste aviso ainda vai sair (a verificação a cada minuto manda, fora do horário de silêncio). |
 | telegram_pendente | boolean | sim | `true` | sistema | O aviso ainda espera a verificação do Telegram (se o tipo vai por lá, o vínculo e o silêncio). |
+| whatsapp_pendente | boolean | sim | `true` | sistema | O aviso ainda vai pelo WhatsApp (M8-09). |
 
 ### avisos_de_gasto
 
@@ -1640,6 +1707,22 @@ Isolamento por empresa (Row Level Security): ligado e forçado.
 | criado_em | timestamp with time zone | sim | `now()` | sistema | Quando foi gerado. |
 | vence_em | timestamp with time zone | sim |  | sistema | Até quando vale. |
 | usado_em | timestamp with time zone | não |  | sistema | Quando foi usado ou anulado (vazio: ainda vale). |
+
+### codigos_do_whatsapp
+
+Códigos de vínculo do WhatsApp (M8-09): de uso único, valem 10 minutos; só o resumo fica guardado.
+
+Isolamento por empresa (Row Level Security): ligado e forçado.
+
+| Coluna | Tipo | Obrigatória | Padrão | Marca | Descrição |
+| --- | --- | --- | --- | --- | --- |
+| id | uuid | sim | `uuidv7()` | sistema | Identificador. Chave primária. |
+| empresa_id | uuid | sim |  | sistema | Empresa em que o código foi gerado. Aponta para empresas.id. |
+| pessoa_id | uuid | sim |  | sistema | Quem gerou. Aponta para pessoas.id. |
+| resumo | text | sim |  | sensivel | Resumo (SHA-256) do código. |
+| criado_em | timestamp with time zone | sim | `now()` | sistema | Quando. |
+| vence_em | timestamp with time zone | sim |  | sistema | Até quando vale. |
+| usado_em | timestamp with time zone | não |  | sistema | Quando foi usado (ou anulado por outro). |
 
 ### codigos_para_o_whatsapp
 
@@ -2258,6 +2341,9 @@ Isolamento por empresa (Row Level Security): ligado e forçado.
 | telegram_pendente | boolean | sim | `false` | sistema | Falta mandar esta mensagem ao Telegram da pessoa. |
 | telegram_enviada_em | timestamp with time zone | não |  | sistema | Quando foi mandada ao Telegram. |
 | telegram_partes_enviadas | integer | sim | `0` | sistema | Partes já mandadas ao Telegram (resposta longa dividida; continua da que faltava). |
+| whatsapp_pendente | boolean | sim | `false` | sistema | A resposta do agente ainda vai pelo WhatsApp (M8-09). |
+| whatsapp_enviada_em | timestamp with time zone | não |  | sistema | Quando foi pelo WhatsApp. |
+| whatsapp_partes_enviadas | integer | sim | `0` | sistema | Partes da resposta longa já mandadas pelo WhatsApp. |
 
 ### modelos_de_conta_de_ia
 
@@ -2361,6 +2447,22 @@ Isolamento por empresa (Row Level Security): ligado e forçado.
 | conferencia | text | sim |  | sistema | A conferência que a pessoa viu na mensagem do pedido. |
 | aberto_em | timestamp with time zone | sim | `now()` | sistema | Quando tocou no botão. |
 | vale_ate | timestamp with time zone | sim |  | sistema | Até quando espera o código ou o motivo. |
+
+### pedidos_de_codigo_no_whatsapp
+
+O toque em Aprovar ou Recusar pelo WhatsApp esperando o código ou o motivo (M8-09), um por pessoa.
+
+Isolamento por empresa (Row Level Security): ligado e forçado.
+
+| Coluna | Tipo | Obrigatória | Padrão | Marca | Descrição |
+| --- | --- | --- | --- | --- | --- |
+| empresa_id | uuid | sim |  | sistema | Empresa do pedido de aprovação. Aponta para empresas.id. |
+| pessoa_id | uuid | sim |  | sistema | Quem tocou. Chave primária. |
+| aprovacao_id | uuid | sim |  | sistema | O pedido de aprovação. |
+| acao | text | sim |  | sistema | aprovar (espera o código) ou recusar (o motivo). |
+| conferencia | text | sim |  | sistema | A conferência que a pessoa viu. |
+| aberto_em | timestamp with time zone | sim | `now()` | sistema | Quando tocou. |
+| vale_ate | timestamp with time zone | sim |  | sistema | Até quando espera (5 minutos). |
 
 ### pedidos_do_balao
 
@@ -2698,6 +2800,26 @@ Isolamento por empresa (Row Level Security): ligado e forçado.
 | vinculado_em | timestamp with time zone | sim | `now()` | sistema | Quando a conta foi vinculada. |
 | conversa_id | uuid | não |  | sistema | A conversa atual pelo Telegram (vazio: a próxima mensagem começa uma nova). |
 | resumo_do_dia_em | date | não |  | sistema | O último dia, no fuso da pessoa, em que o resumo do dia foi pelo Telegram (ou foi pulado). |
+
+### vinculos_do_whatsapp
+
+O WhatsApp de cada pessoa (um de cada lado, na plataforma toda) e a empresa da conversa por lá (M8-09).
+
+Isolamento por empresa (Row Level Security): ligado e forçado.
+
+| Coluna | Tipo | Obrigatória | Padrão | Marca | Descrição |
+| --- | --- | --- | --- | --- | --- |
+| id | uuid | sim | `uuidv7()` | sistema | Identificador. Chave primária. |
+| empresa_id | uuid | sim |  | sistema | Empresa da conversa pelo WhatsApp (a pessoa precisa ter vínculo ativo nela). Aponta para empresas.id. |
+| pessoa_id | uuid | sim |  | sistema | A pessoa. Aponta para pessoas.id. |
+| numero | text | sim |  | pessoal | O número do WhatsApp da pessoa, só os dígitos. |
+| nome | text | sim |  | pessoal | O nome do perfil do WhatsApp. |
+| conversa_id | uuid | não |  | sistema | A conversa atual com o coordenador. |
+| ultima_mensagem_em | timestamp with time zone | não |  | sistema | A última mensagem da pessoa: abre a janela de 24 horas da Meta. |
+| resumo_do_dia_em | date | não |  | sistema | O último dia em que o resumo foi. |
+| dia_dos_modelos | date | não |  | sistema | O dia da contagem dos modelos. |
+| modelos_no_dia | integer | sim | `0` | sistema | Mensagens por modelo (pagas pela Nolask) mandadas no dia: no máximo 10. |
+| vinculado_em | timestamp with time zone | sim | `now()` | sistema | Quando foi vinculado. |
 
 ### visitantes_do_site
 

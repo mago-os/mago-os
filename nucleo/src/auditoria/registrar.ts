@@ -16,7 +16,7 @@ export interface DadosDoEvento {
   acao: string;
   alvo?: { tipo: string; id: string } | null;
   origem: {
-    canal: "painel" | "api" | "telegram" | "mcp" | "sistema";
+    canal: "painel" | "api" | "telegram" | "whatsapp" | "mcp" | "sistema";
     ip: string | null;
     aparelho: string | null;
   };

@@ -165,6 +165,8 @@ export const TIPOS_DE_AVISO = [
   // ninguém assumiu no prazo do canal (vai ao gestor da área; sem gestor, aos administradores).
   "conversa_precisa_de_pessoa",
   "conversa_passou_do_prazo",
+  // M8-09: o WhatsApp da pessoa foi vinculado a outra pessoa.
+  "whatsapp_desvinculado",
 ] as const;
 export const TipoDeAviso = Type.Enum(TIPOS_DE_AVISO);
 export type TipoDeAviso = Static<typeof TipoDeAviso>;

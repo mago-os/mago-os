@@ -46,8 +46,10 @@ export const AGENTES_DE_NASCENCA = [
  * rotina (M5-05): a conversa que uma rotina abriu em nome do dono, com o pedido escrito por ele na rotina; a resposta
  * aparece no app e vai também pelo Telegram, se o dono o tiver vinculado.
  */
-export const CANAIS_DA_CONVERSA = ["app", "telegram", "rotina"] as const;
-export const CanalDaConversa = Type.Enum(CANAIS_DA_CONVERSA, { description: "app, telegram ou rotina." });
+export const CANAIS_DA_CONVERSA = ["app", "telegram", "rotina", "whatsapp"] as const;
+export const CanalDaConversa = Type.Enum(CANAIS_DA_CONVERSA, {
+  description: "app, telegram, rotina ou whatsapp.",
+});
 export type CanalDaConversa = Static<typeof CanalDaConversa>;
 
 export const Conversa = Type.Object(
