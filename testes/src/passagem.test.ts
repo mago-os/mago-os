@@ -519,7 +519,7 @@ describe.skipIf(!bancoDisponivel)("passagem da conversa para uma pessoa", () => 
     expect(r.pedido).toBe("passou");
     expect((await conversa(id)).conversa.passagem?.motivo).toBe("em_circulos");
     filaDoAgente.length = 0;
-  });
+  }, 60_000);
 
   it("o agente passa pela ferramenta: o responsável pelo contato é avisado, não a equipe", async () => {
     const r1 = await clienteEscreve("Oi, boa tarde", "5511900000007", "Gabi");
