@@ -287,8 +287,8 @@ export async function cuidarDasAprovacoesNoWhatsapp(
 }
 
 /**
- * O modelo de um aviso fora da janela: a tarefa nova vai pelo tarefa_atribuida e o prazo (de hoje ou vencido) pelo
- * lembrete_de_tarefa, com o primeiro nome e o título da tarefa; o resto, pelo aviso_do_mago_os, com o texto do aviso.
+ * O modelo de um aviso fora da janela: a tarefa nova vai pelo tarefa_atribuida_v2 e o prazo (de hoje ou vencido) pelo
+ * lembrete_de_tarefa_v2, com o primeiro nome e o título da tarefa; o resto, pelo aviso_do_mago_os, com o texto do aviso.
  */
 export function modeloDoAviso(
   a: { tipo: TipoDeAviso; texto: string; titulo: string | null },

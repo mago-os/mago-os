@@ -10,9 +10,9 @@ O número oficial do Mago OS faz pela equipe o mesmo que o bot do Telegram: vinc
 - **Destinatários de teste:** até 5 números, em WhatsApp › Configuração da API › "Para".
 - **Modelos (Utilidade, pt_BR):** cada um com {{1}} = o primeiro nome da pessoa e {{2}} = o título da tarefa ou o texto do aviso. Modelo novo só com o ok do Sandro.
   - `aviso_do_mago_os`: "Olá, {{1}}. Há um aviso no Mago OS: {{2}}. Responda aqui para ver os detalhes." (os avisos urgentes e o pedido de aprovação fora da janela de 24 horas).
-  - `tarefa_atribuida`: "Olá, {{1}}. Você recebeu a tarefa "{{2}}" no Mago OS. Abra o Mago OS para ver os detalhes." (a tarefa nova).
-  - `lembrete_de_tarefa`: "Olá, {{1}}. A tarefa "{{2}}" vence hoje. Abra o Mago OS para ver os detalhes." (o prazo de hoje ou vencido).
-  - O corpo leva só o texto com as variáveis; os exemplos vão nos campos de exemplo. Em 28/11/2026, os dois últimos estavam com os exemplos dentro do corpo (e o lembrete como Marketing) e precisavam de correção.
+  - `tarefa_atribuida_v2`: "Olá, {{1}}. Você recebeu a tarefa "{{2}}" no Mago OS. Abra o Mago OS para ver os detalhes." (a tarefa nova).
+  - `lembrete_de_tarefa_v2`: "Olá, {{1}}. A tarefa "{{2}}" vence hoje. Abra o Mago OS para ver os detalhes." (o prazo de hoje ou vencido).
+  - O corpo leva só o texto com as variáveis; os exemplos vão nos campos de exemplo; idioma Portuguese (BR). Os `tarefa_atribuida` e `lembrete_de_tarefa` de 27/11/2026 ficaram com os exemplos dentro do corpo (e o lembrete como Marketing) e não são usados: os `_v2` os substituem.
 - **Webhook:** `https://teste.osmago.com/api/whatsapp/webhook`, com o campo `messages` assinado. O app tem um endereço só; a produção vai precisar de um app próprio ou de mudar o endereço.
 
 ## Segredos (Infisical, projeto mago-os, ambiente staging)

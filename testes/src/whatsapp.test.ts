@@ -521,11 +521,11 @@ describe.skipIf(!bancoDisponivel)("WhatsApp da plataforma", () => {
     expect(
       modeloDoAviso({ tipo: "tarefa_atribuida", texto: "x", titulo: "Revisar o contrato" }, "Bruno"),
     ).toEqual({
-      nome: "tarefa_atribuida",
+      nome: "tarefa_atribuida_v2",
       valores: ["Bruno", "Revisar o contrato"],
     });
     expect(modeloDoAviso({ tipo: "prazo_vencido", texto: "x", titulo: "Enviar a proposta" }, "Ana")).toEqual({
-      nome: "lembrete_de_tarefa",
+      nome: "lembrete_de_tarefa_v2",
       valores: ["Ana", "Enviar a proposta"],
     });
     expect(modeloDoAviso({ tipo: "mencao", texto: "Chamaram você", titulo: null }, "Ana")).toEqual({

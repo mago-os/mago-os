@@ -20,8 +20,9 @@ export const MAXIMO_DA_MENSAGEM_DO_WHATSAPP = 4096;
 
 /** Os modelos aprovados na Meta (Utilidade, pt_BR). aviso_do_mago_os só vale depois de a Meta aprovar. */
 export const MODELOS_DO_WHATSAPP = {
-  tarefaAtribuida: "tarefa_atribuida",
-  lembreteDeTarefa: "lembrete_de_tarefa",
+  // Os _v2 substituem os de 27/11/2026, que ficaram com os exemplos dentro do corpo.
+  tarefaAtribuida: "tarefa_atribuida_v2",
+  lembreteDeTarefa: "lembrete_de_tarefa_v2",
   aviso: "aviso_do_mago_os",
 } as const;
 
