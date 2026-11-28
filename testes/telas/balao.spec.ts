@@ -58,8 +58,9 @@ test.describe("balão do site", () => {
   test.afterAll(async () => {
     const c = new pg.Client({ connectionString: BANCO_DONO });
     await c.connect();
-    await c.query("delete from canais_de_contato where empresa_id = $1", [pessoa.empresaId]);
+    await c.query("delete from conversas_com_contatos where empresa_id = $1", [pessoa.empresaId]);
     await c.query("delete from contatos where empresa_id = $1", [pessoa.empresaId]);
+    await c.query("delete from canais_de_contato where empresa_id = $1", [pessoa.empresaId]);
     await c.end();
     await pessoa.limpar();
   });
