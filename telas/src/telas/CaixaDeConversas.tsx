@@ -801,6 +801,8 @@ function ConversaAberta({
   if (dados === undefined) return <p className="text-sm text-texto-2">Carregando...</p>;
   if (!dados) return <p className="text-sm text-texto-2">Conversa não encontrada.</p>;
   const c = dados.conversa;
+  // No balão do site (M8-07): a página de onde o visitante veio e a última em que escreveu.
+  const paginas = dados.mensagens.flatMap((m) => (m.autor === "contato" && m.pagina ? [m.pagina] : []));
   const quemDigita = Object.entries(digitando)
     .filter(([chave, ate]) => chave.startsWith(`${id}:`) && ate > Date.now())
     .map(([chave]) => nomes[chave.split(":")[1] ?? ""] ?? "Alguém");
@@ -834,6 +836,47 @@ function ConversaAberta({
           </p>
           {c.maisDeUmContato && (
             <p className="text-sm text-alerta">Este número está em mais de um contato.</p>
+          )}
+          {c.canal.provedor === "site" && paginas.length > 0 && (
+            <p className="text-sm text-texto-2">
+              Veio de{" "}
+              <a className="underline" href={paginas[0]?.url} target="_blank" rel="noopener noreferrer">
+                {paginas[0]?.titulo || paginas[0]?.url}
+              </a>
+              {paginas.length > 1 && paginas.at(-1)?.url !== paginas[0]?.url && (
+                <>
+                  {" "}
+                  · agora em{" "}
+                  <a
+                    className="underline"
+                    href={paginas.at(-1)?.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    {paginas.at(-1)?.titulo || paginas.at(-1)?.url}
+                  </a>
+                </>
+              )}
+            </p>
+          )}
+          {c.podeSerContatoId && c.podeSerContatoId !== c.contatoId && (
+            <p className="flex flex-wrap items-center gap-2 text-sm text-alerta">
+              O e-mail ou o telefone que o cliente deixou já está noutro contato.{" "}
+              <a className="underline" href={`/contatos/${c.podeSerContatoId}`}>
+                Ver o contato
+              </a>
+              {dados.pode.editar && (
+                <button
+                  type="button"
+                  className="underline"
+                  onClick={() =>
+                    void agir("contato", { contatoId: c.podeSerContatoId }, "Conversa ligada ao contato.")
+                  }
+                >
+                  É ele: ligar a conversa
+                </button>
+              )}
+            </p>
           )}
           {c.canal.situacao === "desconectado" && (
             <p className="text-sm text-perigo">O número deste canal está desconectado.</p>

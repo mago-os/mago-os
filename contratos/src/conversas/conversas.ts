@@ -74,6 +74,23 @@ export const AssuntosParaPessoas = Type.Array(Texto(60, "Um assunto, ex.: descon
   uniqueItems: true,
 });
 
+/** O balão do site (M8-07, decisão 0057). */
+export const ChaveDoBalao = Type.String({
+  pattern: "^[A-Za-z0-9]{22}$",
+  description: "A chave pública do balão.",
+});
+/** Os endereços onde o balão abre: https, exatos (o subdomínio por inteiro), até 10. */
+export const DominiosDoBalao = Type.Array(
+  Type.String({
+    pattern: "^https://[a-z0-9]([a-z0-9-]*[a-z0-9])?(\\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+(:[0-9]{2,5})?$",
+    maxLength: 253,
+  }),
+  { maxItems: 10, uniqueItems: true },
+);
+export const CorDoBalao = Type.String({ pattern: "^#[0-9a-fA-F]{6}$" });
+export const PosicaoDoBalao = Type.Enum(["direita", "esquerda"] as const);
+export const LinkDaPolitica = Type.String({ pattern: "^https://", maxLength: 500 });
+
 /** Um canal da empresa. A configuração do provedor não sai daqui (e nunca tem segredo). */
 export const Canal = Type.Object(
   {
@@ -103,6 +120,14 @@ export const Canal = Type.Object(
     ),
     /** Com uma pessoa na conversa, o agente escreve sugestões na caixa. */
     sugerirComPessoa: Type.Optional(Type.Boolean()),
+    /** O balão do site (M8-07): a chave da linha de código e a aparência. */
+    chavePublica: Type.Optional(OuNulo(ChaveDoBalao)),
+    dominios: Type.Optional(DominiosDoBalao),
+    cor: Type.Optional(CorDoBalao),
+    posicao: Type.Optional(PosicaoDoBalao),
+    boasVindas: Type.Optional(Texto(500, "A mensagem de boas-vindas do balão.")),
+    politicaUrl: Type.Optional(OuNulo(LinkDaPolitica)),
+    whatsappCanalId: Type.Optional(OuNulo(Id)),
     criadoEm: DataHora,
   },
   {
@@ -161,6 +186,8 @@ export const ConversaComContato = Type.Object(
     abertaEm: DataHora,
     resolvidaEm: OuNulo(DataHora),
     resolvidaPor: OuNulo(Id),
+    /** O contato que já tem o e-mail ou o telefone que o cliente deixou (M8-07): a equipe confere e troca. */
+    podeSerContatoId: Type.Optional(OuNulo(Id)),
     /** Quando o agente passou a conversa para uma pessoa (M8-06), com o motivo e o resumo; nula sem passagem. */
     passagem: Type.Optional(
       OuNulo(
@@ -223,6 +250,16 @@ export const ArquivoDaMensagem = Type.Object(
 );
 export type ArquivoDaMensagem = Static<typeof ArquivoDaMensagem>;
 
+/** No balão do site (M8-07): a página onde o visitante escreveu, sem o que vem depois do "?" e do "#". */
+export const PaginaDoSite = Type.Object(
+  {
+    url: Type.String({ maxLength: 500, pattern: "^https?://" }),
+    titulo: OuNulo(Type.String({ maxLength: 200 })),
+  },
+  { additionalProperties: false },
+);
+export type PaginaDoSite = Static<typeof PaginaDoSite>;
+
 /** Uma mensagem da conversa: chegou do contato, saiu da empresa, ou a nota interna (só a equipe vê). */
 export const MensagemDaConversa = Type.Object(
   {
@@ -242,6 +279,8 @@ export const MensagemDaConversa = Type.Object(
     motivoDaFalha: OuNulo(Type.String({ maxLength: 300 })),
     /** Foto, documento ou áudio (M8-03). */
     arquivo: OuNulo(ArquivoDaMensagem),
+    /** No balão do site (M8-07): a página onde o visitante escreveu. */
+    pagina: Type.Optional(OuNulo(PaginaDoSite)),
   },
   { additionalProperties: false },
 );
@@ -383,6 +422,8 @@ export const MensagemQueChegou = Type.Object(
     enviadaEm: Type.Optional(DataHora),
     /** Mandada pelo próprio número, direto no celular (M8-03): entra como "saiu", marcada "pelo celular". */
     doCelular: Type.Optional(Type.Boolean()),
+    /** No balão do site (M8-07): a página onde o visitante escreveu. */
+    pagina: Type.Optional(PaginaDoSite),
   },
   { additionalProperties: false },
 );
@@ -480,10 +521,29 @@ export const PedidoDeEditarCanal = Type.Object(
     prazoParaAssumir: Type.Optional(Type.Integer({ minimum: 1, maximum: 240 })),
     mensagemDePassagem: Type.Optional(Texto(1000, "O texto que sai ao contato na passagem.")),
     sugerirComPessoa: Type.Optional(Type.Boolean()),
+    // O balão do site (M8-07).
+    dominios: Type.Optional(DominiosDoBalao),
+    cor: Type.Optional(CorDoBalao),
+    posicao: Type.Optional(PosicaoDoBalao),
+    boasVindas: Type.Optional(Texto(500, "A mensagem de boas-vindas do balão.")),
+    politicaUrl: Type.Optional(OuNulo(LinkDaPolitica)),
+    whatsappCanalId: Type.Optional(OuNulo(Id)),
   },
   { additionalProperties: false, minProperties: 1 },
 );
 export type PedidoDeEditarCanal = Static<typeof PedidoDeEditarCanal>;
+
+/** Criar o balão do site (M8-07): o nome, a equipe, os domínios e o link da política de privacidade. */
+export const PedidoDeCanalDoSite = Type.Object(
+  {
+    nome: Texto(80, "Nome do canal (ex.: Chat do site)."),
+    area: Type.Optional(OuNulo(Area)),
+    dominios: DominiosDoBalao,
+    politicaUrl: LinkDaPolitica,
+  },
+  { additionalProperties: false },
+);
+export type PedidoDeCanalDoSite = Static<typeof PedidoDeCanalDoSite>;
 
 /** O QR code para ler no celular, enquanto o número não conectou (imagem PNG em data URL). */
 export const QrDoCanal = Type.Object(

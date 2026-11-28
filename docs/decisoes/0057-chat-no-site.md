@@ -1,7 +1,7 @@
 # 0057 Chat no site
 
 - **Data:** 28/11/2026
-- **Situação:** proposta (esperando o ok do Sandro)
+- **Situação:** aceita (aprovada pelo Sandro no chat em 28/11/2026, com os 6 pontos como propostos)
 - **Tarefa:** M8-07
 
 ## Contexto
@@ -100,6 +100,17 @@ para quem não tem login. Os pontos que pedem o olho do Sandro estão marcados c
     - "continuar no WhatsApp" com o código (e sem ele);
     - o apagamento em 90 dias;
     - o isolamento entre empresas.
+
+## Ajustes ao construir (28/11/2026)
+
+- Os arquivos do balão (`balao.js`, `quadro.js`, `quadro.css`) são servidos pela API (em `nucleo/src/conversas/balao/`), sem passar pelo build da tela: o quadro é JavaScript puro, sem React.
+- O Caddy separou os cabeçalhos: HSTS e `nosniff` valem para tudo; a política de conteúdo, o `X-Frame-Options` e o `Permissions-Policy` do app valem fora de `/balao.js` e `/balao/*`, onde a API manda os do balão. A prévia dos testes de tela repassa `/balao` à API do mesmo jeito.
+- A prova de trabalho usa 14 bits, e o desafio é assinado com o segredo do login (não precisa guardar nada); o resumo da prova usada fica no visitante, para valer uma vez.
+- A configuração do balão é a única rota que responde ao site do cliente (CORS só para os domínios do canal). As outras só aceitam pedido do próprio quadro.
+- Pelo balão sai só texto (o arquivo mandado pela caixa é recusado); a mensagem fica "pendente" até o balão receber.
+- O telefone que o visitante deixa sem o + e com 10 ou 11 dígitos é lido como do Brasil (+55).
+- A verificação diária (fila `balao-visitantes`) apaga os visitantes vencidos, os pedidos de mais de um dia e as conversas de visitante sem contato de 90 dias.
+- Endereços: `POST /canais/site` e `POST /canais/:id/chave`; as rotas públicas em `/balao/:chave/{configuracao,desafio,visitante,mensagens,whatsapp}`.
 
 ## O que foi descartado
 

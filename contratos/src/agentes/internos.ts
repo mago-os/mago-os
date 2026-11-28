@@ -503,11 +503,17 @@ export const FERRAMENTAS_INTERNAS = [
   {
     nome: "completar_cliente",
     descricao:
-      "Completa o nome e o e-mail do cliente desta conversa quando ele ainda não foi identificado, com o que ele mesmo disse. Nunca invente. Se o e-mail já estiver noutro cadastro, a equipe confere; você não junta cadastros.",
+      "Completa o nome, o e-mail e o WhatsApp do cliente desta conversa quando ele ainda não foi identificado, com o que ele mesmo disse. Nunca invente. Se o e-mail ou o telefone já estiver noutro cadastro, a equipe confere; você não junta cadastros.",
     entrada: Type.Object(
       {
         nome: Type.Optional(Texto(200, "O nome que o cliente disse.")),
         email: Type.Optional(Type.String({ format: "email", maxLength: 254 })),
+        telefone: Type.Optional(
+          Type.String({
+            maxLength: 30,
+            description: "O WhatsApp que o cliente disse, com o DDD (ex.: 11 98765-4321).",
+          }),
+        ),
       },
       { additionalProperties: false, minProperties: 1 },
     ),

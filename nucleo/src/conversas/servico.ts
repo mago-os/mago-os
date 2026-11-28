@@ -4,6 +4,8 @@
  * dona). O banco isola as empresas. Cada função recebe uma lista de quem olha: na tela é a pessoa; no agente, quem
  * pediu e o responsável por ele (vale o menor dos dois, M4-04).
  */
+
+import { randomBytes } from "node:crypto";
 import {
   type Alcance,
   type Canal,
@@ -92,13 +94,14 @@ interface LinhaDaConversa {
   motivo_da_passagem: MotivoDaPassagem | null;
   resumo_da_passagem: string | null;
   escalada_em: Date | null;
+  pode_ser_contato_id: string | null;
 }
 
 const COLUNAS = `cv.id, cv.empresa_id, cv.canal_id, cn.nome as canal_nome, cn.provedor as canal_provedor,
   cn.situacao as canal_situacao, cv.contato_id, k.nome as contato_nome, k.identificado as contato_identificado,
   cv.identificador, cv.mais_de_um_contato, cv.dono_id, cv.com_agente, cv.situacao, cv.ultimo_a_responder,
   cv.ultima_mensagem_em, cv.aberta_em, cv.resolvida_em, cv.resolvida_por, cv.passada_em, cv.motivo_da_passagem,
-  cv.resumo_da_passagem, cv.escalada_em`;
+  cv.resumo_da_passagem, cv.escalada_em, cv.pode_ser_contato_id`;
 
 const DE = `conversas_com_contatos cv
   join canais_de_contato cn on cn.id = cv.canal_id and cn.empresa_id = cv.empresa_id
@@ -124,6 +127,7 @@ function paraConversa(l: LinhaDaConversa): ConversaComContato {
     abertaEm: l.aberta_em.toISOString(),
     resolvidaEm: iso(l.resolvida_em),
     resolvidaPor: l.resolvida_por,
+    podeSerContatoId: l.pode_ser_contato_id,
     passagem:
       l.passada_em && l.motivo_da_passagem
         ? {
@@ -225,6 +229,8 @@ interface LinhaDaMensagem {
   entrega: MensagemDaConversa["entrega"];
   motivo_da_falha: string | null;
   arquivo: MensagemDaConversa["arquivo"];
+  pagina_url: string | null;
+  pagina_titulo: string | null;
 }
 
 const paraMensagem = (l: LinhaDaMensagem): MensagemDaConversa => ({
@@ -241,6 +247,7 @@ const paraMensagem = (l: LinhaDaMensagem): MensagemDaConversa => ({
   entrega: l.entrega,
   motivoDaFalha: l.motivo_da_falha,
   arquivo: l.arquivo,
+  pagina: l.pagina_url ? { url: l.pagina_url, titulo: l.pagina_titulo } : null,
 });
 
 /** As últimas mensagens da conversa (já conferida), na ordem em que aconteceram. */
@@ -252,7 +259,7 @@ export async function mensagensDaConversa(
   const r = await c.query<LinhaDaMensagem>(
     `select * from (
        select m.id, m.conversa_id, m.direcao, m.autor, m.autor_pessoa_id, m.autor_agente_id, m.tipo, m.texto,
-              m.enviada_em, m.pelo_celular, m.entrega, m.motivo_da_falha,
+              m.enviada_em, m.pelo_celular, m.entrega, m.motivo_da_falha, m.pagina_url, m.pagina_titulo,
               (select json_build_object('id', a.id, 'nome', a.nome, 'tipo', a.tipo, 'tamanho', a.tamanho,
                                         'situacao', a.situacao)
                  from arquivos_de_conversa a where a.mensagem_id = m.id and a.empresa_id = m.empresa_id) as arquivo
@@ -306,11 +313,19 @@ interface LinhaDoCanal {
   prazo_para_assumir: number;
   mensagem_de_passagem: string;
   sugerir_com_pessoa: boolean;
+  chave_publica: string | null;
+  dominios: string[];
+  cor: string;
+  posicao: "direita" | "esquerda";
+  boas_vindas: string;
+  politica_url: string | null;
+  whatsapp_canal_id: string | null;
 }
 
 const COLUNAS_DO_CANAL = `id, empresa_id, nome, provedor, situacao, identificador, area, agente_id, criado_por, criado_em,
   modo, instrucoes, horario, mensagem_fora_do_horario, limite_de_autonomia, sugestoes_sem_edicao,
-  assuntos_para_pessoas, prazo_para_assumir, mensagem_de_passagem, sugerir_com_pessoa`;
+  assuntos_para_pessoas, prazo_para_assumir, mensagem_de_passagem, sugerir_com_pessoa, chave_publica, dominios, cor,
+  posicao, boas_vindas, politica_url, whatsapp_canal_id`;
 
 const paraCanal = (l: LinhaDoCanal): Canal => ({
   id: l.id,
@@ -331,6 +346,17 @@ const paraCanal = (l: LinhaDoCanal): Canal => ({
   prazoParaAssumir: l.prazo_para_assumir,
   mensagemDePassagem: l.mensagem_de_passagem,
   sugerirComPessoa: l.sugerir_com_pessoa,
+  ...(l.provedor === "site"
+    ? {
+        chavePublica: l.chave_publica,
+        dominios: l.dominios,
+        cor: l.cor,
+        posicao: l.posicao,
+        boasVindas: l.boas_vindas,
+        politicaUrl: l.politica_url,
+        whatsappCanalId: l.whatsapp_canal_id,
+      }
+    : {}),
   criadoEm: l.criado_em.toISOString(),
 });
 
@@ -354,14 +380,33 @@ export async function listarCanais(
 export async function criarCanal(
   c: pg.PoolClient,
   autorId: string,
-  dados: { nome: string; provedor: ProvedorDeCanal; identificador?: string | null; area?: string | null },
+  dados: {
+    nome: string;
+    provedor: ProvedorDeCanal;
+    identificador?: string | null;
+    area?: string | null;
+    /** No balão do site (M8-07). */
+    dominios?: string[];
+    politicaUrl?: string | null;
+  },
 ): Promise<Canal> {
   try {
     await c.query("savepoint criar_canal");
     const r = await c.query<LinhaDoCanal>(
-      `insert into canais_de_contato (empresa_id, nome, provedor, identificador, area, criado_por)
-       values (empresa_ativa(), $1, $2, $3, $4, $5) returning ${COLUNAS_DO_CANAL}`,
-      [dados.nome.trim(), dados.provedor, dados.identificador ?? null, dados.area ?? null, autorId],
+      `insert into canais_de_contato (empresa_id, nome, provedor, identificador, area, criado_por, chave_publica,
+                                      dominios, politica_url, situacao)
+       values (empresa_ativa(), $1, $2, $3, $4, $5, $6, $7, $8, $9) returning ${COLUNAS_DO_CANAL}`,
+      [
+        dados.nome.trim(),
+        dados.provedor,
+        dados.identificador ?? null,
+        dados.area ?? null,
+        autorId,
+        dados.provedor === "site" ? novaChaveDoBalao() : null,
+        dados.dominios ?? [],
+        dados.politicaUrl ?? null,
+        dados.provedor === "site" ? "conectado" : "esperando_conexao",
+      ],
     );
     await c.query("release savepoint criar_canal");
     return paraCanal(r.rows[0] as LinhaDoCanal);
@@ -371,6 +416,19 @@ export async function criarCanal(
       throw new RecusaDasConversas("Esse número já está conectado em outro canal.");
     throw erro;
   }
+}
+
+/** A chave pública do balão (M8-07): 22 letras e números ao acaso (cerca de 131 bits). */
+export function novaChaveDoBalao(): string {
+  const letras = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+  const bytes = randomBytes(44);
+  let chave = "";
+  for (const b of bytes) {
+    if (b >= 248) continue; // 248 = 62 * 4: sem viés
+    chave += letras[b % 62];
+    if (chave.length === 22) return chave;
+  }
+  return novaChaveDoBalao();
 }
 
 // Achar o contato e receber a mensagem ------------------------------------------------------------------------
@@ -394,6 +452,32 @@ export async function acharContatoPeloTelefone(
   );
   const primeiro = r.rows[0];
   return primeiro ? { contatoId: primeiro.contato_id, varios: r.rows.length > 1 } : null;
+}
+
+/** O contato do visitante do site (M8-07), se ele já tiver um. */
+async function contatoDoVisitante(
+  c: pg.PoolClient,
+  visitanteId: string,
+): Promise<{ contatoId: string; varios: boolean } | null> {
+  if (!UUID.test(visitanteId)) return null;
+  const r = await c.query<{ contato_id: string | null }>(
+    `select v.contato_id from visitantes_do_site v join contatos k on k.id = v.contato_id and k.empresa_id = v.empresa_id
+      where v.id = $1 and v.empresa_id = empresa_ativa() and k.situacao = 'ativo'`,
+    [visitanteId],
+  );
+  const id = r.rows[0]?.contato_id;
+  return id ? { contatoId: id, varios: false } : null;
+}
+
+/** O endereço da página sem o que vem depois do "?" e do "#" (onde costumam ir e-mails e códigos), até 500 letras. */
+export function paginaSemDados(url: string): string | null {
+  try {
+    const u = new URL(url);
+    if (u.protocol !== "https:" && u.protocol !== "http:") return null;
+    return `${u.origin}${u.pathname}`.slice(0, 500);
+  } catch {
+    return null;
+  }
 }
 
 export interface MensagemRecebida {
@@ -486,12 +570,22 @@ export async function receberMensagem(c: pg.PoolClient, m: MensagemQueChegou): P
     contatoId = ultima.contato_id;
     naFolga = ultima.situacao === "resolvida";
   } else {
-    const achado = identificador.startsWith("+") ? await acharContatoPeloTelefone(c, identificador) : null;
+    const achado = identificador.startsWith("+")
+      ? await acharContatoPeloTelefone(c, identificador)
+      : identificador.startsWith("visitante:")
+        ? await contatoDoVisitante(c, identificador.slice(10))
+        : null;
     if (achado) {
       contatoId = achado.contatoId;
     } else {
       contatoId = await criarContatoNaoIdentificado(c, m.canalId, canal, identificador, m.nomeDoPerfil);
       contatoNovo = true;
+      // O visitante do site (M8-07) fica com o contato: as próximas conversas dele no balão continuam nesse contato.
+      if (identificador.startsWith("visitante:") && UUID.test(identificador.slice(10)))
+        await c.query(
+          "update visitantes_do_site set contato_id = $2 where id = $1 and empresa_id = empresa_ativa()",
+          [identificador.slice(10), contatoId],
+        );
     }
     // O mesmo contato pode ter uma conversa aberta neste canal por outro número (ex.: o celular e o fixo): continua.
     const aberta = (
@@ -524,11 +618,20 @@ export async function receberMensagem(c: pg.PoolClient, m: MensagemQueChegou): P
   }
   const gravada = await c.query<{ id: string }>(
     `insert into mensagens_com_contatos (empresa_id, conversa_id, canal_id, direcao, autor, tipo, texto,
-                                         id_no_provedor, enviada_em)
-     values (empresa_ativa(), $1, $2, 'chegou', 'contato', $3, $4, $5, $6)
+                                         id_no_provedor, enviada_em, pagina_url, pagina_titulo)
+     values (empresa_ativa(), $1, $2, 'chegou', 'contato', $3, $4, $5, $6, $7, $8)
      on conflict (canal_id, id_no_provedor) where id_no_provedor is not null do nothing
      returning id`,
-    [conversaId, m.canalId, m.tipo, m.texto?.trim() || null, m.idNoProvedor ?? null, enviadaEm],
+    [
+      conversaId,
+      m.canalId,
+      m.tipo,
+      m.texto?.trim() || null,
+      m.idNoProvedor ?? null,
+      enviadaEm,
+      m.pagina ? paginaSemDados(m.pagina.url) : null,
+      m.pagina?.titulo?.trim().slice(0, 200) || null,
+    ],
   );
   const mensagemId = gravada.rows[0]?.id ?? null;
   if (mensagemId) {

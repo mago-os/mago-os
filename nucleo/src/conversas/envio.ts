@@ -22,6 +22,7 @@ import { criarAviso } from "../avisos/index.ts";
 import { comEmpresa, comPessoa } from "../empresa.ts";
 import { acessoDo, type Verificador } from "../permissoes/verificar.ts";
 import { contarSugestaoSemEdicao, type OpcoesDoAtendimento, pedirAoAtendente } from "./atendimento.ts";
+import { usarCodigoDoSite } from "./balao.ts";
 import { type ClienteDaEvolution, ErroDaEvolution, nomeDaInstancia } from "./evolution.ts";
 import {
   destinoDoIdentificador,
@@ -120,7 +121,11 @@ export async function tratarMensagemNova(
       [quem.canalId],
     );
     if ((canal.rowCount ?? 0) === 0) return null;
-    return receberMensagem(c, { ...lida.mensagem, canalId: quem.canalId });
+    const recebida = await receberMensagem(c, { ...lida.mensagem, canalId: quem.canalId });
+    // "Continuar no WhatsApp" (M8-07): o código do balão liga o visitante do site a este contato.
+    if (recebida.mensagemId && !lida.mensagem.doCelular)
+      await usarCodigoDoSite(c, quem.canalId, recebida.contatoId, lida.mensagem.texto);
+    return recebida;
   });
   if (!r?.mensagemId) return;
   // O agente do canal atende (M8-05). O arquivo, se houver, é gravado antes, para ele ver a mensagem inteira.
@@ -203,8 +208,9 @@ export async function criarMensagemQueSai(
   autor: { pessoaId: string } | { agenteId: string },
   pedido: { texto?: string; arquivo?: { nome: string; tipo: string; base64: string } },
 ): Promise<string> {
-  if (conversa.canal.provedor !== "evolution" && conversa.canal.provedor !== "meta")
-    throw new RecusaDasConversas("Por este canal ainda não dá para mandar mensagens daqui.");
+  // O balão do site (M8-07) recebe só texto: o visitante busca a mensagem pelo próprio balão.
+  if (conversa.canal.provedor === "site" && pedido.arquivo)
+    throw new RecusaDasConversas("Pelo balão do site, por enquanto, só texto.");
   if (conversa.situacao === "resolvida") throw new RecusaDasConversas("Reabra a conversa para responder.");
   let dados: Buffer | null = null;
   if (pedido.arquivo) {
@@ -291,6 +297,7 @@ export async function enviarPendente(
     canal_id: string;
     canal_nome: string;
     canal_situacao: string;
+    provedor: string;
     limite_por_minuto: number;
     limite_por_hora: number;
     identificador: string;
@@ -317,6 +324,7 @@ export async function enviarPendente(
   const preparado = await comEmpresa(o.poolApp, empresaId, async (c) => {
     const r = await c.query<Linha>(
       `select m.canal_id, cn.nome as canal_nome, cn.situacao as canal_situacao, cn.limite_por_minuto, cn.limite_por_hora,
+              cn.provedor,
               cv.identificador, m.tipo, m.texto, m.tentativas,
               a.nome as arquivo_nome, a.tipo as arquivo_tipo, a.caminho as arquivo_caminho,
               (select count(*)::int from mensagens_com_contatos x where x.canal_id = m.canal_id and x.empresa_id = m.empresa_id
@@ -339,6 +347,8 @@ export async function enviarPendente(
     );
     const l = r.rows[0];
     if (!l) return { fim: true as const };
+    // O balão do site (M8-07) busca as mensagens sozinho: fica "pendente" até o balão receber.
+    if (l.provedor === "site") return { fim: true as const };
     if (l.canal_situacao !== "conectado") return { falha: "O número do canal não está conectado." };
     const destino = destinoDoIdentificador(l.identificador);
     if (!destino) return { falha: "Este contato não tem um número de WhatsApp para responder." };

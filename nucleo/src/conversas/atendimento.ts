@@ -17,7 +17,13 @@ import {
   passarParaUmaPessoa,
   sinalDoSistema,
 } from "./passagem.ts";
-import { buscarConversa, mensagensDaConversa, RecusaDasConversas } from "./servico.ts";
+import {
+  acharContatoPeloTelefone,
+  buscarConversa,
+  mensagensDaConversa,
+  RecusaDasConversas,
+} from "./servico.ts";
+import { telefoneInternacional } from "./telefone.ts";
 
 /**
  * O que a execução do atendimento faz (M8-06): atender (a conversa com o agente), sugerir (uma pessoa atende e o
@@ -295,6 +301,7 @@ export async function partesDoAtendimento(
     [conversaId],
   );
   const mensagens = await mensagensDaConversa(c, conversaId, MENSAGENS_PARA_O_AGENTE);
+  const paginaAtual = [...mensagens].reverse().find((m) => m.autor === "contato" && m.pagina)?.pagina ?? null;
   const fala = mensagens.map((m) => ({
     quem:
       m.direcao === "interna"
@@ -314,6 +321,8 @@ export async function partesDoAtendimento(
     cliente: { nome: conversa.contatoNome, identificado: conversa.contatoIdentificado },
     canal: conversa.canal.nome,
     agora: new Date().toISOString(),
+    // No balão do site (M8-07): a página onde o cliente está agora.
+    ...(paginaAtual ? { paginaDoSiteOndeOClienteEsta: paginaAtual } : {}),
     ...(resumo.rows[0]?.resumo ? { resumoDoComecoDaConversa: resumo.rows[0].resumo } : {}),
     conversa: fala,
   };
@@ -364,7 +373,7 @@ export async function verFichaDoCliente(c: pg.PoolClient, conversaId: string) {
 export async function completarCliente(
   c: pg.PoolClient,
   conversaId: string,
-  d: { nome?: string; email?: string },
+  d: { nome?: string; email?: string; telefone?: string },
 ): Promise<Record<string, unknown>> {
   const { contato_id, identificado } = await daConversa(c, conversaId);
   const feito: Record<string, unknown> = {};
@@ -385,9 +394,10 @@ export async function completarCliente(
           and contato_id <> $2 limit 1`,
       [email, contato_id],
     );
-    if ((outro.rowCount ?? 0) > 0)
+    if ((outro.rowCount ?? 0) > 0) {
       feito.email = "Esse e-mail já está noutro cadastro: a equipe confere. Não guardei.";
-    else {
+      await marcarPodeSer(c, conversaId, "email", email, contato_id);
+    } else {
       await c.query(
         `insert into identificadores_de_contato (empresa_id, contato_id, tipo, valor, principal, ordem)
          select empresa_ativa(), $1, 'email', $2,
@@ -399,7 +409,56 @@ export async function completarCliente(
       feito.email = "E-mail guardado.";
     }
   }
+  // O WhatsApp (M8-07, o visitante do site): no formato internacional; repetido noutro contato, a equipe confere.
+  if (d.telefone) {
+    // Sem o +, com 10 ou 11 dígitos: um número do Brasil com o DDD.
+    const digitos = d.telefone.replace(/[^0-9]/g, "");
+    const telefone =
+      !d.telefone.trim().startsWith("+") && (digitos.length === 10 || digitos.length === 11)
+        ? telefoneInternacional(`55${digitos}`)
+        : telefoneInternacional(d.telefone);
+    if (!telefone) feito.telefone = "Esse telefone está fora do formato: peça com o DDD.";
+    else {
+      const achado = await acharContatoPeloTelefone(c, telefone);
+      if (achado && achado.contatoId !== contato_id) {
+        feito.telefone = "Esse telefone já está noutro cadastro: a equipe confere. Não guardei.";
+        await c.query(
+          "update conversas_com_contatos set pode_ser_contato_id = $2 where id = $1 and empresa_id = empresa_ativa()",
+          [conversaId, achado.contatoId],
+        );
+      } else if (!achado) {
+        await c.query(
+          `insert into identificadores_de_contato (empresa_id, contato_id, tipo, valor, principal, whatsapp, ordem)
+           select empresa_ativa(), $1, 'telefone', $2,
+                  not exists (select 1 from identificadores_de_contato where contato_id = $1 and tipo = 'telefone' and principal),
+                  true, coalesce((select max(ordem) + 1 from identificadores_de_contato where contato_id = $1), 0)
+           on conflict do nothing`,
+          [contato_id, telefone],
+        );
+        feito.telefone = "WhatsApp guardado.";
+      } else feito.telefone = "WhatsApp já estava guardado.";
+    }
+  }
   return feito;
+}
+
+/** O contato que já tem o dado que o cliente deixou (M8-07): a caixa mostra "pode ser o contato X". */
+async function marcarPodeSer(
+  c: pg.PoolClient,
+  conversaId: string,
+  tipo: "email",
+  valor: string,
+  contatoId: string,
+): Promise<void> {
+  await c.query(
+    `update conversas_com_contatos set pode_ser_contato_id = (
+        select i.contato_id from identificadores_de_contato i join contatos k on k.id = i.contato_id and k.empresa_id = i.empresa_id
+         where i.empresa_id = empresa_ativa() and i.tipo = $3 and lower(i.valor) = $4 and i.contato_id <> $2
+           and k.situacao = 'ativo'
+         order by k.criado_em limit 1)
+      where id = $1 and empresa_id = empresa_ativa()`,
+    [conversaId, contatoId, tipo, valor],
+  );
 }
 
 /** A tarefa para a equipe do canal, ligada ao cliente, criada pelo agente (sem responsável: a equipe pega). */

@@ -610,7 +610,11 @@ async function executarSemMarca(
         if (nome === "completar_cliente")
           return {
             conteudo: await naEmpresa((c) =>
-              completarCliente(c, conversaId, entrada as { nome?: string; email?: string }),
+              completarCliente(
+                c,
+                conversaId,
+                entrada as { nome?: string; email?: string; telefone?: string },
+              ),
             ),
           };
         const feito = await naEmpresa((c) =>

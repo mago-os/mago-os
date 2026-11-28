@@ -8,6 +8,9 @@ import { CABECALHOS_DE_SEGURANCA } from "./cabecalhos-de-seguranca";
 // em teste e produção, o Caddy faz o mesmo (M0-10).
 const API = process.env.MAGO_API_URL ?? "http://127.0.0.1:3000";
 const proxyDaApi = { target: API, ws: true, rewrite: (caminho: string) => caminho.replace(/^\/api/, "") };
+// O balão do site (M8-07): o script, a página do quadro e as rotas dele vão para a API sem o /api (como no Caddy).
+const proxyDoBalao = { target: API };
+const proxies = { "/api": proxyDaApi, "/balao.js": proxyDoBalao, "/balao/": proxyDoBalao };
 
 export default defineConfig({
   // No container local a pasta do código é só leitura, então o cache do Vite vai para outro lugar.
@@ -37,14 +40,14 @@ export default defineConfig({
       },
       workbox: {
         // A API nunca vem do cache: o estado precisa ser sempre o de agora.
-        navigateFallbackDenylist: [/^\/api\//],
+        navigateFallbackDenylist: [/^\/api\//, /^\/balao/],
         // Push (M3-06): o tratamento da notificação fica num arquivo próprio, carregado pelo service worker.
         importScripts: ["sw-push.js"],
       },
     }),
   ],
-  server: { host: "127.0.0.1", port: 5173, proxy: { "/api": proxyDaApi } },
+  server: { host: "127.0.0.1", port: 5173, proxy: proxies },
   // A prévia da versão construída (usada nos testes de tela) repassa /api do mesmo jeito.
   // Com os mesmos cabeçalhos de segurança do Caddy (M6-04), para os testes de tela rodarem com eles.
-  preview: { host: "127.0.0.1", port: 4173, proxy: { "/api": proxyDaApi }, headers: CABECALHOS_DE_SEGURANCA },
+  preview: { host: "127.0.0.1", port: 4173, proxy: proxies, headers: CABECALHOS_DE_SEGURANCA },
 });

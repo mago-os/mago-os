@@ -31,6 +31,16 @@ describe("cabeçalhos de segurança (M6-04)", () => {
     }
   });
 
+  it("só o balão do site (M8-07) fica de fora do frame-ancestors 'none', pela API, nos domínios do canal", () => {
+    for (const [ambiente, caddy] of Object.entries(caddys)) {
+      expect(caddy, ambiente).toContain("@nao_e_o_balao not path /balao.js /balao/*");
+      expect(caddy, ambiente).toMatch(
+        /header @nao_e_o_balao \{[^}]*Content-Security-Policy[^}]*X-Frame-Options DENY/,
+      );
+      expect(caddy, ambiente).toMatch(/handle \/balao\/\* \{\s*import mago_os_[a-z_]*api/);
+    }
+  });
+
   it("a produção só aceita pedidos da Cloudflare (e do próprio servidor), antes de qualquer resposta", () => {
     const p = caddys.producao;
     expect(p).toMatch(/@fora_da_cloudflare not remote_ip [^\n]*127\.0\.0\.1\/8/);

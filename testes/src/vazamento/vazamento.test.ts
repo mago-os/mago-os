@@ -74,6 +74,21 @@ const FORA: Record<string, string> = {
   "POST /plataforma/empresas/convites/:id/cancelar": "só o Dono da plataforma",
   "POST /interno/evolution/avisos":
     "sem sessão: só a Evolution, pela rede interna, com o segredo; a empresa vem no nome da instância e o banco confere (canais.test)",
+  "GET /balao.js": "pública, sem nenhum dado (o script da linha de código do balão do site, M8-07)",
+  "GET /balao/quadro.js": "pública, sem nenhum dado (o script do quadro do balão)",
+  "GET /balao/quadro.css": "pública, sem nenhum dado (o estilo do quadro do balão)",
+  "GET /balao/:chave":
+    "pública, pela chave do balão: a página do quadro, sem dado de empresa (balao.test confere a chave e os domínios)",
+  "GET /balao/:chave/configuracao":
+    "pública, pela chave: o nome, a cor e a política do balão, só para os domínios do canal (balao.test)",
+  "GET /balao/:chave/desafio": "pública, pela chave: só o desafio da prova de trabalho (balao.test)",
+  "POST /balao/:chave/visitante":
+    "pública, pela chave e a prova de trabalho; a empresa vem da chave, pelo banco (balao.test)",
+  "POST /balao/:chave/mensagens":
+    "pública, pela chave e o código do visitante: só a conversa dele, com os limites (balao.test)",
+  "GET /balao/:chave/mensagens":
+    "pública, pela chave e o código do visitante: só a conversa dele, sem as notas internas (balao.test)",
+  "POST /balao/:chave/whatsapp": "pública, pela chave e o código do visitante: o código dele (balao.test)",
   "GET /openapi.json": "pública, sem nenhum dado (a documentação da API, M7-02)",
   "GET /docs": "pública, sem nenhum dado (a documentação da API, M7-02)",
   "GET /mcp": "o MCP sem sessão só responde que não aceita; o POST /mcp está no roteiro",
@@ -725,6 +740,15 @@ describe.skipIf(!bancoDisponivel)("vazamento entre empresas em todas as partes (
     await usar(x, admin, "POST", `/canais/${ids.canalWhatsapp}`, { nome: `WhatsApp ${M} 2` });
     await usar(x, admin, "POST", `/canais/${ids.canalWhatsapp}/desconectar`);
     await usar(x, admin, "DELETE", `/canais/${ids.canalWhatsapp}`);
+    // O balão do site (M8-07): criar com os domínios e trocar a chave.
+    ids.canalDoSite = (
+      await usar(x, admin, "POST", "/canais/site", {
+        nome: `Chat do site ${M}`,
+        dominios: [`https://www.loja-${m}.com.br`],
+        politicaUrl: `https://www.loja-${m}.com.br/privacidade`,
+      })
+    ).canal.id;
+    await usar(x, admin, "POST", `/canais/${ids.canalDoSite}/chave`);
     await usar(x, func, "GET", `/conversas-com-contatos?canal=${ids.canal}&situacoes=esperando_equipe`);
     await usar(x, gestor, "GET", `/conversas-com-contatos/${ids.conversaComContato}`);
     await usar(x, admin, "GET", `/contatos/${ids.contato}/conversas`);

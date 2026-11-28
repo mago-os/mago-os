@@ -12,6 +12,7 @@ import {
   type Canal,
   conferir,
   PedidoDeCanalDeWhatsapp,
+  PedidoDeCanalDoSite,
   PedidoDeEditarCanal,
   type Problema,
   type QrDoCanal,
@@ -34,7 +35,7 @@ import {
   nomeDaInstancia,
   numeroDoJid,
 } from "./evolution.ts";
-import { criarCanal, listarCanais, RecusaDasConversas } from "./servico.ts";
+import { criarCanal, listarCanais, novaChaveDoBalao, RecusaDasConversas } from "./servico.ts";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -300,6 +301,51 @@ export function registrarRotasDosCanais(app: FastifyInstance, o: OpcoesDasRotasD
     });
   });
 
+  // O balão do site (M8-07, decisão 0057): os domínios e a política de privacidade já na criação.
+  app.post(
+    "/canais/site",
+    { preHandler: verificador.exigir("canais", "criar") },
+    async (pedido, resposta) => {
+      const r = conferir(PedidoDeCanalDoSite, pedido.body);
+      if (!r.ok) return invalido(resposta, r.problemas);
+      const { sessao } = acessoDo(pedido);
+      return tratar(resposta, async () => {
+        const canal = await naEmpresa(pedido, (c) =>
+          criarCanal(c, sessao.pessoa.id, {
+            nome: r.valor.nome,
+            provedor: "site",
+            area: r.valor.area ?? null,
+            dominios: [...new Set(r.valor.dominios)],
+            politicaUrl: r.valor.politicaUrl,
+          }),
+        );
+        await registrar(pedido, "canal.criou", canal.id, { provedor: "site" });
+        return resposta.code(201).send({ canal });
+      });
+    },
+  );
+
+  // Trocar a chave do balão: a linha de código antiga para de funcionar.
+  app.post(
+    "/canais/:id/chave",
+    { preHandler: verificador.exigir("canais", "editar") },
+    async (pedido, resposta) => {
+      const { id } = pedido.params as { id: string };
+      const canal = await naEmpresa(pedido, async (c) => {
+        const antes = await buscarCanal(c, id, true);
+        if (!antes || antes.provedor !== "site") return null;
+        await c.query(
+          "update canais_de_contato set chave_publica = $2, atualizado_em = now() where id = $1 and empresa_id = empresa_ativa()",
+          [id, novaChaveDoBalao()],
+        );
+        return buscarCanal(c, id);
+      });
+      if (!canal) return naoEncontrado(resposta);
+      await registrar(pedido, "canal.trocou_a_chave", id);
+      return { canal };
+    },
+  );
+
   app.post(
     "/canais/:id",
     { preHandler: verificador.exigir("canais", "editar") },
@@ -321,6 +367,24 @@ export function registrarRotasDosCanais(app: FastifyInstance, o: OpcoesDasRotasD
             if ((a.rowCount ?? 0) === 0)
               throw new RecusaDasConversas("Escolha um agente de atendimento desta empresa.");
           }
+          // O balão do site (M8-07): os campos dele só valem nele, e o WhatsApp para continuar é um número da empresa.
+          const doSite = [v.dominios, v.cor, v.posicao, v.boasVindas, v.politicaUrl, v.whatsappCanalId].some(
+            (x) => x !== undefined,
+          );
+          if (doSite && antes.provedor !== "site")
+            throw new RecusaDasConversas("Esses campos são só do balão do site.");
+          if (v.whatsappCanalId) {
+            const w = await c.query(
+              "select 1 from canais_de_contato where id = $1 and empresa_id = empresa_ativa() and provedor = 'evolution'",
+              [v.whatsappCanalId],
+            );
+            if ((w.rowCount ?? 0) === 0)
+              throw new RecusaDasConversas("Escolha um número de WhatsApp desta empresa.");
+          }
+          if (v.dominios && v.dominios.length === 0)
+            throw new RecusaDasConversas("O balão precisa de pelo menos um domínio.");
+          if (v.politicaUrl === null)
+            throw new RecusaDasConversas("O balão precisa do link da política de privacidade.");
           if (v.horario && v.horario.inicio >= v.horario.fim)
             throw new RecusaDasConversas("O horário de atendimento precisa começar antes de terminar.");
           await c.query(
@@ -336,6 +400,12 @@ export function registrarRotasDosCanais(app: FastifyInstance, o: OpcoesDasRotasD
                 prazo_para_assumir = coalesce($14, prazo_para_assumir),
                 mensagem_de_passagem = coalesce($15, mensagem_de_passagem),
                 sugerir_com_pessoa = coalesce($16, sugerir_com_pessoa),
+                dominios = coalesce($17::text[], dominios),
+                cor = coalesce($18, cor),
+                posicao = coalesce($19, posicao),
+                boas_vindas = coalesce($20, boas_vindas),
+                politica_url = coalesce($21, politica_url),
+                whatsapp_canal_id = case when $22::boolean then $23 else whatsapp_canal_id end,
                 -- Mudar o modo recomeça a contagem da autonomia.
                 sugestoes_sem_edicao = case when $7 is not null and $7 <> modo then 0 else sugestoes_sem_edicao end,
                 autonomia_avisada_em = case when $7 is not null and $7 <> modo then null else autonomia_avisada_em end,
@@ -360,6 +430,13 @@ export function registrarRotasDosCanais(app: FastifyInstance, o: OpcoesDasRotasD
               v.prazoParaAssumir ?? null,
               v.mensagemDePassagem?.trim() ?? null,
               v.sugerirComPessoa ?? null,
+              v.dominios ? [...new Set(v.dominios)] : null,
+              v.cor ?? null,
+              v.posicao ?? null,
+              v.boasVindas?.trim() || null,
+              v.politicaUrl ?? null,
+              v.whatsappCanalId !== undefined,
+              v.whatsappCanalId ?? null,
             ],
           );
           return { antes, depois: (await buscarCanal(c, id)) as Canal };
@@ -379,6 +456,12 @@ export function registrarRotasDosCanais(app: FastifyInstance, o: OpcoesDasRotasD
             "prazoParaAssumir",
             "mensagemDePassagem",
             "sugerirComPessoa",
+            "dominios",
+            "cor",
+            "posicao",
+            "boasVindas",
+            "politicaUrl",
+            "whatsappCanalId",
           ] as const
         ).filter((k) => JSON.stringify(feito.antes[k]) !== JSON.stringify(feito.depois[k]));
         if (campos.length > 0) await registrar(pedido, "canal.editou", id, { campos });

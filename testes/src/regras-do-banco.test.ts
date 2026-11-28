@@ -45,6 +45,9 @@ const FUNCOES_COMO_DONO: Record<string, string> = {
   "public.empresas_com_anexos_para_cuidar": "empresas com anexos na quarentena (só ids)",
   "public.empresas_com_arquivos_de_conversa_vencidos":
     "empresas com arquivo de conversa vencido (M8-03, só ids)",
+  "public.canal_do_balao": "a empresa e o canal da chave pública do balão do site (M8-07, só ids)",
+  "public.empresas_com_visitantes_vencidos":
+    "empresas com visitante do site vencido, pedidos antigos ou conversa sem contato de 90 dias (M8-07, só ids)",
   "public.empresas_com_passagens_vencidas":
     "empresas com conversa passada para a equipe e ninguém assumiu no prazo (M8-06, só ids)",
   "public.empresas_com_prazo_para_avisar": "empresas com prazos a avisar (só ids)",

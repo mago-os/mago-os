@@ -1,4 +1,5 @@
 export * from "./atendimento.ts";
+export * from "./balao.ts";
 export * from "./caixa.ts";
 export * from "./canais.ts";
 export * from "./envio.ts";
