@@ -112,6 +112,7 @@ automação, que é o motivo de existir a API.
 - **A API confere o corpo pelo próprio contrato** nas conversas: a rota da caixa aceita arquivo, voz e menções, que pela API ficam de fora (400).
 - **Quem age pelo agente:** a mensagem e a nota ficam com o agente como autor, e a auditoria leva o agente como ator e quem pediu nos detalhes. A aprovação mostra "Mandar a “contato”: “texto”", e o texto editado na aprovação é o que sai.
 - **O evento "passada para uma pessoa"** também sai quando alguém assume ou reabre (a conversa ganha um dono), com o motivo `atribuida`; a passagem pelo agente ou pelo sistema leva o motivo dela (ex.: `pediu_pessoa`).
+- **"Aplicar a todas" das regras do agente aceita até 100 ações** (eram 50): com as 4 ações novas, o catálogo passou de 50 e a tela de regras recusava.
 - **Mensagem na mesma hora depois de resolver** cai na conversa resolvida (a folga de 1 hora do M8-04), sem gerar "conversa aberta" de novo.
 
 ## O que foi descartado
