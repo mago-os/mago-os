@@ -99,6 +99,14 @@ import {
   type OpcoesDaEntrega,
   registrarRotasDosWebhooks,
 } from "./webhooks/index.ts";
+import { type CarteiroDaMeta, carteiroDaMeta } from "./whatsapp/carteiro.ts";
+import {
+  cuidarDasAprovacoesNoWhatsapp,
+  entregarNoWhatsapp,
+  entregarPendentesNoWhatsapp,
+} from "./whatsapp/entrega.ts";
+import { type MetaLigada, registrarRotasDoWhatsapp } from "./whatsapp/rotas.ts";
+import { type OpcoesDoWhatsapp, tratarAvisoDaMeta } from "./whatsapp/servico.ts";
 
 /** Fila da verificação de agente vivo (a cada minuto). */
 const FILA_AGENTES_VIVOS = "agentes-vivos";
@@ -132,6 +140,9 @@ const FILA_PASSAGENS_DAS_CONVERSAS = "conversas-passagens";
 const FILA_VISITANTES_DO_SITE = "balao-visitantes";
 /** A transcrição dos áudios das conversas (M8-08): na chegada e no "transcrever de novo". */
 const FILA_TRANSCRICAO = "conversas-transcricao";
+/** O WhatsApp da plataforma (M8-09): os avisos da Meta, e a verificação a cada minuto do que vai por lá. */
+const FILA_WHATSAPP = "whatsapp";
+const FILA_WHATSAPP_ENTREGAS = "whatsapp-entregas";
 const FILA_TELEGRAM_ENTREGAS = "telegram-entregas";
 
 /** O que a API recebe pronto de quem a monta. */
@@ -157,6 +168,8 @@ export interface DependenciasDaApi {
   evolution?: ClienteDaEvolution;
   /** Nos testes: o transcritor falso (M8-08). Padrão: o de verdade (o endereço da conta de IA da empresa). */
   transcritor?: Transcritor;
+  /** Nos testes: a Meta falsa (M8-09). Padrão: a de verdade, quando configurada. */
+  carteiroDaMeta?: CarteiroDaMeta;
 }
 
 /** As peças de dentro, para os testes rodarem os trabalhos da fila com a mesma montagem (M6-01). */
@@ -325,6 +338,31 @@ export async function montarApi(config: Config, deps: DependenciasDaApi): Promis
         urlPublica: config.acesso.urlPublica,
       },
     };
+    // O WhatsApp oficial da plataforma (M8-09): sem os quatro segredos da Meta, desligado.
+    const meta: MetaLigada | null = config.meta
+      ? {
+          carteiro:
+            deps.carteiroDaMeta ??
+            carteiroDaMeta({ token: config.meta.token, numeroId: config.meta.numeroId }),
+          segredoDoApp: config.meta.segredoDoApp,
+          verificacao: config.meta.verificacao,
+        }
+      : null;
+    if (!meta) app.log.warn("WhatsApp da plataforma desligado: faltam os segredos MAGO_META_*");
+    const opcoesDoWhatsapp: OpcoesDoWhatsapp | null =
+      meta && config.meta
+        ? {
+            poolApp: banco.pool,
+            carteiro: meta.carteiro,
+            numeroId: config.meta.numeroId,
+            log: app.log,
+            conversa: {
+              catalogo: verificador.catalogo,
+              acordar: acordarAgente,
+              urlPublica: config.acesso.urlPublica,
+            },
+          }
+        : null;
     const opcoesDoMotor: OpcoesDoMotor = {
       poolApp: banco.pool,
       cofre,
@@ -362,6 +400,13 @@ export async function montarApi(config: Config, deps: DependenciasDaApi): Promis
                 void Promise.allSettled([
                   entregarNoTelegram(opcoesDoBot, empresaId),
                   cuidarDasAprovacoesNoTelegram(opcoesDoBot, empresaId),
+                  // O WhatsApp da plataforma (M8-09), do mesmo jeito.
+                  ...(opcoesDoWhatsapp
+                    ? [
+                        entregarNoWhatsapp(opcoesDoWhatsapp, empresaId),
+                        cuidarDasAprovacoesNoWhatsapp(opcoesDoWhatsapp, empresaId),
+                      ]
+                    : []),
                 ]).then((r) => {
                   for (const x of r)
                     if (x.status === "rejected")
@@ -401,6 +446,8 @@ export async function montarApi(config: Config, deps: DependenciasDaApi): Promis
           abrir: (cifrado) => symmetricDecrypt({ key: segredoDoLogin, data: cifrado }),
         }),
       };
+      // O WhatsApp aprova do mesmo jeito (o mesmo serviço e o mesmo autenticador, M8-09).
+      if (opcoesDoWhatsapp?.conversa) opcoesDoWhatsapp.conversa.aprovacoes = conversaDoBot.aprovacoes;
     }
     trabalhos.push(async () => {
       await fila.createQueue(FILA_AGENTES_INTERNOS);
@@ -813,6 +860,52 @@ export async function montarApi(config: Config, deps: DependenciasDaApi): Promis
           }
         };
         void ligarBot();
+      });
+    }
+    registrarRotasDoWhatsapp(app, {
+      login,
+      poolAcesso: poolDoLogin,
+      poolApp: banco.pool,
+      meta,
+      receber: async (aviso) => {
+        await fila.send(FILA_WHATSAPP, { aviso, rastreio: levarRastreio() }, { retryLimit: 0 });
+      },
+    });
+    if (meta && opcoesDoWhatsapp) {
+      trabalhos.push(async () => {
+        await fila.createQueue(FILA_WHATSAPP);
+        await fila.work<{ aviso: Parameters<typeof tratarAvisoDaMeta>[1]; rastreio?: RastreioLevado }>(
+          FILA_WHATSAPP,
+          async (lote) => {
+            for (const t of lote)
+              await continuarRastreio(t.data.rastreio, FILA_WHATSAPP, () =>
+                tratarAvisoDaMeta(opcoesDoWhatsapp, t.data.aviso),
+              );
+          },
+        );
+        await fila.createQueue(FILA_WHATSAPP_ENTREGAS);
+        await fila.schedule(FILA_WHATSAPP_ENTREGAS, "* * * * *");
+        await fila.work(FILA_WHATSAPP_ENTREGAS, () =>
+          continuarRastreio(null, FILA_WHATSAPP_ENTREGAS, async () => {
+            const n = await entregarPendentesNoWhatsapp(opcoesDoWhatsapp);
+            if (n > 0)
+              app.log.info({ evento: "whatsapp.entregas", n }, "Respostas atrasadas entregues no WhatsApp");
+          }),
+        );
+        // O número do Mago OS (para o link do wa.me): não segura a subida; tenta de novo a cada minuto.
+        const descobrir = async () => {
+          try {
+            await meta.carteiro.descobrirNumero();
+            app.log.info({ evento: "whatsapp.ligado" }, "WhatsApp da plataforma ligado");
+          } catch (erro) {
+            app.log.error(
+              { erro: (erro as Error).message },
+              "WhatsApp: a Meta não respondeu; tenta de novo em 1 minuto",
+            );
+            setTimeout(() => void descobrir(), 60_000).unref();
+          }
+        };
+        void descobrir();
       });
     }
     registrarRotasDaParadaDaPlataforma(app, {

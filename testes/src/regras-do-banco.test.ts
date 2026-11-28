@@ -48,6 +48,22 @@ const FUNCOES_COMO_DONO: Record<string, string> = {
   "public.canal_do_balao": "a empresa e o canal da chave pública do balão do site (M8-07, só ids)",
   "public.empresas_com_visitantes_vencidos":
     "empresas com visitante do site vencido, pedidos antigos ou conversa sem contato de 90 dias (M8-07, só ids)",
+  "public.mensagem_nova_do_whatsapp":
+    "o webhook da Meta: grava o id da mensagem já tratada (M8-09, sem dado de negócio)",
+  "public.esquecer_mensagem_do_whatsapp": "o webhook da Meta: esquece o id que não chegou à fila (M8-09)",
+  "public.contar_mensagem_do_whatsapp": "a trava de mensagens por minuto de um número do WhatsApp (M8-09)",
+  "public.codigos_errados_do_whatsapp":
+    "a trava dos códigos de vínculo errados de um número do WhatsApp (M8-09)",
+  "public.reconhecer_whatsapp":
+    "a pessoa e a empresa de um número do WhatsApp vinculado (M8-09, só ids e nomes)",
+  "public.vincular_whatsapp": "usa o código de vínculo do WhatsApp e liga o número à pessoa (M8-09)",
+  "public.marcar_resumo_do_dia_no_whatsapp":
+    "marca o dia do resumo do WhatsApp na verificação do sistema (M8-09)",
+  "public.reservar_modelo_do_whatsapp":
+    "conta os modelos pagos do WhatsApp de uma pessoa no dia, até 10 (M8-09)",
+  "public.empresas_com_whatsapp": "as empresas com alguém no WhatsApp, para o resumo do dia (M8-09, só ids)",
+  "public.empresas_com_whatsapp_pendente":
+    "as empresas com algo esperando para ir pelo WhatsApp (M8-09, só ids)",
   "public.empresas_com_passagens_vencidas":
     "empresas com conversa passada para a equipe e ninguém assumiu no prazo (M8-06, só ids)",
   "public.empresas_com_prazo_para_avisar": "empresas com prazos a avisar (só ids)",

@@ -24,6 +24,7 @@ import { AtivarDoisFatores, ConfirmarSegundoFator } from "./DoisFatores";
 import { Notificacoes } from "./Notificacoes";
 import { Telegram } from "./Telegram";
 import { usePasskeyPronta } from "./usePasskey";
+import { WhatsappDaEquipe } from "./WhatsappDaEquipe";
 
 export const IDIOMAS = [
   ["pt-BR", "Português (Brasil)"],
@@ -123,6 +124,7 @@ export function MeuPerfil() {
         aoAtivarApp={() => setAtivandoApp(true)}
       />
       <Telegram />
+      <WhatsappDaEquipe />
       <Notificacoes />
     </main>
   );

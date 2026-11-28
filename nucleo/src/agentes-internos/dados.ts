@@ -135,8 +135,9 @@ export async function gravarMensagem(
          (select m.canal from mensagens_de_conversa m where m.conversa_id = $1 and m.empresa_id = empresa_ativa()
              and m.autor_pessoa_id is not null order by m.criada_em desc limit 1), 'app') as c)
      insert into mensagens_de_conversa (empresa_id, conversa_id, pessoa_id, autor_pessoa_id, autor_agente_id, texto,
-       execucao_id, tarefas, canal, telegram_pendente)
-     select empresa_ativa(), $1, $2, $3, $4, $5, $6, $7, canal.c, canal.c in ('telegram', 'rotina') and $8 from canal
+       execucao_id, tarefas, canal, telegram_pendente, whatsapp_pendente)
+     select empresa_ativa(), $1, $2, $3, $4, $5, $6, $7, canal.c, canal.c in ('telegram', 'rotina') and $8,
+            canal.c = 'whatsapp' and $8 from canal
      returning *`,
     [
       conversa.id,

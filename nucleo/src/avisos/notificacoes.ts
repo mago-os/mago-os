@@ -36,6 +36,7 @@ export const TEXTO_DO_PUSH: Record<TipoDeAviso, string> = {
   agentes_parados: "Os agentes foram parados",
   agentes_retomados: "Os agentes voltaram ao trabalho",
   telegram_desvinculado: "O seu Telegram foi desvinculado",
+  whatsapp_desvinculado: "O seu WhatsApp foi desvinculado do Mago OS",
   telegram_aprovacoes_travadas: "As aprovações pelo Telegram foram travadas",
   aviso_de_rotina: "Novo aviso de uma rotina",
   rotina_falhou: "Uma rotina sua não conseguiu rodar",

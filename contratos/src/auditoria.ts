@@ -81,7 +81,7 @@ export const Alvo = Type.Object(
   { additionalProperties: false },
 );
 
-export const CANAIS = ["painel", "api", "telegram", "mcp", "sistema"] as const;
+export const CANAIS = ["painel", "api", "telegram", "whatsapp", "mcp", "sistema"] as const;
 
 /** De onde veio: o canal sempre; IP e aparelho quando houver (o sistema não tem). */
 export const Origem = Type.Object(

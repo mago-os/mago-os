@@ -22,6 +22,7 @@ describe("configuração", () => {
       cofre: { atual: { versao: 1, chave: expect.any(Buffer) }, anteriores: [], deTeste: true },
       telegram: null,
       evolution: null,
+      meta: null,
     });
   });
 

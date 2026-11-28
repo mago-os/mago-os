@@ -101,6 +101,8 @@ const FORA: Record<string, string> = {
     "link assinado de 5 minutos (é a própria permissão) e só existe no Mac; o S3 é igual",
   "GET /tempo-real":
     "WebSocket: a conexão da empresa A fica aberta durante todo o roteiro da B (teste dos canais)",
+  "POST /conta/whatsapp/codigo":
+    "o código de vínculo da própria pessoa: só com a Meta ligada (este roteiro não liga); testada em whatsapp.test",
   "POST /telegram/webhook":
     "o Telegram chama com o segredo; o roteiro usa o mesmo tratamento (tratarAtualizacao)",
 };
@@ -957,6 +959,8 @@ describe.skipIf(!bancoDisponivel)("vazamento entre empresas em todas as partes (
       await mandarNoTelegram(conta, `/start ${codigo}`);
     }
     await usar(x, admin, "GET", "/conta/telegram");
+    // O WhatsApp da plataforma (M8-09): a situação da própria pessoa (sem a Meta ligada neste roteiro).
+    await usar(x, admin, "GET", "/conta/whatsapp");
     api.carteiro.arquivos.set(`doc-${m}`, Buffer.from(`Documento ${M}`));
     await mandarNoTelegram(TELEGRAM[x.sigla], null, {
       caption: `guarda este documento ${M}`,
@@ -1046,6 +1050,7 @@ describe.skipIf(!bancoDisponivel)("vazamento entre empresas em todas as partes (
     await usar(x, admin, "POST", `/empresa/convites/${ids.convite}/cancelar`, undefined, d);
     await usar(x, admin, "POST", `/empresa/pessoas/${x.extra.vinculoId}/desligar`, undefined, d);
     await usar(x, func, "DELETE", "/conta/telegram", undefined, d);
+    await usar(x, func, "DELETE", "/conta/whatsapp", undefined, d);
     await usar(x, func, "DELETE", "/notificacoes/push", undefined, d);
     await usar(x, admin, "POST", `/agentes/${ids.robo}/desligar`, {}, d);
   }
@@ -1407,7 +1412,10 @@ describe.skipIf(!bancoDisponivel)("vazamento entre empresas em todas as partes (
 
   it("a empresa B faz as ações que apagam ou encerram (o roteiro vale), depois que a A tentou", async () => {
     for (const p of pedidosDaB.filter((x) => x.destrutivo)) {
-      const quem = p.url === "/conta/telegram" || p.url === "/notificacoes/push" ? E.B.func : E.B.admin;
+      const quem =
+        p.url === "/conta/telegram" || p.url === "/conta/whatsapp" || p.url === "/notificacoes/push"
+          ? E.B.func
+          : E.B.admin;
       const r = await injetar(p.metodo, p.url, quem, p.corpo);
       expect(r.statusCode, `${p.metodo} ${p.url}: ${r.body}`).toBeLessThan(300);
     }

@@ -1,7 +1,7 @@
 # 0059 WhatsApp oficial da plataforma para a equipe
 
 - **Data:** 28/11/2026
-- **Situação:** proposta (esperando o ok do Sandro)
+- **Situação:** aceita (aprovada pelo Sandro no chat em 28/11/2026, com os 6 pontos como propostos)
 - **Tarefa:** M8-09
 
 ## Contexto
@@ -105,6 +105,17 @@ seu olho estão marcados com **pede o seu olho**.
    - a mensagem repetida da Meta;
    - o número de uma empresa que não é da plataforma (ignorado, fica para a M8-10);
    - o isolamento entre empresas.
+
+## Ajustes ao construir (28/11/2026)
+
+- **O núcleo comum ficou nas regras que não dependem do canal:** o código de vínculo e o resumo dele, a lista das prioridades, a divisão das mensagens longas, o autenticador e as travas das aprovações (por pessoa, as mesmas do Telegram). As tabelas, o roteamento das mensagens e as entregas do WhatsApp são próprios, ao lado dos do Telegram, para não mexer no Telegram que já roda (os testes dele continuam iguais).
+- **As palavras** valem sem barra: nova, tarefas, empresa (e "empresa 2", ou o botão com as empresas, até 3), sair e ajuda. A mensagem que é só um código de 8 letras sempre tenta vincular (assim o link do wa.me serve também para trocar a empresa por um código novo).
+- **O código do autenticador fica no chat:** a Meta não deixa apagar a mensagem da pessoa. Ele vale uma vez e por 30 segundos, como no Telegram.
+- **A decisão de um pedido** que terminou por outro caminho (o app, o Telegram, venceu) vai como texto, só dentro da janela: a Meta não deixa editar a mensagem nem tirar os botões, e tocar num pedido decidido responde a situação.
+- **Fora da janela,** o aviso urgente e o pedido de aprovação vão pelo modelo `aviso_do_mago_os`, com o primeiro nome e o texto do aviso. Os modelos `tarefa_atribuida` e `lembrete_de_tarefa` ficam para quando eu souber as variáveis deles (o corpo que foi aprovado na Meta). Sem o `aviso_do_mago_os` aprovado, o envio falha e o aviso fica no app (sem tentar de novo).
+- **O número do Mago OS** para o link do wa.me vem da própria Meta ao subir a API (`display_phone_number` do id do número); até ela responder, Meu perfil não gera código.
+- **Filas:** `whatsapp` (os avisos da Meta) e `whatsapp-entregas` (a verificação a cada minuto). As respostas e os pedidos de aprovação também saem ao fim de cada execução, como no Telegram.
+- **Endereços:** `GET` e `POST /whatsapp/webhook` (só com a Meta ligada), `GET /conta/whatsapp`, `POST /conta/whatsapp/codigo` e `DELETE /conta/whatsapp`.
 
 ## O que foi descartado
 

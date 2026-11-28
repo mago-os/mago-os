@@ -35,6 +35,7 @@ const NOMES: Record<TipoDeAviso, string> = {
   agentes_parados: "Agentes parados",
   agentes_retomados: "Agentes retomados",
   telegram_desvinculado: "Meu Telegram passou para outra pessoa",
+  whatsapp_desvinculado: "Meu WhatsApp passou para outra pessoa",
   telegram_aprovacoes_travadas: "Aprovações pelo Telegram travadas por código errado",
   aviso_de_rotina: "Aviso de uma rotina",
   rotina_falhou: "Rotina minha que falhou",
@@ -141,12 +142,13 @@ export function Notificacoes() {
   // Os padrões vêm do contrato (no Telegram, por padrão, só o urgente; M5-08).
   const canais = (t: TipoDeAviso) => canaisDoTipo(prefs, t);
   // Grava só o que a pessoa mudou: o Telegram sem escolha continua seguindo o padrão do tipo.
-  const mudar = (t: TipoDeAviso, canal: "tela" | "push" | "telegram", valor: boolean) => {
+  const mudar = (t: TipoDeAviso, canal: "tela" | "push" | "telegram" | "whatsapp", valor: boolean) => {
     const atual = prefs.porTipo[t];
     const base = {
       tela: atual?.tela ?? true,
       push: atual?.push ?? true,
       ...(atual?.telegram !== undefined ? { telegram: atual.telegram } : {}),
+      ...(atual?.whatsapp !== undefined ? { whatsapp: atual.whatsapp } : {}),
     };
     void salvar({ ...prefs, porTipo: { ...prefs.porTipo, [t]: { ...base, [canal]: valor } } });
   };
@@ -187,6 +189,7 @@ export function Notificacoes() {
             <th className="w-16 py-1 text-center font-medium">Sino</th>
             <th className="w-16 py-1 text-center font-medium">Push</th>
             <th className="w-16 py-1 text-center font-medium">Telegram</th>
+            <th className="w-16 py-1 text-center font-medium">WhatsApp</th>
           </tr>
         </thead>
         <tbody>
@@ -223,6 +226,20 @@ export function Notificacoes() {
                   />
                 )}
               </td>
+              <td className="text-center">
+                {(AVISOS_FORA_DO_TELEGRAM as readonly string[]).includes(t) ? (
+                  <span className="text-xs text-texto-2" title="Não vai como aviso pelo WhatsApp">
+                    -
+                  </span>
+                ) : (
+                  <input
+                    type="checkbox"
+                    aria-label={`${NOMES[t]} no WhatsApp`}
+                    checked={canais(t).whatsapp}
+                    onChange={(e) => mudar(t, "whatsapp", e.target.checked)}
+                  />
+                )}
+              </td>
             </tr>
           ))}
         </tbody>
@@ -236,7 +253,7 @@ export function Notificacoes() {
               void salvar({ ...prefs, silencio: e.target.checked ? { de: "22:00", ate: "07:00" } : null })
             }
           />
-          Horário de silêncio (o push e o Telegram esperam; o sino recebe na hora)
+          Horário de silêncio (o push, o Telegram e o WhatsApp esperam; o sino recebe na hora)
         </label>
         {prefs.silencio && (
           <>
