@@ -49,6 +49,31 @@ export const HorarioDoCanal = Type.Object(
 );
 export type HorarioDoCanal = Static<typeof HorarioDoCanal>;
 
+/**
+ * Por que o atendimento passou para uma pessoa (M8-06, decisão 0056): pediu_pessoa, irritado, repetiu (a mesma
+ * pergunta pela segunda vez), em_circulos (a conversa não anda), nao_soube (o agente não sabe responder) ou
+ * assunto_do_canal (um dos assuntos que sempre vão para uma pessoa).
+ */
+export const MOTIVOS_DA_PASSAGEM = [
+  "pediu_pessoa",
+  "irritado",
+  "repetiu",
+  "em_circulos",
+  "nao_soube",
+  "assunto_do_canal",
+] as const;
+export const MotivoDaPassagem = Type.Enum(MOTIVOS_DA_PASSAGEM, {
+  description:
+    "pediu_pessoa, irritado, repetiu (a mesma pergunta de novo), em_circulos, nao_soube ou assunto_do_canal.",
+});
+export type MotivoDaPassagem = Static<typeof MotivoDaPassagem>;
+
+/** Os assuntos que sempre vão para uma pessoa, por canal (até 20, de até 60 letras). */
+export const AssuntosParaPessoas = Type.Array(Texto(60, "Um assunto, ex.: desconto."), {
+  maxItems: 20,
+  uniqueItems: true,
+});
+
 /** Um canal da empresa. A configuração do provedor não sai daqui (e nunca tem segredo). */
 export const Canal = Type.Object(
   {
@@ -69,6 +94,15 @@ export const Canal = Type.Object(
     mensagemForaDoHorario: Type.Optional(Texto(1000, "O texto que sai fora do horário.")),
     limiteDeAutonomia: Type.Optional(Type.Integer({ minimum: 1, maximum: 1000 })),
     sugestoesSemEdicao: Type.Optional(Type.Integer({ minimum: 0 })),
+    /** A passagem para uma pessoa (M8-06). */
+    assuntosParaPessoas: Type.Optional(AssuntosParaPessoas),
+    /** Minutos para alguém assumir antes de o gestor ser avisado. */
+    prazoParaAssumir: Type.Optional(Type.Integer({ minimum: 1, maximum: 240 })),
+    mensagemDePassagem: Type.Optional(
+      Texto(1000, "O texto que sai ao contato quando o agente passa a conversa."),
+    ),
+    /** Com uma pessoa na conversa, o agente escreve sugestões na caixa. */
+    sugerirComPessoa: Type.Optional(Type.Boolean()),
     criadoEm: DataHora,
   },
   {
@@ -127,6 +161,20 @@ export const ConversaComContato = Type.Object(
     abertaEm: DataHora,
     resolvidaEm: OuNulo(DataHora),
     resolvidaPor: OuNulo(Id),
+    /** Quando o agente passou a conversa para uma pessoa (M8-06), com o motivo e o resumo; nula sem passagem. */
+    passagem: Type.Optional(
+      OuNulo(
+        Type.Object(
+          {
+            em: DataHora,
+            motivo: MotivoDaPassagem,
+            resumo: OuNulo(Type.String({ maxLength: 2000 })),
+            escaladaEm: OuNulo(DataHora),
+          },
+          { additionalProperties: false },
+        ),
+      ),
+    ),
   },
   { additionalProperties: false, description: "Conversa da empresa com um contato, num canal." },
 );
@@ -427,6 +475,11 @@ export const PedidoDeEditarCanal = Type.Object(
     horario: Type.Optional(HorarioDoCanal),
     mensagemForaDoHorario: Type.Optional(Texto(1000, "O texto que sai fora do horário.")),
     limiteDeAutonomia: Type.Optional(Type.Integer({ minimum: 1, maximum: 1000 })),
+    // A passagem para uma pessoa (M8-06).
+    assuntosParaPessoas: Type.Optional(AssuntosParaPessoas),
+    prazoParaAssumir: Type.Optional(Type.Integer({ minimum: 1, maximum: 240 })),
+    mensagemDePassagem: Type.Optional(Texto(1000, "O texto que sai ao contato na passagem.")),
+    sugerirComPessoa: Type.Optional(Type.Boolean()),
   },
   { additionalProperties: false, minProperties: 1 },
 );

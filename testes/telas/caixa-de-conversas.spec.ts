@@ -6,7 +6,8 @@ import { criarPessoaDeTeste, entrar, type PessoaDeTeste } from "./ajuda.ts";
 /**
  * Caixa única (M8-04): a conversa esperando a equipe aparece com o número no menu; a pessoa abre, assume, deixa uma
  * nota interna (amarela, "Só a equipe vê"), usa uma resposta pronta com "/", responde (fica "Enviando..." sem o
- * WhatsApp ligado no teste de tela) e resolve.
+ * WhatsApp ligado no teste de tela) e resolve. A conversa que o agente passou para a equipe (M8-06) mostra no alto o
+ * motivo e o resumo.
  */
 test.describe("caixa de conversas", () => {
   let pessoa: PessoaDeTeste;
@@ -36,8 +37,10 @@ test.describe("caixa de conversas", () => {
       [pessoa.empresaId, quem],
     );
     const conversa = await c.query<{ id: string }>(
-      `insert into conversas_com_contatos (empresa_id, canal_id, contato_id, identificador, situacao, ultimo_a_responder, ultima_mensagem_em)
-       values ($1, $2, $3, '+5511955554444', 'esperando_equipe', 'contato', now()) returning id`,
+      `insert into conversas_com_contatos (empresa_id, canal_id, contato_id, identificador, situacao, ultimo_a_responder, ultima_mensagem_em,
+                                           passada_em, motivo_da_passagem, resumo_da_passagem)
+       values ($1, $2, $3, '+5511955554444', 'esperando_equipe', 'contato', now(), now(), 'pediu_pessoa',
+               'A Carla quer saber se tem a peça 42.') returning id`,
       [pessoa.empresaId, canal.rows[0]?.id, contato.rows[0]?.id],
     );
     conversaId = conversa.rows[0]?.id as string;
@@ -71,6 +74,9 @@ test.describe("caixa de conversas", () => {
     await expect(page).toHaveURL(new RegExp(`/conversas/${conversaId}$`));
     const aberta = page.getByRole("region", { name: "Conversa aberta" });
     await expect(aberta.getByText("Vocês têm a peça 42?")).toBeVisible();
+    // A passagem para uma pessoa (M8-06): o motivo e o resumo do agente no alto.
+    await expect(aberta.getByText(/O agente passou para a equipe: o cliente pediu uma pessoa/)).toBeVisible();
+    await expect(aberta.getByText("A Carla quer saber se tem a peça 42.")).toBeVisible();
 
     await aberta.getByRole("button", { name: "Assumir" }).click();
     await expect(aberta.getByText("Conversa com você.")).toBeVisible();

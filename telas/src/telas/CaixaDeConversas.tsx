@@ -9,6 +9,7 @@ import type {
   ConversaComContato,
   FiltroDeConversas,
   MensagemDaConversa,
+  MotivoDaPassagem,
   RespostaPronta,
   ResumoDaConversa,
   SituacaoDeConversa,
@@ -37,6 +38,16 @@ import { Aviso } from "./Acesso";
 import { usePessoas } from "./Tarefas";
 
 type Mensagem = { tipo: "erro" | "ok"; texto: string } | null;
+
+/** Por que o agente passou a conversa (M8-06), como a equipe lê na faixa do alto. */
+const MOTIVOS_DA_PASSAGEM: Record<MotivoDaPassagem, string> = {
+  pediu_pessoa: "o cliente pediu uma pessoa",
+  irritado: "o cliente parece irritado",
+  repetiu: "o cliente repetiu a pergunta",
+  em_circulos: "a conversa não andava",
+  nao_soube: "o agente não soube responder",
+  assunto_do_canal: "o assunto vai sempre para uma pessoa",
+};
 
 const NOMES_DAS_SITUACOES: Record<SituacaoDeConversa, string> = {
   aberta: "Aberta",
@@ -826,6 +837,18 @@ function ConversaAberta({
           )}
           {c.canal.situacao === "desconectado" && (
             <p className="text-sm text-perigo">O número deste canal está desconectado.</p>
+          )}
+          {c.passagem && (
+            <div
+              className="grid gap-1 rounded-md border border-alerta/40 bg-alerta/10 p-3 text-sm"
+              role="status"
+            >
+              <p className="font-medium">
+                O agente passou para a equipe: {MOTIVOS_DA_PASSAGEM[c.passagem.motivo]}.
+                {c.passagem.escaladaEm ? " O gestor já foi avisado." : ""}
+              </p>
+              {c.passagem.resumo && <p className="whitespace-pre-wrap">{c.passagem.resumo}</p>}
+            </div>
           )}
         </div>
         <Button

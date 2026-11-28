@@ -183,6 +183,14 @@ export const CATALOGO_DE_ACOES: readonly AcaoDoCatalogo[] = [
     padraoExterno: null,
     soNaPropriaConversa: true,
   },
+  {
+    acao: "passar_para_uma_pessoa",
+    nome: "Passar a conversa com o cliente para uma pessoa",
+    mudaDados: true,
+    padraoInterno: "executa",
+    padraoExterno: null,
+    soNaPropriaConversa: true,
+  },
   // Conversas com contatos (M8-01, decisão 0051): só leitura, executa. As de ação (mandar mensagem a um contato pede
   // aprovação por padrão para os externos) entram na M8-11.
   {

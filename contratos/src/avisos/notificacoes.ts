@@ -98,6 +98,9 @@ export const AVISOS_URGENTES_NO_TELEGRAM = [
   "conversa_nova",
   "mensagem_na_conversa",
   "mencao_em_conversa",
+  // M8-06: o agente passou o cliente para uma pessoa, e ninguém assumiu no prazo (decisão 0056).
+  "conversa_precisa_de_pessoa",
+  "conversa_passou_do_prazo",
 ] as const satisfies readonly TipoDeAviso[];
 
 /**

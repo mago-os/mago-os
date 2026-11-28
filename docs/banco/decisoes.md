@@ -431,3 +431,11 @@ O login (`mago_acesso`) não lê papéis nem as regras da plataforma direto. As 
 - `conversas_com_contatos.resumo` guarda o resumo da conversa longa (escrito pelo agente) e `fora_do_horario_avisado_em` limita a mensagem de fora do horário a uma por período.
 - `sugestoes_de_resposta` guarda o que o agente sugere no modo "sugere", até uma pessoa enviar (sem ou com edição) ou descartar, com o gatilho do tempo real das conversas. Aviso novo: `agente_pronto_para_responder`.
 
+
+## 61. Passagem para uma pessoa (28/11/2026, M8-06)
+
+- `canais_de_contato` guarda os assuntos que sempre vão para uma pessoa (até 20), o prazo para assumir (padrão 10 minutos), a mensagem de passagem ao contato e se o agente sugere respostas quando uma pessoa atende ([decisão 0056](../decisoes/0056-passagem-para-humano.md)).
+- `conversas_com_contatos` guarda a passagem: quando, o motivo (da lista fixa) e o resumo do agente para a equipe (`[pessoal]`, nasce do texto do cliente e nunca vai no aviso), quando escalou ao gestor e `com_agente_desde`, que conta as respostas seguidas do agente (15 passam a conversa). Devolver ao agente limpa a passagem.
+- `execucoes_de_agente.tipo_de_atendimento` diz o que a execução faz: atender (nulo nas antigas), sugerir (uma pessoa atende) ou resumir (o sistema já passou a conversa). A que esperava na fila vira o tipo novo, menos quando é para atender.
+- `sugestoes_de_resposta.com_pessoa` marca a sugestão feita com uma pessoa na conversa: sai pela pessoa e não conta para a autonomia.
+- `empresas_com_passagens_vencidas()` (definer, só ids) alimenta a verificação a cada minuto do prazo. Avisos novos: `conversa_precisa_de_pessoa` e `conversa_passou_do_prazo`.

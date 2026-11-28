@@ -40,9 +40,12 @@ import {
 import {
   atendimentoNaoTerminou,
   conversaAindaComOAgente,
+  FERRAMENTAS_DO_ATENDIMENTO,
   instrucoesDoAtendimento,
   partesDoAtendimento,
   terminarAtendimento,
+  terminarComPassagem,
+  tipoDoAtendimento,
 } from "../conversas/atendimento.ts";
 import { conferirTetos, registrarConsumo } from "../custos/servico.ts";
 import { comEmpresa, comoRotina } from "../empresa.ts";
@@ -74,6 +77,7 @@ import {
   comentarComoAgente,
   executarFerramenta,
   ferramentasDoPapel,
+  type ResultadoDaFerramenta,
   responsavelDoContexto,
 } from "./ferramentas.ts";
 import { registrarPasso } from "./passos.ts";
@@ -388,13 +392,16 @@ async function rodar(o: OpcoesDoMotor, empresaId: string, execucaoId: string): P
     return;
   }
   const agente: AgenteQueRoda = { id: agenteBruto.id, nome: agenteBruto.nome, papel: agenteBruto.papel };
-  // Atendimento (M8-05): uma pessoa pode ter assumido a conversa enquanto a execução esperava na fila.
+  // Atendimento (M8-05): uma pessoa pode ter assumido a conversa enquanto a execução esperava na fila. O tipo
+  // (M8-06): atender, sugerir com uma pessoa na conversa, ou resumir depois da passagem.
+  const tipoNoAtendimento =
+    execucao.origem === "atendimento" ? await naEmpresa((c) => tipoDoAtendimento(c, execucaoId)) : "atender";
   if (execucao.origem === "atendimento") {
     const conversaDoCliente = execucao.conversaComContatoId;
     if (
       agente.papel !== "atendimento" ||
       !conversaDoCliente ||
-      !(await naEmpresa((c) => conversaAindaComOAgente(c, conversaDoCliente)))
+      !(await naEmpresa((c) => conversaAindaComOAgente(c, conversaDoCliente, tipoNoAtendimento)))
     ) {
       await naEmpresa((c) =>
         terminarExecucao(c, execucaoId, {
@@ -623,7 +630,12 @@ async function rodar(o: OpcoesDoMotor, empresaId: string, execucaoId: string): P
       `# Seu papel\n\n${
         execucao.origem === "atendimento" && execucao.conversaComContatoId
           ? await naEmpresa((c) =>
-              instrucoesDoAtendimento(c, execucao.conversaComContatoId as string, agente.nome),
+              instrucoesDoAtendimento(
+                c,
+                execucao.conversaComContatoId as string,
+                agente.nome,
+                tipoNoAtendimento,
+              ),
             )
           : instrucoesDoPapel(agente.papel, agente.nome, preparo.especialistas)
       }`,
@@ -635,7 +647,12 @@ async function rodar(o: OpcoesDoMotor, empresaId: string, execucaoId: string): P
           ]
         : []),
     ].join("\n\n");
-    const ferramentas = ferramentasDoPapel(agente.papel);
+    const ferramentas =
+      execucao.origem === "atendimento"
+        ? ferramentasDoPapel(agente.papel).filter((f) =>
+            FERRAMENTAS_DO_ATENDIMENTO[tipoNoAtendimento].includes(f.nome),
+          )
+        : ferramentasDoPapel(agente.papel);
     const inicio = Date.now();
     let modeloUsado: ModeloEscolhido | null = null;
     let reserva: string | null = reservaPorTeto;
@@ -1221,16 +1238,36 @@ async function finalizar(
   o: OpcoesDoMotor,
   empresaId: string,
   ctx: ContextoDaFerramenta,
-  fim: { tipo: "responder" | "perguntar"; texto: string; tarefas: string[]; resumo?: string | null },
+  fim: NonNullable<ResultadoDaFerramenta["fim"]>,
   avisarNaConversa: (texto: string, autor: "agente" | "sistema", tarefas?: string[]) => Promise<void>,
 ): Promise<void> {
   const e = ctx.execucao;
   // Atendimento (M8-05): a resposta vira sugestão (modo "sugere") ou sai para o cliente (modo "sozinho").
   if (e.origem === "atendimento" && e.conversaComContatoId) {
     const conversaDoCliente = e.conversaComContatoId;
-    const feito = await comEmpresa(o.poolApp, empresaId, (c) =>
-      terminarAtendimento(c, conversaDoCliente, ctx.agente.id, e.id, fim.texto, fim.resumo ?? null),
-    );
+    const passagem = fim.passagem;
+    const feito = await comEmpresa(o.poolApp, empresaId, async (c) => {
+      const tipo = await tipoDoAtendimento(c, e.id);
+      // A passagem para uma pessoa (M8-06): sai a mensagem de passagem, nada do agente.
+      if (passagem)
+        return {
+          ...(await terminarComPassagem(c, conversaDoCliente, tipo, passagem, ctx.agente.id, e.id)),
+          sugestaoId: null,
+          passou: true,
+        };
+      return {
+        ...(await terminarAtendimento(
+          c,
+          conversaDoCliente,
+          ctx.agente.id,
+          e.id,
+          fim.texto,
+          fim.resumo ?? null,
+          tipo,
+        )),
+        passou: false,
+      };
+    });
     if (feito.mensagemId) await o.enviarAoContato?.(empresaId, feito.mensagemId);
     await auditar(
       ctx.poolApp,
@@ -1246,6 +1283,7 @@ async function finalizar(
           origem: e.origem,
           sugeriu: !!feito.sugestaoId,
           enviou: !!feito.mensagemId,
+          passou: feito.passou,
         },
       },
       ctx.log,

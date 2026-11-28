@@ -53,6 +53,7 @@ import { registrarRotasDaCaixa } from "./conversas/caixa.ts";
 import { registrarRotasDosCanais, tratarAvisoDaEvolution } from "./conversas/canais.ts";
 import { cuidarDoPrazoDosArquivos, enviarPendente, registrarRotasDoEnvio } from "./conversas/envio.ts";
 import { type ClienteDaEvolution, criarClienteDaEvolution } from "./conversas/evolution.ts";
+import { cuidarDasPassagensVencidas } from "./conversas/passagem.ts";
 import { registrarRotasDasConversas } from "./conversas/rotas.ts";
 import { registrarRotasDosConvites } from "./convites/rotas.ts";
 import { registrarRotasDosCustos } from "./custos/index.ts";
@@ -122,6 +123,8 @@ const FILA_EVOLUTION = "evolution";
 const FILA_EVOLUTION_ENVIOS = "evolution-envios";
 /** O prazo de 180 dias dos arquivos das conversas (M8-03), uma vez por dia. */
 const FILA_PRAZO_DAS_CONVERSAS = "conversas-prazo";
+/** O prazo para assumir a conversa que o agente passou para a equipe (M8-06), a cada minuto. */
+const FILA_PASSAGENS_DAS_CONVERSAS = "conversas-passagens";
 const FILA_TELEGRAM_ENTREGAS = "telegram-entregas";
 
 /** O que a API recebe pronto de quem a monta. */
@@ -517,6 +520,21 @@ export async function montarApi(config: Config, deps: DependenciasDaApi): Promis
           },
         );
       });
+    // O prazo da passagem para uma pessoa (M8-06): sem ninguém assumir, o gestor é avisado.
+    trabalhos.push(async () => {
+      await fila.createQueue(FILA_PASSAGENS_DAS_CONVERSAS);
+      await fila.schedule(FILA_PASSAGENS_DAS_CONVERSAS, "* * * * *");
+      await fila.work(FILA_PASSAGENS_DAS_CONVERSAS, () =>
+        continuarRastreio(null, FILA_PASSAGENS_DAS_CONVERSAS, async () => {
+          const n = await cuidarDasPassagensVencidas(banco.pool);
+          if (n > 0)
+            app.log.info(
+              { evento: "conversas.passagens_vencidas", n },
+              "Conversas passadas sem ninguém assumir: gestor avisado",
+            );
+        }),
+      );
+    });
     if (servicosDosAnexos)
       trabalhos.push(async () => {
         await fila.createQueue(FILA_PRAZO_DAS_CONVERSAS);

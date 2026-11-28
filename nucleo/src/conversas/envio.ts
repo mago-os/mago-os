@@ -590,8 +590,8 @@ export function registrarRotasDoEnvio(app: FastifyInstance, o: OpcoesDasRotasDoE
         const feito = await naEmpresa(pedido, async (c) => {
           const conversa = await buscarConversa(c, [olha(pedido, "criar")], id, true);
           if (!conversa) return null;
-          const s = await c.query<{ texto: string; agente_id: string | null }>(
-            `select texto, agente_id from sugestoes_de_resposta
+          const s = await c.query<{ texto: string; agente_id: string | null; com_pessoa: boolean }>(
+            `select texto, agente_id, com_pessoa from sugestoes_de_resposta
               where id = $1 and conversa_id = $2 and empresa_id = empresa_ativa() and situacao = 'pendente' for update`,
             [/^[0-9a-f-]{36}$/i.test(sugestaoId) ? sugestaoId : null, id],
           );
@@ -599,13 +599,14 @@ export function registrarRotasDoEnvio(app: FastifyInstance, o: OpcoesDasRotasDoE
           if (!sugestao) throw new RecusaDasConversas("Essa sugestão já foi usada ou descartada.");
           const texto = r.valor.texto?.trim() || sugestao.texto;
           const editada = texto !== sugestao.texto;
-          // Sem edição, vai como o agente escreveu (autor: o agente); editada, a pessoa é a autora.
+          // Sem edição, vai como o agente escreveu (autor: o agente); editada, a pessoa é a autora. Com uma pessoa
+          // na conversa (M8-06), a pessoa é sempre a autora e a sugestão não conta para a autonomia.
           const mensagemId = await criarMensagemQueSai(
             o,
             c,
             sessao.empresaId,
             conversa,
-            !editada && sugestao.agente_id
+            !editada && sugestao.agente_id && !sugestao.com_pessoa
               ? { agenteId: sugestao.agente_id }
               : { pessoaId: sessao.pessoa.id },
             { texto },
@@ -615,7 +616,7 @@ export function registrarRotasDoEnvio(app: FastifyInstance, o: OpcoesDasRotasDoE
               where id = $1 and empresa_id = empresa_ativa()`,
             [sugestaoId, editada ? "editada" : "enviada", sessao.pessoa.id, mensagemId],
           );
-          if (!editada) await contarSugestaoSemEdicao(c, conversa.canal.id);
+          if (!editada && !sugestao.com_pessoa) await contarSugestaoSemEdicao(c, conversa.canal.id);
           return { mensagemId, editada };
         });
         if (!feito) return naoEncontrada(resposta);

@@ -324,6 +324,7 @@ describe.skipIf(!bancoDisponivel)("agente na conversa com o cliente", () => {
       [
         "completar_cliente",
         "criar_tarefa_para_a_equipe",
+        "passar_para_uma_pessoa",
         "responder_ao_cliente",
         "ver_ficha_do_cliente",
       ].sort(),
@@ -531,7 +532,7 @@ describe.skipIf(!bancoDisponivel)("agente na conversa com o cliente", () => {
   });
 
   it("quem assume silencia o agente; e em 'só pessoas' ele não roda", async () => {
-    const r = await clienteEscreve("Quero falar com alguém", "5551922221111", "Fê");
+    const r = await clienteEscreve("Tudo certo por aí?", "5551922221111", "Fê");
     await pedir("POST", `/conversas-com-contatos/${r.conversaId}/assumir`, "ana@teste.invalid");
     roteiro = [responde("Isto não pode sair")];
     await rodarFila();

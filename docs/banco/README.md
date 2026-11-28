@@ -205,6 +205,10 @@ erDiagram
     integer limite_de_autonomia
     integer sugestoes_sem_edicao
     timestamp_with_time_zone autonomia_avisada_em
+    text[] assuntos_para_pessoas
+    integer prazo_para_assumir
+    text mensagem_de_passagem
+    boolean sugerir_com_pessoa
   }
   chaves_de_agente {
     uuid id PK
@@ -384,6 +388,11 @@ erDiagram
     timestamp_with_time_zone avisado_em
     text resumo
     timestamp_with_time_zone fora_do_horario_avisado_em
+    timestamp_with_time_zone passada_em
+    text motivo_da_passagem
+    text resumo_da_passagem
+    timestamp_with_time_zone escalada_em
+    timestamp_with_time_zone com_agente_desde
   }
   empresas {
     uuid id PK
@@ -510,6 +519,7 @@ erDiagram
     boolean leu_texto_de_outros
     uuid parada_id
     uuid conversa_com_contato_id
+    text tipo_de_atendimento
   }
   execucoes_de_rotina {
     uuid id PK
@@ -805,6 +815,7 @@ erDiagram
     uuid decidida_por
     timestamp_with_time_zone decidida_em
     uuid mensagem_id
+    boolean com_pessoa
   }
   tarefas {
     uuid id PK
@@ -1491,6 +1502,10 @@ Isolamento por empresa (Row Level Security): ligado e forçado.
 | limite_de_autonomia | integer | sim | `20` | empresa | Sugestões enviadas sem edição até o administrador ser avisado de que o agente pode responder sozinho. |
 | sugestoes_sem_edicao | integer | sim | `0` | sistema | Sugestões do agente enviadas sem edição. |
 | autonomia_avisada_em | timestamp with time zone | não |  | sistema | Quando o administrador foi avisado da autonomia. |
+| assuntos_para_pessoas | text[] | sim | `'{}'::text[]` | empresa | Assuntos que sempre vão para uma pessoa (ex.: desconto, jurídico), até 20. |
+| prazo_para_assumir | integer | sim | `10` | empresa | Minutos para alguém assumir a conversa passada pelo agente antes de o gestor ser avisado. |
+| mensagem_de_passagem | text | sim | `'Vou chamar uma pessoa da nossa equipe para continuar com você. Só um instante.'::text` | empresa | O texto que sai ao contato quando o agente passa a conversa para uma pessoa. |
+| sugerir_com_pessoa | boolean | sim | `true` | empresa | Com uma pessoa na conversa, o agente escreve sugestões de resposta na caixa. |
 
 ### chaves_de_agente
 
@@ -1775,6 +1790,11 @@ Isolamento por empresa (Row Level Security): ligado e forçado.
 | avisado_em | timestamp with time zone | não |  | sistema | O último aviso de mensagem nova ao dono (no máximo um a cada 5 minutos). |
 | resumo | text | não |  | pessoal | Resumo da conversa longa, para o agente (M8-05). |
 | fora_do_horario_avisado_em | timestamp with time zone | não |  | sistema | Quando a mensagem de fora do horário saiu nesta conversa (uma vez por período fechado). |
+| passada_em | timestamp with time zone | não |  | sistema | Quando o agente passou a conversa para uma pessoa (M8-06); nula sem passagem ou depois de devolver. |
+| motivo_da_passagem | text | não |  | sistema | Por que o agente passou a conversa. |
+| resumo_da_passagem | text | não |  | pessoal | O resumo do agente para a equipe: o que o contato quer e o que já foi dito. |
+| escalada_em | timestamp with time zone | não |  | sistema | Quando o gestor foi avisado de que ninguém assumiu no prazo. |
+| com_agente_desde | timestamp with time zone | sim | `now()` | sistema | Desde quando a conversa está com o agente (conta as respostas seguidas dele). |
 
 ### empresas
 
@@ -1971,6 +1991,7 @@ Isolamento por empresa (Row Level Security): ligado e forçado.
 | leu_texto_de_outros | boolean | sim | `false` | sistema | Leu texto de outra pessoa ou de agente externo: o que muda dados pede aprovação (M4-04). |
 | parada_id | uuid | não |  | sistema | A parada que interrompeu a execução no meio (a tarefa volta à fila ao retomar). |
 | conversa_com_contato_id | uuid | não |  | sistema | No atendimento (M8-05): a conversa com o contato que o agente atende. |
+| tipo_de_atendimento | text | não |  | sistema | No atendimento: atender (nulo também), sugerir (uma pessoa atende) ou resumir (a passagem, M8-06). |
 
 ### execucoes_de_rotina
 
@@ -2448,6 +2469,7 @@ Isolamento por empresa (Row Level Security): ligado e forçado.
 | decidida_por | uuid | não |  | sistema | Quem enviou ou descartou. |
 | decidida_em | timestamp with time zone | não |  | sistema | Quando. |
 | mensagem_id | uuid | não |  | sistema | A mensagem que saiu da sugestão. |
+| com_pessoa | boolean | sim | `false` | sistema | Feita com uma pessoa na conversa: sai pela pessoa e não conta para a autonomia (M8-06). |
 
 ### tarefas
 
