@@ -287,6 +287,21 @@ export async function cuidarDasAprovacoesNoWhatsapp(
 }
 
 /**
+ * O modelo de um aviso fora da janela: a tarefa nova vai pelo tarefa_atribuida e o prazo (de hoje ou vencido) pelo
+ * lembrete_de_tarefa, com o primeiro nome e o título da tarefa; o resto, pelo aviso_do_mago_os, com o texto do aviso.
+ */
+export function modeloDoAviso(
+  a: { tipo: TipoDeAviso; texto: string; titulo: string | null },
+  nome: string,
+): { nome: string; valores: string[] } {
+  if (a.titulo && a.tipo === "tarefa_atribuida")
+    return { nome: MODELOS_DO_WHATSAPP.tarefaAtribuida, valores: [nome, a.titulo.slice(0, 200)] };
+  if (a.titulo && (a.tipo === "prazo_hoje" || a.tipo === "prazo_vencido"))
+    return { nome: MODELOS_DO_WHATSAPP.lembreteDeTarefa, valores: [nome, a.titulo.slice(0, 200)] };
+  return { nome: MODELOS_DO_WHATSAPP.aviso, valores: [nome, a.texto.slice(0, 200)] };
+}
+
+/**
  * Os avisos marcados de uma empresa, a quem tem o WhatsApp nela e o tipo ligado no WhatsApp (o padrão é o urgente,
  * como no Telegram). No silêncio, espera; depois de 12 horas, desiste. Dentro da janela, como texto; fora, pelo modelo
  * aviso_do_mago_os, até 10 por pessoa por dia. A marca sai antes de mandar: nada vai duas vezes.
@@ -317,15 +332,18 @@ export async function avisarNoWhatsapp(o: Opcoes, empresaId: string, agora = new
          join pessoas p on p.id = a.pessoa_id
         where a.empresa_id = empresa_ativa() and a.whatsapp_pendente`,
     );
-    const saida: { numero: string; texto: string; modelo: string[] | null }[] = [];
+    const saida: { numero: string; texto: string; modelo: { nome: string; valores: string[] } | null }[] = [];
     for (const pessoa of pessoas.rows) {
       const prefs = await preferenciasDe(c, pessoa.pessoa_id);
       if (emSilencio(prefs.silencio, agoraNoFuso(pessoa.fuso, agora).hora)) continue;
-      const avisos = await c.query<{ tipo: TipoDeAviso; texto: string; link: string }>(
-        `update avisos set whatsapp_pendente = false
-          where id in (select id from avisos where empresa_id = empresa_ativa() and pessoa_id = $1 and whatsapp_pendente
-                        order by criado_em limit 20 for update skip locked)
-          returning tipo, texto, link`,
+      const avisos = await c.query<{ tipo: TipoDeAviso; texto: string; link: string; titulo: string | null }>(
+        `with marcados as (
+           update avisos set whatsapp_pendente = false
+            where id in (select id from avisos where empresa_id = empresa_ativa() and pessoa_id = $1 and whatsapp_pendente
+                          order by criado_em limit 20 for update skip locked)
+            returning tipo, texto, link, tarefa_id, empresa_id)
+         select m.tipo, m.texto, m.link, t.titulo
+           from marcados m left join tarefas t on t.id = m.tarefa_id and t.empresa_id = m.empresa_id`,
         [pessoa.pessoa_id],
       );
       for (const a of avisos.rows) {
@@ -340,7 +358,7 @@ export async function avisarNoWhatsapp(o: Opcoes, empresaId: string, agora = new
           saida.push({
             numero: pessoa.numero,
             texto: "",
-            modelo: [primeiroNome(pessoa.nome), a.texto.slice(0, 200)],
+            modelo: modeloDoAviso(a, primeiroNome(pessoa.nome)),
           });
       }
     }
@@ -349,7 +367,7 @@ export async function avisarNoWhatsapp(o: Opcoes, empresaId: string, agora = new
   let enviados = 0;
   for (const e of envios) {
     const envio = e.modelo
-      ? o.carteiro.enviarModelo(e.numero, MODELOS_DO_WHATSAPP.aviso, e.modelo)
+      ? o.carteiro.enviarModelo(e.numero, e.modelo.nome, e.modelo.valores)
       : o.carteiro.enviarTexto(e.numero, e.texto);
     await envio
       .then(() => {

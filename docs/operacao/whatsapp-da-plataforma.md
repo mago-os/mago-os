@@ -8,7 +8,11 @@ O número oficial do Mago OS faz pela equipe o mesmo que o bot do Telegram: vinc
 - **Número de teste:** +1 555 153-6171 (id do número 1587526754433555, conta do WhatsApp 28973061455709377).
 - **Usuário do sistema:** `magoos-teste`, criado em 28/11/2026 com a função **Funcionário (Employee)**, porque o portfólio só pode ter um usuário do sistema Admin e esse lugar já está ocupado. Ele tem acesso total ao app Mago OS e à conta do WhatsApp 28973061455709377. O token dele não vence e tem só as permissões `whatsapp_business_messaging` e `whatsapp_business_management`.
 - **Destinatários de teste:** até 5 números, em WhatsApp › Configuração da API › "Para".
-- **Modelos (Utilidade, pt_BR):** `aviso_do_mago_os` (o aviso urgente e o pedido de aprovação fora da janela de 24 horas, com o primeiro nome e o texto do aviso), `tarefa_atribuida` e `lembrete_de_tarefa`. Modelo novo só com o ok do Sandro.
+- **Modelos (Utilidade, pt_BR):** cada um com {{1}} = o primeiro nome da pessoa e {{2}} = o título da tarefa ou o texto do aviso. Modelo novo só com o ok do Sandro.
+  - `aviso_do_mago_os`: "Olá, {{1}}. Há um aviso no Mago OS: {{2}}. Responda aqui para ver os detalhes." (os avisos urgentes e o pedido de aprovação fora da janela de 24 horas).
+  - `tarefa_atribuida`: "Olá, {{1}}. Você recebeu a tarefa "{{2}}" no Mago OS. Abra o Mago OS para ver os detalhes." (a tarefa nova).
+  - `lembrete_de_tarefa`: "Olá, {{1}}. A tarefa "{{2}}" vence hoje. Abra o Mago OS para ver os detalhes." (o prazo de hoje ou vencido).
+  - O corpo leva só o texto com as variáveis; os exemplos vão nos campos de exemplo. Em 28/11/2026, os dois últimos estavam com os exemplos dentro do corpo (e o lembrete como Marketing) e precisavam de correção.
 - **Webhook:** `https://teste.osmago.com/api/whatsapp/webhook`, com o campo `messages` assinado. O app tem um endereço só; a produção vai precisar de um app próprio ou de mudar o endereço.
 
 ## Segredos (Infisical, projeto mago-os, ambiente staging)

@@ -32,6 +32,7 @@ import {
   carteiroFalsoDaMeta,
   cuidarDasAprovacoesNoWhatsapp,
   entregarNoWhatsapp,
+  modeloDoAviso,
   type OpcoesDoWhatsapp,
   registrarRotasDoWhatsapp,
   resumoDoDiaNoWhatsapp,
@@ -513,6 +514,23 @@ describe.skipIf(!bancoDisponivel)("WhatsApp da plataforma", () => {
     expect(modelos[0]?.modelo).toEqual({
       nome: "aviso_do_mago_os",
       valores: ["Flora", expect.stringMatching(/^Menção \d+$/)],
+    });
+  });
+
+  it("fora da janela, a tarefa nova e o prazo vão pelos modelos próprios, com o nome e o título", () => {
+    expect(
+      modeloDoAviso({ tipo: "tarefa_atribuida", texto: "x", titulo: "Revisar o contrato" }, "Bruno"),
+    ).toEqual({
+      nome: "tarefa_atribuida",
+      valores: ["Bruno", "Revisar o contrato"],
+    });
+    expect(modeloDoAviso({ tipo: "prazo_vencido", texto: "x", titulo: "Enviar a proposta" }, "Ana")).toEqual({
+      nome: "lembrete_de_tarefa",
+      valores: ["Ana", "Enviar a proposta"],
+    });
+    expect(modeloDoAviso({ tipo: "mencao", texto: "Chamaram você", titulo: null }, "Ana")).toEqual({
+      nome: "aviso_do_mago_os",
+      valores: ["Ana", "Chamaram você"],
     });
   });
 
